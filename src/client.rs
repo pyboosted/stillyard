@@ -7,7 +7,9 @@ use std::time::{Duration, Instant};
 use directories::ProjectDirs;
 use sha2::{Digest, Sha256};
 
-use crate::protocol::{PROTOCOL_VERSION, Request, Response, read_frame, write_frame};
+use crate::protocol::{PROTOCOL_VERSION, Request, Response};
+#[cfg(windows)]
+use crate::protocol::{read_frame, write_frame};
 use crate::{
     CancellationToken, DaemonSnapshot, Error, JobId, JobReceipt, JobSnapshot, JobSpec, LogChunk,
     LogStream, RecoveryResult, Result, SubmitOptions,

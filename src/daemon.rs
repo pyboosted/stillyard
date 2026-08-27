@@ -2,8 +2,12 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use fs2::FileExt;
 
-use crate::client::{DEFAULT_PIPE_NAME, default_store_root};
-use crate::protocol::{PROTOCOL_VERSION, Request, Response, read_frame, write_frame};
+use crate::client::default_store_root;
+#[cfg(windows)]
+use crate::client::DEFAULT_PIPE_NAME;
+use crate::protocol::{PROTOCOL_VERSION, Request, Response};
+#[cfg(windows)]
+use crate::protocol::{read_frame, write_frame};
 use crate::store::{Store, StoreError, StorePaths, open_lock};
 use crate::{Error, Result};
 
