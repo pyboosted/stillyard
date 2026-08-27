@@ -29,11 +29,15 @@ The motivating agent-orchestration consumer and its boundary are documented in [
 - one `stillyard` CLI binary plus the public generated schema;
 - atomic Batch submission with acyclic success/failure/terminal dependencies;
 - one non-preemptive Lease scheduler for CPU, RAM, cargo/GPU slots, custom scalars, and stable shared/exclusive path fences;
-- immediate blockers, deterministic queue rank, and honest estimated/lower-bound/unknown start estimates.
+- immediate blockers, deterministic queue rank, and honest estimated-or-unknown start estimates.
 
-This slice deliberately accepts EOF-stdin, single-attempt jobs without Conditions, quiet policies, impacts, profiles, secrets, or artifacts. Cancel/drain, retention/events, and `watch` are still baseline work. Specs declaring an unimplemented policy reject rather than run unenforced. Linux remains the v0.2 target.
+This slice deliberately accepts EOF-stdin, single-attempt jobs without Conditions, quiet policies, impacts, profiles, secrets, or artifacts. Priority, aging, finite-held reservations, and a host-wide default concurrency cap are also later scheduler work; callers should declare a scalar or fence for every bounded kind of work rather than submit an unbounded fleet of zero-claim jobs. Cancel/drain, retention/events, and `watch` are still baseline work. Specs declaring an unimplemented policy reject rather than run unenforced. Linux remains the v0.2 target.
 
 The tests cover the increment-2a portions of acceptance rows A-03, A-04, and A-06. Those rows are not claimed complete until retries, observed RAM/VRAM freshness, and external Conditions arrive in the following slice.
+
+An uncertain Containment deliberately retains its real Lease after restart. Until the audited `doctor clear-containment` flow ships, that capacity remains unavailable; moving or editing individual store files is not a supported recovery path.
+
+Stillyard is still greenfield. Before the first stable release it has one current SQLite schema epoch and no database migrations: when that epoch or the required schema does not match, daemon startup silently replaces the database and creates a new store identity. The reset is deliberately all-or-nothing and does not delete `config.json` or canonical log files. Old job IDs, cursors, result files, and idempotency history are not recoverable across it.
 
 ## Resource configuration
 

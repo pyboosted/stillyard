@@ -74,6 +74,7 @@ pub enum EstimateConfidence {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 #[serde(deny_unknown_fields)]
 pub struct Estimate {
     pub confidence: EstimateConfidence,
@@ -94,6 +95,7 @@ impl Estimate {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 #[serde(deny_unknown_fields)]
 pub struct Blocker {
     pub code: String,
@@ -101,6 +103,7 @@ pub struct Blocker {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 #[serde(deny_unknown_fields)]
 pub struct JobReceipt {
     pub submission_id: SubmissionId,
@@ -114,6 +117,7 @@ pub struct JobReceipt {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 #[serde(deny_unknown_fields)]
 pub struct BatchJobReceipt {
     pub name: String,
@@ -121,6 +125,7 @@ pub struct BatchJobReceipt {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 #[serde(deny_unknown_fields)]
 pub struct BatchReceipt {
     pub submission_id: SubmissionId,
@@ -130,6 +135,7 @@ pub struct BatchReceipt {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 #[serde(deny_unknown_fields)]
 pub struct JobSnapshot {
     pub job_id: JobId,
@@ -179,6 +185,7 @@ pub enum LogStream {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 #[serde(deny_unknown_fields)]
 pub struct LogChunk {
     pub job_id: JobId,
@@ -191,6 +198,7 @@ pub struct LogChunk {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 #[serde(deny_unknown_fields)]
 pub struct DaemonSnapshot {
     pub store_uuid: Uuid,

@@ -66,7 +66,7 @@ R-DOM-4 Durable Job dependencies and authenticated parent-child relationships fo
 
 R-STORE-1 One fixed per-user directory contains one SQLite database and versioned subdirectories for staged inputs and canonical logs. The database holds every entity, normalized specification, dependency, idempotency record, resource decision, committed log offset, event, and retention decision. Clients never open it.
 
-R-STORE-2 The daemon MUST enable SQLite foreign-key checks, use a documented crash-safe journal/synchronous configuration, and express each cross-entity decision in one transaction. Schema migration is versioned, transactional where SQLite permits it, and completed before admission. Unsupported or corrupt schema enters read-only diagnosis rather than silent recreation.
+R-STORE-2 The daemon MUST enable SQLite foreign-key checks, use a documented crash-safe journal/synchronous configuration, and express each cross-entity decision in one transaction. Before the first stable release, the SQLite store has exactly one current schema epoch and no migration chain. While holding the daemon singleton lock, startup MUST silently delete only the SQLite database and its SQLite sidecars and create a fresh store when the schema epoch is absent or different, required schema validation fails, or the database is corrupt. Configuration and canonical log files are not part of that reset. Changing the current schema epoch is therefore an explicitly destructive development operation.
 
 R-STORE-3 Large stdin snapshots, staged files, stdout, and stderr live in ordinary files rather than SQLite blobs. The daemon writes and flushes a staged blob or log range before the SQLite transaction that references its hash/length/offset; it never acknowledges the reference in the opposite order. Recovery collects unreferenced staged files, ignores or truncates an uncommitted log tail, and reports a committed missing or corrupt range as an explicit Gap.
 
@@ -74,7 +74,7 @@ R-STORE-4 Product v0.1 supports only the fixed store on local fixed NTFS. Result
 
 R-STORE-5 Retention has finite configurable limits for Jobs, rejected Submissions, events, logs, staged inputs, and cleared Containments. Live Jobs, active Submissions, current Attempts, creating/live/uncertain Containments, membership of a retained Batch, and idempotency records for retained Jobs cannot be evicted. Every Submission decision and idempotency record scoped to a current managed parent Attempt is retained until that Attempt settles. When history may have expired, recovery returns `unknown`; it never automatically resubmits.
 
-R-STORE-6 The store UUID appears in every durable public ID and cursor. A foreign ID/cursor rejects. Store identity failure has one recoverable remediation: stop the daemon and move the complete store directory aside; Stillyard never deletes or reconstructs selected internal files.
+R-STORE-6 The store UUID appears in every durable public ID and cursor. A foreign ID/cursor rejects. Every R-STORE-2 reset creates a new store UUID, so IDs, cursors, result files, and idempotency history from the discarded database become foreign or unknown and MUST NOT cause automatic resubmission. Stillyard never tries to preserve or reconstruct selected rows from an incompatible store.
 
 ## 6. Submission, batches, and idempotency
 
@@ -254,7 +254,7 @@ Acceptance uses the shipped public crate and CLI path. Each row includes a negat
 | A-14 | Drain starts no independent work after its cutoff, permits already-accepted work needed by an active managed wait to finish, rejects later managed children, and preserves the remaining queue; force interrupts only live work; plain cancel leaves independent children while cascade reaches selected children/successors; restart resumes queue. Drain-blocks-required-child and force-cancels-independent-queue mutants fail. |
 | A-15 | Clean profiles, locked variables, staged stdin, named secrets, injected IDs, executable identity, same-path ordinary-file self-update, artifacts, and redaction work through public APIs. Ambient-environment-inheritance, same-path-update-rejected, and reparse-image-accepted mutants fail. |
 | A-16 | CLI/TUI import only the public crate, detach safely, recover from event Gap, show logs and Containment, and use bounded memory. A private-store-read mutant fails. |
-| A-17 | SQLite/file fault injection at every commit/log publication boundary produces a valid prior/new state or explicit diagnosis/Gap. The report states the physical-power-loss boundary. A silent-store-recreate mutant fails. |
+| A-17 | SQLite/file fault injection at every commit/log publication boundary produces a valid prior/new state or explicit diagnosis/Gap. The report states the physical-power-loss boundary. An epoch mismatch, missing required schema, invalid store identity, or corrupt database atomically selects whole-database reset on the next singleton-daemon start, creates a new store UUID, preserves config/logs, and never imports old rows. Partial-preservation, migration, stale-ID-reuse, and reset-without-singleton-lock mutants fail. |
 | A-18 | Consumer fleet submits parallel reviewers as a Batch, gates later rounds on results/reset Jobs, runs nested cargo/GPU spikes without ancestor conflicts, replays the same managed operation after authenticated `not_received` but never after `unknown`, and collects logs/artifacts. Reset replaces slot contents while preserving the fenced root identity; the later reviewer depends on reset success and takes the same fence. Duplicate-spike, resubmit-after-evicted-history, recreated-reset-root, and reset-before-containment-clear mutants fail. |
 | A-19 | Five-minute idle measurement uses event waits, no helper process, below 0.5% of one logical CPU, at most two wakes/minute, and below 40 MiB private working set excluding mapped SQLite pages. A polling mutant fails. |
 | A-20 | Linux v0.2 independently passes platform-neutral and native containment/identity/detach scenarios, including same-path executable replacement with actual-target provenance and rejection of a non-`execve`-able target. Process-group-only-containment and stale-executable-provenance mutants fail. |
@@ -263,7 +263,7 @@ Acceptance uses the shipped public crate and CLI path. Each row includes a negat
 
 Product v0.1 — Windows:
 
-1. Public crate types, schema, local protocol, singleton daemon, SQLite schema/migrations, Submission idempotency, and lifecycle tests.
+1. Public crate types, schema, local protocol, singleton daemon, current SQLite schema epoch/reset, Submission idempotency, and lifecycle tests.
 2. Job/Batch DAG, Conditions, Lease scheduler, estimates, environment profiles, staged input, logs, and events.
 3. Windows Containment, timeout/cancel/drain/force, recovery, uncertain cleanup, nested children, and quiet admission.
 4. CLI/TUI parity, consumer-fleet acceptance, security review, fault injection, performance evidence, and packaging.

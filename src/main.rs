@@ -315,7 +315,10 @@ fn error_exit_code(error: &(dyn std::error::Error + 'static)) -> i32 {
             stillyard::Error::InvalidSpec(_) => 64,
             stillyard::Error::Unavailable(_) | stillyard::Error::UnsupportedPlatform(_) => 69,
             stillyard::Error::DeadlineElapsed | stillyard::Error::Canceled => 25,
-            stillyard::Error::Protocol(message) if message.starts_with("idempotency_conflict:") => {
+            stillyard::Error::Protocol(message)
+                if message.starts_with("idempotency_conflict:")
+                    || message.starts_with("rejected:") =>
+            {
                 27
             }
             _ => 70,

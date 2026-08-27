@@ -15,6 +15,11 @@ use crate::{
     SubmissionState,
 };
 
+// Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
+// the current schema changes; daemon startup will replace the whole SQLite database.
+const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-2026-08-27";
+
+#[derive(Clone)]
 pub(crate) struct StorePaths {
     pub(crate) root: PathBuf,
     pub(crate) database: PathBuf,
@@ -68,6 +73,8 @@ pub(crate) enum StoreError {
     NotFound(String),
     #[error("idempotency conflict")]
     IdempotencyConflict,
+    #[error("submission rejected: {0}")]
+    Rejected(String),
     #[error("invalid specification: {0}")]
     InvalidSpec(String),
     #[error("invalid durable state: {0}")]
@@ -97,6 +104,17 @@ pub(crate) struct PreparedJob {
     pub(crate) stderr_path: PathBuf,
 }
 
+pub(crate) struct PrepareNext {
+    pub(crate) job: Option<PreparedJob>,
+    pub(crate) state_changed: bool,
+}
+
+enum PrepareJob {
+    Ready(Box<PreparedJob>),
+    Blocked,
+    Skipped,
+}
+
 pub(crate) struct Store {
     connection: Connection,
     pub(crate) paths: StorePaths,
@@ -115,44 +133,52 @@ impl Store {
         capacities: ResourceCapacities,
     ) -> StoreResult<Self> {
         paths.ensure()?;
-        let database_existed = paths.database.exists();
-        let connection = Connection::open(&paths.database)?;
-        connection.execute_batch(
-            "PRAGMA foreign_keys = ON;
-             PRAGMA journal_mode = WAL;
-             PRAGMA synchronous = FULL;
-             PRAGMA busy_timeout = 5000;",
-        )?;
-        migrate(&connection)?;
-        let store_uuid = match connection
-            .query_row(
-                "SELECT value FROM meta WHERE key = 'store_uuid'",
-                [],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()?
-        {
-            Some(value) => Uuid::parse_str(&value).map_err(|_| {
-                StoreError::InvalidState(
-                    "existing store has an invalid store_uuid; move the complete store directory aside before recovery"
-                        .into(),
-                )
-            })?,
-            None => {
-                if database_existed {
-                    return Err(StoreError::InvalidState(
-                        "existing store has no store_uuid; move the complete store directory aside before recovery"
-                            .into(),
-                    ));
-                }
-                let value = Uuid::now_v7();
-                connection.execute(
-                    "INSERT INTO meta(key, value) VALUES ('store_uuid', ?1)",
-                    [value.to_string()],
-                )?;
-                value
+        let database_existed = paths.database.try_exists()?;
+        if !database_existed {
+            // A crash may have left sidecars without a main database file.
+            reset_database_files(&paths)?;
+            return Self::open_fresh(paths, capacities);
+        }
+
+        let connection = match Connection::open(&paths.database) {
+            Ok(connection) => connection,
+            Err(error) if is_database_corruption(&error) => {
+                reset_database_files(&paths)?;
+                return Self::open_fresh(paths, capacities);
             }
+            Err(error) => return Err(error.into()),
         };
+        connection.busy_timeout(std::time::Duration::from_secs(5))?;
+        if !schema_is_current(&connection)? {
+            drop(connection);
+            reset_database_files(&paths)?;
+            return Self::open_fresh(paths, capacities);
+        }
+
+        match Self::finish_open(connection, paths.clone(), capacities.clone()) {
+            Ok(store) => Ok(store),
+            Err(StoreError::Sqlite(error)) if is_database_corruption(&error) => {
+                reset_database_files(&paths)?;
+                Self::open_fresh(paths, capacities)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    fn open_fresh(paths: StorePaths, capacities: ResourceCapacities) -> StoreResult<Self> {
+        let connection = Connection::open(&paths.database)?;
+        configure_database(&connection)?;
+        create_current_schema(&connection, Uuid::now_v7())?;
+        Self::finish_open(connection, paths, capacities)
+    }
+
+    fn finish_open(
+        connection: Connection,
+        paths: StorePaths,
+        capacities: ResourceCapacities,
+    ) -> StoreResult<Self> {
+        configure_database(&connection)?;
+        let store_uuid = current_store_uuid(&connection)?;
         let mut store = Self {
             connection,
             paths,
@@ -229,6 +255,11 @@ impl Store {
                     SubmissionId::from_parts(self.store_uuid, Uuid::parse_str(&submission_id)?),
                     &durable_spec,
                 );
+            }
+            if state == "rejected" {
+                return Err(StoreError::Rejected(
+                    "the retained submission decision is rejected".into(),
+                ));
             }
             return Err(StoreError::InvalidState(format!(
                 "terminal submission state {state} cannot be replaced"
@@ -308,6 +339,11 @@ impl Store {
                 let durable: BatchSpec = serde_json::from_str(&spec_json)?;
                 return self.accept_received_batch(submission_id, &durable);
             }
+            if state == "rejected" {
+                return Err(StoreError::Rejected(
+                    "the retained submission decision is rejected".into(),
+                ));
+            }
             return Err(StoreError::InvalidState(format!(
                 "terminal submission state {state} cannot be replaced"
             )));
@@ -353,7 +389,7 @@ impl Store {
             Ok(jobs) => jobs,
             Err(error) => {
                 self.reject_received(submission_id)?;
-                return Err(error);
+                return Err(StoreError::Rejected(error.to_string()));
             }
         };
         let names: std::collections::HashMap<_, _> = spec
@@ -417,7 +453,12 @@ impl Store {
         }
         for (member, (successor, _)) in spec.jobs.iter().zip(&jobs) {
             for dependency in &member.dependencies {
-                let predecessor = names[dependency.job.as_str()];
+                let predecessor = names.get(dependency.job.as_str()).copied().ok_or_else(|| {
+                    StoreError::InvalidState(format!(
+                        "retained batch member {} has unknown predecessor {}",
+                        member.name, dependency.job
+                    ))
+                })?;
                 transaction.execute(
                     "INSERT INTO dependencies(predecessor_id, successor_id, kind)
                      VALUES (?1, ?2, ?3)",
@@ -561,7 +602,7 @@ impl Store {
             Ok(claims) => claims,
             Err(error) => {
                 self.reject_received(submission_id)?;
-                return Err(StoreError::InvalidSpec(error.to_string()));
+                return Err(StoreError::Rejected(error.to_string()));
             }
         };
         let accepted_ms = now_millis();
@@ -765,8 +806,28 @@ impl Store {
                 "a configured-capacity or impossible-dependency blocker has no time estimate",
             ));
         }
+        if blockers
+            .iter()
+            .any(|blocker| blocker.code == "dependency_pending")
+        {
+            return Ok(Estimate::unknown(
+                "dependency completion is not estimated without walking its full predecessor closure",
+            ));
+        }
+        let claims_json: String = self.connection.query_row(
+            "SELECT claims_json FROM jobs WHERE id = ?1",
+            [self.local_id(job_id)?],
+            |row| row.get(0),
+        )?;
+        let claims: ResolvedClaims = serde_json::from_str(&claims_json)?;
+        let retained = self.settled_granted_claims()?;
+        if !claims.blockers(&self.capacities, &retained).is_empty() {
+            return Ok(Estimate::unknown(
+                "a retained Lease from an uncertain Containment has no automatic release estimate",
+            ));
+        }
         let mut statement = self.connection.prepare(
-            "SELECT accepted_ms, started_ms, spec_json FROM jobs
+            "SELECT accepted_ms, started_ms, spec_json, state FROM jobs
              WHERE id != ?1 AND (
                  state = 'active' OR (
                      state = 'pending' AND rowid < (SELECT rowid FROM jobs WHERE id = ?1)
@@ -778,13 +839,14 @@ impl Store {
                 row.get::<_, i64>(0)?,
                 row.get::<_, Option<i64>>(1)?,
                 row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
             ))
         })?;
         let now = now_millis();
         let mut estimate = 0_u64;
         let mut saw_job = false;
         for row in rows {
-            let (accepted, started, json) = row?;
+            let (accepted, started, json, state) = row?;
             saw_job = true;
             let spec: JobSpec = serde_json::from_str(&json)?;
             let Some(seconds) = spec.expected_duration_seconds else {
@@ -795,6 +857,11 @@ impl Store {
             let elapsed = started
                 .map(|began| now.saturating_sub(began) as u64)
                 .unwrap_or(0);
+            if state == "active" && elapsed >= seconds.saturating_mul(1000) {
+                return Ok(Estimate::unknown(
+                    "a running job has exceeded its declared duration",
+                ));
+            }
             let _ = accepted;
             estimate =
                 estimate.saturating_add(seconds.saturating_mul(1000).saturating_sub(elapsed));
@@ -814,16 +881,58 @@ impl Store {
         }
     }
 
-    pub(crate) fn prepare_next_job(&mut self) -> StoreResult<Option<PreparedJob>> {
-        for job_id in self.pending_jobs()? {
-            if let Some(job) = self.prepare_job(job_id)? {
-                return Ok(Some(job));
-            }
-        }
-        Ok(None)
+    fn settled_granted_claims(&self) -> StoreResult<Vec<ResolvedClaims>> {
+        let mut statement = self.connection.prepare(
+            "SELECT leases.claims_json FROM leases
+             JOIN attempts ON attempts.id = leases.attempt_id
+             WHERE leases.state = 'granted' AND attempts.state = 'settled'",
+        )?;
+        let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
+        rows.map(|row| Ok(serde_json::from_str(&row?)?)).collect()
     }
 
+    #[cfg(test)]
+    pub(crate) fn prepare_next_job(&mut self) -> StoreResult<Option<PreparedJob>> {
+        Ok(self.prepare_next_job_with_progress()?.job)
+    }
+
+    pub(crate) fn prepare_next_job_with_progress(&mut self) -> StoreResult<PrepareNext> {
+        let mut state_changed = false;
+        loop {
+            let mut skipped_in_pass = false;
+            for job_id in self.pending_jobs()? {
+                match self.prepare_job_inner(job_id)? {
+                    PrepareJob::Ready(job) => {
+                        return Ok(PrepareNext {
+                            job: Some(*job),
+                            state_changed,
+                        });
+                    }
+                    PrepareJob::Blocked => {}
+                    PrepareJob::Skipped => {
+                        skipped_in_pass = true;
+                        state_changed = true;
+                    }
+                }
+            }
+            if !skipped_in_pass {
+                return Ok(PrepareNext {
+                    job: None,
+                    state_changed,
+                });
+            }
+        }
+    }
+
+    #[cfg(test)]
     pub(crate) fn prepare_job(&mut self, job_id: JobId) -> StoreResult<Option<PreparedJob>> {
+        Ok(match self.prepare_job_inner(job_id)? {
+            PrepareJob::Ready(job) => Some(*job),
+            PrepareJob::Blocked | PrepareJob::Skipped => None,
+        })
+    }
+
+    fn prepare_job_inner(&mut self, job_id: JobId) -> StoreResult<PrepareJob> {
         let job_key = self.local_id(job_id)?;
         let capacities = self.capacities.clone();
         let attempt_id = AttemptId::new(self.store_uuid);
@@ -840,7 +949,7 @@ impl Store {
             .optional()?;
         let Some((spec_json, claims_json)) = row else {
             transaction.rollback()?;
-            return Ok(None);
+            return Ok(PrepareJob::Blocked);
         };
         let (dependency_blockers, impossible) = dependency_blockers_tx(&transaction, job_id)?;
         if impossible {
@@ -850,17 +959,17 @@ impl Store {
                 params![job_id.entity_uuid().to_string(), now_millis()],
             )?;
             transaction.commit()?;
-            return Ok(None);
+            return Ok(PrepareJob::Skipped);
         }
         if !dependency_blockers.is_empty() {
             transaction.rollback()?;
-            return Ok(None);
+            return Ok(PrepareJob::Blocked);
         }
         let claims: ResolvedClaims = serde_json::from_str(&claims_json)?;
         let active = active_claims_tx(&transaction)?;
         if !claims.blockers(&capacities, &active).is_empty() {
             transaction.rollback()?;
-            return Ok(None);
+            return Ok(PrepareJob::Blocked);
         }
         let spec = serde_json::from_str(&spec_json)?;
         let log_directory = self.paths.logs.join(job_id.entity_uuid().to_string());
@@ -909,7 +1018,7 @@ impl Store {
             ],
         )?;
         transaction.commit()?;
-        Ok(Some(PreparedJob {
+        Ok(PrepareJob::Ready(Box::new(PreparedJob {
             job_id,
             attempt_id,
             invocation_id,
@@ -917,7 +1026,7 @@ impl Store {
             spec,
             stdout_path: self.paths.stdout_path(job_id),
             stderr_path: self.paths.stderr_path(job_id),
-        }))
+        })))
     }
 
     pub(crate) fn mark_started(
@@ -1317,7 +1426,7 @@ impl Store {
     pub(crate) fn pending_jobs(&self) -> StoreResult<Vec<JobId>> {
         let mut statement = self
             .connection
-            .prepare("SELECT id FROM jobs WHERE state = 'pending' ORDER BY accepted_ms")?;
+            .prepare("SELECT id FROM jobs WHERE state = 'pending' ORDER BY accepted_ms, rowid")?;
         let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
         let mut jobs = Vec::new();
         for row in rows {
@@ -1431,14 +1540,28 @@ impl Store {
             let submission_id =
                 SubmissionId::from_parts(self.store_uuid, Uuid::parse_str(&submission_id)?);
             let result = if kind == "batch" {
-                self.accept_received_batch(submission_id, &serde_json::from_str(&spec_json)?)
-                    .map(|_| ())
+                match serde_json::from_str(&spec_json) {
+                    Ok(spec) => self.accept_received_batch(submission_id, &spec).map(|_| ()),
+                    Err(error) => {
+                        self.reject_received(submission_id)?;
+                        Err(StoreError::Rejected(format!(
+                            "retained BatchSpec cannot be decoded: {error}"
+                        )))
+                    }
+                }
             } else {
-                self.accept_received(submission_id, &serde_json::from_str(&spec_json)?)
-                    .map(|_| ())
+                match serde_json::from_str(&spec_json) {
+                    Ok(spec) => self.accept_received(submission_id, &spec).map(|_| ()),
+                    Err(error) => {
+                        self.reject_received(submission_id)?;
+                        Err(StoreError::Rejected(format!(
+                            "retained JobSpec cannot be decoded: {error}"
+                        )))
+                    }
+                }
             };
             match result {
-                Ok(()) | Err(StoreError::InvalidSpec(_)) => {}
+                Ok(()) | Err(StoreError::InvalidSpec(_) | StoreError::Rejected(_)) => {}
                 Err(error) => return Err(error),
             }
         }
@@ -1567,46 +1690,138 @@ pub(crate) fn open_lock(path: &Path) -> StoreResult<File> {
         .open(path)?)
 }
 
-fn migrate(connection: &Connection) -> StoreResult<()> {
-    let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    match version {
-        2 => return validate_schema(connection),
-        1 => {
-            connection.execute_batch(
-                "BEGIN IMMEDIATE;
-                 ALTER TABLE submissions ADD COLUMN kind TEXT NOT NULL DEFAULT 'job';
-                 ALTER TABLE submissions ADD COLUMN batch_id TEXT;
-                 ALTER TABLE batches ADD COLUMN submission_id TEXT REFERENCES submissions(id);
-                 ALTER TABLE batches ADD COLUMN accepted_ms INTEGER;
-                 ALTER TABLE jobs ADD COLUMN batch_id TEXT REFERENCES batches(id);
-                 ALTER TABLE jobs ADD COLUMN batch_member TEXT;
-                 ALTER TABLE jobs ADD COLUMN batch_index INTEGER;
-                 ALTER TABLE jobs ADD COLUMN claims_json TEXT NOT NULL DEFAULT '{}';
-                 CREATE TABLE dependencies(
-                     predecessor_id TEXT NOT NULL REFERENCES jobs(id),
-                     successor_id TEXT NOT NULL REFERENCES jobs(id),
-                     kind TEXT NOT NULL,
-                     PRIMARY KEY(predecessor_id, successor_id, kind)
-                 );
-                 PRAGMA user_version = 2;
-                 COMMIT;",
-            )?;
-            return validate_schema(connection);
-        }
-        0 => {}
-        unsupported => {
-            return Err(StoreError::InvalidState(format!(
-                "unsupported SQLite schema version {unsupported}; expected 2"
-            )));
+fn configure_database(connection: &Connection) -> StoreResult<()> {
+    connection.execute_batch(
+        "PRAGMA foreign_keys = ON;
+         PRAGMA journal_mode = WAL;
+         PRAGMA synchronous = FULL;
+         PRAGMA busy_timeout = 5000;",
+    )?;
+    Ok(())
+}
+
+fn schema_is_current(connection: &Connection) -> StoreResult<bool> {
+    let meta_exists = match connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta')",
+        [],
+        |row| row.get::<_, bool>(0),
+    ) {
+        Ok(exists) => exists,
+        Err(error) => return schema_probe_error(error.into()),
+    };
+    if !meta_exists {
+        return Ok(false);
+    }
+    let meta_columns = match table_columns(connection, "meta") {
+        Ok(columns) => columns,
+        Err(error) => return schema_probe_error(error),
+    };
+    if !["key", "value"]
+        .iter()
+        .all(|column| meta_columns.contains(*column))
+    {
+        return Ok(false);
+    }
+
+    let epoch = match connection
+        .query_row(
+            "SELECT value FROM meta WHERE key = 'schema_epoch'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+    {
+        Ok(epoch) => epoch,
+        Err(error) => return schema_probe_error(error.into()),
+    };
+    if epoch.as_deref() != Some(STORE_SCHEMA_EPOCH) {
+        return Ok(false);
+    }
+
+    match current_store_uuid(connection) {
+        Ok(_) => {}
+        Err(error) => return schema_probe_error(error),
+    }
+    match validate_schema(connection) {
+        Ok(()) => Ok(true),
+        Err(error) => schema_probe_error(error),
+    }
+}
+
+fn schema_probe_error(error: StoreError) -> StoreResult<bool> {
+    match error {
+        StoreError::InvalidState(_) => Ok(false),
+        StoreError::Sqlite(ref sqlite) if is_database_corruption(sqlite) => Ok(false),
+        other => Err(other),
+    }
+}
+
+fn is_database_corruption(error: &rusqlite::Error) -> bool {
+    matches!(
+        error,
+        rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error {
+                code: rusqlite::ErrorCode::DatabaseCorrupt | rusqlite::ErrorCode::NotADatabase,
+                ..
+            },
+            _
+        )
+    )
+}
+
+fn table_columns(
+    connection: &Connection,
+    table: &str,
+) -> StoreResult<std::collections::HashSet<String>> {
+    let mut statement = connection.prepare(&format!("PRAGMA table_info({table})"))?;
+    statement
+        .query_map([], |row| row.get(1))?
+        .collect::<std::result::Result<_, _>>()
+        .map_err(Into::into)
+}
+
+fn current_store_uuid(connection: &Connection) -> StoreResult<Uuid> {
+    let value = connection
+        .query_row(
+            "SELECT value FROM meta WHERE key = 'store_uuid'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+        .ok_or_else(|| StoreError::InvalidState("current store has no store_uuid".into()))?;
+    Uuid::parse_str(&value)
+        .map_err(|_| StoreError::InvalidState("current store has an invalid store_uuid".into()))
+}
+
+fn reset_database_files(paths: &StorePaths) -> StoreResult<()> {
+    for path in [
+        sqlite_sidecar_path(&paths.database, "-wal"),
+        sqlite_sidecar_path(&paths.database, "-shm"),
+        paths.database.clone(),
+    ] {
+        match std::fs::remove_file(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
         }
     }
-    connection.execute_batch(
+    Ok(())
+}
+
+fn sqlite_sidecar_path(database: &Path, suffix: &str) -> PathBuf {
+    let mut path = database.as_os_str().to_os_string();
+    path.push(suffix);
+    PathBuf::from(path)
+}
+
+fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResult<()> {
+    connection.execute_batch(&format!(
         "BEGIN IMMEDIATE;
-         CREATE TABLE IF NOT EXISTS meta(
+         CREATE TABLE meta(
              key TEXT PRIMARY KEY,
              value TEXT NOT NULL
          );
-         CREATE TABLE IF NOT EXISTS submissions(
+         CREATE TABLE submissions(
              id TEXT PRIMARY KEY,
              scope TEXT NOT NULL,
              idempotency_key TEXT NOT NULL,
@@ -1619,13 +1834,13 @@ fn migrate(connection: &Connection) -> StoreResult<()> {
              created_ms INTEGER NOT NULL,
              UNIQUE(scope, idempotency_key)
          );
-         CREATE TABLE IF NOT EXISTS batches(
+         CREATE TABLE batches(
              id TEXT PRIMARY KEY,
              state TEXT NOT NULL,
-             submission_id TEXT NOT NULL REFERENCES submissions(id),
-             accepted_ms INTEGER NOT NULL
+             submission_id TEXT REFERENCES submissions(id),
+             accepted_ms INTEGER
          );
-         CREATE TABLE IF NOT EXISTS jobs(
+         CREATE TABLE jobs(
              id TEXT PRIMARY KEY,
              submission_id TEXT NOT NULL REFERENCES submissions(id),
              batch_id TEXT REFERENCES batches(id),
@@ -1634,7 +1849,7 @@ fn migrate(connection: &Connection) -> StoreResult<()> {
              state TEXT NOT NULL,
              outcome TEXT,
              spec_json TEXT NOT NULL,
-             claims_json TEXT NOT NULL DEFAULT '{}',
+             claims_json TEXT NOT NULL DEFAULT '{{}}',
              attempt_id TEXT,
              invocation_id TEXT,
              containment_id TEXT,
@@ -1645,20 +1860,20 @@ fn migrate(connection: &Connection) -> StoreResult<()> {
              stdout_len INTEGER NOT NULL DEFAULT 0,
              stderr_len INTEGER NOT NULL DEFAULT 0
          );
-         CREATE TABLE IF NOT EXISTS dependencies(
+         CREATE TABLE dependencies(
              predecessor_id TEXT NOT NULL REFERENCES jobs(id),
              successor_id TEXT NOT NULL REFERENCES jobs(id),
              kind TEXT NOT NULL,
              PRIMARY KEY(predecessor_id, successor_id, kind)
          );
-         CREATE TABLE IF NOT EXISTS attempts(
+         CREATE TABLE attempts(
              id TEXT PRIMARY KEY,
              job_id TEXT NOT NULL REFERENCES jobs(id),
              state TEXT NOT NULL,
              attempt_index INTEGER NOT NULL,
              verdict TEXT
          );
-         CREATE TABLE IF NOT EXISTS invocations(
+         CREATE TABLE invocations(
              id TEXT PRIMARY KEY,
              attempt_id TEXT NOT NULL REFERENCES attempts(id),
              role TEXT NOT NULL,
@@ -1669,32 +1884,33 @@ fn migrate(connection: &Connection) -> StoreResult<()> {
              started_ms INTEGER,
              finished_ms INTEGER
          );
-         CREATE TABLE IF NOT EXISTS containments(
+         CREATE TABLE containments(
              id TEXT PRIMARY KEY,
              invocation_id TEXT NOT NULL REFERENCES invocations(id),
              state TEXT NOT NULL
          );
-         CREATE TABLE IF NOT EXISTS conditions(
+         CREATE TABLE conditions(
              id TEXT PRIMARY KEY,
              job_id TEXT NOT NULL REFERENCES jobs(id),
              state TEXT NOT NULL,
              spec_json TEXT NOT NULL
          );
-         CREATE TABLE IF NOT EXISTS observations(
+         CREATE TABLE observations(
              id TEXT PRIMARY KEY,
              condition_id TEXT NOT NULL REFERENCES conditions(id),
              observed_ms INTEGER NOT NULL,
              value_json TEXT NOT NULL
          );
-         CREATE TABLE IF NOT EXISTS leases(
+         CREATE TABLE leases(
              id TEXT PRIMARY KEY,
              attempt_id TEXT NOT NULL REFERENCES attempts(id),
              state TEXT NOT NULL,
              claims_json TEXT NOT NULL
          );
-         PRAGMA user_version = 2;
-         COMMIT;",
-    )?;
+         INSERT INTO meta(key, value) VALUES ('store_uuid', '{store_uuid}');
+         INSERT INTO meta(key, value) VALUES ('schema_epoch', '{STORE_SCHEMA_EPOCH}');
+         COMMIT;"
+    ))?;
     validate_schema(connection)
 }
 
@@ -1719,7 +1935,7 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
         )?;
         if !exists {
             return Err(StoreError::InvalidState(format!(
-                "schema version 2 is missing table {table}; refusing reconstruction"
+                "current schema is missing table {table}"
             )));
         }
     }
@@ -1735,14 +1951,11 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
             &["predecessor_id", "successor_id", "kind"] as &[_],
         ),
     ] {
-        let mut statement = connection.prepare(&format!("PRAGMA table_info({table})"))?;
-        let present: std::collections::HashSet<String> = statement
-            .query_map([], |row| row.get(1))?
-            .collect::<std::result::Result<_, _>>()?;
+        let present = table_columns(connection, table)?;
         for column in columns {
             if !present.contains(*column) {
                 return Err(StoreError::InvalidState(format!(
-                    "schema version 2 table {table} is missing column {column}; refusing reconstruction"
+                    "current schema table {table} is missing column {column}"
                 )));
             }
         }
@@ -1909,6 +2122,122 @@ mod tests {
     }
 
     #[test]
+    fn increment_2a_a03_reverse_order_skip_closure_reaches_terminal_state() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store =
+            Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+                .unwrap();
+        let batch = BatchSpec {
+            spec_version: SPEC_VERSION,
+            jobs: vec![
+                member(
+                    "c",
+                    spec(temp.path()),
+                    vec![DependencySpec {
+                        job: "b".into(),
+                        on: DependencyKind::Success,
+                    }],
+                ),
+                member(
+                    "b",
+                    spec(temp.path()),
+                    vec![DependencySpec {
+                        job: "a".into(),
+                        on: DependencyKind::Success,
+                    }],
+                ),
+                member("a", spec(temp.path()), vec![]),
+            ],
+        };
+        let hash = normalized_batch_payload_hash(&batch).unwrap();
+        let receipt = store
+            .submit_batch(Uuid::now_v7(), &hash, &batch)
+            .unwrap()
+            .receipt;
+        let root = store.prepare_next_job().unwrap().unwrap();
+        assert_eq!(root.job_id, receipt.jobs[2].receipt.job_id);
+        store
+            .mark_finished(&root, Some(1), JobOutcome::Failed, "process_failed")
+            .unwrap();
+
+        let progress = store.prepare_next_job_with_progress().unwrap();
+        assert!(progress.job.is_none());
+        assert!(
+            progress.state_changed,
+            "skip-only passes must notify waiters"
+        );
+        assert_eq!(
+            store
+                .status(receipt.jobs[1].receipt.job_id)
+                .unwrap()
+                .outcome,
+            Some(JobOutcome::Skipped)
+        );
+        assert_eq!(
+            store
+                .status(receipt.jobs[0].receipt.job_id)
+                .unwrap()
+                .outcome,
+            Some(JobOutcome::Skipped)
+        );
+    }
+
+    #[test]
+    fn increment_2a_a03_sqlite_failure_rolls_back_every_batch_member() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store =
+            Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+                .unwrap();
+        store
+            .connection
+            .execute_batch(
+                "CREATE TRIGGER fail_second_batch_member
+                 BEFORE INSERT ON jobs WHEN NEW.batch_member = 'second'
+                 BEGIN SELECT RAISE(ABORT, 'forced batch fault'); END;",
+            )
+            .unwrap();
+        let batch = BatchSpec {
+            spec_version: SPEC_VERSION,
+            jobs: vec![
+                member("first", spec(temp.path()), vec![]),
+                member("second", spec(temp.path()), vec![]),
+            ],
+        };
+        let key = Uuid::now_v7();
+        let hash = normalized_batch_payload_hash(&batch).unwrap();
+        assert!(matches!(
+            store.submit_batch(key, &hash, &batch),
+            Err(StoreError::Sqlite(_))
+        ));
+        for table in ["batches", "jobs", "dependencies"] {
+            let count: u64 = store
+                .connection
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(count, 0, "{table} must roll back atomically");
+        }
+        let state: String = store
+            .connection
+            .query_row(
+                "SELECT state FROM submissions WHERE idempotency_key = ?1",
+                [key.to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(state, "received");
+
+        store
+            .connection
+            .execute_batch("DROP TRIGGER fail_second_batch_member")
+            .unwrap();
+        store.resume_received().unwrap();
+        let recovered = store.recover_submission(key, &hash).unwrap();
+        assert!(matches!(recovered, RecoveryResult::AcceptedBatch(_)));
+    }
+
+    #[test]
     fn increment_2a_a04_complete_leases_serialize_conflicts_but_allow_orthogonal_work() {
         let temp = tempfile::tempdir().unwrap();
         let mut store =
@@ -1923,12 +2252,15 @@ mod tests {
         blocked.resources.ram_mb = Some(1_000);
         let mut gpu = spec(temp.path());
         gpu.resources.gpu_slots = Some(1);
+        let mut ram = spec(temp.path());
+        ram.resources.ram_mb = Some(8_000);
         let batch = BatchSpec {
             spec_version: SPEC_VERSION,
             jobs: vec![
                 member("cpu", cpu, vec![]),
                 member("blocked", blocked, vec![]),
                 member("gpu", gpu, vec![]),
+                member("ram", ram, vec![]),
             ],
         };
         let hash = normalized_batch_payload_hash(&batch).unwrap();
@@ -1945,6 +2277,10 @@ mod tests {
             "receipt must account for an earlier compatible queue reservation"
         );
         assert!(receipt.jobs[2].receipt.blockers.is_empty());
+        assert!(
+            receipt.jobs[3].receipt.blockers.is_empty(),
+            "a non-fitting earlier claim must not reserve only its RAM portion"
+        );
         let cpu = store.prepare_next_job().unwrap().unwrap();
         assert_eq!(cpu.job_id, receipt.jobs[0].receipt.job_id);
         let gpu = store.prepare_next_job().unwrap().unwrap();
@@ -1952,6 +2288,8 @@ mod tests {
             gpu.job_id, receipt.jobs[2].receipt.job_id,
             "a partially fitting CPU claim must not reserve RAM or block orthogonal GPU work"
         );
+        let ram = store.prepare_next_job().unwrap().unwrap();
+        assert_eq!(ram.job_id, receipt.jobs[3].receipt.job_id);
         let blocked = store.status(receipt.jobs[1].receipt.job_id).unwrap();
         assert!(
             blocked
@@ -2004,20 +2342,25 @@ mod tests {
         let fenced = temp.path().join("future-slot");
         let mut first = spec(temp.path());
         first.resources.exclusive_fences = vec![fenced.to_string_lossy().into_owned()];
-        let second = first.clone();
+        let fence_spec = first.clone();
         let first_hash = normalized_payload_hash(&first).unwrap();
         let first = store
             .submit(Uuid::now_v7(), &first_hash, &first)
             .unwrap()
             .receipt;
-        let second_hash = normalized_payload_hash(&second).unwrap();
+        let second_hash = normalized_payload_hash(&fence_spec).unwrap();
         let second = store
-            .submit(Uuid::now_v7(), &second_hash, &second)
+            .submit(Uuid::now_v7(), &second_hash, &fence_spec)
             .unwrap()
             .receipt;
         std::fs::create_dir(&fenced).unwrap();
         let admitted = store.prepare_next_job().unwrap().unwrap();
         assert_eq!(admitted.job_id, first.job_id);
+        let after_creation_hash = normalized_payload_hash(&fence_spec).unwrap();
+        let after_creation = store
+            .submit(Uuid::now_v7(), &after_creation_hash, &fence_spec)
+            .unwrap()
+            .receipt;
         let snapshot = store.status(second.job_id).unwrap();
         assert!(
             snapshot
@@ -2025,6 +2368,52 @@ mod tests {
                 .iter()
                 .any(|blocker| blocker.code == "path_fence_busy")
         );
+        assert!(
+            store
+                .status(after_creation.job_id)
+                .unwrap()
+                .blockers
+                .iter()
+                .any(|blocker| blocker.code == "path_fence_busy"),
+            "creating the leaf between acceptances must not evade the incumbent fence"
+        );
+    }
+
+    #[test]
+    fn increment_2a_a06_dependency_outside_fifo_prefix_is_unknown() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store =
+            Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+                .unwrap();
+        let mut short = spec(temp.path());
+        short.expected_duration_seconds = Some(5);
+        let mut long = spec(temp.path());
+        long.expected_duration_seconds = Some(3_600);
+        let batch = BatchSpec {
+            spec_version: SPEC_VERSION,
+            jobs: vec![
+                member("short", short, vec![]),
+                member(
+                    "dependent",
+                    spec(temp.path()),
+                    vec![DependencySpec {
+                        job: "long".into(),
+                        on: DependencyKind::Success,
+                    }],
+                ),
+                member("long", long, vec![]),
+            ],
+        };
+        let hash = normalized_batch_payload_hash(&batch).unwrap();
+        let receipt = store
+            .submit_batch(Uuid::now_v7(), &hash, &batch)
+            .unwrap()
+            .receipt;
+        assert_eq!(
+            receipt.jobs[1].receipt.estimate.confidence,
+            EstimateConfidence::Unknown
+        );
+        assert_eq!(receipt.jobs[1].receipt.estimate.start_in_millis, None);
     }
 
     #[test]
@@ -2100,6 +2489,35 @@ mod tests {
             recovery => panic!("unexpected recovery: {recovery:?}"),
         }
         assert_eq!(store.pending_jobs().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn rejected_idempotency_decision_replays_as_rejected() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let key = Uuid::now_v7();
+        let spec = spec(temp.path());
+        let hash = normalized_payload_hash(&spec).unwrap();
+        store
+            .connection
+            .execute(
+                "INSERT INTO submissions(
+                    id, scope, idempotency_key, payload_hash, state, spec_json, kind, created_ms
+                 ) VALUES (?1, 'unmanaged', ?2, ?3, 'rejected', ?4, 'job', ?5)",
+                params![
+                    Uuid::now_v7().to_string(),
+                    key.to_string(),
+                    hash,
+                    serde_json::to_string(&spec).unwrap(),
+                    now_millis(),
+                ],
+            )
+            .unwrap();
+
+        assert!(matches!(
+            store.submit(key, &normalized_payload_hash(&spec).unwrap(), &spec),
+            Err(StoreError::Rejected(_))
+        ));
     }
 
     #[test]
@@ -2323,107 +2741,221 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_or_damaged_schema_is_not_recreated() {
-        let future = tempfile::tempdir().unwrap();
-        let future_paths = StorePaths::new(future.path().to_path_buf());
-        future_paths.ensure().unwrap();
-        let connection = Connection::open(&future_paths.database).unwrap();
-        connection
-            .execute_batch("PRAGMA user_version = 3;")
-            .unwrap();
-        drop(connection);
-        assert!(matches!(
-            Store::open(future_paths),
-            Err(StoreError::InvalidState(message)) if message.contains("unsupported SQLite schema")
-        ));
-
-        let damaged = tempfile::tempdir().unwrap();
-        let damaged_paths = StorePaths::new(damaged.path().to_path_buf());
-        let store = Store::open(damaged_paths).unwrap();
-        store.connection.execute("DROP TABLE batches", []).unwrap();
-        drop(store);
-        assert!(matches!(
-            Store::open(StorePaths::new(damaged.path().to_path_buf())),
-            Err(StoreError::InvalidState(message)) if message.contains("missing table batches")
-        ));
-    }
-
-    #[test]
-    fn schema_v1_migrates_transactionally_to_v2() {
+    fn schema_epoch_mismatch_resets_database_and_preserves_other_files() {
         let temp = tempfile::tempdir().unwrap();
         let paths = StorePaths::new(temp.path().to_path_buf());
-        paths.ensure().unwrap();
-        let connection = Connection::open(&paths.database).unwrap();
-        connection
-            .execute_batch(
-                "CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-                 INSERT INTO meta(key, value) VALUES ('store_uuid', '00000000-0000-0000-0000-000000000001');
-                 CREATE TABLE submissions(
-                    id TEXT PRIMARY KEY, scope TEXT NOT NULL, idempotency_key TEXT NOT NULL,
-                    payload_hash TEXT NOT NULL, state TEXT NOT NULL, spec_json TEXT NOT NULL,
-                    job_id TEXT, created_ms INTEGER NOT NULL, UNIQUE(scope, idempotency_key));
-                 CREATE TABLE batches(id TEXT PRIMARY KEY, state TEXT NOT NULL);
-                 CREATE TABLE jobs(
-                    id TEXT PRIMARY KEY, submission_id TEXT NOT NULL REFERENCES submissions(id),
-                    state TEXT NOT NULL, outcome TEXT, spec_json TEXT NOT NULL, attempt_id TEXT,
-                    invocation_id TEXT, containment_id TEXT, root_exit_code INTEGER,
-                    accepted_ms INTEGER NOT NULL, started_ms INTEGER, finished_ms INTEGER,
-                    stdout_len INTEGER NOT NULL DEFAULT 0, stderr_len INTEGER NOT NULL DEFAULT 0);
-                 CREATE TABLE attempts(
-                    id TEXT PRIMARY KEY, job_id TEXT NOT NULL REFERENCES jobs(id), state TEXT NOT NULL,
-                    attempt_index INTEGER NOT NULL, verdict TEXT);
-                 CREATE TABLE invocations(
-                    id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL REFERENCES attempts(id),
-                    role TEXT NOT NULL, state TEXT NOT NULL, root_pid INTEGER, root_exit_code INTEGER,
-                    executable_hash TEXT, started_ms INTEGER, finished_ms INTEGER);
-                 CREATE TABLE containments(
-                    id TEXT PRIMARY KEY, invocation_id TEXT NOT NULL REFERENCES invocations(id),
-                    state TEXT NOT NULL);
-                 CREATE TABLE conditions(
-                    id TEXT PRIMARY KEY, job_id TEXT NOT NULL REFERENCES jobs(id),
-                    state TEXT NOT NULL, spec_json TEXT NOT NULL);
-                 CREATE TABLE observations(
-                    id TEXT PRIMARY KEY, condition_id TEXT NOT NULL REFERENCES conditions(id),
-                    observed_ms INTEGER NOT NULL, value_json TEXT NOT NULL);
-                 CREATE TABLE leases(
-                    id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL REFERENCES attempts(id),
-                    state TEXT NOT NULL, claims_json TEXT NOT NULL);
-                 PRAGMA user_version = 1;",
+        let mut old_store = Store::open_with_capacities(paths, capacities()).unwrap();
+        let old_uuid = old_store.store_uuid;
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        let accepted_key = Uuid::now_v7();
+        let old_job_id = old_store
+            .submit(accepted_key, &hash, &job_spec)
+            .unwrap()
+            .receipt
+            .job_id;
+        let received_key = Uuid::now_v7();
+        old_store
+            .connection
+            .execute(
+                "INSERT INTO submissions(
+                    id, scope, idempotency_key, payload_hash, state, spec_json, kind, created_ms
+                 ) VALUES (?1, 'unmanaged', ?2, ?3, 'received', ?4, 'job', ?5)",
+                params![
+                    Uuid::now_v7().to_string(),
+                    received_key.to_string(),
+                    hash,
+                    serde_json::to_string(&job_spec).unwrap(),
+                    now_millis(),
+                ],
             )
             .unwrap();
-        drop(connection);
+        old_store
+            .connection
+            .execute_batch(
+                "CREATE TABLE obsolete_rows(value TEXT NOT NULL);
+                 INSERT INTO obsolete_rows(value) VALUES ('must not survive');
+                 UPDATE meta SET value = 'obsolete-alpha-schema' WHERE key = 'schema_epoch';",
+            )
+            .unwrap();
+        drop(old_store);
 
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let log_marker = paths.logs.join("orphaned.log");
+        std::fs::write(&log_marker, b"preserve me").unwrap();
+        std::fs::write(&paths.config, serde_json::to_vec(&capacities()).unwrap()).unwrap();
         let store = Store::open(paths).unwrap();
-        let version: u32 = store
+        assert_ne!(store.store_uuid, old_uuid);
+        assert_eq!(std::fs::read(&log_marker).unwrap(), b"preserve me");
+        assert_eq!(
+            std::fs::read(&store.paths.config).unwrap(),
+            serde_json::to_vec(&capacities()).unwrap()
+        );
+        let epoch: String = store
             .connection
-            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .query_row(
+                "SELECT value FROM meta WHERE key = 'schema_epoch'",
+                [],
+                |row| row.get(0),
+            )
             .unwrap();
-        assert_eq!(version, 2);
-        let columns: Vec<String> = store
+        assert_eq!(epoch, STORE_SCHEMA_EPOCH);
+        let obsolete_exists: bool = store
             .connection
-            .prepare("PRAGMA table_info(jobs)")
-            .unwrap()
-            .query_map([], |row| row.get(1))
-            .unwrap()
-            .collect::<std::result::Result<_, _>>()
+            .query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM sqlite_master
+                    WHERE type = 'table' AND name = 'obsolete_rows'
+                 )",
+                [],
+                |row| row.get(0),
+            )
             .unwrap();
-        assert!(columns.iter().any(|column| column == "claims_json"));
-        assert!(columns.iter().any(|column| column == "batch_index"));
+        assert!(!obsolete_exists, "reset must not import old rows or tables");
+        for table in ["jobs", "submissions"] {
+            let count: u64 = store
+                .connection
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(count, 0, "reset must not import old {table}");
+        }
+        assert!(store.pending_jobs().unwrap().is_empty());
+        assert!(matches!(
+            store.recover_submission(accepted_key, &hash).unwrap(),
+            RecoveryResult::Unknown
+        ));
+        assert!(matches!(
+            store.recover_submission(received_key, &hash).unwrap(),
+            RecoveryResult::Unknown
+        ));
+        assert!(matches!(
+            store.status(old_job_id),
+            Err(StoreError::NotFound(message)) if message.contains("foreign durable ID")
+        ));
     }
 
     #[test]
-    fn existing_store_identity_is_never_reconstructed() {
+    fn damaged_schema_and_identity_each_reset_the_whole_database() {
         let temp = tempfile::tempdir().unwrap();
         let paths = StorePaths::new(temp.path().to_path_buf());
         let store = Store::open(paths).unwrap();
+        let first_uuid = store.store_uuid;
+        store.connection.execute("DROP TABLE batches", []).unwrap();
+        drop(store);
+
+        let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        assert_ne!(store.store_uuid, first_uuid);
+        let second_uuid = store.store_uuid;
         store
             .connection
             .execute("DELETE FROM meta WHERE key = 'store_uuid'", [])
             .unwrap();
         drop(store);
+
+        let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        assert_ne!(store.store_uuid, second_uuid);
+    }
+
+    #[test]
+    fn corrupt_or_empty_database_is_replaced_with_current_schema() {
+        let corrupt = tempfile::tempdir().unwrap();
+        let corrupt_paths = StorePaths::new(corrupt.path().to_path_buf());
+        corrupt_paths.ensure().unwrap();
+        std::fs::write(&corrupt_paths.database, b"not a sqlite database").unwrap();
+        let corrupt_store = Store::open(corrupt_paths).unwrap();
+        assert!(schema_is_current(&corrupt_store.connection).unwrap());
+
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        paths.ensure().unwrap();
+        File::create(&paths.database).unwrap();
+
+        let store = Store::open(paths).unwrap();
+        let stored: String = store
+            .connection
+            .query_row(
+                "SELECT value FROM meta WHERE key = 'store_uuid'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(Uuid::parse_str(&stored).unwrap(), store.store_uuid);
+    }
+
+    #[test]
+    fn corruption_discovered_during_recovery_resets_once() {
+        use std::io::Write as _;
+
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let mut store = Store::open(paths).unwrap();
+        let old_uuid = store.store_uuid;
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        store.submit(Uuid::now_v7(), &hash, &job_spec).unwrap();
+        drop(store);
+
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let connection = Connection::open(&paths.database).unwrap();
+        let page_size: u64 = connection
+            .query_row("PRAGMA page_size", [], |row| row.get(0))
+            .unwrap();
+        let jobs_root_page: u64 = connection
+            .query_row(
+                "SELECT rootpage FROM sqlite_master WHERE type = 'table' AND name = 'jobs'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        drop(connection);
+        let mut database = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&paths.database)
+            .unwrap();
+        database
+            .seek(SeekFrom::Start((jobs_root_page - 1) * page_size))
+            .unwrap();
+        database.write_all(&[0xff; 128]).unwrap();
+        database.sync_all().unwrap();
+        drop(database);
+
+        let reopened = Store::open(paths).unwrap();
+        assert_ne!(reopened.store_uuid, old_uuid);
+        assert!(reopened.pending_jobs().unwrap().is_empty());
+    }
+
+    #[test]
+    fn only_corruption_errors_authorize_destructive_reset() {
+        fn sqlite_error(code: i32) -> StoreError {
+            StoreError::Sqlite(rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(code),
+                None,
+            ))
+        }
+
         assert!(matches!(
-            Store::open(StorePaths::new(temp.path().to_path_buf())),
-            Err(StoreError::InvalidState(message)) if message.contains("complete store directory aside")
+            schema_probe_error(sqlite_error(rusqlite::ffi::SQLITE_BUSY)),
+            Err(StoreError::Sqlite(_))
         ));
+        assert!(matches!(
+            schema_probe_error(sqlite_error(rusqlite::ffi::SQLITE_IOERR)),
+            Err(StoreError::Sqlite(_))
+        ));
+        assert!(!schema_probe_error(sqlite_error(rusqlite::ffi::SQLITE_CORRUPT)).unwrap());
+        assert!(!schema_probe_error(sqlite_error(rusqlite::ffi::SQLITE_NOTADB)).unwrap());
+    }
+
+    #[test]
+    fn current_schema_reopens_without_changing_store_identity() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let store_uuid = store.store_uuid;
+        drop(store);
+
+        let reopened = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        assert_eq!(reopened.store_uuid, store_uuid);
     }
 }

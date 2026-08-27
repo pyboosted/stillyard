@@ -20,20 +20,23 @@ type SharedStore = Arc<Mutex<Store>>;
 
 #[cfg(windows)]
 pub(crate) fn run() -> Result<()> {
-    let paths = StorePaths::new(default_store_root()?);
+    let (_lock, store) = open_store_under_lock(StorePaths::new(default_store_root()?))?;
+    let store = Arc::new(Mutex::new(store));
+    let scheduler = Scheduler::start(Arc::clone(&store));
+    scheduler.wake();
+    serve(store, scheduler)
+}
+
+#[cfg(windows)]
+fn open_store_under_lock(paths: StorePaths) -> Result<(std::fs::File, Store)> {
     paths
         .ensure()
         .map_err(|error| Error::Unavailable(error.to_string()))?;
     let lock = open_lock(&paths.lock).map_err(|error| Error::Unavailable(error.to_string()))?;
     lock.try_lock_exclusive()
         .map_err(|error| Error::Unavailable(format!("daemon already running: {error}")))?;
-
-    let store = Arc::new(Mutex::new(
-        Store::open(paths).map_err(|error| Error::Unavailable(error.to_string()))?,
-    ));
-    let scheduler = Scheduler::start(Arc::clone(&store));
-    scheduler.wake();
-    serve(store, scheduler)
+    let store = Store::open(paths).map_err(|error| Error::Unavailable(error.to_string()))?;
+    Ok((lock, store))
 }
 
 #[cfg(not(windows))]
@@ -126,15 +129,23 @@ impl Scheduler {
                     Ok(guard) => guard,
                     Err(_) => return,
                 };
-                match guard.prepare_next_job() {
+                match guard.prepare_next_job_with_progress() {
                     Ok(job) => job,
                     Err(_) => {
                         retry = true;
-                        None
+                        crate::store::PrepareNext {
+                            job: None,
+                            // prepare_next_job may have committed skip closure before a later
+                            // SQLite error. A spurious notification is safer than hiding it.
+                            state_changed: true,
+                        }
                     }
                 }
             };
-            if let Some(job) = next {
+            if next.state_changed {
+                self.notify_change();
+            }
+            if let Some(job) = next.job {
                 self.notify_change();
                 let worker_store = Arc::clone(&store);
                 let worker_scheduler = Arc::clone(&self);
@@ -145,9 +156,21 @@ impl Scheduler {
                         crate::runner::run(thread_job, worker_store);
                         worker_scheduler.wake();
                     });
-                if spawned.is_err() {
-                    crate::runner::run(job, Arc::clone(&store));
+                if let Err(error) = spawned {
+                    if let Ok(mut guard) = store.lock() {
+                        let _ = guard.mark_finished(
+                            &job,
+                            None,
+                            crate::JobOutcome::Failed,
+                            "start_failed",
+                        );
+                    }
+                    eprintln!(
+                        "stillyard could not start worker thread for {}: {error}",
+                        job.job_id
+                    );
                     self.wake();
+                    std::thread::sleep(Duration::from_millis(100));
                 }
                 continue;
             }
@@ -252,6 +275,10 @@ fn handle_request(store: &SharedStore, scheduler: &Scheduler, request: Request) 
         },
         StoreError::IdempotencyConflict => Response::Error {
             code: "idempotency_conflict".into(),
+            message: error.to_string(),
+        },
+        StoreError::Rejected(_) => Response::Error {
+            code: "rejected".into(),
             message: error.to_string(),
         },
         StoreError::InvalidSpec(_) => Response::Error {
@@ -402,4 +429,41 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
 #[cfg(not(windows))]
 fn serve(_store: SharedStore, _scheduler: Arc<Scheduler>) -> Result<()> {
     Err(Error::UnsupportedPlatform(std::env::consts::OS))
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn singleton_lock_is_acquired_before_destructive_store_open() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        paths.ensure().unwrap();
+        let connection = rusqlite::Connection::open(&paths.database).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                 INSERT INTO meta(key, value) VALUES ('schema_epoch', 'obsolete-alpha-schema');",
+            )
+            .unwrap();
+        drop(connection);
+
+        let held_lock = open_lock(&paths.lock).unwrap();
+        held_lock.try_lock_exclusive().unwrap();
+        assert!(matches!(
+            open_store_under_lock(StorePaths::new(temp.path().to_path_buf())),
+            Err(Error::Unavailable(message)) if message.contains("daemon already running")
+        ));
+
+        let connection = rusqlite::Connection::open(&paths.database).unwrap();
+        let epoch: String = connection
+            .query_row(
+                "SELECT value FROM meta WHERE key = 'schema_epoch'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(epoch, "obsolete-alpha-schema");
+    }
 }

@@ -26,16 +26,8 @@ impl ResolvedClaims {
             cargo_slots: u64::from(claims.cargo_slots.unwrap_or(0)),
             gpu_slots: u64::from(claims.gpu_slots.unwrap_or(0)),
             custom: claims.custom.clone(),
-            shared_fences: claims
-                .shared_fences
-                .iter()
-                .map(|path| resolve_fence(Path::new(path)))
-                .collect::<io::Result<_>>()?,
-            exclusive_fences: claims
-                .exclusive_fences
-                .iter()
-                .map(|path| resolve_fence(Path::new(path)))
-                .collect::<io::Result<_>>()?,
+            shared_fences: resolve_fences(&claims.shared_fences)?,
+            exclusive_fences: resolve_fences(&claims.exclusive_fences)?,
         };
         if resolved
             .shared_fences
@@ -117,6 +109,14 @@ impl ResolvedClaims {
     }
 }
 
+fn resolve_fences(paths: &[String]) -> io::Result<BTreeSet<String>> {
+    let mut keys = BTreeSet::new();
+    for path in paths {
+        keys.extend(resolve_fence(Path::new(path))?);
+    }
+    Ok(keys)
+}
+
 fn scalar_blocker(
     blockers: &mut Vec<Blocker>,
     name: &str,
@@ -151,20 +151,27 @@ fn fence_blocker(blockers: &mut Vec<Blocker>, fence: &str) {
 }
 
 #[cfg(windows)]
-fn resolve_fence(path: &Path) -> io::Result<String> {
+fn resolve_fence(path: &Path) -> io::Result<Vec<String>> {
     use std::mem::size_of;
     use std::os::windows::fs::OpenOptionsExt;
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Storage::FileSystem::{
-        FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_ID_INFO, FileIdInfo,
-        GetFileInformationByHandleEx,
+        FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_ID_INFO, FILE_SHARE_DELETE,
+        FILE_SHARE_READ, FILE_SHARE_WRITE, FileIdInfo, GetFileInformationByHandleEx,
     };
 
     let (ancestor, remainder) = existing_ancestor(path)?;
+    let flags = if remainder.as_os_str().is_empty() {
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT
+    } else {
+        // The ancestor is an intermediate component. Follow it; only a replaceable leaf is
+        // opened as the reparse object itself.
+        FILE_FLAG_BACKUP_SEMANTICS
+    };
     let file = std::fs::OpenOptions::new()
-        .read(true)
-        .share_mode(0x1 | 0x2 | 0x4)
-        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+        .access_mode(0)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+        .custom_flags(flags)
         .open(&ancestor)?;
     let mut info = FILE_ID_INFO::default();
     // SAFETY: the handle is owned and valid; info is an exactly sized writable output buffer.
@@ -179,8 +186,8 @@ fn resolve_fence(path: &Path) -> io::Result<String> {
     {
         return Err(io::Error::last_os_error());
     }
-    Ok(format!(
-        "{:016x}:{}:{}",
+    let stable = format!(
+        "identity:{:016x}:{}:{}",
         info.VolumeSerialNumber,
         info.FileId
             .Identifier
@@ -188,17 +195,29 @@ fn resolve_fence(path: &Path) -> io::Result<String> {
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>(),
         canonical_remainder(&remainder).to_lowercase()
-    ))
+    );
+    Ok(vec![stable, canonical_path_key(&ancestor, &remainder)?])
 }
 
 #[cfg(not(windows))]
-fn resolve_fence(path: &Path) -> io::Result<String> {
+fn resolve_fence(path: &Path) -> io::Result<Vec<String>> {
     let (ancestor, remainder) = existing_ancestor(path)?;
-    Ok(format!(
-        "{}:{}",
-        std::fs::canonicalize(ancestor)?.display(),
-        canonical_remainder(&remainder)
-    ))
+    Ok(vec![canonical_path_key(&ancestor, &remainder)?])
+}
+
+fn canonical_path_key(ancestor: &Path, remainder: &Path) -> io::Result<String> {
+    let canonical = if remainder.as_os_str().is_empty() {
+        match (ancestor.parent(), ancestor.file_name()) {
+            (Some(parent), Some(name)) => std::fs::canonicalize(parent)?.join(name),
+            _ => std::fs::canonicalize(ancestor)?,
+        }
+    } else {
+        std::fs::canonicalize(ancestor)?.join(remainder)
+    };
+    let rendered = canonical.to_string_lossy();
+    #[cfg(windows)]
+    let rendered = rendered.to_lowercase();
+    Ok(format!("path:{rendered}"))
 }
 
 fn existing_ancestor(path: &Path) -> io::Result<(PathBuf, PathBuf)> {
@@ -288,6 +307,26 @@ mod tests {
                 .first()
                 .map(|blocker| blocker.code.as_str()),
             Some("path_fence_busy")
+        );
+    }
+
+    #[test]
+    fn different_missing_children_under_one_ancestor_do_not_alias() {
+        let temp = tempfile::tempdir().unwrap();
+        let first = ResourceClaims {
+            exclusive_fences: vec![temp.path().join("first").to_string_lossy().into_owned()],
+            ..ResourceClaims::default()
+        };
+        let second = ResourceClaims {
+            exclusive_fences: vec![temp.path().join("second").to_string_lossy().into_owned()],
+            ..ResourceClaims::default()
+        };
+        let first = ResolvedClaims::resolve(&first).unwrap();
+        let second = ResolvedClaims::resolve(&second).unwrap();
+        assert!(
+            first
+                .blockers(&ResourceCapacities::default(), &[second])
+                .is_empty()
         );
     }
 }

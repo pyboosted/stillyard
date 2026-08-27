@@ -185,13 +185,7 @@ mod windows {
         if let Err(error) = run_inner(job, store, &mut progress) {
             if let Ok(mut store) = store.lock() {
                 if progress.cleanup_proven {
-                    let (outcome, verdict) = if progress.timed_out {
-                        (JobOutcome::TimedOut, "timed_out")
-                    } else if progress.user_code_released {
-                        (JobOutcome::Failed, "interrupted")
-                    } else {
-                        (JobOutcome::Failed, "start_failed")
-                    };
+                    let (outcome, verdict) = failed_run_classification(&progress);
                     let _ = store.mark_finished(job, progress.exit_code, outcome, verdict);
                 } else {
                     let _ = store.mark_uncertain(job, progress.exit_code, "interrupted");
@@ -203,6 +197,16 @@ mod windows {
                 "stillyard runner for {} failed: {error}",
                 job.job_id
             );
+        }
+    }
+
+    fn failed_run_classification(progress: &RunProgress) -> (JobOutcome, &'static str) {
+        if progress.timed_out {
+            (JobOutcome::TimedOut, "timed_out")
+        } else if progress.user_code_released {
+            (JobOutcome::Interrupted, "interrupted")
+        } else {
+            (JobOutcome::Failed, "start_failed")
         }
     }
 
@@ -324,20 +328,20 @@ mod windows {
 
         let stdout_file = unsafe { File::from_raw_handle(stdout_read.into_raw() as RawHandle) };
         let stderr_file = unsafe { File::from_raw_handle(stderr_read.into_raw() as RawHandle) };
-        let stdout = spawn_drain(
+        let stdout = prestart_try!(spawn_drain(
             stdout_file,
             job.stdout_path.clone(),
             job.job_id,
             LogStream::Stdout,
             Arc::clone(store),
-        );
-        let stderr = spawn_drain(
+        ));
+        let stderr = prestart_try!(spawn_drain(
             stderr_file,
             job.stderr_path.clone(),
             job.job_id,
             LogStream::Stderr,
             Arc::clone(store),
-        );
+        ));
 
         let execution = (|| -> RunResult<(u32, bool)> {
             // SAFETY: the primary thread handle is valid and has not been resumed before.
@@ -349,7 +353,7 @@ mod windows {
             let deadline = job
                 .spec
                 .timeout_seconds
-                .map(|seconds| Instant::now() + Duration::from_secs(seconds));
+                .and_then(|seconds| Instant::now().checked_add(Duration::from_secs(seconds)));
             let mut timed_out = false;
             loop {
                 // SAFETY: process_handle remains valid throughout the wait.
@@ -508,31 +512,33 @@ mod windows {
         job_id: crate::JobId,
         stream: LogStream,
         store: Arc<Mutex<Store>>,
-    ) -> std::thread::JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>> {
-        std::thread::spawn(move || {
-            let mut output = OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .open(path)?;
-            let mut offset = 0_u64;
-            let mut buffer = [0_u8; 64 * 1024];
-            loop {
-                let read = input.read(&mut buffer)?;
-                if read == 0 {
-                    break;
+    ) -> std::io::Result<std::thread::JoinHandle<RunResult<()>>> {
+        std::thread::Builder::new()
+            .name(format!("stillyard-log-{}-{stream:?}", job_id.entity_uuid()))
+            .spawn(move || {
+                let mut output = OpenOptions::new()
+                    .create(true)
+                    .truncate(true)
+                    .write(true)
+                    .open(path)?;
+                let mut offset = 0_u64;
+                let mut buffer = [0_u8; 64 * 1024];
+                loop {
+                    let read = input.read(&mut buffer)?;
+                    if read == 0 {
+                        break;
+                    }
+                    output.write_all(&buffer[..read])?;
+                    output.sync_data()?;
+                    offset += read as u64;
+                    store
+                        .lock()
+                        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                        .commit_log_offset(job_id, stream, offset)?;
                 }
-                output.write_all(&buffer[..read])?;
-                output.sync_data()?;
-                offset += read as u64;
-                store
-                    .lock()
-                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
-                    .commit_log_offset(job_id, stream, offset)?;
-            }
-            output.sync_all()?;
-            Ok(())
-        })
+                output.sync_all()?;
+                Ok(())
+            })
     }
 
     fn wait_job_empty(handle: HANDLE, timeout: Duration) -> std::io::Result<()> {
@@ -748,6 +754,19 @@ mod windows {
                 .unwrap()
                 .unwrap();
             (job, Arc::new(Mutex::new(store)))
+        }
+
+        #[test]
+        fn released_user_code_runner_failure_is_interrupted_not_failed() {
+            let progress = RunProgress {
+                user_code_released: true,
+                cleanup_proven: true,
+                ..RunProgress::default()
+            };
+            assert_eq!(
+                failed_run_classification(&progress),
+                (JobOutcome::Interrupted, "interrupted")
+            );
         }
 
         #[test]
