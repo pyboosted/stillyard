@@ -85,6 +85,7 @@ pub(crate) fn require_fixed_local_ntfs(_path: &Path) -> io::Result<()> {
     Ok(())
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 fn validate_volume(fixed: bool, filesystem: &str) -> io::Result<()> {
     if !fixed || !filesystem.eq_ignore_ascii_case("NTFS") {
         return Err(io::Error::new(
