@@ -2,12 +2,16 @@
 
 mod api;
 mod client;
+#[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) mod daemon;
 mod error;
 mod model;
+#[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) mod protocol;
+#[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) mod runner;
 mod spec;
+#[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) mod store;
 
 pub use api::{
