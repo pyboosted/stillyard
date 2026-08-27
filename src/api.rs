@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    AttemptId, ContainmentId, InvocationId, JobId, JobOutcome, JobSpec, JobState, SubmissionId,
-    SubmissionState,
+    AttemptId, BatchId, ContainmentId, InvocationId, JobId, JobOutcome, JobSpec, JobState,
+    SubmissionId, SubmissionState,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -33,6 +33,7 @@ impl CancellationToken {
 }
 
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct SubmitOptions {
     pub idempotency_key: Uuid,
     pub result_file: Option<PathBuf>,
@@ -47,7 +48,24 @@ impl Default for SubmitOptions {
     }
 }
 
+impl SubmitOptions {
+    #[must_use]
+    pub fn new(idempotency_key: Uuid) -> Self {
+        Self {
+            idempotency_key,
+            result_file: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_result_file(mut self, path: impl Into<PathBuf>) -> Self {
+        self.result_file = Some(path.into());
+        self
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum EstimateConfidence {
     Estimated,
@@ -97,9 +115,27 @@ pub struct JobReceipt {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct BatchJobReceipt {
+    pub name: String,
+    pub receipt: JobReceipt,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BatchReceipt {
+    pub submission_id: SubmissionId,
+    pub batch_id: BatchId,
+    pub submission_state: SubmissionState,
+    pub jobs: Vec<BatchJobReceipt>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct JobSnapshot {
     pub job_id: JobId,
     pub submission_id: SubmissionId,
+    pub batch_id: Option<BatchId>,
+    pub batch_member: Option<String>,
     pub state: JobState,
     pub outcome: Option<JobOutcome>,
     pub attempt_id: Option<AttemptId>,
@@ -122,10 +158,12 @@ impl JobSnapshot {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum RecoveryResult {
     Received { submission_id: SubmissionId },
     Accepted(JobReceipt),
+    AcceptedBatch(BatchReceipt),
     Rejected { code: String, detail: String },
     Conflict,
     NotReceived,
@@ -133,6 +171,7 @@ pub enum RecoveryResult {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum LogStream {
     Stdout,
@@ -157,6 +196,9 @@ pub struct DaemonSnapshot {
     pub store_uuid: Uuid,
     pub version: String,
     pub pid: u32,
+    pub store_path: PathBuf,
+    pub config_path: PathBuf,
+    pub capacities: crate::ResourceCapacities,
     pub queued_jobs: u64,
     pub running_jobs: u64,
 }

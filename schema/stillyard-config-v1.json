@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ResourceCapacities",
+  "description": "Scalar capacities configured by the owner for one host-local daemon.",
+  "type": "object",
+  "properties": {
+    "cargo_slots": {
+      "type": "integer",
+      "format": "uint32",
+      "default": 0,
+      "minimum": 0
+    },
+    "cpu_units": {
+      "type": "integer",
+      "format": "uint32",
+      "default": 0,
+      "minimum": 0
+    },
+    "custom": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "default": {}
+    },
+    "gpu_slots": {
+      "type": "integer",
+      "format": "uint32",
+      "default": 0,
+      "minimum": 0
+    },
+    "ram_mb": {
+      "type": "integer",
+      "format": "uint64",
+      "default": 0,
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}

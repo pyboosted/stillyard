@@ -13,8 +13,8 @@ use crate::protocol::{PROTOCOL_VERSION, Request, Response};
 #[cfg(windows)]
 use crate::protocol::{read_frame, write_frame};
 use crate::{
-    CancellationToken, DaemonSnapshot, Error, JobId, JobReceipt, JobSnapshot, JobSpec, LogChunk,
-    LogStream, RecoveryResult, Result, SubmitOptions,
+    BatchReceipt, BatchSpec, CancellationToken, DaemonSnapshot, Error, JobId, JobReceipt,
+    JobSnapshot, JobSpec, LogChunk, LogStream, RecoveryResult, Result, SubmitOptions,
 };
 
 #[derive(Clone, Debug)]
@@ -159,7 +159,45 @@ impl Client {
                         path,
                         options.idempotency_key,
                         &payload_hash,
-                        Some(&receipt),
+                        Some(serde_json::to_value(&receipt)?),
+                    )?;
+                }
+                Ok(receipt)
+            }
+            response => response_error(response),
+        }
+    }
+
+    pub fn submit_batch(
+        &self,
+        spec: BatchSpec,
+        options: &SubmitOptions,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<BatchReceipt> {
+        spec.validate()?;
+        let normalized = serde_json::to_vec(&spec)?;
+        let payload_hash = format!("{:x}", Sha256::digest(&normalized));
+        if let Some(path) = &options.result_file {
+            write_initial_result_file(path, options, &payload_hash)?;
+        }
+        let response = self.request(
+            Request::SubmitBatch {
+                idempotency_key: options.idempotency_key,
+                payload_hash: payload_hash.clone(),
+                spec: Box::new(spec),
+            },
+            deadline,
+            cancellation,
+        )?;
+        match response {
+            Response::BatchSubmitted(receipt) => {
+                if let Some(path) = &options.result_file {
+                    write_result_file(
+                        path,
+                        options.idempotency_key,
+                        &payload_hash,
+                        Some(serde_json::to_value(&receipt)?),
                     )?;
                 }
                 Ok(receipt)
@@ -522,14 +560,14 @@ struct ResultFileRecord {
     version: u32,
     idempotency_key: uuid::Uuid,
     payload_hash: String,
-    receipt: Option<JobReceipt>,
+    receipt: Option<serde_json::Value>,
 }
 
 fn write_result_file(
     path: &Path,
     idempotency_key: uuid::Uuid,
     payload_hash: &str,
-    receipt: Option<&JobReceipt>,
+    receipt: Option<serde_json::Value>,
 ) -> Result<()> {
     write_json_atomically(
         path,
@@ -537,7 +575,7 @@ fn write_result_file(
             version: 1,
             idempotency_key,
             payload_hash: payload_hash.to_owned(),
-            receipt: receipt.cloned(),
+            receipt,
         },
     )
 }
@@ -548,6 +586,7 @@ fn write_json_atomically(path: &Path, value: &impl serde::Serialize) -> Result<(
         _ => std::env::current_dir()?,
     };
     std::fs::create_dir_all(&parent)?;
+    crate::filesystem::require_fixed_local_ntfs(&parent)?;
     let temp = parent.join(format!(".stillyard-result-{}.tmp", uuid::Uuid::now_v7()));
     let mut file = OpenOptions::new()
         .write(true)
@@ -610,10 +649,10 @@ pub(crate) fn default_endpoint() -> Result<String> {
     #[cfg(windows)]
     let digest = format!("{:x}", Sha256::digest(identity.as_bytes()));
     #[cfg(windows)]
-    return Ok(format!(r"\\.\pipe\stillyard-v2-{}", &digest[..16]));
+    return Ok(format!(r"\\.\pipe\stillyard-v3-{}", &digest[..16]));
     #[cfg(not(windows))]
     return Ok(default_store_root()?
-        .join("stillyard-v2.sock")
+        .join("stillyard-v3.sock")
         .to_string_lossy()
         .into_owned());
 }

@@ -118,7 +118,7 @@ impl Scheduler {
         }
     }
 
-    fn run(&self, store: SharedStore) {
+    fn run(self: Arc<Self>, store: SharedStore) {
         loop {
             let mut retry = false;
             let next = {
@@ -126,17 +126,8 @@ impl Scheduler {
                     Ok(guard) => guard,
                     Err(_) => return,
                 };
-                match guard.pending_jobs() {
-                    Ok(jobs) => match jobs.into_iter().next() {
-                        Some(job_id) => match guard.prepare_job(job_id) {
-                            Ok(job) => job,
-                            Err(_) => {
-                                retry = true;
-                                None
-                            }
-                        },
-                        None => None,
-                    },
+                match guard.prepare_next_job() {
+                    Ok(job) => job,
                     Err(_) => {
                         retry = true;
                         None
@@ -145,8 +136,19 @@ impl Scheduler {
             };
             if let Some(job) = next {
                 self.notify_change();
-                crate::runner::run(job, Arc::clone(&store));
-                self.notify_change();
+                let worker_store = Arc::clone(&store);
+                let worker_scheduler = Arc::clone(&self);
+                let thread_job = job.clone();
+                let spawned = std::thread::Builder::new()
+                    .name(format!("stillyard-job-{}", job.job_id.entity_uuid()))
+                    .spawn(move || {
+                        crate::runner::run(thread_job, worker_store);
+                        worker_scheduler.wake();
+                    });
+                if spawned.is_err() {
+                    crate::runner::run(job, Arc::clone(&store));
+                    self.wake();
+                }
                 continue;
             }
             if retry {
@@ -189,6 +191,20 @@ fn handle_request(store: &SharedStore, scheduler: &Scheduler, request: Request) 
                     scheduler.wake();
                 }
                 Response::Submitted(submitted.receipt)
+            }),
+        Request::SubmitBatch {
+            idempotency_key,
+            payload_hash,
+            spec,
+        } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|mut store| store.submit_batch(idempotency_key, &payload_hash, &spec))
+            .map(|submitted| {
+                if submitted.should_schedule {
+                    scheduler.wake();
+                }
+                Response::BatchSubmitted(submitted.receipt)
             }),
         Request::Recover {
             idempotency_key,

@@ -5,7 +5,8 @@ use std::time::{Duration, Instant};
 
 use clap::{Parser, Subcommand, ValueEnum, error::ErrorKind};
 use stillyard::{
-    Client, JobId, JobOutcome, JobSnapshot, JobSpec, LogStream, RecoveryResult, SubmitOptions,
+    BatchSpec, Client, JobId, JobOutcome, JobSnapshot, JobSpec, LogStream, RecoveryResult,
+    SubmitOptions,
 };
 use uuid::Uuid;
 
@@ -27,8 +28,11 @@ enum Command {
     /// Submit a JobSpec JSON document and print its receipt immediately.
     Submit {
         /// JSON spec path, or '-' for stdin.
-        #[arg(long)]
-        spec: PathBuf,
+        #[arg(long, required_unless_present = "batch", conflicts_with = "batch")]
+        spec: Option<PathBuf>,
+        /// Atomic BatchSpec JSON path, or '-' for stdin.
+        #[arg(long, conflicts_with = "spec")]
+        batch: Option<PathBuf>,
         /// Stable operation identity; generated when omitted.
         #[arg(long)]
         idempotency_key: Option<Uuid>,
@@ -107,6 +111,8 @@ impl From<StreamArg> for LogStream {
 enum SchemaCommand {
     /// Print the versioned JobSpec/BatchSpec schema.
     Spec,
+    /// Print the versioned host resource-capacity schema.
+    Config,
 }
 
 fn main() {
@@ -135,24 +141,46 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         }
         Command::Submit {
             spec,
+            batch,
             idempotency_key,
             result_file,
             wait,
             deadline_seconds,
         } => {
-            let spec: JobSpec = serde_json::from_slice(&read_input(&spec)?)?;
             let deadline = deadline(deadline_seconds);
             let client = Client::connect(deadline, None)?;
-            let options = SubmitOptions {
-                idempotency_key: idempotency_key.unwrap_or_else(Uuid::now_v7),
-                result_file,
-            };
-            let receipt = client.submit(spec, &options, deadline, None)?;
-            print_json(&receipt)?;
-            if wait {
-                let snapshot = client.wait(receipt.job_id, deadline, None)?;
-                print_json(&snapshot)?;
-                exit_for_snapshot(&snapshot);
+            let mut options = SubmitOptions::new(idempotency_key.unwrap_or_else(Uuid::now_v7));
+            if let Some(result_file) = result_file {
+                options = options.with_result_file(result_file);
+            }
+            if let Some(path) = batch {
+                let spec: BatchSpec = serde_json::from_slice(&read_input(&path)?)?;
+                let receipt = client.submit_batch(spec, &options, deadline, None)?;
+                print_json(&receipt)?;
+                if wait {
+                    let mut worst = (0_u8, 0_i32);
+                    for member in receipt.jobs {
+                        let snapshot = client.wait(member.receipt.job_id, deadline, None)?;
+                        print_json(&snapshot)?;
+                        let candidate = snapshot_exit_rank(&snapshot);
+                        if candidate.0 > worst.0 {
+                            worst = candidate;
+                        }
+                    }
+                    if worst.1 != 0 {
+                        std::process::exit(worst.1);
+                    }
+                }
+            } else {
+                let path = spec.expect("clap requires --spec or --batch");
+                let spec: JobSpec = serde_json::from_slice(&read_input(&path)?)?;
+                let receipt = client.submit(spec, &options, deadline, None)?;
+                print_json(&receipt)?;
+                if wait {
+                    let snapshot = client.wait(receipt.job_id, deadline, None)?;
+                    print_json(&snapshot)?;
+                    exit_for_snapshot(&snapshot);
+                }
             }
         }
         Command::Recover {
@@ -205,9 +233,10 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             let client = Client::connect(deadline, None)?;
             print_json(&client.daemon_status(deadline, None)?)?;
         }
-        Command::Schema {
-            command: SchemaCommand::Spec,
-        } => print!("{}", stillyard::schema_json()?),
+        Command::Schema { command } => match command {
+            SchemaCommand::Spec => print!("{}", stillyard::schema_json()?),
+            SchemaCommand::Config => print!("{}", stillyard::config_schema_json()?),
+        },
     }
     Ok(())
 }
@@ -232,7 +261,14 @@ fn print_json(value: &impl serde::Serialize) -> Result<(), serde_json::Error> {
 }
 
 fn exit_for_snapshot(snapshot: &JobSnapshot) {
-    let code = match snapshot.outcome {
+    let code = snapshot_exit_code(snapshot);
+    if code != 0 {
+        std::process::exit(code);
+    }
+}
+
+fn snapshot_exit_code(snapshot: &JobSnapshot) -> i32 {
+    match snapshot.outcome {
         Some(JobOutcome::Succeeded) => 0,
         Some(JobOutcome::Failed) => 20,
         Some(JobOutcome::TimedOut) => 21,
@@ -240,19 +276,33 @@ fn exit_for_snapshot(snapshot: &JobSnapshot) {
         Some(JobOutcome::Interrupted) => 23,
         Some(JobOutcome::Skipped) => 24,
         None => 25,
-    };
-    if code != 0 {
-        std::process::exit(code);
+        Some(_) => 70,
+    }
+}
+
+fn snapshot_exit_rank(snapshot: &JobSnapshot) -> (u8, i32) {
+    match snapshot.outcome {
+        Some(JobOutcome::Succeeded) => (0, 0),
+        Some(JobOutcome::Skipped) => (1, 24),
+        Some(JobOutcome::Canceled) => (2, 22),
+        Some(JobOutcome::Interrupted) => (3, 23),
+        Some(JobOutcome::TimedOut) => (4, 21),
+        Some(JobOutcome::Failed) => (5, 20),
+        None => (6, 25),
+        Some(_) => (7, 70),
     }
 }
 
 fn exit_for_recovery(recovery: &RecoveryResult) {
     let code = match recovery {
-        RecoveryResult::Received { .. } | RecoveryResult::Accepted(_) => 0,
+        RecoveryResult::Received { .. }
+        | RecoveryResult::Accepted(_)
+        | RecoveryResult::AcceptedBatch(_) => 0,
         RecoveryResult::Rejected { .. }
         | RecoveryResult::Conflict
         | RecoveryResult::NotReceived => 27,
         RecoveryResult::Unknown => 70,
+        _ => 70,
     };
     if code != 0 {
         std::process::exit(code);

@@ -3,9 +3,12 @@ use std::io::{Read, Write};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{DaemonSnapshot, JobId, JobReceipt, JobSnapshot, JobSpec, LogChunk, LogStream};
+use crate::{
+    BatchReceipt, BatchSpec, DaemonSnapshot, JobId, JobReceipt, JobSnapshot, JobSpec, LogChunk,
+    LogStream,
+};
 
-pub(crate) const PROTOCOL_VERSION: u32 = 2;
+pub(crate) const PROTOCOL_VERSION: u32 = 3;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -16,6 +19,11 @@ pub(crate) enum Request {
         idempotency_key: Uuid,
         payload_hash: String,
         spec: Box<JobSpec>,
+    },
+    SubmitBatch {
+        idempotency_key: Uuid,
+        payload_hash: String,
+        spec: Box<BatchSpec>,
     },
     Recover {
         idempotency_key: Uuid,
@@ -42,6 +50,7 @@ pub(crate) enum Request {
 pub(crate) enum Response {
     Pong { protocol_version: u32 },
     Submitted(JobReceipt),
+    BatchSubmitted(BatchReceipt),
     Recovered(crate::RecoveryResult),
     Snapshot(Box<JobSnapshot>),
     Logs(LogChunk),

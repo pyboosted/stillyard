@@ -1,0 +1,454 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SubmissionSpec",
+  "description": "Schema root covering both accepted submission document shapes.",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/JobSpec"
+    },
+    {
+      "$ref": "#/$defs/BatchSpec"
+    }
+  ],
+  "$defs": {
+    "BatchMember": {
+      "type": "object",
+      "properties": {
+        "dependencies": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DependencySpec"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "spec": {
+          "$ref": "#/$defs/JobSpec"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "spec"
+      ]
+    },
+    "BatchSpec": {
+      "type": "object",
+      "properties": {
+        "jobs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BatchMember"
+          }
+        },
+        "spec_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "spec_version",
+        "jobs"
+      ]
+    },
+    "ConditionSpec": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "path_exists"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "path"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "path_absent"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "path"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "not_before"
+            },
+            "unix_millis": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "unix_millis"
+          ]
+        }
+      ]
+    },
+    "DependencyKind": {
+      "type": "string",
+      "enum": [
+        "success",
+        "failure",
+        "terminal"
+      ]
+    },
+    "DependencySpec": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "type": "string"
+        },
+        "on": {
+          "$ref": "#/$defs/DependencyKind"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "job",
+        "on"
+      ]
+    },
+    "EnvironmentSpec": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "set": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "unset": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "JobSpec": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "conditions": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ConditionSpec"
+          }
+        },
+        "environment": {
+          "$ref": "#/$defs/EnvironmentSpec",
+          "default": {
+            "profile": null,
+            "set": {},
+            "unset": []
+          }
+        },
+        "executable": {
+          "type": "string"
+        },
+        "expected_duration_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "labels": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Label"
+          }
+        },
+        "quiet": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuietPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resources": {
+          "$ref": "#/$defs/ResourceClaims",
+          "default": {
+            "cargo_slots": null,
+            "cpu_units": null,
+            "custom": {},
+            "exclusive_fences": [],
+            "gpu_slots": null,
+            "impacts": [],
+            "ram_mb": null,
+            "shared_fences": []
+          }
+        },
+        "retry": {
+          "$ref": "#/$defs/RetryPolicy",
+          "default": {
+            "backoff_seconds": 0,
+            "max_attempts": 1,
+            "retryable": []
+          }
+        },
+        "spec_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "stdin": {
+          "$ref": "#/$defs/StdinSpec",
+          "default": {
+            "kind": "eof"
+          }
+        },
+        "timeout_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "working_directory": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "spec_version",
+        "executable",
+        "working_directory"
+      ]
+    },
+    "Label": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "value"
+      ]
+    },
+    "QuietPolicy": {
+      "type": "object",
+      "properties": {
+        "detectors": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "max_sample_age_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "stable_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "wait_budget_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "stable_seconds",
+        "max_sample_age_seconds",
+        "wait_budget_seconds"
+      ]
+    },
+    "ResourceClaims": {
+      "type": "object",
+      "properties": {
+        "cargo_slots": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "cpu_units": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "custom": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "default": {}
+        },
+        "exclusive_fences": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "gpu_slots": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "impacts": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "ram_mb": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "shared_fences": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "RetryPolicy": {
+      "type": "object",
+      "properties": {
+        "backoff_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "max_attempts": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "retryable": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "max_attempts",
+        "backoff_seconds"
+      ]
+    },
+    "StdinSpec": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "eof"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "file"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "path"
+          ]
+        }
+      ]
+    }
+  }
+}
