@@ -1199,6 +1199,7 @@ mod tests {
         assert_eq!(lease, "granted");
     }
 
+    #[cfg(windows)]
     #[test]
     fn restart_releases_lease_after_recorded_root_is_gone() {
         let temp = tempfile::tempdir().unwrap();
