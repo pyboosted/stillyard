@@ -46,11 +46,68 @@ impl JobSpec {
         if self.executable.as_os_str().is_empty() {
             return Err(Error::InvalidSpec("executable is empty".into()));
         }
+        if !self.executable.is_absolute() || !self.working_directory.is_absolute() {
+            return Err(Error::InvalidSpec(
+                "executable and working_directory must be absolute".into(),
+            ));
+        }
+        if self.executable.as_os_str().to_string_lossy().contains('\0')
+            || self
+                .working_directory
+                .as_os_str()
+                .to_string_lossy()
+                .contains('\0')
+            || self.args.iter().any(|argument| argument.contains('\0'))
+        {
+            return Err(Error::InvalidSpec(
+                "process path or argument contains NUL".into(),
+            ));
+        }
         if self.labels.len() > 32 {
             return Err(Error::InvalidSpec("more than 32 labels".into()));
         }
         for label in &self.labels {
             label.validate()?;
+        }
+        for (name, value) in &self.environment.set {
+            if name.is_empty()
+                || name.contains(['\0', '='])
+                || value.contains('\0')
+                || name.to_ascii_uppercase().starts_with("STILLYARD_")
+            {
+                return Err(Error::InvalidSpec(format!(
+                    "invalid or reserved environment entry {name:?}"
+                )));
+            }
+        }
+        if self
+            .environment
+            .unset
+            .iter()
+            .any(|name| name.is_empty() || name.contains(['\0', '=']))
+        {
+            return Err(Error::InvalidSpec(
+                "invalid environment name in unset list".into(),
+            ));
+        }
+        if self.retry.max_attempts == 0 {
+            return Err(Error::InvalidSpec(
+                "retry.max_attempts must be positive".into(),
+            ));
+        }
+        // The first executable slice fails closed for baseline features whose admission providers
+        // are not shipped yet. Declaring a claim must never silently run as if it were satisfied.
+        if self.stdin != StdinSpec::Eof
+            || self.environment.profile.is_some()
+            || self.resources != ResourceClaims::default()
+            || !self.conditions.is_empty()
+            || self.retry != RetryPolicy::default()
+            || self.quiet.is_some()
+            || !self.artifacts.is_empty()
+        {
+            return Err(Error::InvalidSpec(
+                "this alpha implements EOF stdin and unconstrained single-attempt jobs only".into(),
+            ));
         }
         Ok(())
     }
@@ -207,5 +264,24 @@ mod tests {
             "surprise": true
         }"#;
         assert!(serde_json::from_str::<JobSpec>(json).is_err());
+    }
+
+    #[test]
+    fn unsupported_claim_never_runs_unenforced() {
+        let mut job: JobSpec = serde_json::from_str(
+            r#"{
+                "spec_version": 1,
+                "executable": "tool.exe",
+                "working_directory": ".",
+                "resources": { "gpu_slots": 1 }
+            }"#,
+        )
+        .unwrap();
+        let root = std::env::current_dir().unwrap();
+        job.executable = root.join("tool.exe");
+        job.working_directory = root;
+        assert!(job.validate().is_err());
+        job.resources = ResourceClaims::default();
+        assert!(job.validate().is_ok());
     }
 }

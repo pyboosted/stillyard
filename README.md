@@ -19,7 +19,16 @@ The motivating agent-orchestration consumer and its boundary are documented in [
 
 ## Current status
 
-The public types and generated JobSpec/BatchSpec schema are the first implementation slice. Daemon, local IPC, SQLite lifecycle, process containment, logs, and the CLI are being implemented in that order, with the acceptance contract in §16 of the baseline as the gate.
+`0.1.0-alpha.1` contains the first Windows vertical slice:
+
+- a runtime-neutral blocking Rust client with deadlines and cancellation;
+- a framed, owner-only local named-pipe protocol and detached singleton daemon;
+- a crash-safe SQLite lifecycle store for Submission → Job → Attempt → Invocation → Containment → Lease;
+- immediate idempotent submit receipts, status, event-driven wait, recovery, daemon status, and offset log reads;
+- born-contained Windows process creation with a kill-on-close Job Object, clean environment, canonical stdout/stderr, timeout cleanup, executable provenance, and restart interruption;
+- one `stillyard` CLI binary plus the public generated schema.
+
+This slice deliberately accepts only unconstrained, single-attempt jobs with EOF stdin. Resource admission, Conditions/dependencies/Batch, cancel/drain, profiles/secrets/artifacts, retention/events, and `watch` are still baseline work. Specs declaring an unimplemented policy reject rather than run unenforced. Linux remains the v0.2 target.
 
 ## Build
 
@@ -27,7 +36,9 @@ The public types and generated JobSpec/BatchSpec schema are the first implementa
 cargo build
 cargo test
 cargo run -- schema spec
+cargo run -- daemon-status
+cargo run -- submit --spec job.json --wait
+cargo run -- logs JOB_ID
 ```
 
 Stillyard is licensed under either of Apache License 2.0 or the MIT license, at your option.
-

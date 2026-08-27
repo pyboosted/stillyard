@@ -10,6 +10,12 @@ pub enum Error {
     #[error("serialization failed: {0}")]
     Serialization(#[from] serde_json::Error),
 
+    #[error("local protocol error: {0}")]
+    Protocol(String),
+
+    #[error("I/O failed: {0}")]
+    Io(#[from] std::io::Error),
+
     #[error("the local daemon is unavailable: {0}")]
     Unavailable(String),
 
@@ -18,6 +24,9 @@ pub enum Error {
 
     #[error("the operation was canceled")]
     Canceled,
+
+    #[error("this operation is unsupported on {0}")]
+    UnsupportedPlatform(&'static str),
 }
 
 /// Public result alias.
