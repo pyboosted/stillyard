@@ -1,3 +1,5 @@
+#[cfg(windows)]
+use std::ffi::OsStr;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -15,11 +17,9 @@ use crate::{
     LogStream, RecoveryResult, Result, SubmitOptions,
 };
 
-pub(crate) const DEFAULT_PIPE_NAME: &str = r"\\.\pipe\stillyard-v1";
-
 #[derive(Clone, Debug)]
 pub struct ClientBuilder {
-    endpoint: String,
+    endpoint: Option<String>,
     auto_start: bool,
     daemon_executable: Option<PathBuf>,
 }
@@ -27,7 +27,7 @@ pub struct ClientBuilder {
 impl Default for ClientBuilder {
     fn default() -> Self {
         Self {
-            endpoint: DEFAULT_PIPE_NAME.to_owned(),
+            endpoint: None,
             auto_start: true,
             daemon_executable: None,
         }
@@ -37,7 +37,7 @@ impl Default for ClientBuilder {
 impl ClientBuilder {
     #[must_use]
     pub fn endpoint(mut self, endpoint: impl Into<String>) -> Self {
-        self.endpoint = endpoint.into();
+        self.endpoint = Some(endpoint.into());
         self
     }
 
@@ -59,21 +59,50 @@ impl ClientBuilder {
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<Client> {
+        let explicit_endpoint = self.endpoint.is_some();
+        let endpoint = self.endpoint.unwrap_or(default_endpoint()?);
         let daemon_executable = self
             .daemon_executable
             .map(Ok)
             .unwrap_or_else(default_daemon_executable)?;
         let client = Client {
-            endpoint: self.endpoint,
+            endpoint,
             daemon_executable,
         };
         match client.ping(deadline, cancellation) {
             Ok(()) => Ok(client),
             Err(Error::Unavailable(_)) if self.auto_start => {
-                start_daemon(&client.daemon_executable)?;
+                if std::env::var_os("STILLYARD_JOB_ID").is_some()
+                    || std::env::var_os("STILLYARD_ROLE").is_some()
+                {
+                    return Err(Error::Unavailable(
+                        "a managed child may not auto-start the daemon".into(),
+                    ));
+                }
+                if explicit_endpoint {
+                    return Err(Error::Unavailable(
+                        "auto-start is unavailable for an explicit endpoint".into(),
+                    ));
+                }
+                let mut daemon = start_daemon(&client.daemon_executable)?;
+                let startup_deadline = deadline.min(Instant::now() + Duration::from_secs(10));
+                let mut child_exit = None;
                 loop {
-                    check_wait(deadline, cancellation)?;
-                    match client.ping(deadline, cancellation) {
+                    if let Err(error) = check_wait(startup_deadline, cancellation) {
+                        return Err(match error {
+                            Error::DeadlineElapsed => Error::Unavailable(match child_exit {
+                                Some(status) => format!(
+                                    "daemon did not become ready within 10 seconds; spawned candidate exited with {status}"
+                                ),
+                                None => "daemon did not become ready within 10 seconds".into(),
+                            }),
+                            other => other,
+                        });
+                    }
+                    if child_exit.is_none() {
+                        child_exit = daemon.try_wait()?;
+                    }
+                    match client.ping(startup_deadline, cancellation) {
                         Ok(()) => return Ok(client),
                         Err(Error::Unavailable(_)) => std::thread::sleep(Duration::from_millis(25)),
                         Err(error) => return Err(error),
@@ -198,9 +227,20 @@ impl Client {
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<JobSnapshot> {
-        match self.request(Request::Wait { job_id }, deadline, cancellation)? {
-            Response::Snapshot(snapshot) => Ok(*snapshot),
-            response => response_error(response),
+        loop {
+            let response = self.request(
+                Request::Wait {
+                    job_id,
+                    max_wait_millis: 1_000,
+                },
+                deadline,
+                cancellation,
+            )?;
+            match response {
+                Response::Snapshot(snapshot) if snapshot.is_final() => return Ok(*snapshot),
+                Response::Snapshot(_) => continue,
+                response => return response_error(response),
+            }
         }
     }
 
@@ -272,7 +312,7 @@ impl Client {
         let daemon_executable = self.daemon_executable.clone();
         let (sender, receiver) = mpsc::sync_channel(1);
         std::thread::spawn(move || {
-            let result = transport_request(&endpoint, &daemon_executable, &request);
+            let result = transport_request(&endpoint, &daemon_executable, &request, deadline);
             let _ = sender.send(result);
         });
         loop {
@@ -291,6 +331,9 @@ impl Client {
 
 fn response_error<T>(response: Response) -> Result<T> {
     match response {
+        Response::Error { code, message } if code == "invalid_spec" => {
+            Err(Error::InvalidSpec(message))
+        }
         Response::Error { code, message } => Err(Error::Protocol(format!("{code}: {message}"))),
         _ => Err(Error::Protocol("unexpected response variant".into())),
     }
@@ -311,12 +354,31 @@ fn transport_request(
     endpoint: &str,
     daemon_executable: &Path,
     request: &Request,
+    deadline: Instant,
 ) -> Result<Response> {
-    let mut pipe = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(endpoint)
-        .map_err(|error| Error::Unavailable(error.to_string()))?;
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
+    use windows_sys::Win32::System::Pipes::WaitNamedPipeW;
+
+    let mut pipe = loop {
+        match OpenOptions::new().read(true).write(true).open(endpoint) {
+            Ok(pipe) => break pipe,
+            Err(error) if error.raw_os_error() == Some(ERROR_PIPE_BUSY as i32) => {
+                if Instant::now() >= deadline {
+                    return Err(Error::DeadlineElapsed);
+                }
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                let timeout = remaining.min(Duration::from_secs(1)).as_millis().max(1) as u32;
+                let endpoint: Vec<u16> = OsStr::new(endpoint)
+                    .encode_wide()
+                    .chain(std::iter::once(0))
+                    .collect();
+                // SAFETY: endpoint is NUL-terminated and remains alive for the call.
+                unsafe { WaitNamedPipeW(endpoint.as_ptr(), timeout) };
+            }
+            Err(error) => return Err(Error::Unavailable(error.to_string())),
+        }
+    };
     verify_pipe_server(&pipe, daemon_executable)?;
     write_frame(&mut pipe, request)?;
     read_frame(&mut pipe).map_err(Error::from)
@@ -383,29 +445,41 @@ fn transport_request(
     _endpoint: &str,
     _daemon_executable: &Path,
     _request: &Request,
+    _deadline: Instant,
 ) -> Result<Response> {
     Err(Error::UnsupportedPlatform(std::env::consts::OS))
 }
 
 #[cfg(windows)]
-fn start_daemon(executable: &Path) -> Result<()> {
+fn start_daemon(executable: &Path) -> Result<std::process::Child> {
     use std::os::windows::process::CommandExt;
-    use std::process::Command;
+    use std::process::{Command, Stdio};
 
     const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
     const DETACHED_PROCESS: u32 = 0x0000_0008;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
 
+    let store_root = default_store_root()?;
+    std::fs::create_dir_all(&store_root)?;
     Command::new(executable)
         .args(["daemon", "--background-child"])
-        .creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS | CREATE_NO_WINDOW)
+        .current_dir(store_root)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(
+            CREATE_NEW_PROCESS_GROUP
+                | DETACHED_PROCESS
+                | CREATE_NO_WINDOW
+                | CREATE_BREAKAWAY_FROM_JOB,
+        )
         .spawn()
-        .map_err(|error| Error::Unavailable(format!("cannot start daemon: {error}")))?;
-    Ok(())
+        .map_err(|error| Error::Unavailable(format!("cannot start daemon: {error}")))
 }
 
 #[cfg(not(windows))]
-fn start_daemon(_executable: &Path) -> Result<()> {
+fn start_daemon(_executable: &Path) -> Result<std::process::Child> {
     Err(Error::UnsupportedPlatform(std::env::consts::OS))
 }
 
@@ -528,4 +602,90 @@ pub(crate) fn default_store_root() -> Result<PathBuf> {
     let project = ProjectDirs::from("org", "stillyard", "Stillyard")
         .ok_or_else(|| Error::Unavailable("cannot resolve per-user data directory".into()))?;
     Ok(project.data_local_dir().to_path_buf())
+}
+
+pub(crate) fn default_endpoint() -> Result<String> {
+    #[cfg(windows)]
+    let identity = current_user_sid_string()?;
+    #[cfg(not(windows))]
+    let identity = default_store_root()?.to_string_lossy().to_lowercase();
+    let digest = format!("{:x}", Sha256::digest(identity.as_bytes()));
+    #[cfg(windows)]
+    return Ok(format!(r"\\.\pipe\stillyard-v2-{}", &digest[..16]));
+    #[cfg(not(windows))]
+    return Ok(default_store_root()?
+        .join("stillyard-v2.sock")
+        .to_string_lossy()
+        .into_owned());
+}
+
+#[cfg(windows)]
+pub(crate) fn current_user_sid_string() -> Result<String> {
+    use std::ffi::c_void;
+    use std::mem::size_of;
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, LocalFree};
+    use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
+    use windows_sys::Win32::Security::{GetTokenInformation, TOKEN_QUERY, TOKEN_USER, TokenUser};
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    struct HandleGuard(HANDLE);
+    impl Drop for HandleGuard {
+        fn drop(&mut self) {
+            // SAFETY: this guard owns the token handle.
+            unsafe { CloseHandle(self.0) };
+        }
+    }
+    struct LocalGuard(*mut c_void);
+    impl Drop for LocalGuard {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                // SAFETY: this pointer came from ConvertSidToStringSidW.
+                unsafe { LocalFree(self.0) };
+            }
+        }
+    }
+
+    let mut token = std::ptr::null_mut();
+    // SAFETY: the current-process pseudo handle is valid and token is writable.
+    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    let token = HandleGuard(token);
+    let mut required = 0_u32;
+    // SAFETY: this is the documented sizing call.
+    unsafe { GetTokenInformation(token.0, TokenUser, std::ptr::null_mut(), 0, &mut required) };
+    if required < size_of::<TOKEN_USER>() as u32 {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    let mut buffer = vec![0_u8; required as usize];
+    // SAFETY: the buffer has the exact requested size and all outputs are writable.
+    if unsafe {
+        GetTokenInformation(
+            token.0,
+            TokenUser,
+            buffer.as_mut_ptr().cast(),
+            required,
+            &mut required,
+        )
+    } == 0
+    {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    // SAFETY: a successful TokenUser query places TOKEN_USER at the buffer start.
+    let user = unsafe { &*buffer.as_ptr().cast::<TOKEN_USER>() };
+    let mut sid_text = std::ptr::null_mut();
+    // SAFETY: the SID belongs to the live token buffer and output is writable.
+    if unsafe { ConvertSidToStringSidW(user.User.Sid, &mut sid_text) } == 0 {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    let sid = LocalGuard(sid_text.cast());
+    let mut length = 0_usize;
+    // SAFETY: ConvertSidToStringSidW returns a NUL-terminated UTF-16 string.
+    while unsafe { *sid_text.add(length) } != 0 {
+        length += 1;
+    }
+    // SAFETY: the measured range belongs to the live LocalGuard allocation.
+    let text = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(sid_text, length) });
+    drop(sid);
+    Ok(text)
 }

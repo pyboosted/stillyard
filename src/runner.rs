@@ -1,21 +1,13 @@
 use std::sync::{Arc, Mutex};
 
-use crate::JobOutcome;
 use crate::store::{PreparedJob, Store};
 
 pub(crate) fn run(job: PreparedJob, store: Arc<Mutex<Store>>) {
     #[cfg(windows)]
-    if let Err(error) = windows::run(&job, &store) {
-        if let Ok(mut store) = store.lock() {
-            let _ = store.mark_finished(&job, None, JobOutcome::Failed, "start_failed");
-        }
-        eprintln!("stillyard runner for {} failed: {error}", job.job_id);
-    }
+    windows::run(&job, &store);
 
     #[cfg(not(windows))]
-    if let Ok(mut store) = store.lock() {
-        let _ = store.mark_finished(&job, None, JobOutcome::Failed, "start_failed");
-    }
+    let _ = (job, store);
 }
 
 #[cfg(windows)]
@@ -53,13 +45,19 @@ mod windows {
     use windows_sys::Win32::System::Threading::{
         CREATE_NO_WINDOW, CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, CreateProcessW,
         DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT, GetExitCodeProcess,
-        InitializeProcThreadAttributeList, PROC_THREAD_ATTRIBUTE_JOB_LIST, PROCESS_INFORMATION,
-        QueryFullProcessImageNameW, ResumeThread, STARTF_USESTDHANDLES, STARTUPINFOEXW,
-        UpdateProcThreadAttribute, WaitForSingleObject,
+        InitializeProcThreadAttributeList, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+        PROC_THREAD_ATTRIBUTE_JOB_LIST, PROCESS_INFORMATION, QueryFullProcessImageNameW,
+        ResumeThread, STARTF_USESTDHANDLES, STARTUPINFOEXW, UpdateProcThreadAttribute,
+        WaitForSingleObject,
     };
 
     use crate::store::{PreparedJob, Store, StoreError};
     use crate::{JobOutcome, LogStream};
+
+    #[cfg(test)]
+    thread_local! {
+        static FORCE_PRESTART_FAILURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
 
     struct OwnedHandle(HANDLE);
 
@@ -96,13 +94,17 @@ mod windows {
         storage: Vec<u8>,
         initialized: bool,
         job: Box<HANDLE>,
+        inherited_handles: Box<[HANDLE; 3]>,
     }
 
     impl AttributeList {
-        fn with_job(job: HANDLE) -> std::io::Result<Self> {
+        fn with_job_and_handles(
+            job: HANDLE,
+            inherited_handles: [HANDLE; 3],
+        ) -> std::io::Result<Self> {
             let mut bytes = 0_usize;
             // SAFETY: the documented sizing call accepts a null list and writes the required size.
-            unsafe { InitializeProcThreadAttributeList(null_mut(), 1, 0, &mut bytes) };
+            unsafe { InitializeProcThreadAttributeList(null_mut(), 2, 0, &mut bytes) };
             if bytes == 0 {
                 return Err(std::io::Error::last_os_error());
             }
@@ -110,9 +112,10 @@ mod windows {
                 storage: vec![0_u8; bytes],
                 initialized: false,
                 job: Box::new(job),
+                inherited_handles: Box::new(inherited_handles),
             };
             // SAFETY: storage is writable and has the exact size returned by the sizing call.
-            if unsafe { InitializeProcThreadAttributeList(list.raw(), 1, 0, &mut bytes) } == 0 {
+            if unsafe { InitializeProcThreadAttributeList(list.raw(), 2, 0, &mut bytes) } == 0 {
                 return Err(std::io::Error::last_os_error());
             }
             list.initialized = true;
@@ -124,6 +127,22 @@ mod windows {
                     PROC_THREAD_ATTRIBUTE_JOB_LIST as usize,
                     (list.job.as_ref() as *const HANDLE).cast::<c_void>(),
                     size_of::<HANDLE>(),
+                    null_mut(),
+                    null(),
+                )
+            } == 0
+            {
+                return Err(std::io::Error::last_os_error());
+            }
+            // SAFETY: the handles are inheritable and the boxed array remains alive through
+            // CreateProcessW. The explicit list prevents unrelated daemon handles from leaking.
+            if unsafe {
+                UpdateProcThreadAttribute(
+                    list.raw(),
+                    0,
+                    PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
+                    list.inherited_handles.as_ptr().cast::<c_void>(),
+                    size_of::<[HANDLE; 3]>(),
                     null_mut(),
                     null(),
                 )
@@ -148,10 +167,50 @@ mod windows {
         }
     }
 
-    pub(super) fn run(
+    #[derive(Default)]
+    struct RunProgress {
+        user_code_released: bool,
+        cleanup_proven: bool,
+        exit_code: Option<i32>,
+        timed_out: bool,
+    }
+
+    type RunResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
+    pub(super) fn run(job: &PreparedJob, store: &Arc<Mutex<Store>>) {
+        let mut progress = RunProgress {
+            cleanup_proven: true,
+            ..RunProgress::default()
+        };
+        if let Err(error) = run_inner(job, store, &mut progress) {
+            if let Ok(mut store) = store.lock() {
+                if progress.cleanup_proven {
+                    let (outcome, verdict) = if progress.timed_out {
+                        (JobOutcome::TimedOut, "timed_out")
+                    } else if progress.user_code_released {
+                        (JobOutcome::Failed, "interrupted")
+                    } else {
+                        (JobOutcome::Failed, "start_failed")
+                    };
+                    let _ = store.mark_finished(job, progress.exit_code, outcome, verdict);
+                } else {
+                    let _ = store.mark_uncertain(job, progress.exit_code, "interrupted");
+                }
+            }
+            use std::io::Write as _;
+            let _ = writeln!(
+                std::io::stderr(),
+                "stillyard runner for {} failed: {error}",
+                job.job_id
+            );
+        }
+    }
+
+    fn run_inner(
         job: &PreparedJob,
         store: &Arc<Mutex<Store>>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        progress: &mut RunProgress,
+    ) -> RunResult<()> {
         validate_paths(&job.spec.executable, &job.spec.working_directory)?;
         let mut executable_file = OpenOptions::new()
             .read(true)
@@ -160,11 +219,15 @@ mod windows {
             .map_err(|error| io_context("locking executable for launch", error))?;
         let executable_hash = hash_reader(&mut executable_file)?;
         let job_object = create_job_object()?;
+        progress.cleanup_proven = true;
         let (stdout_read, stdout_write) = create_inherited_pipe()?;
         let (stderr_read, stderr_write) = create_inherited_pipe()?;
         let stdin = open_nul_for_read()?;
-        let mut attributes = AttributeList::with_job(job_object.raw())
-            .map_err(|error| io_context("building born-contained attribute list", error))?;
+        let mut attributes = AttributeList::with_job_and_handles(
+            job_object.raw(),
+            [stdin.raw(), stdout_write.raw(), stderr_write.raw()],
+        )
+        .map_err(|error| io_context("building born-contained attribute list", error))?;
 
         let application = wide_null(job.spec.executable.as_os_str());
         let mut command_line = command_line(&job.spec.executable, &job.spec.args);
@@ -205,41 +268,62 @@ mod windows {
             )
             .into());
         }
-        let process_handle = OwnedHandle::new(process.hProcess)?;
-        let thread_handle = OwnedHandle::new(process.hThread)?;
+        progress.cleanup_proven = false;
+        macro_rules! prestart_try {
+            ($expression:expr) => {
+                match $expression {
+                    Ok(value) => value,
+                    Err(error) => {
+                        // SAFETY: CreateProcessW succeeded suspended inside this Job Object.
+                        unsafe { TerminateJobObject(job_object.raw(), 70) };
+                        progress.cleanup_proven =
+                            wait_job_empty(job_object.raw(), Duration::from_secs(30)).is_ok();
+                        return Err(error.into());
+                    }
+                }
+            };
+        }
+        #[cfg(test)]
+        if FORCE_PRESTART_FAILURE.replace(false) {
+            prestart_try!(Err::<(), _>(std::io::Error::other(
+                "forced pre-start failure"
+            )));
+        }
+        let process_handle = prestart_try!(OwnedHandle::new(process.hProcess));
+        let thread_handle = prestart_try!(OwnedHandle::new(process.hThread));
         drop(stdout_write);
         drop(stderr_write);
         drop(stdin);
 
-        let image_path = process_image_path(process_handle.raw())?;
-        validate_executable(&image_path)?;
-        if !same_windows_path(&image_path, &job.spec.executable)? {
-            // SAFETY: the process is suspended inside this job and no user code can have run.
-            unsafe { TerminateJobObject(job_object.raw(), 70) };
-            return Err(std::io::Error::new(
+        let image_path = prestart_try!(process_image_path(process_handle.raw()));
+        prestart_try!(validate_executable(&image_path));
+        if !prestart_try!(same_windows_path(&image_path, &job.spec.executable)) {
+            let error = std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!(
                     "created image {} differs from requested executable {}",
                     image_path.display(),
                     job.spec.executable.display()
                 ),
-            )
-            .into());
+            );
+            // SAFETY: the process is suspended inside this job and no user code can have run.
+            unsafe { TerminateJobObject(job_object.raw(), 70) };
+            progress.cleanup_proven =
+                wait_job_empty(job_object.raw(), Duration::from_secs(30)).is_ok();
+            return Err(error.into());
         }
         drop(executable_file);
         {
-            let mut store = store
-                .lock()
-                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
-            store.mark_started(job, process.dwProcessId, &executable_hash)?;
+            let mut store = prestart_try!(
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            );
+            prestart_try!(store.mark_started(job, process.dwProcessId, &executable_hash));
         }
 
-        let stdout_file = unsafe {
-            File::from_raw_handle(OwnedHandle::new(stdout_read.into_raw())?.into_raw() as RawHandle)
-        };
-        let stderr_file = unsafe {
-            File::from_raw_handle(OwnedHandle::new(stderr_read.into_raw())?.into_raw() as RawHandle)
-        };
+        let stdout_file = unsafe { File::from_raw_handle(stdout_read.into_raw() as RawHandle) };
+        let stderr_file = unsafe { File::from_raw_handle(stderr_read.into_raw() as RawHandle) };
         let stdout = spawn_drain(
             stdout_file,
             job.stdout_path.clone(),
@@ -255,66 +339,86 @@ mod windows {
             Arc::clone(store),
         );
 
-        // SAFETY: the primary thread handle is valid and has not been resumed before.
-        if unsafe { ResumeThread(thread_handle.raw()) } == u32::MAX {
-            // SAFETY: the job is valid and owns the suspended process.
-            unsafe { TerminateJobObject(job_object.raw(), 70) };
-            return Err(std::io::Error::last_os_error().into());
-        }
-        drop(thread_handle);
-
-        let deadline = job
-            .spec
-            .timeout_seconds
-            .map(|seconds| Instant::now() + Duration::from_secs(seconds));
-        let mut timed_out = false;
-        loop {
-            // SAFETY: process_handle remains valid throughout the wait.
-            let wait = unsafe { WaitForSingleObject(process_handle.raw(), 100) };
-            if wait == WAIT_OBJECT_0 {
-                break;
-            }
-            if wait != WAIT_TIMEOUT {
-                // SAFETY: job is valid.
-                unsafe { TerminateJobObject(job_object.raw(), 70) };
+        let execution = (|| -> RunResult<(u32, bool)> {
+            // SAFETY: the primary thread handle is valid and has not been resumed before.
+            if unsafe { ResumeThread(thread_handle.raw()) } == u32::MAX {
                 return Err(std::io::Error::last_os_error().into());
             }
-            if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
-                timed_out = true;
-                // SAFETY: job is valid and contains the complete tree.
-                unsafe { TerminateJobObject(job_object.raw(), 21) };
-                // TerminateJobObject is asynchronous; wait until the recorded root has exited
-                // before reading its exit code or declaring the containment empty.
-                // SAFETY: process_handle remains valid.
-                if unsafe { WaitForSingleObject(process_handle.raw(), 30_000) } != WAIT_OBJECT_0 {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::TimedOut,
-                        "terminated root did not exit within cleanup bound",
-                    )
-                    .into());
+            progress.user_code_released = true;
+
+            let deadline = job
+                .spec
+                .timeout_seconds
+                .map(|seconds| Instant::now() + Duration::from_secs(seconds));
+            let mut timed_out = false;
+            loop {
+                // SAFETY: process_handle remains valid throughout the wait.
+                let wait = unsafe { WaitForSingleObject(process_handle.raw(), 100) };
+                if wait == WAIT_OBJECT_0 {
+                    break;
                 }
-                break;
+                if wait != WAIT_TIMEOUT {
+                    return Err(std::io::Error::last_os_error().into());
+                }
+                if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+                    timed_out = true;
+                    progress.timed_out = true;
+                    // SAFETY: job is valid and contains the complete tree.
+                    unsafe { TerminateJobObject(job_object.raw(), 21) };
+                    // SAFETY: process_handle remains valid.
+                    if unsafe { WaitForSingleObject(process_handle.raw(), 30_000) } != WAIT_OBJECT_0
+                    {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            "terminated root did not exit within cleanup bound",
+                        )
+                        .into());
+                    }
+                    break;
+                }
+            }
+
+            let mut exit_code = 0_u32;
+            // SAFETY: process handle and output pointer are valid.
+            if unsafe { GetExitCodeProcess(process_handle.raw(), &mut exit_code) } == 0 {
+                return Err(std::io::Error::last_os_error().into());
+            }
+            progress.exit_code = Some(exit_code as i32);
+            store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                .mark_root_exited(job, exit_code as i32)?;
+            // Root exit always terminates remaining descendants before cleanup proof.
+            // SAFETY: job is valid. It is harmless when already empty.
+            unsafe { TerminateJobObject(job_object.raw(), exit_code) };
+            wait_job_empty(job_object.raw(), Duration::from_secs(30))?;
+            progress.cleanup_proven = true;
+            Ok((exit_code, timed_out))
+        })();
+
+        if execution.is_err() {
+            // SAFETY: the job is live and owns the complete tree.
+            unsafe { TerminateJobObject(job_object.raw(), 70) };
+            if wait_job_empty(job_object.raw(), Duration::from_secs(30)).is_ok() {
+                progress.cleanup_proven = true;
             }
         }
-
-        let mut exit_code = 0_u32;
-        // SAFETY: process handle and output pointer are valid.
-        if unsafe { GetExitCodeProcess(process_handle.raw(), &mut exit_code) } == 0 {
-            return Err(std::io::Error::last_os_error().into());
-        }
-        // Root exit always terminates remaining descendants before cleanup proof.
-        // SAFETY: job is valid. It is harmless when already empty.
-        unsafe { TerminateJobObject(job_object.raw(), exit_code) };
-        wait_job_empty(job_object.raw(), Duration::from_secs(30))?;
         drop(process_handle);
         drop(job_object);
+        drop(thread_handle);
 
-        stdout
-            .join()
-            .map_err(|_| "stdout drain thread panicked")??;
-        stderr
-            .join()
-            .map_err(|_| "stderr drain thread panicked")??;
+        if !progress.cleanup_proven {
+            // The pipes may remain open while an unproven process tree is terminating. Do not
+            // block the scheduler indefinitely; the uncertain Containment keeps EOF unclaimed.
+            return execution.map(|_| ());
+        }
+
+        let stdout_result = stdout.join().map_err(|_| "stdout drain thread panicked")?;
+        let stderr_result = stderr.join().map_err(|_| "stderr drain thread panicked")?;
+        stdout_result?;
+        stderr_result?;
+
+        let (exit_code, timed_out) = execution?;
 
         let (outcome, verdict) = if timed_out {
             (JobOutcome::TimedOut, "timed_out")
@@ -553,7 +657,7 @@ mod windows {
         environment.insert("STILLYARD_ROLE".into(), "primary".into());
         environment.insert(
             "STILLYARD_ENDPOINT".into(),
-            crate::client::DEFAULT_PIPE_NAME.into(),
+            crate::client::default_endpoint().map_err(std::io::Error::other)?,
         );
         let mut pairs: Vec<_> = environment.into_iter().collect();
         pairs.sort_by_key(|(name, _)| name.to_uppercase());
@@ -609,7 +713,7 @@ mod windows {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::store::StorePaths;
+        use crate::store::{StorePaths, normalized_payload_hash};
         use crate::{
             EnvironmentSpec, JobSpec, JobState, ResourceClaims, RetryPolicy, SPEC_VERSION,
             StdinSpec,
@@ -637,7 +741,8 @@ mod windows {
 
         fn prepared(spec: &JobSpec, root: &Path) -> (PreparedJob, Arc<Mutex<Store>>) {
             let mut store = Store::open(StorePaths::new(root.to_path_buf())).unwrap();
-            let submitted = store.submit(Uuid::now_v7(), "hash", spec).unwrap();
+            let hash = normalized_payload_hash(spec).unwrap();
+            let submitted = store.submit(Uuid::now_v7(), &hash, spec).unwrap();
             let job = store
                 .prepare_job(submitted.receipt.job_id)
                 .unwrap()
@@ -673,7 +778,7 @@ mod windows {
                 ],
             );
             let (job, store) = prepared(&spec, temp.path());
-            run(&job, &store).unwrap();
+            run(&job, &store);
             let store = store.lock().unwrap();
             let snapshot = store.status(job.job_id).unwrap();
             assert_eq!(snapshot.state, JobState::Final);
@@ -705,12 +810,88 @@ mod windows {
             spec.timeout_seconds = Some(1);
             let (job, store) = prepared(&spec, temp.path());
             let started = Instant::now();
-            run(&job, &store).unwrap();
+            run(&job, &store);
             assert!(started.elapsed() < Duration::from_secs(10));
             let snapshot = store.lock().unwrap().status(job.job_id).unwrap();
             assert_eq!(snapshot.state, JobState::Final);
             assert_eq!(snapshot.outcome, Some(JobOutcome::TimedOut));
             assert_eq!(snapshot.root_exit_code, Some(21));
+        }
+
+        #[test]
+        fn timeout_kills_descendant_not_only_root() {
+            use windows_sys::Win32::System::Threading::{
+                OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+            };
+
+            let temp = tempfile::tempdir().unwrap();
+            let powershell = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+                .join("System32")
+                .join("WindowsPowerShell")
+                .join("v1.0")
+                .join("powershell.exe");
+            let pid_file = temp.path().join("descendant.pid");
+            let escaped_pid_file = pid_file.to_string_lossy().replace('\'', "''");
+            let escaped_powershell = powershell.to_string_lossy().replace('\'', "''");
+            let script = format!(
+                "$child = Start-Process -FilePath '{escaped_powershell}' -ArgumentList '-NoLogo','-NoProfile','-NonInteractive','-Command','Start-Sleep -Seconds 30' -PassThru; \
+                 [System.IO.File]::WriteAllText('{escaped_pid_file}', $child.Id.ToString()); \
+                 Start-Sleep -Seconds 30"
+            );
+            let mut spec = job_spec(
+                temp.path(),
+                powershell,
+                vec![
+                    "-NoLogo".into(),
+                    "-NoProfile".into(),
+                    "-NonInteractive".into(),
+                    "-Command".into(),
+                    script,
+                ],
+            );
+            spec.timeout_seconds = Some(3);
+            let (job, store) = prepared(&spec, temp.path());
+            run(&job, &store);
+            let pid: u32 = std::fs::read_to_string(pid_file)
+                .unwrap()
+                .trim()
+                .parse()
+                .unwrap();
+            // SAFETY: the access is read-only and the PID came from the launched descendant.
+            let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+            if !process.is_null() {
+                let mut exit_code = 0_u32;
+                // SAFETY: process is a live handle and exit_code is writable.
+                assert_ne!(unsafe { GetExitCodeProcess(process, &mut exit_code) }, 0);
+                // 259 is STILL_ACTIVE. A root-only termination mutant leaves this descendant live.
+                assert_ne!(exit_code, 259);
+                // SAFETY: this test owns the process handle.
+                unsafe { CloseHandle(process) };
+            }
+        }
+
+        #[test]
+        fn post_create_pre_resume_failure_proves_empty_and_is_start_failed() {
+            let temp = tempfile::tempdir().unwrap();
+            let command = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+                .join("System32")
+                .join("cmd.exe");
+            let spec = job_spec(
+                temp.path(),
+                command,
+                vec!["/D".into(), "/C".into(), "echo must-not-run".into()],
+            );
+            let (job, store) = prepared(&spec, temp.path());
+            FORCE_PRESTART_FAILURE.set(true);
+            run(&job, &store);
+            let store = store.lock().unwrap();
+            let snapshot = store.status(job.job_id).unwrap();
+            assert_eq!(snapshot.state, JobState::Final);
+            assert_eq!(snapshot.outcome, Some(JobOutcome::Failed));
+            assert_eq!(snapshot.root_exit_code, None);
+            let logs = store.logs(job.job_id, LogStream::Stdout, 0, 1024).unwrap();
+            assert!(logs.eof);
+            assert!(logs.bytes.is_empty());
         }
     }
 }

@@ -1,10 +1,11 @@
 use std::sync::{Arc, Condvar, Mutex};
+use std::time::{Duration, Instant};
 
 use fs2::FileExt;
 
-#[cfg(windows)]
-use crate::client::DEFAULT_PIPE_NAME;
 use crate::client::default_store_root;
+#[cfg(windows)]
+use crate::client::{current_user_sid_string, default_endpoint};
 use crate::protocol::{PROTOCOL_VERSION, Request, Response};
 #[cfg(windows)]
 use crate::protocol::{read_frame, write_frame};
@@ -13,6 +14,7 @@ use crate::{Error, Result};
 
 type SharedStore = Arc<Mutex<Store>>;
 
+#[cfg(windows)]
 pub(crate) fn run() -> Result<()> {
     let paths = StorePaths::new(default_store_root()?);
     paths
@@ -28,6 +30,11 @@ pub(crate) fn run() -> Result<()> {
     let scheduler = Scheduler::start(Arc::clone(&store));
     scheduler.wake();
     serve(store, scheduler)
+}
+
+#[cfg(not(windows))]
+pub(crate) fn run() -> Result<()> {
+    Err(Error::UnsupportedPlatform(std::env::consts::OS))
 }
 
 struct Scheduler {
@@ -66,11 +73,13 @@ impl Scheduler {
         }
     }
 
-    fn wait_final(
+    fn wait_snapshot(
         &self,
         store: &SharedStore,
         job_id: crate::JobId,
+        max_wait: Duration,
     ) -> std::result::Result<crate::JobSnapshot, StoreError> {
+        let deadline = Instant::now() + max_wait;
         loop {
             let observed = self
                 .events
@@ -82,7 +91,7 @@ impl Scheduler {
                 .lock()
                 .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
                 .status(job_id)?;
-            if snapshot.is_final() {
+            if snapshot.is_final() || Instant::now() >= deadline {
                 return Ok(snapshot);
             }
             let (lock, condition) = &*self.events;
@@ -90,32 +99,54 @@ impl Scheduler {
                 .lock()
                 .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
             while *generation == observed {
-                generation = condition
-                    .wait(generation)
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    break;
+                }
+                let waited = condition
+                    .wait_timeout(generation, remaining)
                     .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
+                generation = waited.0;
+                if waited.1.timed_out() {
+                    break;
+                }
             }
         }
     }
 
     fn run(&self, store: SharedStore) {
         loop {
+            let mut retry = false;
             let next = {
                 let mut guard = match store.lock() {
                     Ok(guard) => guard,
                     Err(_) => return,
                 };
                 match guard.pending_jobs() {
-                    Ok(jobs) => jobs
-                        .into_iter()
-                        .next()
-                        .and_then(|job_id| guard.prepare_job(job_id).ok().flatten()),
-                    Err(_) => None,
+                    Ok(jobs) => match jobs.into_iter().next() {
+                        Some(job_id) => match guard.prepare_job(job_id) {
+                            Ok(job) => job,
+                            Err(_) => {
+                                retry = true;
+                                None
+                            }
+                        },
+                        None => None,
+                    },
+                    Err(_) => {
+                        retry = true;
+                        None
+                    }
                 }
             };
             if let Some(job) = next {
                 self.notify_change();
                 crate::runner::run(job, Arc::clone(&store));
                 self.notify_change();
+                continue;
+            }
+            if retry {
+                std::thread::sleep(Duration::from_millis(100));
                 continue;
             }
             let (lock, condition) = &*self.signal;
@@ -168,8 +199,15 @@ fn handle_request(store: &SharedStore, scheduler: &Scheduler, request: Request) 
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
             .and_then(|store| store.status(job_id))
             .map(|snapshot| Response::Snapshot(Box::new(snapshot))),
-        Request::Wait { job_id } => scheduler
-            .wait_final(store, job_id)
+        Request::Wait {
+            job_id,
+            max_wait_millis,
+        } => scheduler
+            .wait_snapshot(
+                store,
+                job_id,
+                Duration::from_millis(u64::from(max_wait_millis.min(1_000))),
+            )
             .map(|snapshot| Response::Snapshot(Box::new(snapshot))),
         Request::Logs {
             job_id,
@@ -219,18 +257,13 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
         CloseHandle, ERROR_PIPE_CONNECTED, GetLastError, INVALID_HANDLE_VALUE, LocalFree,
     };
     use windows_sys::Win32::Security::Authorization::{
-        ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW,
-        SDDL_REVISION_1,
+        ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
     };
-    use windows_sys::Win32::Security::{
-        GetTokenInformation, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES, TOKEN_QUERY, TOKEN_USER,
-        TokenUser,
-    };
+    use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
     use windows_sys::Win32::Storage::FileSystem::PIPE_ACCESS_DUPLEX;
     use windows_sys::Win32::System::Pipes::{
         ConnectNamedPipe, CreateNamedPipeW, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
     };
-    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
     struct LocalAllocation(*mut c_void);
 
@@ -249,58 +282,7 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
 
     impl PipeSecurity {
         fn owner_only() -> std::io::Result<Self> {
-            let mut token = std::ptr::null_mut();
-            // SAFETY: the pseudo process handle is valid and token is writable.
-            if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-            struct TokenGuard(windows_sys::Win32::Foundation::HANDLE);
-            impl Drop for TokenGuard {
-                fn drop(&mut self) {
-                    // SAFETY: this guard owns a valid token handle.
-                    unsafe { CloseHandle(self.0) };
-                }
-            }
-            let token = TokenGuard(token);
-            let mut required = 0_u32;
-            // SAFETY: this is the documented sizing call.
-            unsafe {
-                GetTokenInformation(token.0, TokenUser, std::ptr::null_mut(), 0, &mut required)
-            };
-            if required < size_of::<TOKEN_USER>() as u32 {
-                return Err(std::io::Error::last_os_error());
-            }
-            let mut buffer = vec![0_u8; required as usize];
-            // SAFETY: buffer has the size requested by the API and remains alive while SID is used.
-            if unsafe {
-                GetTokenInformation(
-                    token.0,
-                    TokenUser,
-                    buffer.as_mut_ptr().cast(),
-                    required,
-                    &mut required,
-                )
-            } == 0
-            {
-                return Err(std::io::Error::last_os_error());
-            }
-            // SAFETY: a successful TokenUser query returns a TOKEN_USER at the buffer start.
-            let user = unsafe { &*buffer.as_ptr().cast::<TOKEN_USER>() };
-            let mut sid_text = std::ptr::null_mut();
-            // SAFETY: the SID belongs to the live token buffer and output is writable.
-            if unsafe { ConvertSidToStringSidW(user.User.Sid, &mut sid_text) } == 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-            let sid_allocation = LocalAllocation(sid_text.cast());
-            let mut length = 0_usize;
-            // SAFETY: ConvertSidToStringSidW returns a NUL-terminated string.
-            while unsafe { *sid_text.add(length) } != 0 {
-                length += 1;
-            }
-            // SAFETY: the measured range is valid UTF-16 from the Windows API.
-            let sid =
-                String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(sid_text, length) });
-            drop(sid_allocation);
+            let sid = current_user_sid_string().map_err(std::io::Error::other)?;
             let sddl: Vec<u16> = std::ffi::OsStr::new(&format!("D:P(A;;GA;;;{sid})"))
                 .encode_wide()
                 .chain(std::iter::once(0))
@@ -332,7 +314,8 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
         }
     }
 
-    let pipe_name: Vec<u16> = std::ffi::OsStr::new(DEFAULT_PIPE_NAME)
+    let endpoint = default_endpoint()?;
+    let pipe_name: Vec<u16> = std::ffi::OsStr::new(&endpoint)
         .encode_wide()
         .chain(std::iter::once(0))
         .collect();
@@ -354,7 +337,8 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
             )
         };
         if handle == INVALID_HANDLE_VALUE {
-            return Err(std::io::Error::last_os_error().into());
+            std::thread::sleep(Duration::from_millis(25));
+            continue;
         }
         // SAFETY: handle is a fresh named-pipe server handle.
         let connected = unsafe { ConnectNamedPipe(handle, std::ptr::null_mut()) };
@@ -372,7 +356,7 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
         // Raw Windows handles are pointer-typed and therefore not `Send`; their integer value is
         // safe to transfer because this thread owns the handle after a successful connection.
         let handle_value = handle as usize;
-        std::thread::Builder::new()
+        let spawned = std::thread::Builder::new()
             .name("stillyard-client".into())
             .spawn(move || {
                 let handle = handle_value as windows_sys::Win32::Foundation::HANDLE;
@@ -386,8 +370,12 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
                     },
                 };
                 let _ = write_frame(&mut pipe, &response);
-            })
-            .map_err(Error::Io)?;
+            });
+        if spawned.is_err() {
+            // SAFETY: ownership was not transferred because the thread was not created.
+            unsafe { CloseHandle(handle) };
+            std::thread::sleep(Duration::from_millis(25));
+        }
     }
 }
 

@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{Connection, OptionalExtension, params};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::{
@@ -123,22 +124,29 @@ impl Store {
             store_uuid,
         };
         store.recover_interrupted()?;
+        store.resume_received()?;
         Ok(store)
     }
 
     pub(crate) fn submit(
         &mut self,
         idempotency_key: Uuid,
-        payload_hash: &str,
+        claimed_payload_hash: &str,
         spec: &JobSpec,
     ) -> StoreResult<SubmitResult> {
         spec.validate()
             .map_err(|error| StoreError::InvalidSpec(error.to_string()))?;
+        let payload_hash = normalized_payload_hash(spec)?;
+        if claimed_payload_hash != payload_hash {
+            return Err(StoreError::InvalidSpec(
+                "payload hash does not match the normalized specification".into(),
+            ));
+        }
         let key = idempotency_key.to_string();
-        if let Some((submission_id, stored_hash, state, job_id)) = self
+        if let Some((submission_id, stored_hash, state, job_id, spec_json)) = self
             .connection
             .query_row(
-                "SELECT id, payload_hash, state, job_id
+                "SELECT id, payload_hash, state, job_id, spec_json
                  FROM submissions WHERE scope = 'unmanaged' AND idempotency_key = ?1",
                 [&key],
                 |row| {
@@ -147,6 +155,7 @@ impl Store {
                         row.get::<_, String>(1)?,
                         row.get::<_, String>(2)?,
                         row.get::<_, Option<String>>(3)?,
+                        row.get::<_, String>(4)?,
                     ))
                 },
             )
@@ -167,7 +176,16 @@ impl Store {
                     should_schedule: false,
                 });
             }
-            return self.accept_received(SubmissionId(Uuid::parse_str(&submission_id)?), spec);
+            if state == "received" {
+                let durable_spec = serde_json::from_str(&spec_json)?;
+                return self.accept_received(
+                    SubmissionId(Uuid::parse_str(&submission_id)?),
+                    &durable_spec,
+                );
+            }
+            return Err(StoreError::InvalidState(format!(
+                "terminal submission state {state} cannot be replaced"
+            )));
         }
 
         let submission_id = SubmissionId::new();
@@ -263,6 +281,11 @@ impl Store {
                 should_schedule: false,
             });
         }
+        if state != "received" {
+            return Err(StoreError::InvalidState(format!(
+                "submission {submission_id} is terminal in state {state}"
+            )));
+        }
         transaction.execute(
             "INSERT INTO jobs(id, submission_id, state, spec_json, accepted_ms)
              VALUES (?1, ?2, 'pending', ?3, ?4)",
@@ -334,6 +357,9 @@ impl Store {
             transaction.rollback()?;
             return Ok(None);
         };
+        let spec = serde_json::from_str(&spec_json)?;
+        let log_directory = self.paths.logs.join(job_id.to_string());
+        std::fs::create_dir_all(&log_directory)?;
         transaction.execute(
             "UPDATE jobs SET state = 'active', attempt_id = ?2, invocation_id = ?3,
                 containment_id = ?4 WHERE id = ?1 AND state = 'pending'",
@@ -365,15 +391,12 @@ impl Store {
             params![lease_id.to_string(), attempt_id.to_string(), "{}",],
         )?;
         transaction.commit()?;
-
-        let log_directory = self.paths.logs.join(job_id.to_string());
-        std::fs::create_dir_all(&log_directory)?;
         Ok(Some(PreparedJob {
             job_id,
             attempt_id,
             invocation_id,
             containment_id,
-            spec: serde_json::from_str(&spec_json)?,
+            spec,
             stdout_path: self.paths.stdout_path(job_id),
             stderr_path: self.paths.stderr_path(job_id),
         }))
@@ -386,6 +409,17 @@ impl Store {
         executable_hash: &str,
     ) -> StoreResult<()> {
         let transaction = self.connection.transaction()?;
+        let state: String = transaction.query_row(
+            "SELECT state FROM jobs WHERE id = ?1",
+            [job.job_id.to_string()],
+            |row| row.get(0),
+        )?;
+        if state != "active" {
+            return Err(StoreError::InvalidState(format!(
+                "job {} cannot start from {state}",
+                job.job_id
+            )));
+        }
         transaction.execute(
             "UPDATE invocations SET state = 'started', root_pid = ?2,
                 executable_hash = ?3, started_ms = ?4 WHERE id = ?1",
@@ -429,6 +463,35 @@ impl Store {
         Ok(())
     }
 
+    pub(crate) fn mark_root_exited(
+        &mut self,
+        job: &PreparedJob,
+        exit_code: i32,
+    ) -> StoreResult<()> {
+        let transaction = self.connection.transaction()?;
+        let state: String = transaction.query_row(
+            "SELECT state FROM jobs WHERE id = ?1",
+            [job.job_id.to_string()],
+            |row| row.get(0),
+        )?;
+        if state != "active" {
+            return Err(StoreError::InvalidState(format!(
+                "job {} cannot record root exit from {state}",
+                job.job_id
+            )));
+        }
+        transaction.execute(
+            "UPDATE invocations SET root_exit_code = ?2 WHERE id = ?1 AND state = 'started'",
+            params![job.invocation_id.to_string(), exit_code],
+        )?;
+        transaction.execute(
+            "UPDATE jobs SET root_exit_code = ?2 WHERE id = ?1 AND state = 'active'",
+            params![job.job_id.to_string(), exit_code],
+        )?;
+        transaction.commit()?;
+        Ok(())
+    }
+
     pub(crate) fn mark_finished(
         &mut self,
         job: &PreparedJob,
@@ -437,6 +500,17 @@ impl Store {
         verdict: &str,
     ) -> StoreResult<()> {
         let transaction = self.connection.transaction()?;
+        let state: String = transaction.query_row(
+            "SELECT state FROM jobs WHERE id = ?1",
+            [job.job_id.to_string()],
+            |row| row.get(0),
+        )?;
+        if state != "active" {
+            return Err(StoreError::InvalidState(format!(
+                "job {} cannot settle from {state}",
+                job.job_id
+            )));
+        }
         transaction.execute(
             "UPDATE invocations SET state = 'resolved', root_exit_code = ?2,
                 finished_ms = ?3 WHERE id = ?1",
@@ -463,6 +537,50 @@ impl Store {
                 exit_code,
                 now_millis(),
             ],
+        )?;
+        transaction.commit()?;
+        Ok(())
+    }
+
+    pub(crate) fn mark_uncertain(
+        &mut self,
+        job: &PreparedJob,
+        exit_code: Option<i32>,
+        verdict: &str,
+    ) -> StoreResult<()> {
+        let transaction = self.connection.transaction()?;
+        let state: String = transaction.query_row(
+            "SELECT state FROM jobs WHERE id = ?1",
+            [job.job_id.to_string()],
+            |row| row.get(0),
+        )?;
+        if state != "active" {
+            return Err(StoreError::InvalidState(format!(
+                "job {} cannot become uncertain from {state}",
+                job.job_id
+            )));
+        }
+        transaction.execute(
+            "UPDATE invocations SET state = 'resolved', root_exit_code = COALESCE(?2, root_exit_code),
+                finished_ms = ?3 WHERE id = ?1 AND state IN ('prepared', 'started')",
+            params![job.invocation_id.to_string(), exit_code, now_millis()],
+        )?;
+        transaction.execute(
+            "UPDATE containments SET state = 'uncertain'
+             WHERE id = ?1 AND state IN ('creating', 'live')",
+            [job.containment_id.to_string()],
+        )?;
+        transaction.execute(
+            "UPDATE attempts SET state = 'settled', verdict = ?2
+             WHERE id = ?1 AND state != 'settled'",
+            params![job.attempt_id.to_string(), verdict],
+        )?;
+        // An uncertain Containment deliberately keeps its Lease granted.
+        transaction.execute(
+            "UPDATE jobs SET state = 'final', outcome = 'interrupted',
+                root_exit_code = COALESCE(?2, root_exit_code), finished_ms = ?3
+             WHERE id = ?1 AND state = 'active'",
+            params![job.job_id.to_string(), exit_code, now_millis()],
         )?;
         transaction.commit()?;
         Ok(())
@@ -547,16 +665,20 @@ impl Store {
         offset: u64,
         limit: u32,
     ) -> StoreResult<LogChunk> {
-        let (committed, state): (u64, String) = match stream {
+        let (committed, state, containment): (u64, String, String) = match stream {
             LogStream::Stdout => self.connection.query_row(
-                "SELECT stdout_len, state FROM jobs WHERE id = ?1",
+                "SELECT stdout_len, state, COALESCE((
+                    SELECT state FROM containments WHERE id = jobs.containment_id
+                 ), 'empty') FROM jobs WHERE id = ?1",
                 [job_id.to_string()],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )?,
             LogStream::Stderr => self.connection.query_row(
-                "SELECT stderr_len, state FROM jobs WHERE id = ?1",
+                "SELECT stderr_len, state, COALESCE((
+                    SELECT state FROM containments WHERE id = jobs.containment_id
+                 ), 'empty') FROM jobs WHERE id = ?1",
                 [job_id.to_string()],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )?,
         };
         let path = match stream {
@@ -570,7 +692,7 @@ impl Store {
                 offset,
                 bytes: Vec::new(),
                 next_offset: committed,
-                eof: state == "final",
+                eof: state == "final" && containment != "uncertain",
                 gap: Some(format!(
                     "requested offset {offset} exceeds committed offset {committed}"
                 )),
@@ -580,9 +702,24 @@ impl Store {
         let length = available.min(u64::from(limit.min(1024 * 1024))) as usize;
         let mut bytes = vec![0_u8; length];
         if length > 0 {
-            let mut file = File::open(path)?;
-            file.seek(SeekFrom::Start(offset))?;
-            file.read_exact(&mut bytes)?;
+            let read = File::open(&path).and_then(|mut file| {
+                file.seek(SeekFrom::Start(offset))?;
+                file.read_exact(&mut bytes)
+            });
+            if let Err(error) = read {
+                return Ok(LogChunk {
+                    job_id,
+                    stream,
+                    offset,
+                    bytes: Vec::new(),
+                    next_offset: offset,
+                    eof: false,
+                    gap: Some(format!(
+                        "committed range {offset}..{} is unavailable: {error}",
+                        offset + length as u64
+                    )),
+                });
+            }
         }
         let next_offset = offset + bytes.len() as u64;
         Ok(LogChunk {
@@ -591,7 +728,7 @@ impl Store {
             offset,
             bytes,
             next_offset,
-            eof: state == "final" && next_offset == committed,
+            eof: state == "final" && containment != "uncertain" && next_offset == committed,
             gap: None,
         })
     }
@@ -629,16 +766,63 @@ impl Store {
     }
 
     fn recover_interrupted(&mut self) -> StoreResult<()> {
+        let live_roots = {
+            let mut statement = self.connection.prepare(
+                "SELECT containments.id, attempts.id, invocations.root_pid
+                 FROM containments
+                 JOIN invocations ON invocations.id = containments.invocation_id
+                 JOIN attempts ON attempts.id = invocations.attempt_id
+                 WHERE containments.state = 'live'",
+            )?;
+            let rows = statement.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<u32>>(2)?,
+                ))
+            })?;
+            rows.collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        let proven_empty: Vec<_> = live_roots
+            .into_iter()
+            .filter(|(_, _, root_pid)| root_pid.is_some_and(root_disappeared_bounded))
+            .collect();
         let finished = now_millis();
         let transaction = self.connection.transaction()?;
         transaction.execute(
             "UPDATE invocations SET state = 'resolved', finished_ms = ?1
-             WHERE state IN ('prepared', 'started')",
+             WHERE state = 'prepared'",
             [finished],
         )?;
         transaction.execute(
-            "UPDATE containments SET state = 'cleared'
-             WHERE state IN ('creating', 'live')",
+            "UPDATE containments SET state = 'empty' WHERE state = 'creating'",
+            [],
+        )?;
+        transaction.execute(
+            "UPDATE attempts SET state = 'settled', verdict = 'start_failed'
+             WHERE state = 'starting'",
+            [],
+        )?;
+        transaction.execute(
+            "UPDATE leases SET state = 'released' WHERE state = 'granted' AND attempt_id IN (
+                SELECT id FROM attempts WHERE verdict = 'start_failed'
+             )",
+            [],
+        )?;
+        transaction.execute(
+            "UPDATE jobs SET state = 'final', outcome = 'failed', finished_ms = ?1
+             WHERE state = 'active' AND invocation_id IN (
+                SELECT id FROM invocations WHERE root_pid IS NULL
+             )",
+            [finished],
+        )?;
+        transaction.execute(
+            "UPDATE invocations SET state = 'resolved', finished_ms = ?1
+             WHERE state = 'started'",
+            [finished],
+        )?;
+        transaction.execute(
+            "UPDATE containments SET state = 'uncertain' WHERE state = 'live'",
             [],
         )?;
         transaction.execute(
@@ -647,17 +831,72 @@ impl Store {
             [],
         )?;
         transaction.execute(
-            "UPDATE leases SET state = 'released' WHERE state = 'granted'",
-            [],
-        )?;
-        transaction.execute(
             "UPDATE jobs SET state = 'final', outcome = 'interrupted', finished_ms = ?1
              WHERE state = 'active'",
             [finished],
         )?;
+        for (containment_id, attempt_id, _) in proven_empty {
+            transaction.execute(
+                "UPDATE containments SET state = 'empty'
+                 WHERE id = ?1 AND state = 'uncertain'",
+                [containment_id],
+            )?;
+            transaction.execute(
+                "UPDATE leases SET state = 'released'
+                 WHERE attempt_id = ?1 AND state = 'granted'",
+                [attempt_id],
+            )?;
+        }
         transaction.commit()?;
         Ok(())
     }
+
+    fn resume_received(&mut self) -> StoreResult<()> {
+        let received = {
+            let mut statement = self.connection.prepare(
+                "SELECT id, spec_json FROM submissions WHERE state = 'received' ORDER BY created_ms",
+            )?;
+            let rows = statement.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?;
+            rows.collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        for (submission_id, spec_json) in received {
+            let spec = serde_json::from_str(&spec_json)?;
+            self.accept_received(SubmissionId(Uuid::parse_str(&submission_id)?), &spec)?;
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn normalized_payload_hash(spec: &JobSpec) -> StoreResult<String> {
+    let normalized = serde_json::to_vec(spec)?;
+    Ok(format!("{:x}", Sha256::digest(normalized)))
+}
+
+#[cfg(windows)]
+fn root_disappeared_bounded(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0};
+    use windows_sys::Win32::Storage::FileSystem::SYNCHRONIZE;
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, WaitForSingleObject,
+    };
+
+    // SAFETY: the access is observational and pid came from the durable root record.
+    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, 0, pid) };
+    if process.is_null() {
+        return std::io::Error::last_os_error().raw_os_error() == Some(87);
+    }
+    // SAFETY: process is a live waitable handle. Five seconds is the bounded recovery proof.
+    let gone = unsafe { WaitForSingleObject(process, 5_000) } == WAIT_OBJECT_0;
+    // SAFETY: this function owns the process handle.
+    unsafe { CloseHandle(process) };
+    gone
+}
+
+#[cfg(not(windows))]
+fn root_disappeared_bounded(_pid: u32) -> bool {
+    false
 }
 
 pub(crate) fn open_lock(path: &Path) -> StoreResult<File> {
@@ -869,8 +1108,10 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
         let key = Uuid::now_v7();
-        let first = store.submit(key, "hash", &spec(temp.path())).unwrap();
-        let second = store.submit(key, "hash", &spec(temp.path())).unwrap();
+        let spec = spec(temp.path());
+        let hash = normalized_payload_hash(&spec).unwrap();
+        let first = store.submit(key, &hash, &spec).unwrap();
+        let second = store.submit(key, &hash, &spec).unwrap();
         assert_eq!(first.receipt.job_id, second.receipt.job_id);
         assert!(first.should_schedule);
         assert!(!second.should_schedule);
@@ -881,9 +1122,14 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
         let key = Uuid::now_v7();
-        store.submit(key, "hash-a", &spec(temp.path())).unwrap();
+        let first = spec(temp.path());
+        let first_hash = normalized_payload_hash(&first).unwrap();
+        store.submit(key, &first_hash, &first).unwrap();
+        let mut second = first.clone();
+        second.args.push("different".into());
+        let second_hash = normalized_payload_hash(&second).unwrap();
         assert!(matches!(
-            store.submit(key, "hash-b", &spec(temp.path())),
+            store.submit(key, &second_hash, &second),
             Err(StoreError::IdempotencyConflict)
         ));
     }
@@ -897,12 +1143,14 @@ mod tests {
             store.recover_submission(key, "hash").unwrap(),
             RecoveryResult::Unknown
         );
-        let submitted = store.submit(key, "hash", &spec(temp.path())).unwrap();
+        let spec = spec(temp.path());
+        let hash = normalized_payload_hash(&spec).unwrap();
+        let submitted = store.submit(key, &hash, &spec).unwrap();
         assert_eq!(
             store.recover_submission(key, "other").unwrap(),
             RecoveryResult::Conflict
         );
-        match store.recover_submission(key, "hash").unwrap() {
+        match store.recover_submission(key, &hash).unwrap() {
             RecoveryResult::Accepted(receipt) => {
                 assert_eq!(receipt.job_id, submitted.receipt.job_id);
             }
@@ -917,14 +1165,16 @@ mod tests {
         let paths = StorePaths::new(temp.path().to_path_buf());
         let job_id = {
             let mut store = Store::open(paths).unwrap();
-            let submitted = store
-                .submit(Uuid::now_v7(), "hash", &spec(temp.path()))
-                .unwrap();
+            let spec = spec(temp.path());
+            let hash = normalized_payload_hash(&spec).unwrap();
+            let submitted = store.submit(Uuid::now_v7(), &hash, &spec).unwrap();
             let prepared = store
                 .prepare_job(submitted.receipt.job_id)
                 .unwrap()
                 .unwrap();
-            store.mark_started(&prepared, 1234, "exe-hash").unwrap();
+            store
+                .mark_started(&prepared, std::process::id(), "exe-hash")
+                .unwrap();
             prepared.job_id
         };
         let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
@@ -945,8 +1195,114 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .unwrap();
-        assert_eq!(containment, "cleared");
+        assert_eq!(containment, "uncertain");
+        assert_eq!(lease, "granted");
+    }
+
+    #[test]
+    fn restart_releases_lease_after_recorded_root_is_gone() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let job_id = {
+            let mut store = Store::open(paths).unwrap();
+            let job_spec = spec(temp.path());
+            let hash = normalized_payload_hash(&job_spec).unwrap();
+            let submitted = store.submit(Uuid::now_v7(), &hash, &job_spec).unwrap();
+            let prepared = store
+                .prepare_job(submitted.receipt.job_id)
+                .unwrap()
+                .unwrap();
+            store.mark_started(&prepared, u32::MAX, "exe-hash").unwrap();
+            prepared.job_id
+        };
+        let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let (containment, lease): (String, String) = store
+            .connection
+            .query_row(
+                "SELECT containments.state, leases.state
+                 FROM containments
+                 JOIN invocations ON invocations.id = containments.invocation_id
+                 JOIN attempts ON attempts.id = invocations.attempt_id
+                 JOIN leases ON leases.attempt_id = attempts.id
+                 WHERE attempts.job_id = ?1",
+                [job_id.to_string()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(containment, "empty");
         assert_eq!(lease, "released");
+    }
+
+    #[test]
+    fn restart_before_root_settles_start_failed_and_releases_lease() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let job_id = {
+            let mut store = Store::open(paths).unwrap();
+            let job_spec = spec(temp.path());
+            let hash = normalized_payload_hash(&job_spec).unwrap();
+            let submitted = store.submit(Uuid::now_v7(), &hash, &job_spec).unwrap();
+            store
+                .prepare_job(submitted.receipt.job_id)
+                .unwrap()
+                .unwrap()
+                .job_id
+        };
+        let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let snapshot = store.status(job_id).unwrap();
+        assert_eq!(snapshot.outcome, Some(JobOutcome::Failed));
+        let (verdict, containment, lease): (String, String, String) = store
+            .connection
+            .query_row(
+                "SELECT attempts.verdict, containments.state, leases.state
+                 FROM attempts
+                 JOIN invocations ON invocations.attempt_id = attempts.id
+                 JOIN containments ON containments.invocation_id = invocations.id
+                 JOIN leases ON leases.attempt_id = attempts.id
+                 WHERE attempts.job_id = ?1",
+                [job_id.to_string()],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(verdict, "start_failed");
+        assert_eq!(containment, "empty");
+        assert_eq!(lease, "released");
+    }
+
+    #[test]
+    fn uncertain_settlement_retains_lease_and_is_terminal() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        let submitted = store.submit(Uuid::now_v7(), &hash, &job_spec).unwrap();
+        let prepared = store
+            .prepare_job(submitted.receipt.job_id)
+            .unwrap()
+            .unwrap();
+        store.mark_started(&prepared, 1234, "exe-hash").unwrap();
+        store
+            .mark_uncertain(&prepared, None, "interrupted")
+            .unwrap();
+        let (containment, lease): (String, String) = store
+            .connection
+            .query_row(
+                "SELECT containments.state, leases.state
+                 FROM containments
+                 JOIN invocations ON invocations.id = containments.invocation_id
+                 JOIN attempts ON attempts.id = invocations.attempt_id
+                 JOIN leases ON leases.attempt_id = attempts.id
+                 WHERE attempts.job_id = ?1",
+                [prepared.job_id.to_string()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(containment, "uncertain");
+        assert_eq!(lease, "granted");
+        assert!(matches!(
+            store.mark_finished(&prepared, None, JobOutcome::Failed, "start_failed"),
+            Err(StoreError::InvalidState(_))
+        ));
     }
 
     #[test]
@@ -955,9 +1311,9 @@ mod tests {
 
         let temp = tempfile::tempdir().unwrap();
         let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
-        let submitted = store
-            .submit(Uuid::now_v7(), "hash", &spec(temp.path()))
-            .unwrap();
+        let spec = spec(temp.path());
+        let hash = normalized_payload_hash(&spec).unwrap();
+        let submitted = store.submit(Uuid::now_v7(), &hash, &spec).unwrap();
         let prepared = store
             .prepare_job(submitted.receipt.job_id)
             .unwrap()
@@ -978,6 +1334,48 @@ mod tests {
             .unwrap();
         assert_eq!(chunk.bytes, b"committed");
         assert_eq!(chunk.next_offset, 9);
+
+        drop(output);
+        std::fs::remove_file(&prepared.stdout_path).unwrap();
+        let gap = store
+            .logs(prepared.job_id, LogStream::Stdout, 0, 1024)
+            .unwrap();
+        assert!(gap.gap.is_some());
+        assert!(gap.bytes.is_empty());
+    }
+
+    #[test]
+    fn startup_resumes_durable_received_submission() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        let key = Uuid::now_v7();
+        let submission_id = SubmissionId::new();
+        {
+            let store = Store::open(paths).unwrap();
+            store
+                .connection
+                .execute(
+                    "INSERT INTO submissions(
+                        id, scope, idempotency_key, payload_hash, state, spec_json, created_ms
+                     ) VALUES (?1, 'unmanaged', ?2, ?3, 'received', ?4, ?5)",
+                    params![
+                        submission_id.to_string(),
+                        key.to_string(),
+                        hash,
+                        serde_json::to_string(&job_spec).unwrap(),
+                        now_millis(),
+                    ],
+                )
+                .unwrap();
+        }
+        let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        assert!(matches!(
+            store.recover_submission(key, &hash).unwrap(),
+            RecoveryResult::Accepted(_)
+        ));
+        assert_eq!(store.pending_jobs().unwrap().len(), 1);
     }
 
     #[test]

@@ -4,7 +4,9 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use clap::{Parser, Subcommand, ValueEnum, error::ErrorKind};
-use stillyard::{Client, JobId, JobOutcome, JobSnapshot, JobSpec, LogStream, SubmitOptions};
+use stillyard::{
+    Client, JobId, JobOutcome, JobSnapshot, JobSpec, LogStream, RecoveryResult, SubmitOptions,
+};
 use uuid::Uuid;
 
 #[derive(Debug, Parser)]
@@ -159,7 +161,9 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         } => {
             let deadline = deadline(deadline_seconds);
             let client = Client::connect(deadline, None)?;
-            print_json(&client.recover_result_file(&result_file, deadline, None)?)?;
+            let recovery = client.recover_result_file(&result_file, deadline, None)?;
+            print_json(&recovery)?;
+            exit_for_recovery(&recovery);
         }
         Command::Status {
             job_id,
@@ -236,6 +240,19 @@ fn exit_for_snapshot(snapshot: &JobSnapshot) {
         Some(JobOutcome::Interrupted) => 23,
         Some(JobOutcome::Skipped) => 24,
         None => 25,
+    };
+    if code != 0 {
+        std::process::exit(code);
+    }
+}
+
+fn exit_for_recovery(recovery: &RecoveryResult) {
+    let code = match recovery {
+        RecoveryResult::Received { .. } | RecoveryResult::Accepted(_) => 0,
+        RecoveryResult::Rejected { .. }
+        | RecoveryResult::Conflict
+        | RecoveryResult::NotReceived => 27,
+        RecoveryResult::Unknown => 70,
     };
     if code != 0 {
         std::process::exit(code);

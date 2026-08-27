@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{DaemonSnapshot, JobId, JobReceipt, JobSnapshot, JobSpec, LogChunk, LogStream};
 
-pub(crate) const PROTOCOL_VERSION: u32 = 1;
+pub(crate) const PROTOCOL_VERSION: u32 = 2;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -26,6 +26,7 @@ pub(crate) enum Request {
     },
     Wait {
         job_id: JobId,
+        max_wait_millis: u32,
     },
     Logs {
         job_id: JobId,
