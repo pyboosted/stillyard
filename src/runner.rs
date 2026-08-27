@@ -825,31 +825,21 @@ mod windows {
             };
 
             let temp = tempfile::tempdir().unwrap();
-            let powershell = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
-                .join("System32")
-                .join("WindowsPowerShell")
-                .join("v1.0")
-                .join("powershell.exe");
             let pid_file = temp.path().join("descendant.pid");
-            let escaped_pid_file = pid_file.to_string_lossy().replace('\'', "''");
-            let escaped_powershell = powershell.to_string_lossy().replace('\'', "''");
-            let script = format!(
-                "$child = Start-Process -FilePath '{escaped_powershell}' -ArgumentList '-NoLogo','-NoProfile','-NonInteractive','-Command','Start-Sleep -Seconds 30' -PassThru; \
-                 [System.IO.File]::WriteAllText('{escaped_pid_file}', $child.Id.ToString()); \
-                 Start-Sleep -Seconds 30"
-            );
             let mut spec = job_spec(
                 temp.path(),
-                powershell,
+                std::env::current_exe().unwrap(),
                 vec![
-                    "-NoLogo".into(),
-                    "-NoProfile".into(),
-                    "-NonInteractive".into(),
-                    "-Command".into(),
-                    script,
+                    "--ignored".into(),
+                    "--exact".into(),
+                    "runner::windows::tests::spawn_descendant_helper".into(),
                 ],
             );
-            spec.timeout_seconds = Some(3);
+            spec.environment.set.insert(
+                "STY_TEST_PID_FILE".into(),
+                pid_file.to_string_lossy().into_owned(),
+            );
+            spec.timeout_seconds = Some(5);
             let (job, store) = prepared(&spec, temp.path());
             run(&job, &store);
             let pid: u32 = std::fs::read_to_string(pid_file)
@@ -868,6 +858,33 @@ mod windows {
                 // SAFETY: this test owns the process handle.
                 unsafe { CloseHandle(process) };
             }
+        }
+
+        #[test]
+        #[ignore = "launched only as a managed root by timeout_kills_descendant_not_only_root"]
+        fn spawn_descendant_helper() {
+            let executable = std::env::current_exe().unwrap();
+            let mut child = std::process::Command::new(executable)
+                .args([
+                    "--ignored",
+                    "--exact",
+                    "runner::windows::tests::descendant_sleeper",
+                ])
+                .spawn()
+                .unwrap();
+            std::fs::write(
+                std::env::var_os("STY_TEST_PID_FILE").unwrap(),
+                child.id().to_string(),
+            )
+            .unwrap();
+            std::thread::sleep(Duration::from_secs(30));
+            let _ = child.wait();
+        }
+
+        #[test]
+        #[ignore = "launched only as a descendant containment probe"]
+        fn descendant_sleeper() {
+            std::thread::sleep(Duration::from_secs(30));
         }
 
         #[test]
