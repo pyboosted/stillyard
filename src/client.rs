@@ -607,8 +607,7 @@ pub(crate) fn default_store_root() -> Result<PathBuf> {
 pub(crate) fn default_endpoint() -> Result<String> {
     #[cfg(windows)]
     let identity = current_user_sid_string()?;
-    #[cfg(not(windows))]
-    let identity = default_store_root()?.to_string_lossy().to_lowercase();
+    #[cfg(windows)]
     let digest = format!("{:x}", Sha256::digest(identity.as_bytes()));
     #[cfg(windows)]
     return Ok(format!(r"\\.\pipe\stillyard-v2-{}", &digest[..16]));

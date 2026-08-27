@@ -1,15 +1,19 @@
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
+#[cfg(windows)]
 use fs2::FileExt;
 
+#[cfg(windows)]
 use crate::client::default_store_root;
 #[cfg(windows)]
 use crate::client::{current_user_sid_string, default_endpoint};
 use crate::protocol::{PROTOCOL_VERSION, Request, Response};
 #[cfg(windows)]
 use crate::protocol::{read_frame, write_frame};
-use crate::store::{Store, StoreError, StorePaths, open_lock};
+use crate::store::{Store, StoreError};
+#[cfg(windows)]
+use crate::store::{StorePaths, open_lock};
 use crate::{Error, Result};
 
 type SharedStore = Arc<Mutex<Store>>;
