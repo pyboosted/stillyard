@@ -73,10 +73,21 @@ acceptance.
   registry to the reconciler; it does not drop the handle. The reconciler owns that handle until it
   proves emptiness or daemon termination closes it under kill-on-close.
 
-For every release decision, the **Lease-blocking Containment set** is all Containments whose
-Invocations belong to the same Attempt, across primary and every postcondition. The Attempt Lease
-may release only when none of those records is `creating`, `live`, or `uncertain`; "sibling" never
-means merely the same Invocation.
+For every release decision, the **Lease-blocking Containment set** is the durable set of all
+Containments whose Invocations belong to the same Attempt, across primary and every postcondition.
+It comes from one SQLite query with no daemon-generation, role, runner-registry, or reconciler-
+registry filter. The Attempt Lease may release only when the inherited Attempt lifecycle is closed
+to new Invocations and every record in that set is terminal (`empty` or `cleared`); an unknown or
+future internal state therefore fails closed. "Sibling" never means merely the same Invocation.
+
+Ordinary empty cleanup, automatic reconciliation, and forced clearance call one store primitive for
+that decision. Inside the same immediate transaction that persists the target Containment change,
+the primitive re-reads the complete durable set and Attempt settlement eligibility, conditionally
+releases the Lease, records `lease_released`, and emits the event. It never derives release safety
+from the current-generation enumeration used to authorize a managed peer. Postconditions remain
+sequential and start only after preceding natural cleanup reaches `empty`; an uncertain or cleared
+Containment never opens a later postcondition. Thus a release transaction is also the serialization
+point after which no new Containment for that Attempt can appear.
 
 The alpha.8 schema is one new greenfield epoch, not a migration. Opening an alpha.7 database under
 the singleton lock replaces the SQLite database and creates a new store UUID under the existing
@@ -351,10 +362,12 @@ read configuration evidence without treating an unrelated retained incident as c
 Uncertainty never expires and elapsed time is never proof. Reconciliation runs at startup and only
 while at least one uncertain Containment exists. Each turn takes at most 32 incidents in stable
 round-robin order, snapshots their versioned evidence under the store mutex, performs every OS probe
-outside the mutex, and compare-and-commits any resolution. Per-incident backoff grows through
-1/2/4/8/16/30/60/120/300 seconds; a new incident or owned-boundary empty notification wakes it
-promptly. The timer stops when no incidents remain. A healthy idle daemon therefore gains no polling
-wakeup and keeps the A-19 budget.
+outside the mutex, and compare-and-commits any resolution through the shared Lease-release store
+primitive. Its immediate transaction re-reads both the target versioned evidence and complete
+durable Lease-blocking set; the pre-probe snapshot never authorizes release. Per-incident backoff
+grows through 1/2/4/8/16/30/60/120/300 seconds; a new incident or owned-boundary empty notification
+wakes it promptly. The timer stops when no incidents remain. A healthy idle daemon therefore gains
+no polling wakeup and keeps the A-19 budget.
 
 Unchanged probes do not write SQLite, fsync, emit an event, or wake watchers. Their latest time and
 result are bounded current-daemon diagnostic memory exposed by doctor; only the durable incident
@@ -390,9 +403,9 @@ evidence, a matching nonterminated identity, or an uninspectable boundary preser
 unless the stronger prior-boot proof applies.
 
 Every successful automatic resolution atomically changes `uncertain -> cleared`, records its proof,
-releases the Attempt Lease only when no Lease-blocking Containment owned by that Attempt remains,
-across the primary Invocation and every postcondition, and
-commits the ordinary Containment/event invalidation. After a commit that actually releases a Lease,
+and invokes the shared transaction predicate; it releases the Attempt Lease only when every durable
+Containment owned by that Attempt is terminal across the primary Invocation and every postcondition,
+and commits the ordinary Containment/event invalidation. After a commit that actually releases a Lease,
 the daemon signals the admission scheduler as well as the observation condition; the event hook
 alone is not an admission wakeup. Watchers therefore refresh without a private doctor channel and
 newly eligible pending Jobs do not remain parked.
@@ -432,12 +445,16 @@ The daemon applies this order:
    boundary handle and the target identity is affirmatively absent or nonmatching. A PID occupied by
    a different creation identity records `PidReused` and does not trigger the root-identity refusal.
 5. Perform the target probe outside SQLite. Begin an immediate transaction, re-read the
-   Containment's version and identity, and commit only if they match the probed record. A concurrent
-   proof/clear returns the committed result; any other change gets one bounded retry or rejects.
+   Containment's version and identity plus the complete durable Lease-blocking set and Attempt
+   settlement eligibility, and commit only if the target matches the probed record. The shared store
+   primitive evaluates that set in this transaction, never from the step-1 authorization registry.
+   A concurrent proof/clear returns the committed result; any other change gets one bounded retry or
+   rejects.
 6. Atomically record `forced_risk_acceptance`, the requester, timestamp and daemon generation;
-   transition to `cleared`; release the Attempt Lease only when no Lease-blocking Containment owned
-   by that Attempt remains, across the primary Invocation and every postcondition; and emit the
-   normal Containment event. If the Lease releases, signal the admission scheduler after commit.
+   transition to `cleared`; invoke the shared transaction predicate; release the Attempt Lease only
+   when every durable Containment owned by that Attempt is terminal across the primary Invocation and
+   every postcondition; and emit the normal Containment event. If the Lease releases, signal the
+   admission scheduler after commit.
 
 If requester identity or current boot identity cannot be obtained, forced clearance rejects: an
 unauditable operator mutation is worse than a retained Lease. A crash before the transaction leaves
@@ -522,11 +539,17 @@ the public crate and CLI; store tests may construct fault states but cannot be t
    force attempt returns that same automatic audit. `status` exposes both automatic and forced
    resolution history. Check-then-update, fabricated-automatic-requester, and audit-write-only
    mutants fail.
-8. **Attempt-wide containment and crash atomicity.** Clearing one incident does not release an
-   Attempt Lease while any Containment whose Invocation belongs to that Attempt is
-   creating/live/uncertain, across the primary Invocation and every postcondition. SQLite failure at
-   every clearance write boundary exposes the full prior or full new state. Release-before-audit,
-   same-Invocation-only, primary-only, and first-containment-release mutants fail.
+8. **Attempt-wide containment and crash atomicity.** Ordinary cleanup, automatic resolution, and
+   forced clearance exercise the same store predicate. None releases an Attempt Lease until the
+   Attempt is closed to new Invocations and every durable Containment whose Invocation belongs to
+   that Attempt is `empty` or `cleared`, across the primary Invocation and every postcondition. A
+   prior-generation blocker is included. Concurrent attempted Containment creation is serialized:
+   it is included before release or rejected after settlement closes. The blocked result durably has
+   `lease_released == false`; clearing the final blocker has `lease_released == true`. SQLite failure
+   at every automatic and forced write boundary exposes the full prior or full new state.
+   Release-before-audit, set-read-outside-transaction, current-generation-only,
+   same-Invocation-only, primary-only, automatic-path-bypasses-shared-predicate,
+   postcondition-created-during-release, and first-containment-release mutants fail.
 9. **Wake and cost discipline.** With no incidents, doctor adds no background thread, helper
    process, or periodic wake. With incidents, each reconciliation turn probes at most 32 outside the
    store mutex, stable round-robin prevents starvation, and unchanged probes cause no SQLite write,
