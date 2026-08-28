@@ -71,19 +71,18 @@ Files:
 - `opus.json` — complete, two Opus lenses;
 - `fable.json` — complete, Fable xhigh, session
   `e8cc9440-0c33-46fb-bc05-c3c84076f636`;
-- `grok.json` — still pending at handoff time.
+- `grok.json` — complete, Grok 4.6 high.
 
-The Grok launcher was still running at handoff time:
+Grok completed normally after the initial handoff checkpoint. Its launcher and reviewer processes
+exited and the verdict was written to:
 
 ```text
-launcher PID 27760
-grok PID     11472
-state        C:\Development\review-artifacts\stillyard-instance-isolation\grok.json.launch.json
+C:\Development\review-artifacts\stillyard-instance-isolation\grok.json
 ```
 
-Do not kill it merely because it is slow. On resumption, first check whether `grok.json` appeared
-and read it. If the process is still alive, let it finish. Its invocation is exact Grok 4.6, high
-reasoning, read-only, subscription OAuth.
+Its invocation was exact Grok 4.6, high reasoning, read-only, subscription OAuth. Grok reported one
+real High auto-start classification defect, repeated the already-confirmed mutant coverage gaps,
+and repeated the incorrect `Global\` mutex privilege claim disposed below.
 
 Opus sessions, if a focused same-session follow-up is needed:
 
@@ -94,7 +93,25 @@ Opus sessions, if a focused same-session follow-up is needed:
 
 Keep this bounded. These are local Phase 8a corrections, not reasons to reopen the architecture.
 
-### 1. Require a complete explicit instance tuple
+### 1. Do not classify authenticated-peer rejection as daemon absence
+
+Grok found a real High defect in the default client path. `verify_pipe_server` currently returns
+`Error::Unavailable` for an executable-image mismatch after connecting to a live pipe.
+`ClientBuilder::connect` treats any `Unavailable` as a missing daemon and enters auto-start. On the
+default endpoint this spawns a competing default daemon, waits, and replaces the useful image
+mismatch with "daemon did not become ready". On an explicit endpoint it similarly rewrites the
+live mismatch as "auto-start is unavailable for an explicit endpoint".
+
+Return a non-retryable/non-autostart error for wrong server image (normally `Error::Protocol`, or a
+dedicated authentication error if one is introduced for an independently justified reason). More
+generally, auto-start must be entered only for connection failures that prove no pipe server was
+reached, never for a failure after peer PID/image or protocol authentication began.
+
+Add a regression test with a live daemon at the selected endpoint and a different expected
+executable. Assert the exact authentication failure and prove no daemon process is spawned. This is
+separate from the existing `.is_err()` assertion, which cannot distinguish the failure path.
+
+### 2. Require a complete explicit instance tuple
 
 Current `daemon::run` independently falls back each coordinate. Consequently,
 `stillyard --endpoint X daemon` can lock the owner's default store, and
@@ -107,7 +124,7 @@ Default auto-start already passes both explicitly and removes ambient variables.
 Add tests for CLI/env combinations and update the Phase 8a contract to state that an isolated daemon
 must select both coordinates together.
 
-### 2. Claim the first pipe instance before opening the store or starting the scheduler
+### 3. Claim the first pipe instance before opening the store or starting the scheduler
 
 Current order is mutex lease -> store lock/open -> scheduler start -> first `CreateNamedPipeW` in
 `serve`. If the pipe-name backstop fails, queued work may have begun before startup fails.
@@ -128,7 +145,7 @@ is opened and scheduler exists.
 Do not implement the suggested permanently reserved, never-served pipe handle: a client could attach
 to that instance and hang. The pre-created handle must become the first real listener.
 
-### 3. Make invalid endpoint input non-retryable and restrict Windows names to ASCII
+### 4. Make invalid endpoint input non-retryable and restrict Windows names to ASCII
 
 `validate_endpoint` currently returns `Error::Unavailable`, so consumer readiness loops mistake a
 permanently invalid endpoint for a daemon that is still starting. Return `Error::InvalidSpec` (or an
@@ -138,7 +155,7 @@ Also reject non-ASCII Windows pipe names. The endpoint mutex key uses ASCII case
 name comparison is not safely represented by that normalization. ASCII endpoint names make both
 guards agree and avoid homoglyph/case ambiguity.
 
-### 4. Add executable controls for auto-start and managed-scope mutants
+### 5. Add executable controls for auto-start and managed-scope mutants
 
 Add tests that leave `auto_start` at its default and select an absent explicit endpoint, both via
 `ClientBuilder::endpoint` and `STILLYARD_ENDPOINT`. They must immediately return the explicit/custom
@@ -157,14 +174,22 @@ same-endpoint coordinates are reauthenticated.
 Match expected error variants/messages for foreign ID and wrong-image cases instead of accepting any
 error.
 
-### 5. Preserve the Linux strict-clippy gate
+### 6. Normalize endpoint identity consistently in result files
+
+Grok confirmed a Low but real consistency issue: Windows instance selection and the endpoint lease
+treat pipe names case-insensitively, while `recover_result_file` compares the recorded endpoint with
+case-sensitive string equality. Use the same `endpoints_equal` identity comparison when validating
+result-file ownership. Keep the comparison fail-closed for genuinely different endpoints and add a
+case-variant recovery unit test.
+
+### 7. Preserve the Linux strict-clippy gate
 
 Fable identified that `resolve_store_root` and `resolve_endpoint` are only consumed by the Windows
 daemon but are compiled on non-Windows. Add `#[cfg_attr(not(windows), allow(dead_code))]` or gate
 them appropriately, then run the Linux-equivalent strict build if available. Linux runtime remains
 v0.2, but the existing CI gate must compile now.
 
-### 6. Avoid rejected-store filesystem side effects where practical
+### 8. Avoid rejected-store filesystem side effects where practical
 
 `resolve_store_root` creates the selected directory before volume/reparse validation. Validate the
 nearest existing ancestor first, then create, validate the full path (including every reparse
@@ -179,7 +204,7 @@ remains.
 
 ### `Global\` mutex privilege claim is false
 
-Both Opus and Fable expressed uncertainty that creating a global mutex requires
+Opus, Fable, and Grok expressed uncertainty or claimed that creating a global mutex requires
 `SeCreateGlobalPrivilege`. Microsoft documents that this privilege check applies to global
 file-mapping and symbolic-link objects, not mutexes. Keep the global owner-SID-scoped mutex unless a
 real standard-user test falsifies this.
@@ -204,15 +229,15 @@ the local database rather than introducing store v2/v3/v4 machinery.
 
 ## Recommended implementation order
 
-1. Wait for/read Grok; verify only concrete findings against source.
+1. Fix wrong-image/authenticated-peer error classification and its no-autostart regression test.
 2. Patch complete-tuple validation and tests.
 3. Move first pipe creation ahead of store/scheduler with RAII ownership.
-4. Patch endpoint validation/ASCII, auto-start selection, managed mutant tests, and non-Windows
-   dead-code gate.
+4. Patch endpoint validation/ASCII, auto-start selection, managed mutant tests, result-file endpoint
+   identity, and the non-Windows dead-code gate.
 5. Apply the nearest-existing-ancestor store validation improvement if it remains small.
 6. Run formatting, strict clippy, all tests, the isolated live test, and `git diff --check`.
 7. Commit the review fixes coherently.
-8. Send focused follow-ups only for any accepted High/Critical finding. Medium/Low fixes may be
+8. Send a focused Grok closure review for the accepted High wrong-image finding. Medium/Low fixes may be
    closed by local evidence; do not start another broad convergence loop.
 9. Change the Phase 8a document status from review candidate to reviewed/frozen and record review
    dispositions.
