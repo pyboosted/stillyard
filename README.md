@@ -123,26 +123,33 @@ The daemon reads `config.json` from the fixed store directory reported by `still
 
 The committed schemas are available under `schema/`; `stillyard schema spec` and `stillyard schema config` print the exact same documents.
 
-## Build
+## Local build and validation
+
+On the canonical Windows development host, Stillyard builds and tests itself through the system
+default Stillyard daemon. The checked-in JobSpecs own the explicit toolchain environment and keep
+build output separate from the installed daemon binary:
+
+```powershell
+& .\scripts\run-stillyard-job.ps1 fmt
+& .\scripts\run-stillyard-job.ps1 check
+& .\scripts\run-stillyard-job.ps1 test
+& .\scripts\run-stillyard-job.ps1 clippy
+& .\scripts\run-stillyard-job.ps1 build-release
+```
+
+Common installed-CLI operations are direct:
 
 ```text
-cargo build
-cargo test
-cargo run -- schema spec
-cargo run -- schema config
-cargo run -- daemon-status
-cargo run -- doctor --json
-cargo run -- doctor clear-containment CONTAINMENT_ID --force --json
-cargo run -- --endpoint \\.\pipe\stillyard-test daemon --store C:\temp\stillyard-test
-cargo run -- --endpoint \\.\pipe\stillyard-test daemon-status
-cargo run -- submit --spec job.json --wait --passthrough --silent --result-file operation.json
-cargo run -- recover --result-file operation.json --wait --passthrough --silent
-cargo run -- wait JOB_ID --passthrough
-cargo run -- submit --batch batch.json --wait
-cargo run -- logs JOB_ID
-cargo run -- list --json
-cargo run -- events --json
-cargo run -- watch
+stillyard schema spec
+stillyard schema config
+stillyard daemon-status
+stillyard doctor --json
+stillyard submit --spec job.json --wait --passthrough
+stillyard recover --result-file operation.json --wait --passthrough
+stillyard wait JOB_ID --passthrough
+stillyard list --json
+stillyard events --json
+stillyard watch
 ```
 
 Stillyard is licensed under either of Apache License 2.0 or the MIT license, at your option.
