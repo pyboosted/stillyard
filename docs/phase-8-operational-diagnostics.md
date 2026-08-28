@@ -40,7 +40,8 @@ Alpha.8 does not introduce another lifecycle entity. It completes the existing C
 with the evidence needed to distinguish proof, uncertainty, PID reuse, and explicit risk
 acceptance.
 
-- `ContainmentState` gains the terminal `cleared` state and a response-only `unknown` fallback.
+- `ContainmentState` gains the terminal `cleared` state and a response-only `Unknown(String)`
+  fallback that preserves the unrecognized wire value.
   Ordinary cleanup still reaches `empty`. Only an `uncertain` Containment reaches `cleared`, with a
   durable resolution of `proven_empty`, `reboot`, or `forced_risk_acceptance`; `unknown` never
   participates in an internal transition or proof.
@@ -72,11 +73,24 @@ acceptance.
   registry to the reconciler; it does not drop the handle. The reconciler owns that handle until it
   proves emptiness or daemon termination closes it under kill-on-close.
 
+For every release decision, the **Lease-blocking Containment set** is all Containments whose
+Invocations belong to the same Attempt, across primary and every postcondition. The Attempt Lease
+may release only when none of those records is `creating`, `live`, or `uncertain`; "sibling" never
+means merely the same Invocation.
+
 The alpha.8 schema is one new greenfield epoch, not a migration. Opening an alpha.7 database under
 the singleton lock replaces the SQLite database and creates a new store UUID under the existing
 whole-store reset rule. Configuration and canonical log files remain outside that reset; old Jobs,
 cursors, result files, and containment IDs become foreign-store history and cannot authorize an
 operation in the new store.
+
+Host binding is part of current-store identity. A valid store bound to a different current
+`HostId`, or an unbound store that somehow contains a Containment/granted Lease, selects the same
+whole-database reset under the singleton lock as another invalid store identity. An unbound store
+with no Containment and no granted Lease may bind atomically even when it contains accepted pending
+Jobs, because no user code could have been released. A simultaneous machine clone has independent
+host-local resources and receives a new store UUID; it cannot import or clear the other host's
+records.
 
 ## Public crate contract
 
@@ -92,7 +106,6 @@ existing deadline and optional `CancellationToken` conventions.
 pub struct BootId(pub String);
 pub struct HostId(pub String);
 
-#[serde(tag = "platform", rename_all = "snake_case")]
 pub enum ProcessIdentity {
     Windows {
         host_id: HostId,
@@ -100,12 +113,12 @@ pub enum ProcessIdentity {
         pid: u32,
         creation_filetime_100ns: u64,
     },
-    Unknown { platform: String, evidence: serde_json::Value },
+    Unknown { unknown_platform: String, evidence: serde_json::Value },
 }
 
-pub enum DoctorCheckStatus { Pass, Warning, Fail, Unknown }
-pub enum DoctorOverallStatus { Healthy, AttentionRequired, Unsafe, Unknown }
-pub enum ContainmentResolution { ProvenEmpty, Reboot, ForcedRiskAcceptance, Unknown }
+pub enum DoctorCheckStatus { Pass, Warning, Fail, Unknown(String) }
+pub enum DoctorOverallStatus { Healthy, AttentionRequired, Unsafe, Unknown(String) }
+pub enum ContainmentResolution { ProvenEmpty, Reboot, ForcedRiskAcceptance, Unknown(String) }
 pub enum ReconciliationResult {
     StillResolves,
     BoundaryNotEmpty,
@@ -115,7 +128,7 @@ pub enum ReconciliationResult {
     PidReused,
     ProvenEmpty,
     PriorBoot,
-    Unknown,
+    Unknown(String),
 }
 
 pub struct DoctorCheck {
@@ -194,7 +207,7 @@ pub struct ForcedClearanceAudit {
     pub requester: ProcessIdentity,
 }
 
-pub enum ClearanceOrigin { Automatic, Forced, Unknown }
+pub enum ClearanceOrigin { Automatic, Forced, Unknown(String) }
 
 pub struct ContainmentResolutionAudit {
     pub resolved_unix_millis: i64,
@@ -221,14 +234,24 @@ only for the same platform and host binding. The Windows boot representation is 
 lowercase UUID string. A cloned machine identity is part of the documented cooperative-host
 boundary; it never weakens the requirement to match `HostId` before using boot inequality as proof.
 
+Safe unknown handling is implemented with explicit hand-written `Serialize`/`Deserialize`, not
+`#[serde(other)]` or a derive assumption. The scalar enums printed above map every unrecognized wire
+string to `Unknown(original)`. `ProcessIdentity` first captures the single `platform` tag; a known
+tag decodes its exact fields, while an unknown tag becomes
+`Unknown { unknown_platform, evidence }`, where `evidence` is the remaining object without a second
+`platform` key. Serialization reconstructs exactly one tag. The same response-only rule applies to
+`ContainmentState::Unknown(String)`. Acceptance compiles these implementations and injects future
+wire tags; prose alone is not evidence.
+
 String-valued platform, strength, filesystem, SQLite mode, epoch, check, boundary, and reason codes
 are open vocabularies with stable documented known values. Consumers preserve/tolerate unknown
 values and gate only the specific checks they own; `overall == Healthy` is not a stable substitute
 for checking a consumer's required codes.
 
-`Client::doctor(cursor, limit, deadline, cancellation)` returns `DoctorSnapshot`; limit defaults to
-256 and clamps to 256. `ContainmentIncidentCursor` has the same stable string round-trip and
-store-scoping rules as the existing observation cursors.
+`Client::doctor(cursor: Option<ContainmentIncidentCursor>, limit: Option<u32>, deadline,
+cancellation)` returns `DoctorSnapshot`; `None` limit means 256 and values clamp to 256.
+`ContainmentIncidentCursor` serializes as one opaque string, has a public parse/display round-trip,
+and follows the same store-scoping rules as the existing observation cursors.
 `Client::force_clear_containment(containment_id, deadline, cancellation)` returns a persisted
 `ClearContainmentResult`. A disconnect never makes the result ambiguous: retrying the same
 store-scoped Containment ID returns the original `prior_state`, audit, and `lease_released` value.
@@ -239,6 +262,9 @@ IDs from a replaced or foreign store reject and never select by entity UUID alon
 forced or automatic clearance remains publicly inspectable through ordinary `status`/TUI detail
 after immediate command output is gone. Doctor copies only unresolved incident pages; it is not the
 audit-history read path.
+
+The public `Error` enum remains `#[non_exhaustive]` when it gains the clearance rejection variant,
+so an external exhaustive match is never required.
 
 The public JSON representation is exactly the serde representation of these public types.
 `stillyard doctor --json` emits one `DoctorSnapshot`; clearance with `--json` emits one
@@ -255,8 +281,10 @@ hold writers or lifecycle progress.
 Host/boot probing precedes store admission initialization. If either source is unavailable the
 daemon can still open/create the store and serve read-only diagnostics, but leaves an unbound new
 store unbound and grants no work Lease. The first later generation with valid evidence may bind an
-empty unbound store atomically; a nonempty unbound or differently bound store is `Unsafe` and never
-admitted, auto-cleared, or force-cleared.
+unbound store atomically when it has no Containment and no granted Lease, including when it has
+accepted pending Jobs. An unbound store with containment evidence, or a store bound to a different
+`HostId`, is replaced as an invalid store identity under the singleton lock; no record from it is
+admitted, auto-cleared, or force-cleared in the replacement store.
 
 Checks are sorted by stable `code`; incidents are assigned a monotonic durable sequence when
 uncertainty opens and page in `(incident_sequence, containment_id)` order. Wall-clock adjustment
@@ -362,7 +390,8 @@ evidence, a matching nonterminated identity, or an uninspectable boundary preser
 unless the stronger prior-boot proof applies.
 
 Every successful automatic resolution atomically changes `uncertain -> cleared`, records its proof,
-releases the Attempt Lease only when no creating/live/uncertain sibling Containment remains, and
+releases the Attempt Lease only when no Lease-blocking Containment owned by that Attempt remains,
+across the primary Invocation and every postcondition, and
 commits the ordinary Containment/event invalidation. After a commit that actually releases a Lease,
 the daemon signals the admission scheduler as well as the observation condition; the event hook
 alone is not an admission wakeup. Watchers therefore refresh without a private doctor channel and
@@ -406,9 +435,9 @@ The daemon applies this order:
    Containment's version and identity, and commit only if they match the probed record. A concurrent
    proof/clear returns the committed result; any other change gets one bounded retry or rejects.
 6. Atomically record `forced_risk_acceptance`, the requester, timestamp and daemon generation;
-   transition to `cleared`; release the Attempt Lease only when no creating/live/uncertain sibling
-   remains; and emit the normal Containment event. If the Lease releases, signal the admission
-   scheduler after commit.
+   transition to `cleared`; release the Attempt Lease only when no Lease-blocking Containment owned
+   by that Attempt remains, across the primary Invocation and every postcondition; and emit the
+   normal Containment event. If the Lease releases, signal the admission scheduler after commit.
 
 If requester identity or current boot identity cannot be obtained, forced clearance rejects: an
 unauditable operator mutation is worse than a retained Lease. A crash before the transaction leaves
@@ -452,8 +481,10 @@ the public crate and CLI; store tests may construct fault states but cannot be t
    hash. Changing configured evidence without restarting does not change the loaded snapshot;
    restarting does. `moot`'s config-drift adapter test consumes only this response. A
    separate external crate compiles calls to `doctor` and `force_clear_containment`; additive unknown
-   response fields deserialize, while unknown proof/identity variants become `Unknown` and cannot
-   authorize a transition. Unconstructable-request, reject-additive-response, and
+   response fields deserialize. Fixtures inject an unknown scalar-enum string and an unknown
+   `ProcessIdentity.platform`; both preserve the original value through a deserialize/serialize
+   round-trip, become `Unknown`, and cannot authorize a transition. Unconstructable-request,
+   reject-additive-response, unknown-enum-rejected, unknown-platform-duplicated, and
    read-config-file-in-the-consumer mutants fail.
 2. **Redaction and boundedness.** A configuration containing sentinel environment/profile values
    leaks neither those values nor child output through human or JSON doctor output. More than 256
@@ -491,10 +522,11 @@ the public crate and CLI; store tests may construct fault states but cannot be t
    force attempt returns that same automatic audit. `status` exposes both automatic and forced
    resolution history. Check-then-update, fabricated-automatic-requester, and audit-write-only
    mutants fail.
-8. **Sibling and crash atomicity.** Clearing one incident does not release an Attempt Lease while
-   any sibling Containment is creating/live/uncertain. SQLite failure at every clearance write
-   boundary exposes the full prior or full new state. Release-before-audit and first-sibling-release
-   mutants fail.
+8. **Attempt-wide containment and crash atomicity.** Clearing one incident does not release an
+   Attempt Lease while any Containment whose Invocation belongs to that Attempt is
+   creating/live/uncertain, across the primary Invocation and every postcondition. SQLite failure at
+   every clearance write boundary exposes the full prior or full new state. Release-before-audit,
+   same-Invocation-only, primary-only, and first-containment-release mutants fail.
 9. **Wake and cost discipline.** With no incidents, doctor adds no background thread, helper
    process, or periodic wake. With incidents, each reconciliation turn probes at most 32 outside the
    store mutex, stable round-robin prevents starvation, and unchanged probes cause no SQLite write,
@@ -503,11 +535,14 @@ the public crate and CLI; store tests may construct fault states but cannot be t
    probe-emits-event, missing-scheduler-wake, and viewer-holds-store-lock mutants fail.
 10. **Greenfield and provenance.** The new epoch replaces alpha.7 SQLite only under the singleton
     lock, changes store UUID, preserves config/log files, and makes every old Containment ID foreign.
-    Doctor reports the new epoch, boot, host, version, generation, and cooperative boundaries.
-    Partial-migration and stale-ID-clear mutants fail.
+    An unbound store with pending Jobs but no Containment/granted Lease binds without reset. A store
+    bound to another `HostId`, or an unbound store with containment evidence, is wholly replaced and
+    receives a new store UUID. Doctor reports the new epoch, boot, host, version, generation, and
+    cooperative boundaries. Partial-migration, stale-ID-clear, pending-means-unbindable, and
+    foreign-host-store-kept mutants fail.
 
 Focused fleet review must attack the public API size, machine-readable compatibility, exact process
-and reboot proof, managed-caller authorization, clearance transaction, sibling Lease ownership,
+and reboot proof, managed-caller authorization, clearance transaction, Attempt-wide Lease ownership,
 reconciliation wake discipline, and whether any requirement accidentally turns doctor into a
 second scheduler or policy engine. Confirmed High/Critical/Blocker findings are fixed and sent back
 to the affected reviewer; Medium/Low findings may be corrected silently when they stay within this
