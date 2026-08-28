@@ -8,6 +8,7 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use directories::ProjectDirs;
+use fs2::FileExt;
 use sha2::{Digest, Sha256};
 
 use crate::protocol::{PROTOCOL_VERSION, Request, Response, StagedInputRef};
@@ -15,7 +16,8 @@ use crate::protocol::{PROTOCOL_VERSION, Request, Response, StagedInputRef};
 use crate::protocol::{read_frame, write_frame};
 use crate::{
     BatchReceipt, BatchSpec, CancellationToken, DaemonSnapshot, Error, JobId, JobReceipt,
-    JobSnapshot, JobSpec, LogChunk, LogStream, RecoveryResult, Result, SubmitOptions,
+    JobSnapshot, JobSpec, LogChunk, LogStream, ManagedParent, RecoveryResult, Result,
+    SubmissionContext, SubmitOptions,
 };
 
 #[derive(Clone, Debug)]
@@ -61,7 +63,11 @@ impl ClientBuilder {
         cancellation: Option<&CancellationToken>,
     ) -> Result<Client> {
         let explicit_endpoint = self.endpoint.is_some();
-        let endpoint = self.endpoint.unwrap_or(default_endpoint()?);
+        let managed_endpoint = std::env::var("STILLYARD_ENDPOINT").ok();
+        let endpoint = self
+            .endpoint
+            .or_else(|| managed_endpoint.clone())
+            .unwrap_or(default_endpoint()?);
         let daemon_executable = self
             .daemon_executable
             .map(Ok)
@@ -72,7 +78,7 @@ impl ClientBuilder {
         };
         match client.ping(deadline, cancellation) {
             Ok(()) => Ok(client),
-            Err(Error::Unavailable(_)) if self.auto_start => {
+            Err(Error::Unavailable(_)) if self.auto_start && managed_endpoint.is_none() => {
                 if std::env::var_os("STILLYARD_JOB_ID").is_some()
                     || std::env::var_os("STILLYARD_ROLE").is_some()
                 {
@@ -148,19 +154,9 @@ impl Client {
         let stdin = inspect_stdin(&spec.stdin)?;
         let normalized = serde_json::to_vec(&(&spec, stdin.as_ref().map(|(input, _)| input)))?;
         let payload_hash = format!("{:x}", Sha256::digest(&normalized));
-        let result_identity = if options.result_file.is_some() {
-            Some(self.daemon_status(deadline, cancellation)?.store_uuid)
-        } else {
-            None
-        };
+        let context = self.submission_context(deadline, cancellation)?;
         if let Some(path) = &options.result_file {
-            write_initial_result_file(
-                path,
-                options,
-                &payload_hash,
-                &self.endpoint,
-                result_identity.expect("identity is fetched for a result file"),
-            )?;
+            prepare_result_file(path, options, &payload_hash, &self.endpoint, context)?;
         }
         let stdin = match stdin {
             Some((input, path)) => {
@@ -174,26 +170,49 @@ impl Client {
                 payload_hash: payload_hash.clone(),
                 spec: Box::new(spec),
                 stdin,
-                expected_store_uuid: result_identity,
+                expected_store_uuid: Some(context.store_uuid),
+                expected_parent: context.parent,
             },
             deadline,
             cancellation,
         )?;
         match response {
             Response::Submitted(receipt) => {
+                if receipt.parent != context.parent {
+                    return Err(Error::Protocol(
+                        "daemon returned a receipt for a different managed parent".into(),
+                    ));
+                }
                 if let Some(path) = &options.result_file {
-                    write_result_file(
+                    persist_result_receipt(
                         path,
-                        options.idempotency_key,
-                        &payload_hash,
-                        &self.endpoint,
-                        result_identity.expect("identity is fetched for a result file"),
-                        Some(serde_json::to_value(&receipt)?),
+                        &ResultFileRecord {
+                            version: 3,
+                            idempotency_key: options.idempotency_key,
+                            payload_hash: payload_hash.clone(),
+                            endpoint: self.endpoint.clone(),
+                            store_uuid: context.store_uuid,
+                            parent: context.parent,
+                            receipt: None,
+                        },
+                        RecoveryResult::Accepted(receipt.clone()),
                     )?;
                 }
                 Ok(receipt)
             }
-            response => response_error(response),
+            response => {
+                if let Some(path) = &options.result_file {
+                    persist_submit_decision(
+                        path,
+                        options.idempotency_key,
+                        &payload_hash,
+                        &self.endpoint,
+                        context,
+                        &response,
+                    )?;
+                }
+                response_error(response)
+            }
         }
     }
 
@@ -215,19 +234,9 @@ impl Client {
         }
         let normalized = serde_json::to_vec(&(&spec, &input_refs))?;
         let payload_hash = format!("{:x}", Sha256::digest(&normalized));
-        let result_identity = if options.result_file.is_some() {
-            Some(self.daemon_status(deadline, cancellation)?.store_uuid)
-        } else {
-            None
-        };
+        let context = self.submission_context(deadline, cancellation)?;
         if let Some(path) = &options.result_file {
-            write_initial_result_file(
-                path,
-                options,
-                &payload_hash,
-                &self.endpoint,
-                result_identity.expect("identity is fetched for a result file"),
-            )?;
+            prepare_result_file(path, options, &payload_hash, &self.endpoint, context)?;
         }
         let mut stdins = BTreeMap::new();
         for (name, input, path) in inspected {
@@ -242,26 +251,53 @@ impl Client {
                 payload_hash: payload_hash.clone(),
                 spec: Box::new(spec),
                 stdins,
-                expected_store_uuid: result_identity,
+                expected_store_uuid: Some(context.store_uuid),
+                expected_parent: context.parent,
             },
             deadline,
             cancellation,
         )?;
         match response {
             Response::BatchSubmitted(receipt) => {
+                if receipt
+                    .jobs
+                    .iter()
+                    .any(|member| member.receipt.parent != context.parent)
+                {
+                    return Err(Error::Protocol(
+                        "daemon returned a Batch receipt for a different managed parent".into(),
+                    ));
+                }
                 if let Some(path) = &options.result_file {
-                    write_result_file(
+                    persist_result_receipt(
                         path,
-                        options.idempotency_key,
-                        &payload_hash,
-                        &self.endpoint,
-                        result_identity.expect("identity is fetched for a result file"),
-                        Some(serde_json::to_value(&receipt)?),
+                        &ResultFileRecord {
+                            version: 3,
+                            idempotency_key: options.idempotency_key,
+                            payload_hash: payload_hash.clone(),
+                            endpoint: self.endpoint.clone(),
+                            store_uuid: context.store_uuid,
+                            parent: context.parent,
+                            receipt: None,
+                        },
+                        RecoveryResult::AcceptedBatch(receipt.clone()),
                     )?;
                 }
                 Ok(receipt)
             }
-            response => response_error(response),
+            response => {
+                if let Some(path) = &options.result_file {
+                    persist_submit_decision(
+                        path,
+                        options.idempotency_key,
+                        &payload_hash,
+                        &self.endpoint,
+                        context,
+                        &response,
+                    )?;
+                }
+                response_error(response)
+            }
         }
     }
 
@@ -337,9 +373,11 @@ impl Client {
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<RecoveryResult> {
+        let context = self.submission_context(deadline, cancellation)?;
         self.recover_submission_with_store(
             idempotency_key,
             payload_hash.into(),
+            context.parent,
             deadline,
             cancellation,
         )
@@ -350,6 +388,7 @@ impl Client {
         &self,
         idempotency_key: uuid::Uuid,
         payload_hash: String,
+        expected_parent: Option<ManagedParent>,
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<(uuid::Uuid, RecoveryResult)> {
@@ -357,6 +396,7 @@ impl Client {
             Request::Recover {
                 idempotency_key,
                 payload_hash,
+                expected_parent,
             },
             deadline,
             cancellation,
@@ -376,7 +416,7 @@ impl Client {
         cancellation: Option<&CancellationToken>,
     ) -> Result<RecoveryResult> {
         let record: ResultFileRecord = serde_json::from_reader(std::fs::File::open(path)?)?;
-        if record.version != 2 {
+        if record.version != 3 {
             return Err(Error::Protocol(format!(
                 "unsupported result-file version {}",
                 record.version
@@ -388,9 +428,22 @@ impl Client {
                 record.endpoint, self.endpoint
             )));
         }
+        let context = self.submission_context(deadline, cancellation)?;
+        if context.store_uuid != record.store_uuid {
+            return Err(Error::Protocol(format!(
+                "result file belongs to store {}, connected to {}",
+                record.store_uuid, context.store_uuid
+            )));
+        }
+        if context.parent != record.parent {
+            return Err(Error::Protocol(
+                "result file managed parent does not match the current authenticated caller".into(),
+            ));
+        }
         let (store_uuid, recovery) = self.recover_submission_with_store(
             record.idempotency_key,
             record.payload_hash.clone(),
+            record.parent,
             deadline,
             cancellation,
         )?;
@@ -402,6 +455,23 @@ impl Client {
         }
         persist_recovery(path, &record, &recovery)?;
         Ok(recovery)
+    }
+
+    /// Returns the store and server-authenticated managed parent for this client process.
+    pub fn submission_context(
+        &self,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<SubmissionContext> {
+        let claimed_parent = claimed_managed_parent()?;
+        match self.request(
+            Request::SubmissionContext { claimed_parent },
+            deadline,
+            cancellation,
+        )? {
+            Response::SubmissionContext(context) => Ok(context),
+            response => response_error(response),
+        }
     }
 
     pub fn status(
@@ -827,31 +897,71 @@ fn default_daemon_executable() -> Result<PathBuf> {
         .ok_or_else(|| Error::Unavailable("cannot resolve sibling stillyard daemon".into()))
 }
 
-fn write_initial_result_file(
+fn claimed_managed_parent() -> Result<Option<ManagedParent>> {
+    let job = std::env::var("STILLYARD_JOB_ID").ok();
+    let attempt = std::env::var("STILLYARD_ATTEMPT").ok();
+    let invocation = std::env::var("STILLYARD_INVOCATION_ID").ok();
+    if job.is_none() && attempt.is_none() && invocation.is_none() {
+        return Ok(None);
+    }
+    let (Some(job), Some(attempt), Some(invocation)) = (job, attempt, invocation) else {
+        return Err(Error::Protocol(
+            "managed environment has incomplete Job/Attempt/Invocation coordinates".into(),
+        ));
+    };
+    let parent = ManagedParent {
+        job_id: job
+            .parse()
+            .map_err(|_| Error::Protocol("invalid STILLYARD_JOB_ID".into()))?,
+        attempt_id: attempt
+            .parse()
+            .map_err(|_| Error::Protocol("invalid STILLYARD_ATTEMPT".into()))?,
+        invocation_id: invocation
+            .parse()
+            .map_err(|_| Error::Protocol("invalid STILLYARD_INVOCATION_ID".into()))?,
+    };
+    if parent.job_id.store_uuid() != parent.attempt_id.store_uuid()
+        || parent.job_id.store_uuid() != parent.invocation_id.store_uuid()
+    {
+        return Err(Error::Protocol(
+            "managed environment coordinates belong to different stores".into(),
+        ));
+    }
+    Ok(Some(parent))
+}
+
+fn prepare_result_file(
     path: &Path,
     options: &SubmitOptions,
     payload_hash: &str,
     endpoint: &str,
-    store_uuid: uuid::Uuid,
+    context: SubmissionContext,
 ) -> Result<()> {
     let record = ResultFileRecord {
-        version: 2,
+        version: 3,
         idempotency_key: options.idempotency_key,
         payload_hash: payload_hash.to_owned(),
         endpoint: endpoint.to_owned(),
-        store_uuid,
+        store_uuid: context.store_uuid,
+        parent: context.parent,
         receipt: None,
     };
-    write_json_new_atomically(path, &record).map_err(|error| {
-        if error.kind() == std::io::ErrorKind::AlreadyExists {
-            Error::InvalidSpec(format!("result file already exists: {}", path.display()))
-        } else {
-            Error::Io(error)
+    with_result_file_lock(path, || match write_json_new_atomically(path, &record) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            let existing: ResultFileRecord = serde_json::from_reader(std::fs::File::open(path)?)?;
+            validate_managed_resubmit(&existing, &record).map_err(|detail| {
+                Error::InvalidSpec(format!(
+                    "result file {} cannot authorize managed resubmission: {detail}",
+                    path.display()
+                ))
+            })
         }
+        Err(error) => Err(Error::Io(error)),
     })
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ResultFileRecord {
     version: u32,
@@ -859,7 +969,32 @@ struct ResultFileRecord {
     payload_hash: String,
     endpoint: String,
     store_uuid: uuid::Uuid,
-    receipt: Option<serde_json::Value>,
+    parent: Option<ManagedParent>,
+    receipt: Option<RecoveryResult>,
+}
+
+fn validate_managed_resubmit(
+    existing: &ResultFileRecord,
+    proposed: &ResultFileRecord,
+) -> std::result::Result<(), &'static str> {
+    if existing.version != 3 {
+        return Err("unsupported result-file version");
+    }
+    if existing.idempotency_key != proposed.idempotency_key
+        || existing.payload_hash != proposed.payload_hash
+        || existing.endpoint != proposed.endpoint
+        || existing.store_uuid != proposed.store_uuid
+        || existing.parent != proposed.parent
+    {
+        return Err("identity, key, or normalized payload differs");
+    }
+    if proposed.parent.is_none() {
+        return Err("an unmanaged submission can never reuse a result file");
+    }
+    if existing.receipt != Some(RecoveryResult::NotReceived) {
+        return Err("the latest durable recovery result is not not_received");
+    }
+    Ok(())
 }
 
 fn persist_recovery(
@@ -867,36 +1002,182 @@ fn persist_recovery(
     record: &ResultFileRecord,
     recovery: &RecoveryResult,
 ) -> Result<()> {
-    let durable = serde_json::to_value(recovery)?;
-    if !matches!(recovery, RecoveryResult::Unknown) && record.receipt.as_ref() != Some(&durable) {
-        write_result_file(
+    if matches!(recovery, RecoveryResult::Unknown) {
+        return Ok(());
+    }
+    persist_result_receipt(path, record, recovery.clone())
+}
+
+fn persist_submit_decision(
+    path: &Path,
+    idempotency_key: uuid::Uuid,
+    payload_hash: &str,
+    endpoint: &str,
+    context: SubmissionContext,
+    response: &Response,
+) -> Result<()> {
+    let decision = match response {
+        Response::Error { code, .. } if code == "idempotency_conflict" => {
+            Some(RecoveryResult::Conflict)
+        }
+        _ => None,
+    };
+    if let Some(decision) = decision {
+        persist_result_receipt(
             path,
-            record.idempotency_key,
-            &record.payload_hash,
-            &record.endpoint,
-            record.store_uuid,
-            Some(durable),
+            &ResultFileRecord {
+                version: 3,
+                idempotency_key,
+                payload_hash: payload_hash.to_owned(),
+                endpoint: endpoint.to_owned(),
+                store_uuid: context.store_uuid,
+                parent: context.parent,
+                receipt: None,
+            },
+            decision,
         )?;
     }
     Ok(())
 }
 
+fn persist_result_receipt(
+    path: &Path,
+    expected: &ResultFileRecord,
+    receipt: RecoveryResult,
+) -> Result<()> {
+    with_result_file_lock(path, || {
+        let mut current: ResultFileRecord = serde_json::from_reader(std::fs::File::open(path)?)?;
+        validate_result_file_identity(&current, expected).map_err(|detail| {
+            Error::Protocol(format!(
+                "result file {} changed identity while updating it: {detail}",
+                path.display()
+            ))
+        })?;
+        if current
+            .receipt
+            .as_ref()
+            .is_some_and(|existing| same_terminal_decision(existing, &receipt))
+        {
+            // Accepted receipts contain live queue/state estimates. The durable decision is the
+            // Submission/Job identity, so a refresh of those volatile fields is a no-op rather
+            // than a competing terminal decision or a reason to churn the receipt file.
+            return Ok(());
+        }
+        let may_advance = match current.receipt.as_ref() {
+            None => true,
+            Some(RecoveryResult::NotReceived) => !matches!(receipt, RecoveryResult::Unknown),
+            Some(RecoveryResult::Received { .. }) => matches!(
+                receipt,
+                RecoveryResult::Received { .. }
+                    | RecoveryResult::Accepted(_)
+                    | RecoveryResult::AcceptedBatch(_)
+                    | RecoveryResult::Rejected { .. }
+                    | RecoveryResult::Conflict
+            ),
+            Some(existing) => existing == &receipt,
+        };
+        if !may_advance {
+            return Err(Error::Protocol(
+                "result-file update would regress or replace its durable decision".into(),
+            ));
+        }
+        if current.receipt.as_ref() != Some(&receipt) {
+            current.receipt = Some(receipt);
+            write_json_atomically(path, &current)?;
+        }
+        Ok(())
+    })
+}
+
+fn same_terminal_decision(existing: &RecoveryResult, proposed: &RecoveryResult) -> bool {
+    match (existing, proposed) {
+        (RecoveryResult::Accepted(existing), RecoveryResult::Accepted(proposed)) => {
+            existing.submission_id == proposed.submission_id
+                && existing.job_id == proposed.job_id
+                && existing.parent == proposed.parent
+        }
+        (RecoveryResult::AcceptedBatch(existing), RecoveryResult::AcceptedBatch(proposed)) => {
+            existing.submission_id == proposed.submission_id
+                && existing.batch_id == proposed.batch_id
+                && existing.jobs.len() == proposed.jobs.len()
+                && existing
+                    .jobs
+                    .iter()
+                    .zip(&proposed.jobs)
+                    .all(|(existing, proposed)| {
+                        existing.name == proposed.name
+                            && existing.receipt.submission_id == proposed.receipt.submission_id
+                            && existing.receipt.job_id == proposed.receipt.job_id
+                            && existing.receipt.parent == proposed.receipt.parent
+                    })
+        }
+        (RecoveryResult::Rejected { .. }, RecoveryResult::Rejected { .. })
+        | (RecoveryResult::Conflict, RecoveryResult::Conflict) => existing == proposed,
+        _ => false,
+    }
+}
+
+fn validate_result_file_identity(
+    current: &ResultFileRecord,
+    expected: &ResultFileRecord,
+) -> std::result::Result<(), &'static str> {
+    if current.version != 3 || expected.version != 3 {
+        return Err("unsupported result-file version");
+    }
+    if current.idempotency_key != expected.idempotency_key
+        || current.payload_hash != expected.payload_hash
+        || current.endpoint != expected.endpoint
+        || current.store_uuid != expected.store_uuid
+        || current.parent != expected.parent
+    {
+        return Err("identity, key, or normalized payload differs");
+    }
+    Ok(())
+}
+
+fn with_result_file_lock<T>(path: &Path, action: impl FnOnce() -> Result<T>) -> Result<T> {
+    let parent = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => std::env::current_dir()?,
+    };
+    std::fs::create_dir_all(&parent)?;
+    crate::filesystem::require_fixed_local_ntfs(&parent)?;
+    let mut lock_name = path.as_os_str().to_os_string();
+    lock_name.push(".lock");
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(PathBuf::from(lock_name))?;
+    lock.lock_exclusive()?;
+    let result = action();
+    let unlock = FileExt::unlock(&lock).map_err(Error::Io);
+    match (result, unlock) {
+        (Err(error), _) => Err(error),
+        (Ok(_), Err(error)) => Err(error),
+        (Ok(value), Ok(())) => Ok(value),
+    }
+}
+
+#[cfg(test)]
 fn write_result_file(
     path: &Path,
     idempotency_key: uuid::Uuid,
     payload_hash: &str,
     endpoint: &str,
-    store_uuid: uuid::Uuid,
-    receipt: Option<serde_json::Value>,
+    context: SubmissionContext,
+    receipt: Option<RecoveryResult>,
 ) -> Result<()> {
     write_json_atomically(
         path,
         &ResultFileRecord {
-            version: 2,
+            version: 3,
             idempotency_key,
             payload_hash: payload_hash.to_owned(),
             endpoint: endpoint.to_owned(),
-            store_uuid,
+            store_uuid: context.store_uuid,
+            parent: context.parent,
             receipt,
         },
     )
@@ -1003,10 +1284,10 @@ pub(crate) fn default_endpoint() -> Result<String> {
     #[cfg(windows)]
     let digest = format!("{:x}", Sha256::digest(identity.as_bytes()));
     #[cfg(windows)]
-    return Ok(format!(r"\\.\pipe\stillyard-v4-{}", &digest[..16]));
+    return Ok(format!(r"\\.\pipe\stillyard-v5-{}", &digest[..16]));
     #[cfg(not(windows))]
     return Ok(default_store_root()?
-        .join("stillyard-v4.sock")
+        .join("stillyard-v5.sock")
         .to_string_lossy()
         .into_owned());
 }
@@ -1086,23 +1367,38 @@ pub(crate) fn current_user_sid_string() -> Result<String> {
 mod tests {
     use super::*;
 
+    fn managed_parent(store: uuid::Uuid) -> ManagedParent {
+        ManagedParent {
+            job_id: crate::JobId::from_parts(store, uuid::Uuid::now_v7()),
+            attempt_id: crate::AttemptId::from_parts(store, uuid::Uuid::now_v7()),
+            invocation_id: crate::InvocationId::from_parts(store, uuid::Uuid::now_v7()),
+        }
+    }
+
     #[test]
     fn result_file_fresh_create_is_atomic_and_never_overwrites() {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("operation.result.json");
         let first = SubmitOptions::new(uuid::Uuid::now_v7());
         let store_uuid = uuid::Uuid::now_v7();
-        write_initial_result_file(&path, &first, "first-hash", "pipe-a", store_uuid).unwrap();
+        let context = SubmissionContext {
+            store_uuid,
+            parent: None,
+        };
+        prepare_result_file(&path, &first, "first-hash", "pipe-a", context).unwrap();
         let before = std::fs::read(&path).unwrap();
 
         let second = SubmitOptions::new(uuid::Uuid::now_v7());
         assert!(matches!(
-            write_initial_result_file(
+            prepare_result_file(
                 &path,
                 &second,
                 "second-hash",
                 "pipe-b",
-                uuid::Uuid::now_v7()
+                SubmissionContext {
+                    store_uuid: uuid::Uuid::now_v7(),
+                    parent: None,
+                }
             ),
             Err(Error::InvalidSpec(_))
         ));
@@ -1113,8 +1409,8 @@ mod tests {
             first.idempotency_key,
             "first-hash",
             "pipe-a",
-            store_uuid,
-            Some(serde_json::json!({"state": "accepted"})),
+            context,
+            Some(RecoveryResult::NotReceived),
         )
         .unwrap();
         let record: ResultFileRecord =
@@ -1123,7 +1419,7 @@ mod tests {
         assert_eq!(record.payload_hash, "first-hash");
         assert_eq!(record.endpoint, "pipe-a");
         assert_eq!(record.store_uuid, store_uuid);
-        assert_eq!(record.receipt.unwrap()["state"], "accepted");
+        assert_eq!(record.receipt, Some(RecoveryResult::NotReceived));
     }
 
     #[test]
@@ -1131,17 +1427,311 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("operation.result.json");
         let record = ResultFileRecord {
-            version: 2,
+            version: 3,
             idempotency_key: uuid::Uuid::now_v7(),
             payload_hash: "payload".into(),
             endpoint: "pipe-a".into(),
             store_uuid: uuid::Uuid::now_v7(),
-            receipt: Some(serde_json::json!({"result": "accepted", "job": "retained"})),
+            parent: None,
+            receipt: Some(RecoveryResult::Conflict),
         };
         write_json_atomically(&path, &record).unwrap();
         let before = std::fs::read(&path).unwrap();
         persist_recovery(&path, &record, &RecoveryResult::Unknown).unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(matches!(
+            persist_recovery(&path, &record, &RecoveryResult::NotReceived),
+            Err(Error::Protocol(_))
+        ));
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
+
+    #[test]
+    fn stale_recovery_cannot_overwrite_a_concurrent_accepted_receipt() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("operation.result.json");
+        let store_uuid = uuid::Uuid::now_v7();
+        let submission_id = crate::SubmissionId::from_parts(store_uuid, uuid::Uuid::now_v7());
+        let stale = ResultFileRecord {
+            version: 3,
+            idempotency_key: uuid::Uuid::now_v7(),
+            payload_hash: "payload".into(),
+            endpoint: "pipe-a".into(),
+            store_uuid,
+            parent: None,
+            receipt: Some(RecoveryResult::NotReceived),
+        };
+        write_json_atomically(&path, &stale).unwrap();
+        let accepted = RecoveryResult::Accepted(JobReceipt {
+            submission_id,
+            job_id: crate::JobId::from_parts(store_uuid, uuid::Uuid::now_v7()),
+            submission_state: crate::SubmissionState::Accepted,
+            job_state: crate::JobState::Pending,
+            blockers: Vec::new(),
+            queue_rank: Some(1),
+            estimate: crate::Estimate::unknown("test"),
+            parent: None,
+        });
+        persist_result_receipt(&path, &stale, accepted.clone()).unwrap();
+
+        assert!(matches!(
+            persist_recovery(&path, &stale, &RecoveryResult::Received { submission_id }),
+            Err(Error::Protocol(_))
+        ));
+        let durable: ResultFileRecord =
+            serde_json::from_reader(std::fs::File::open(&path).unwrap()).unwrap();
+        assert_eq!(durable.receipt, Some(accepted));
+    }
+
+    #[test]
+    fn accepted_refresh_uses_stable_identity_and_keeps_the_durable_receipt() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("operation.result.json");
+        let store_uuid = uuid::Uuid::now_v7();
+        let submission_id = crate::SubmissionId::from_parts(store_uuid, uuid::Uuid::now_v7());
+        let job_id = crate::JobId::from_parts(store_uuid, uuid::Uuid::now_v7());
+        let record = ResultFileRecord {
+            version: 3,
+            idempotency_key: uuid::Uuid::now_v7(),
+            payload_hash: "payload".into(),
+            endpoint: "pipe-a".into(),
+            store_uuid,
+            parent: None,
+            receipt: Some(RecoveryResult::Accepted(JobReceipt {
+                submission_id,
+                job_id,
+                submission_state: crate::SubmissionState::Accepted,
+                job_state: crate::JobState::Pending,
+                blockers: Vec::new(),
+                queue_rank: Some(1),
+                estimate: crate::Estimate::unknown("pending"),
+                parent: None,
+            })),
+        };
+        write_json_atomically(&path, &record).unwrap();
+        let before = std::fs::read(&path).unwrap();
+        let refreshed = RecoveryResult::Accepted(JobReceipt {
+            submission_id,
+            job_id,
+            submission_state: crate::SubmissionState::Accepted,
+            job_state: crate::JobState::Final,
+            blockers: Vec::new(),
+            queue_rank: None,
+            estimate: crate::Estimate::unknown("final"),
+            parent: None,
+        });
+        persist_result_receipt(&path, &record, refreshed).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+
+        let foreign = RecoveryResult::Accepted(JobReceipt {
+            submission_id,
+            job_id: crate::JobId::from_parts(store_uuid, uuid::Uuid::now_v7()),
+            submission_state: crate::SubmissionState::Accepted,
+            job_state: crate::JobState::Final,
+            blockers: Vec::new(),
+            queue_rank: None,
+            estimate: crate::Estimate::unknown("foreign"),
+            parent: None,
+        });
+        assert!(matches!(
+            persist_result_receipt(&path, &record, foreign),
+            Err(Error::Protocol(_))
+        ));
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
+
+    #[test]
+    fn accepted_batch_refresh_pins_the_complete_member_identity() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("batch.result.json");
+        let store_uuid = uuid::Uuid::now_v7();
+        let submission_id = crate::SubmissionId::from_parts(store_uuid, uuid::Uuid::now_v7());
+        let batch_id = crate::BatchId::from_parts(store_uuid, uuid::Uuid::now_v7());
+        let receipt = |job_id, rank| JobReceipt {
+            submission_id,
+            job_id,
+            submission_state: crate::SubmissionState::Accepted,
+            job_state: crate::JobState::Pending,
+            blockers: Vec::new(),
+            queue_rank: Some(rank),
+            estimate: crate::Estimate::unknown("pending"),
+            parent: None,
+        };
+        let durable_batch = BatchReceipt {
+            submission_id,
+            batch_id,
+            submission_state: crate::SubmissionState::Accepted,
+            jobs: vec![
+                crate::BatchJobReceipt {
+                    name: "first".into(),
+                    receipt: receipt(
+                        crate::JobId::from_parts(store_uuid, uuid::Uuid::now_v7()),
+                        1,
+                    ),
+                },
+                crate::BatchJobReceipt {
+                    name: "second".into(),
+                    receipt: receipt(
+                        crate::JobId::from_parts(store_uuid, uuid::Uuid::now_v7()),
+                        2,
+                    ),
+                },
+            ],
+        };
+        let record = ResultFileRecord {
+            version: 3,
+            idempotency_key: uuid::Uuid::now_v7(),
+            payload_hash: "batch-payload".into(),
+            endpoint: "pipe-a".into(),
+            store_uuid,
+            parent: None,
+            receipt: Some(RecoveryResult::AcceptedBatch(durable_batch.clone())),
+        };
+        write_json_atomically(&path, &record).unwrap();
+        let before = std::fs::read(&path).unwrap();
+
+        let mut refreshed = durable_batch.clone();
+        for member in &mut refreshed.jobs {
+            member.receipt.job_state = crate::JobState::Final;
+            member.receipt.queue_rank = None;
+            member.receipt.estimate = crate::Estimate::unknown("final");
+        }
+        persist_result_receipt(&path, &record, RecoveryResult::AcceptedBatch(refreshed)).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+
+        let mut foreign_batch = durable_batch.clone();
+        foreign_batch.batch_id = crate::BatchId::from_parts(store_uuid, uuid::Uuid::now_v7());
+        let mut truncated = durable_batch.clone();
+        truncated.jobs.pop();
+        let mut foreign_member = durable_batch;
+        foreign_member.jobs[1].receipt.job_id =
+            crate::JobId::from_parts(store_uuid, uuid::Uuid::now_v7());
+        for mutant in [foreign_batch, truncated, foreign_member] {
+            assert!(matches!(
+                persist_result_receipt(&path, &record, RecoveryResult::AcceptedBatch(mutant)),
+                Err(Error::Protocol(_))
+            ));
+            assert_eq!(std::fs::read(&path).unwrap(), before);
+        }
+    }
+
+    #[test]
+    fn only_exact_managed_not_received_receipt_authorizes_result_file_reuse() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("managed.result.json");
+        let store_uuid = uuid::Uuid::now_v7();
+        let parent = managed_parent(store_uuid);
+        let options = SubmitOptions::new(uuid::Uuid::now_v7());
+        let record = ResultFileRecord {
+            version: 3,
+            idempotency_key: options.idempotency_key,
+            payload_hash: "payload".into(),
+            endpoint: "pipe-a".into(),
+            store_uuid,
+            parent: Some(parent),
+            receipt: Some(RecoveryResult::NotReceived),
+        };
+        write_json_atomically(&path, &record).unwrap();
+        let before = std::fs::read(&path).unwrap();
+        prepare_result_file(
+            &path,
+            &options,
+            "payload",
+            "pipe-a",
+            SubmissionContext {
+                store_uuid,
+                parent: Some(parent),
+            },
+        )
+        .unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+
+        let mut unknown = record;
+        unknown.receipt = Some(RecoveryResult::Unknown);
+        write_json_atomically(&path, &unknown).unwrap();
+        assert!(matches!(
+            prepare_result_file(
+                &path,
+                &options,
+                "payload",
+                "pipe-a",
+                SubmissionContext {
+                    store_uuid,
+                    parent: Some(parent),
+                },
+            ),
+            Err(Error::InvalidSpec(_))
+        ));
+
+        unknown.receipt = Some(RecoveryResult::NotReceived);
+        write_json_atomically(&path, &unknown).unwrap();
+        assert!(matches!(
+            prepare_result_file(
+                &path,
+                &options,
+                "payload",
+                "pipe-a",
+                SubmissionContext {
+                    store_uuid,
+                    parent: Some(managed_parent(store_uuid)),
+                },
+            ),
+            Err(Error::InvalidSpec(_))
+        ));
+
+        persist_submit_decision(
+            &path,
+            options.idempotency_key,
+            "payload",
+            "pipe-a",
+            SubmissionContext {
+                store_uuid,
+                parent: Some(parent),
+            },
+            &Response::Error {
+                code: "idempotency_conflict".into(),
+                message: "conflict".into(),
+            },
+        )
+        .unwrap();
+        let conflicted: ResultFileRecord =
+            serde_json::from_reader(std::fs::File::open(&path).unwrap()).unwrap();
+        assert_eq!(conflicted.receipt, Some(RecoveryResult::Conflict));
+    }
+
+    #[test]
+    fn every_result_file_identity_discriminant_blocks_replay() {
+        let store_uuid = uuid::Uuid::now_v7();
+        let parent = managed_parent(store_uuid);
+        let baseline = ResultFileRecord {
+            version: 3,
+            idempotency_key: uuid::Uuid::now_v7(),
+            payload_hash: "payload".into(),
+            endpoint: "pipe-a".into(),
+            store_uuid,
+            parent: Some(parent),
+            receipt: Some(RecoveryResult::NotReceived),
+        };
+        for changed in [
+            ResultFileRecord {
+                idempotency_key: uuid::Uuid::now_v7(),
+                ..baseline.clone()
+            },
+            ResultFileRecord {
+                payload_hash: "changed".into(),
+                ..baseline.clone()
+            },
+            ResultFileRecord {
+                endpoint: "pipe-b".into(),
+                ..baseline.clone()
+            },
+            ResultFileRecord {
+                store_uuid: uuid::Uuid::now_v7(),
+                ..baseline.clone()
+            },
+        ] {
+            assert!(validate_managed_resubmit(&baseline, &changed).is_err());
+        }
     }
 
     #[test]
@@ -1149,12 +1739,13 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("operation.result.json");
         let record = ResultFileRecord {
-            version: 2,
+            version: 3,
             idempotency_key: uuid::Uuid::now_v7(),
             payload_hash: "payload".into(),
             endpoint: "pipe-a".into(),
             store_uuid: uuid::Uuid::now_v7(),
-            receipt: Some(serde_json::json!({"result": "accepted"})),
+            parent: None,
+            receipt: Some(RecoveryResult::Conflict),
         };
         write_json_atomically(&path, &record).unwrap();
         let before = std::fs::read(&path).unwrap();

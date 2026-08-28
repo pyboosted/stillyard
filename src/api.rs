@@ -11,6 +11,23 @@ use crate::{
     SubmissionId, SubmissionState,
 };
 
+/// Server-authenticated identity of the primary Invocation that submitted child work.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ManagedParent {
+    pub job_id: JobId,
+    pub attempt_id: AttemptId,
+    pub invocation_id: InvocationId,
+}
+
+/// Store and optional managed-parent identity observed for this client connection.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SubmissionContext {
+    pub store_uuid: Uuid,
+    pub parent: Option<ManagedParent>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct CancellationToken {
     canceled: Arc<AtomicBool>,
@@ -114,6 +131,7 @@ pub struct JobReceipt {
     pub blockers: Vec<Blocker>,
     pub queue_rank: Option<u64>,
     pub estimate: Estimate,
+    pub parent: Option<ManagedParent>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -152,6 +170,8 @@ pub struct JobSnapshot {
     pub started_unix_millis: Option<i64>,
     pub finished_unix_millis: Option<i64>,
     pub spec: JobSpec,
+    #[serde(default)]
+    pub parent: Option<ManagedParent>,
     #[serde(default)]
     pub blockers: Vec<Blocker>,
 }

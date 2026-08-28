@@ -19,7 +19,7 @@ The motivating agent-orchestration consumer and its boundary are documented in [
 
 ## Current status
 
-`0.1.0-alpha.3` contains the first three bounded Windows vertical slices:
+`0.1.0-alpha.4` contains the first four bounded Windows vertical slices:
 
 - a runtime-neutral blocking Rust client with deadlines and cancellation;
 - a framed, owner-only local named-pipe protocol and detached singleton daemon;
@@ -33,10 +33,15 @@ The motivating agent-orchestration consumer and its boundary are documented in [
 - immutable staged file stdin for Jobs and atomic Batches, uploaded before `received` in bounded chunks;
 - named clean-environment profiles with set/unset/locked operations and an exact explicit PATH;
 - fresh atomic result files, recovery by retained operation identity, and canonical-log passthrough.
+- authenticated managed child submission from an explicitly enabled primary Invocation;
+- server-derived parent Job/Attempt/Invocation identity from named-pipe PID membership in the
+  Invocation's Windows Job Object;
+- exact same-Attempt `not_received` recovery and result-file-authorized restage/resubmit, with
+  `unknown`, foreign caller/store/endpoint, changed key/hash, and terminal parent all failing closed.
 
-This slice deliberately accepts EOF or staged-file stdin and single-attempt jobs without Conditions, quiet policies, impacts, secrets, or artifacts. The Windows clean base is limited to `SystemRoot`, `WINDIR`, `TEMP`, and `TMP`; PATH and every application/account variable must come from a profile or Job. Priority, aging, finite-held reservations, and a host-wide default concurrency cap are also later scheduler work; callers should declare a scalar or fence for every bounded kind of work rather than submit an unbounded fleet of zero-claim jobs. Cancel/drain, retention/events, and `watch` are still baseline work. Specs declaring an unimplemented policy reject rather than run unenforced. Linux remains the v0.2 target.
+This slice deliberately accepts EOF or staged-file stdin and single-attempt jobs without Conditions, quiet policies, impacts, secrets, or artifacts. The Windows clean base is limited to `SystemRoot`, `WINDIR`, `TEMP`, and `TMP`; PATH and every application/account variable must come from a profile or Job. Priority, aging, finite-held reservations, and a host-wide default concurrency cap are also later scheduler work; callers should declare a scalar or fence for every bounded kind of work rather than submit an unbounded fleet of zero-claim jobs. Managed synchronous waits, ancestor-resource deadlock checks, cascade cancellation, cancel/drain, retention/events, and `watch` are still baseline work. Specs declaring an unimplemented policy reject rather than run unenforced. Linux remains the v0.2 target.
 
-The tests cover the increment-2a portions of acceptance rows A-03, A-04, and A-06 plus the increment-2b staged-input, profile, result-file, and process-handle controls. The full baseline rows are not claimed complete until retries, observed RAM/VRAM freshness, external Conditions, and managed nested submission arrive.
+The tests cover the increment-2a portions of acceptance rows A-03, A-04, and A-06; the increment-2b staged-input, profile, result-file, and process-handle controls; and the bounded managed-submission recovery slice of A-11/A-18. The full baseline rows are not claimed complete until managed waits, cascade cancellation, retries, observed RAM/VRAM freshness, and external Conditions arrive.
 
 An uncertain Containment deliberately retains its real Lease after restart. Until the audited `doctor clear-containment` flow ships, that capacity remains unavailable; moving or editing individual store files is not a supported recovery path.
 

@@ -72,5 +72,6 @@ The first command creates the result file before staging. The second command onl
 retained decision and never creates replacement work. `--silent` is mandatory for a transparent
 cargo/agent shim: without it scheduler JSON is written to stderr separately from stdout but shares
 the child's stderr handle. With it, stdout and stderr contain only canonical committed child bytes.
-Authenticated managed `not_received` resubmission remains part of the later nested-submission slice;
-an unmanaged missing decision is deliberately `unknown` and cannot authorize replay.
+Authenticated managed `not_received` resubmission is delivered by
+[Phase 4](phase-4-managed-submissions.md); an unmanaged missing decision remains deliberately
+`unknown` and cannot authorize replay.

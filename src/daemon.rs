@@ -11,12 +11,29 @@ use crate::client::{current_user_sid_string, default_endpoint};
 use crate::protocol::{PROTOCOL_VERSION, Request, Response};
 #[cfg(windows)]
 use crate::protocol::{read_frame, write_frame};
-use crate::store::{Store, StoreError};
+use crate::store::{ManagedCandidate, Store, StoreError, SubmissionScope};
 #[cfg(windows)]
 use crate::store::{StorePaths, open_lock};
 use crate::{Error, Result};
 
 type SharedStore = Arc<Mutex<Store>>;
+
+struct PeerProcess {
+    handle: usize,
+    pid: u32,
+}
+
+#[cfg(windows)]
+impl Drop for PeerProcess {
+    fn drop(&mut self) {
+        // SAFETY: the accept loop transfers one owned process handle into this guard.
+        unsafe {
+            windows_sys::Win32::Foundation::CloseHandle(
+                self.handle as windows_sys::Win32::Foundation::HANDLE,
+            )
+        };
+    }
+}
 
 #[cfg(windows)]
 pub(crate) fn run() -> Result<()> {
@@ -47,6 +64,84 @@ pub(crate) fn run() -> Result<()> {
 struct Scheduler {
     signal: Arc<(Mutex<bool>, Condvar)>,
     events: Arc<(Mutex<u64>, Condvar)>,
+}
+
+fn submission_context(
+    store: &SharedStore,
+    peer: Option<&PeerProcess>,
+) -> std::result::Result<crate::SubmissionContext, StoreError> {
+    let (store_uuid, candidates) = {
+        let store = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+        (store.store_uuid(), store.managed_containment_candidates()?)
+    };
+    let parent = match peer {
+        Some(peer) => authenticate_managed_peer(peer, &candidates)?,
+        None => None,
+    };
+    Ok(crate::SubmissionContext { store_uuid, parent })
+}
+
+fn resolve_managed_membership(
+    candidates: &[ManagedCandidate],
+    mut is_member: impl FnMut(crate::InvocationId) -> std::io::Result<Option<bool>>,
+) -> std::result::Result<Option<crate::ManagedParent>, StoreError> {
+    let mut matched = None;
+    for candidate in candidates {
+        match is_member(candidate.parent.invocation_id).map_err(StoreError::Io)? {
+            Some(true) => {}
+            Some(false) => continue,
+            None if candidate.current => {
+                return Err(StoreError::InvalidState(
+                    "current managed Containment has no live daemon handle".into(),
+                ));
+            }
+            None => continue,
+        }
+        if matched.is_some() {
+            return Err(StoreError::Rejected(
+                "named-pipe peer belongs to multiple Stillyard containments".into(),
+            ));
+        }
+        if !candidate.current {
+            return Err(StoreError::Rejected(
+                "the containing primary is no longer current and live".into(),
+            ));
+        }
+        if !candidate.submissions_enabled {
+            return Err(StoreError::Rejected(
+                "the containing primary does not allow child submissions".into(),
+            ));
+        }
+        matched = Some(candidate.parent);
+    }
+    Ok(matched)
+}
+
+#[cfg(windows)]
+fn authenticate_managed_peer(
+    peer: &PeerProcess,
+    candidates: &[ManagedCandidate],
+) -> std::result::Result<Option<crate::ManagedParent>, StoreError> {
+    resolve_managed_membership(candidates, |invocation_id| {
+        crate::runner::process_in_containment(invocation_id, peer.handle)
+    })
+    .map_err(|error| match error {
+        StoreError::Io(source) => StoreError::InvalidState(format!(
+            "cannot inspect named-pipe peer {}: {source}",
+            peer.pid
+        )),
+        other => other,
+    })
+}
+
+#[cfg(not(windows))]
+fn authenticate_managed_peer(
+    _peer: &PeerProcess,
+    _candidates: &[ManagedCandidate],
+) -> std::result::Result<Option<crate::ManagedParent>, StoreError> {
+    Ok(None)
 }
 
 impl Scheduler {
@@ -194,7 +289,12 @@ impl Scheduler {
     }
 }
 
-fn handle_request(store: &SharedStore, scheduler: &Scheduler, request: Request) -> Response {
+fn handle_request(
+    store: &SharedStore,
+    scheduler: &Scheduler,
+    peer: Option<&PeerProcess>,
+    request: Request,
+) -> Response {
     let result = match request {
         Request::Ping => {
             return Response::Pong {
@@ -224,22 +324,51 @@ fn handle_request(store: &SharedStore, scheduler: &Scheduler, request: Request) 
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
             .and_then(|store| store.stage_commit(upload_id))
             .map(|input| Response::StageCommitted { input }),
+        Request::SubmissionContext { claimed_parent } => {
+            submission_context(store, peer).and_then(|context| {
+                if claimed_parent.is_some() && claimed_parent != context.parent {
+                    return Err(StoreError::Rejected(
+                        "claimed managed parent does not match daemon-held OS containment".into(),
+                    ));
+                }
+                Ok(Response::SubmissionContext(context))
+            })
+        }
         Request::Submit {
             idempotency_key,
             payload_hash,
             spec,
             stdin,
             expected_store_uuid,
-        } => store
-            .lock()
-            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-            .and_then(|mut store| {
-                if expected_store_uuid.is_some_and(|expected| expected != store.store_uuid()) {
-                    return Err(StoreError::InvalidState(
-                        "store identity changed during submission".into(),
+            expected_parent,
+        } => submission_context(store, peer)
+            .and_then(|context| {
+                if context.parent != expected_parent {
+                    return Err(StoreError::Rejected(
+                        "submission parent changed after client preflight".into(),
                     ));
                 }
-                store.submit_with_stdin(idempotency_key, &payload_hash, &spec, stdin.as_ref())
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                    .and_then(|mut store| {
+                        if expected_store_uuid
+                            .is_some_and(|expected| expected != store.store_uuid())
+                        {
+                            return Err(StoreError::InvalidState(
+                                "store identity changed during submission".into(),
+                            ));
+                        }
+                        store.submit_with_stdin_scoped(
+                            context
+                                .parent
+                                .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
+                            idempotency_key,
+                            &payload_hash,
+                            &spec,
+                            stdin.as_ref(),
+                        )
+                    })
             })
             .map(|submitted| {
                 if submitted.should_schedule {
@@ -253,16 +382,35 @@ fn handle_request(store: &SharedStore, scheduler: &Scheduler, request: Request) 
             spec,
             stdins,
             expected_store_uuid,
-        } => store
-            .lock()
-            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-            .and_then(|mut store| {
-                if expected_store_uuid.is_some_and(|expected| expected != store.store_uuid()) {
-                    return Err(StoreError::InvalidState(
-                        "store identity changed during submission".into(),
+            expected_parent,
+        } => submission_context(store, peer)
+            .and_then(|context| {
+                if context.parent != expected_parent {
+                    return Err(StoreError::Rejected(
+                        "submission parent changed after client preflight".into(),
                     ));
                 }
-                store.submit_batch_with_stdins(idempotency_key, &payload_hash, &spec, &stdins)
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                    .and_then(|mut store| {
+                        if expected_store_uuid
+                            .is_some_and(|expected| expected != store.store_uuid())
+                        {
+                            return Err(StoreError::InvalidState(
+                                "store identity changed during submission".into(),
+                            ));
+                        }
+                        store.submit_batch_with_stdins_scoped(
+                            context
+                                .parent
+                                .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
+                            idempotency_key,
+                            &payload_hash,
+                            &spec,
+                            &stdins,
+                        )
+                    })
             })
             .map(|submitted| {
                 if submitted.should_schedule {
@@ -273,17 +421,31 @@ fn handle_request(store: &SharedStore, scheduler: &Scheduler, request: Request) 
         Request::Recover {
             idempotency_key,
             payload_hash,
-        } => store
-            .lock()
-            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-            .and_then(|store| {
-                store
-                    .recover_submission(idempotency_key, &payload_hash)
-                    .map(|recovery| Response::Recovered {
-                        store_uuid: store.store_uuid(),
-                        recovery,
-                    })
-            }),
+            expected_parent,
+        } => submission_context(store, peer).and_then(|context| {
+            if context.parent != expected_parent {
+                return Err(StoreError::Rejected(
+                    "recovery parent changed after client preflight".into(),
+                ));
+            }
+            store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                .and_then(|store| {
+                    store
+                        .recover_submission_scoped(
+                            context
+                                .parent
+                                .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
+                            idempotency_key,
+                            &payload_hash,
+                        )
+                        .map(|recovery| Response::Recovered {
+                            store_uuid: store.store_uuid(),
+                            recovery,
+                        })
+                })
+        }),
         Request::Status { job_id } => store
             .lock()
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
@@ -348,7 +510,7 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
     use std::os::windows::io::FromRawHandle;
 
     use windows_sys::Win32::Foundation::{
-        CloseHandle, ERROR_PIPE_CONNECTED, GetLastError, INVALID_HANDLE_VALUE, LocalFree,
+        CloseHandle, ERROR_PIPE_CONNECTED, FILETIME, GetLastError, INVALID_HANDLE_VALUE, LocalFree,
     };
     use windows_sys::Win32::Security::Authorization::{
         ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
@@ -356,8 +518,17 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
     use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
     use windows_sys::Win32::Storage::FileSystem::PIPE_ACCESS_DUPLEX;
     use windows_sys::Win32::System::Pipes::{
-        ConnectNamedPipe, CreateNamedPipeW, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
+        ConnectNamedPipe, CreateNamedPipeW, GetNamedPipeClientProcessId,
+        PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
     };
+    use windows_sys::Win32::System::SystemInformation::GetSystemTimeAsFileTime;
+    use windows_sys::Win32::System::Threading::{
+        GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+
+    fn filetime_value(value: FILETIME) -> u64 {
+        u64::from(value.dwLowDateTime) | (u64::from(value.dwHighDateTime) << 32)
+    }
 
     struct LocalAllocation(*mut c_void);
 
@@ -445,19 +616,68 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
                 continue;
             }
         }
+        let mut connection_observed: FILETIME = unsafe { std::mem::zeroed() };
+        // SAFETY: connection_observed is writable. Capturing this before resolving/opening the
+        // PID lets us reject a process created only after the connected peer exited.
+        unsafe { GetSystemTimeAsFileTime(&mut connection_observed) };
+        let mut peer_pid = 0_u32;
+        // SAFETY: handle is a connected server pipe and peer_pid is writable.
+        if unsafe { GetNamedPipeClientProcessId(handle, &mut peer_pid) } == 0 {
+            // SAFETY: ownership has not yet been transferred to File.
+            unsafe { CloseHandle(handle) };
+            continue;
+        }
+        // Open the peer before reading its frame. Keeping this kernel handle closes the large PID
+        // reuse window between pipe identification and managed-containment authentication.
+        // SAFETY: peer_pid came from the connected pipe; requested access is read-only.
+        let peer_process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, peer_pid) };
+        if peer_process.is_null() {
+            // SAFETY: ownership has not yet been transferred to File.
+            unsafe { CloseHandle(handle) };
+            continue;
+        }
+        let mut creation: FILETIME = unsafe { std::mem::zeroed() };
+        let mut exit: FILETIME = unsafe { std::mem::zeroed() };
+        let mut kernel: FILETIME = unsafe { std::mem::zeroed() };
+        let mut user: FILETIME = unsafe { std::mem::zeroed() };
+        // A recycled PID necessarily belongs to a process created after the connection was
+        // observed. Reject it before handing either handle to a worker.
+        if unsafe {
+            GetProcessTimes(
+                peer_process,
+                &mut creation,
+                &mut exit,
+                &mut kernel,
+                &mut user,
+            )
+        } == 0
+            || filetime_value(creation) > filetime_value(connection_observed)
+        {
+            // SAFETY: neither handle has been transferred.
+            unsafe {
+                CloseHandle(handle);
+                CloseHandle(peer_process);
+            }
+            continue;
+        }
         let store = Arc::clone(&store);
         let scheduler = Arc::clone(&scheduler);
         // Raw Windows handles are pointer-typed and therefore not `Send`; their integer value is
         // safe to transfer because this thread owns the handle after a successful connection.
         let handle_value = handle as usize;
+        let peer_process_value = peer_process as usize;
         let spawned = std::thread::Builder::new()
             .name("stillyard-client".into())
             .spawn(move || {
                 let handle = handle_value as windows_sys::Win32::Foundation::HANDLE;
                 // SAFETY: ownership of the valid pipe handle is transferred to File exactly once.
                 let mut pipe = unsafe { File::from_raw_handle(handle as _) };
+                let peer = PeerProcess {
+                    handle: peer_process_value,
+                    pid: peer_pid,
+                };
                 let response = match read_frame::<Request>(&mut pipe) {
-                    Ok(request) => handle_request(&store, &scheduler, request),
+                    Ok(request) => handle_request(&store, &scheduler, Some(&peer), request),
                     Err(error) => Response::Error {
                         code: "invalid_request".into(),
                         message: error.to_string(),
@@ -467,7 +687,10 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
             });
         if spawned.is_err() {
             // SAFETY: ownership was not transferred because the thread was not created.
-            unsafe { CloseHandle(handle) };
+            unsafe {
+                CloseHandle(handle);
+                CloseHandle(peer_process);
+            }
             std::thread::sleep(Duration::from_millis(25));
         }
     }
@@ -481,6 +704,55 @@ fn serve(_store: SharedStore, _scheduler: Arc<Scheduler>) -> Result<()> {
 #[cfg(all(test, windows))]
 mod tests {
     use super::*;
+
+    fn candidate(store: uuid::Uuid, enabled: bool) -> ManagedCandidate {
+        ManagedCandidate {
+            parent: crate::ManagedParent {
+                job_id: crate::JobId::from_parts(store, uuid::Uuid::now_v7()),
+                attempt_id: crate::AttemptId::from_parts(store, uuid::Uuid::now_v7()),
+                invocation_id: crate::InvocationId::from_parts(store, uuid::Uuid::now_v7()),
+            },
+            submissions_enabled: enabled,
+            current: true,
+        }
+    }
+
+    #[test]
+    fn peer_membership_derives_one_enabled_parent_and_rejects_ambiguity() {
+        let store = uuid::Uuid::now_v7();
+        let first = candidate(store, true);
+        let second = candidate(store, true);
+        assert_eq!(
+            resolve_managed_membership(&[first], |id| {
+                Ok(Some(id == first.parent.invocation_id))
+            })
+            .unwrap(),
+            Some(first.parent)
+        );
+        assert!(matches!(
+            resolve_managed_membership(&[first, second], |_| Ok(Some(true))),
+            Err(StoreError::Rejected(_))
+        ));
+    }
+
+    #[test]
+    fn peer_inside_disabled_primary_is_rejected_not_downgraded_to_unmanaged() {
+        let candidate = candidate(uuid::Uuid::now_v7(), false);
+        assert!(matches!(
+            resolve_managed_membership(&[candidate], |_| Ok(Some(true))),
+            Err(StoreError::Rejected(_))
+        ));
+    }
+
+    #[test]
+    fn peer_inside_root_exited_or_uncertain_containment_is_rejected() {
+        let mut candidate = candidate(uuid::Uuid::now_v7(), true);
+        candidate.current = false;
+        assert!(matches!(
+            resolve_managed_membership(&[candidate], |_| Ok(Some(true))),
+            Err(StoreError::Rejected(_))
+        ));
+    }
 
     #[test]
     fn singleton_lock_is_acquired_before_destructive_store_open() {

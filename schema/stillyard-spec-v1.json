@@ -164,6 +164,11 @@
     "JobSpec": {
       "type": "object",
       "properties": {
+        "allow_child_submissions": {
+          "description": "Allows processes in this primary Invocation's OS containment to submit child work.",
+          "type": "boolean",
+          "default": false
+        },
         "args": {
           "type": "array",
           "default": [],

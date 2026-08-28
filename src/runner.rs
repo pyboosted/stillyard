@@ -2,6 +2,72 @@ use std::sync::{Arc, Mutex};
 
 use crate::store::{PreparedJob, Store};
 
+#[cfg(windows)]
+static LIVE_CONTAINMENTS: std::sync::OnceLock<
+    Mutex<std::collections::HashMap<crate::InvocationId, usize>>,
+> = std::sync::OnceLock::new();
+
+#[cfg(windows)]
+struct ContainmentRegistration(crate::InvocationId);
+
+#[cfg(windows)]
+impl Drop for ContainmentRegistration {
+    fn drop(&mut self) {
+        if let Ok(mut registry) = LIVE_CONTAINMENTS.get_or_init(Default::default).lock() {
+            registry.remove(&self.0);
+        }
+    }
+}
+
+#[cfg(windows)]
+fn register_containment(
+    invocation_id: crate::InvocationId,
+    handle: windows_sys::Win32::Foundation::HANDLE,
+) -> std::io::Result<ContainmentRegistration> {
+    let mut registry = LIVE_CONTAINMENTS
+        .get_or_init(Default::default)
+        .lock()
+        .map_err(|_| std::io::Error::other("containment registry mutex poisoned"))?;
+    if registry.contains_key(&invocation_id) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            "Invocation containment is already registered",
+        ));
+    }
+    registry.insert(invocation_id, handle as usize);
+    Ok(ContainmentRegistration(invocation_id))
+}
+
+#[cfg(windows)]
+pub(crate) fn process_in_containment(
+    invocation_id: crate::InvocationId,
+    process_handle: usize,
+) -> std::io::Result<Option<bool>> {
+    use windows_sys::Win32::System::JobObjects::IsProcessInJob;
+
+    let registry = LIVE_CONTAINMENTS
+        .get_or_init(Default::default)
+        .lock()
+        .map_err(|_| std::io::Error::other("containment registry mutex poisoned"))?;
+    let Some(job_handle) = registry.get(&invocation_id).copied() else {
+        return Ok(None);
+    };
+    let mut member = 0;
+    // SAFETY: the registry lock prevents the runner from unregistering and closing the Job
+    // Object while both handles are inspected; process_handle is owned by the pipe worker.
+    if unsafe {
+        IsProcessInJob(
+            process_handle as windows_sys::Win32::Foundation::HANDLE,
+            job_handle as windows_sys::Win32::Foundation::HANDLE,
+            &mut member,
+        )
+    } == 0
+    {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(Some(member != 0))
+}
+
 pub(crate) fn run(job: PreparedJob, store: Arc<Mutex<Store>>) {
     #[cfg(windows)]
     windows::run(&job, &store);
@@ -223,6 +289,7 @@ mod windows {
             .map_err(|error| io_context("locking executable for launch", error))?;
         let executable_hash = hash_reader(&mut executable_file)?;
         let job_object = create_job_object()?;
+        let registration = super::register_containment(job.invocation_id, job_object.raw())?;
         progress.cleanup_proven = true;
         let (stdout_read, stdout_write) = create_inherited_pipe()?;
         let (stderr_read, stderr_write) = create_inherited_pipe()?;
@@ -412,12 +479,15 @@ mod windows {
             }
         }
         drop(process_handle);
-        drop(job_object);
         drop(thread_handle);
 
         if !progress.cleanup_proven {
             // The pipes may remain open while an unproven process tree is terminating. Do not
             // block the scheduler indefinitely; the uncertain Containment keeps EOF unclaimed.
+            // Unpublish the handle while it is still valid. Closing the Job Object afterwards
+            // applies KILL_ON_JOB_CLOSE to any process that escaped the bounded cleanup wait.
+            drop(registration);
+            drop(job_object);
             return execution.map(|_| ());
         }
 
@@ -439,11 +509,15 @@ mod windows {
             .lock()
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
             .mark_finished(job, Some(exit_code as i32), outcome, verdict)?;
+        // Membership queries hold the same registry mutex used by registration Drop, so no
+        // query can observe this raw HANDLE after it is closed or numerically recycled.
+        drop(registration);
+        drop(job_object);
         Ok(())
     }
 
     fn create_job_object() -> std::io::Result<OwnedHandle> {
-        // SAFETY: null attributes/name request a fresh unnamed job.
+        // SAFETY: null attributes/name request a fresh unnamed Job Object as required by R-RUN-2.
         let handle = unsafe { CreateJobObjectW(null(), null()) };
         let handle = OwnedHandle::new(handle)?;
         let mut information: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { zeroed() };
@@ -798,6 +872,7 @@ mod windows {
                 timeout_seconds: Some(10),
                 quiet: None,
                 artifacts: Vec::new(),
+                allow_child_submissions: false,
             }
         }
 

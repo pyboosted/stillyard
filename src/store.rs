@@ -12,13 +12,13 @@ use crate::resources::ResolvedClaims;
 use crate::{
     AttemptId, BatchId, BatchJobReceipt, BatchReceipt, BatchSpec, Blocker, ContainmentId,
     DaemonSnapshot, Estimate, HostConfig, InvocationId, JobId, JobOutcome, JobReceipt, JobSnapshot,
-    JobSpec, JobState, LogChunk, LogStream, RecoveryResult, ResourceCapacities, StdinSpec,
-    SubmissionId, SubmissionState,
+    JobSpec, JobState, LogChunk, LogStream, ManagedParent, RecoveryResult, ResourceCapacities,
+    StdinSpec, SubmissionId, SubmissionState,
 };
 
 // Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
 // the current schema changes; daemon startup will replace the whole SQLite database.
-const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-agent-ready-2026-08-28";
+const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-managed-submit-2026-08-28";
 const MAX_STDIN_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_UPLOAD_CHUNK_BYTES: usize = 256 * 1024;
 
@@ -113,6 +113,39 @@ pub(crate) struct BatchSubmitResult {
     pub(crate) should_schedule: bool,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SubmissionScope {
+    Unmanaged,
+    Managed(ManagedParent),
+}
+
+impl SubmissionScope {
+    fn key(self) -> String {
+        match self {
+            Self::Unmanaged => "unmanaged".into(),
+            Self::Managed(parent) => format!(
+                "managed:{}:{}",
+                parent.job_id.entity_uuid(),
+                parent.attempt_id.entity_uuid()
+            ),
+        }
+    }
+
+    fn parent(self) -> Option<ManagedParent> {
+        match self {
+            Self::Unmanaged => None,
+            Self::Managed(parent) => Some(parent),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ManagedCandidate {
+    pub(crate) parent: ManagedParent,
+    pub(crate) submissions_enabled: bool,
+    pub(crate) current: bool,
+}
+
 #[derive(Clone)]
 pub(crate) struct PreparedJob {
     pub(crate) job_id: JobId,
@@ -141,6 +174,7 @@ pub(crate) struct Store {
     connection: Connection,
     pub(crate) paths: StorePaths,
     store_uuid: Uuid,
+    daemon_generation: Uuid,
     capacities: ResourceCapacities,
     profiles: std::collections::BTreeMap<String, crate::EnvironmentProfile>,
 }
@@ -148,6 +182,80 @@ pub(crate) struct Store {
 impl Store {
     pub(crate) fn store_uuid(&self) -> Uuid {
         self.store_uuid
+    }
+
+    pub(crate) fn managed_containment_candidates(&self) -> StoreResult<Vec<ManagedCandidate>> {
+        let mut statement = self.connection.prepare(
+            "SELECT jobs.id, attempts.id, invocations.id, jobs.spec_json,
+                    jobs.state, jobs.attempt_id, jobs.invocation_id, attempts.state,
+                    invocations.state, invocations.root_pid, invocations.root_exit_code,
+                    invocations.daemon_generation, containments.state
+             FROM invocations
+             JOIN attempts ON attempts.id = invocations.attempt_id
+             JOIN jobs ON jobs.id = attempts.job_id
+             JOIN containments ON containments.invocation_id = invocations.id
+             WHERE invocations.role = 'primary'
+               AND containments.state IN ('live', 'uncertain')",
+        )?;
+        let rows = statement.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, Option<String>>(5)?,
+                row.get::<_, Option<String>>(6)?,
+                row.get::<_, String>(7)?,
+                row.get::<_, String>(8)?,
+                row.get::<_, Option<u32>>(9)?,
+                row.get::<_, Option<i32>>(10)?,
+                row.get::<_, Option<String>>(11)?,
+                row.get::<_, String>(12)?,
+            ))
+        })?;
+        let mut candidates = Vec::new();
+        let current_generation = self.daemon_generation.to_string();
+        for row in rows {
+            let (
+                job,
+                attempt,
+                invocation,
+                spec_json,
+                job_state,
+                job_attempt,
+                job_invocation,
+                attempt_state,
+                invocation_state,
+                root_pid,
+                root_exit_code,
+                daemon_generation,
+                containment_state,
+            ) = row?;
+            let spec: JobSpec = serde_json::from_str(&spec_json)?;
+            let current = job_state == "active"
+                && job_attempt.as_deref() == Some(attempt.as_str())
+                && job_invocation.as_deref() == Some(invocation.as_str())
+                && attempt_state == "running"
+                && invocation_state == "started"
+                && root_pid.is_some()
+                && root_exit_code.is_none()
+                && daemon_generation.as_deref() == Some(current_generation.as_str())
+                && containment_state == "live";
+            candidates.push(ManagedCandidate {
+                parent: ManagedParent {
+                    job_id: JobId::from_parts(self.store_uuid, Uuid::parse_str(&job)?),
+                    attempt_id: AttemptId::from_parts(self.store_uuid, Uuid::parse_str(&attempt)?),
+                    invocation_id: InvocationId::from_parts(
+                        self.store_uuid,
+                        Uuid::parse_str(&invocation)?,
+                    ),
+                },
+                submissions_enabled: spec.allow_child_submissions,
+                current,
+            });
+        }
+        Ok(candidates)
     }
 
     pub(crate) fn open(paths: StorePaths) -> StoreResult<Self> {
@@ -221,6 +329,7 @@ impl Store {
             connection,
             paths,
             store_uuid,
+            daemon_generation: Uuid::now_v7(),
             capacities: config.resources,
             profiles: config.profiles,
         };
@@ -449,8 +558,26 @@ impl Store {
         self.submit_with_stdin(idempotency_key, claimed_payload_hash, spec, None)
     }
 
+    #[cfg(test)]
     pub(crate) fn submit_with_stdin(
         &mut self,
+        idempotency_key: Uuid,
+        claimed_payload_hash: &str,
+        spec: &JobSpec,
+        stdin: Option<&StagedInputRef>,
+    ) -> StoreResult<SubmitResult> {
+        self.submit_with_stdin_scoped(
+            SubmissionScope::Unmanaged,
+            idempotency_key,
+            claimed_payload_hash,
+            spec,
+            stdin,
+        )
+    }
+
+    pub(crate) fn submit_with_stdin_scoped(
+        &mut self,
+        scope: SubmissionScope,
         idempotency_key: Uuid,
         claimed_payload_hash: &str,
         spec: &JobSpec,
@@ -466,12 +593,13 @@ impl Store {
             ));
         }
         let key = idempotency_key.to_string();
+        let scope_key = scope.key();
         if let Some((submission_id, stored_hash, state, job_id, spec_json, stdin_json, kind)) = self
             .connection
             .query_row(
                 "SELECT id, payload_hash, state, job_id, spec_json, stdin_json, kind
-                 FROM submissions WHERE scope = 'unmanaged' AND idempotency_key = ?1",
-                [&key],
+                 FROM submissions WHERE scope = ?1 AND idempotency_key = ?2",
+                params![scope_key, key],
                 |row| {
                     Ok((
                         row.get::<_, String>(0)?,
@@ -511,6 +639,7 @@ impl Store {
                     SubmissionId::from_parts(self.store_uuid, Uuid::parse_str(&submission_id)?),
                     &durable_spec,
                     durable_stdin.as_ref(),
+                    scope,
                 );
             }
             if state == "rejected" {
@@ -526,21 +655,28 @@ impl Store {
         self.verify_staged_input(spec, stdin)?;
         let submission_id = SubmissionId::new(self.store_uuid);
         let received = self.connection.transaction()?;
+        validate_current_parent(&received, self.store_uuid, self.daemon_generation, scope)?;
+        let parent = scope.parent();
         received.execute(
             "INSERT INTO submissions(
-                id, scope, idempotency_key, payload_hash, state, spec_json, stdin_json, kind, created_ms
-             ) VALUES (?1, 'unmanaged', ?2, ?3, 'received', ?4, ?5, 'job', ?6)",
+                id, scope, idempotency_key, payload_hash, state, spec_json, stdin_json, kind,
+                parent_job_id, parent_attempt_id, parent_invocation_id, created_ms
+             ) VALUES (?1, ?2, ?3, ?4, 'received', ?5, ?6, 'job', ?7, ?8, ?9, ?10)",
             params![
                 submission_id.entity_uuid().to_string(),
+                scope_key,
                 key,
                 payload_hash,
                 serde_json::to_string(spec)?,
                 stdin.map(serde_json::to_string).transpose()?,
+                parent.map(|parent| parent.job_id.entity_uuid().to_string()),
+                parent.map(|parent| parent.attempt_id.entity_uuid().to_string()),
+                parent.map(|parent| parent.invocation_id.entity_uuid().to_string()),
                 now_millis(),
             ],
         )?;
         received.commit()?;
-        self.accept_received(submission_id, spec, stdin)
+        self.accept_received(submission_id, spec, stdin, scope)
     }
 
     #[cfg(test)]
@@ -558,8 +694,26 @@ impl Store {
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn submit_batch_with_stdins(
         &mut self,
+        idempotency_key: Uuid,
+        claimed_payload_hash: &str,
+        spec: &BatchSpec,
+        stdins: &std::collections::BTreeMap<String, StagedInputRef>,
+    ) -> StoreResult<BatchSubmitResult> {
+        self.submit_batch_with_stdins_scoped(
+            SubmissionScope::Unmanaged,
+            idempotency_key,
+            claimed_payload_hash,
+            spec,
+            stdins,
+        )
+    }
+
+    pub(crate) fn submit_batch_with_stdins_scoped(
+        &mut self,
+        scope: SubmissionScope,
         idempotency_key: Uuid,
         claimed_payload_hash: &str,
         spec: &BatchSpec,
@@ -575,12 +729,13 @@ impl Store {
             ));
         }
         let key = idempotency_key.to_string();
+        let scope_key = scope.key();
         if let Some((submission, stored_hash, state, batch, spec_json, stdin_json, kind)) = self
             .connection
             .query_row(
                 "SELECT id, payload_hash, state, batch_id, spec_json, stdin_json, kind
-                 FROM submissions WHERE scope = 'unmanaged' AND idempotency_key = ?1",
-                [&key],
+                 FROM submissions WHERE scope = ?1 AND idempotency_key = ?2",
+                params![scope_key, key],
                 |row| {
                     Ok((
                         row.get::<_, String>(0)?,
@@ -619,7 +774,7 @@ impl Store {
                     .map(serde_json::from_str)
                     .transpose()?
                     .unwrap_or_default();
-                return self.accept_received_batch(submission_id, &durable, &durable_stdins);
+                return self.accept_received_batch(submission_id, &durable, &durable_stdins, scope);
             }
             if state == "rejected" {
                 return Err(StoreError::Rejected(
@@ -634,21 +789,28 @@ impl Store {
         self.verify_staged_batch_inputs(spec, stdins)?;
         let submission_id = SubmissionId::new(self.store_uuid);
         let received = self.connection.transaction()?;
+        validate_current_parent(&received, self.store_uuid, self.daemon_generation, scope)?;
+        let parent = scope.parent();
         received.execute(
             "INSERT INTO submissions(
-                id, scope, idempotency_key, payload_hash, state, spec_json, stdin_json, kind, created_ms
-             ) VALUES (?1, 'unmanaged', ?2, ?3, 'received', ?4, ?5, 'batch', ?6)",
+                id, scope, idempotency_key, payload_hash, state, spec_json, stdin_json, kind,
+                parent_job_id, parent_attempt_id, parent_invocation_id, created_ms
+             ) VALUES (?1, ?2, ?3, ?4, 'received', ?5, ?6, 'batch', ?7, ?8, ?9, ?10)",
             params![
                 submission_id.entity_uuid().to_string(),
+                scope_key,
                 key,
                 payload_hash,
                 serde_json::to_string(spec)?,
                 serde_json::to_string(stdins)?,
+                parent.map(|parent| parent.job_id.entity_uuid().to_string()),
+                parent.map(|parent| parent.attempt_id.entity_uuid().to_string()),
+                parent.map(|parent| parent.invocation_id.entity_uuid().to_string()),
                 now_millis(),
             ],
         )?;
         received.commit()?;
-        self.accept_received_batch(submission_id, spec, stdins)
+        self.accept_received_batch(submission_id, spec, stdins, scope)
     }
 
     fn accept_received_batch(
@@ -656,6 +818,7 @@ impl Store {
         submission_id: SubmissionId,
         spec: &BatchSpec,
         stdins: &std::collections::BTreeMap<String, StagedInputRef>,
+        scope: SubmissionScope,
     ) -> StoreResult<BatchSubmitResult> {
         if let Err(error) = self.verify_staged_batch_inputs(spec, stdins) {
             self.reject_received(submission_id)?;
@@ -719,6 +882,14 @@ impl Store {
                 "submission {submission_id} is terminal in state {state}"
             )));
         }
+        if let Err(error) =
+            validate_current_parent(&transaction, self.store_uuid, self.daemon_generation, scope)
+        {
+            drop(transaction);
+            self.reject_received(submission_id)?;
+            return Err(StoreError::Rejected(error.to_string()));
+        }
+        let parent = scope.parent();
         transaction.execute(
             "INSERT INTO batches(id, state, submission_id, accepted_ms)
              VALUES (?1, 'retained', ?2, ?3)",
@@ -734,8 +905,9 @@ impl Store {
             transaction.execute(
                 "INSERT INTO jobs(
                     id, submission_id, batch_id, batch_member, batch_index, state,
-                    spec_json, claims_json, stdin_hash, stdin_len, accepted_ms
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, 'pending', ?6, ?7, ?8, ?9, ?10)",
+                    spec_json, claims_json, stdin_hash, stdin_len,
+                    parent_job_id, parent_attempt_id, parent_invocation_id, accepted_ms
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, 'pending', ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                 params![
                     job_id.entity_uuid().to_string(),
                     submission_id.entity_uuid().to_string(),
@@ -746,6 +918,9 @@ impl Store {
                     serde_json::to_string(claims)?,
                     stdin.as_ref().map(|stdin| stdin.sha256.as_str()),
                     stdin.as_ref().map(|stdin| stdin.length),
+                    parent.map(|parent| parent.job_id.entity_uuid().to_string()),
+                    parent.map(|parent| parent.attempt_id.entity_uuid().to_string()),
+                    parent.map(|parent| parent.invocation_id.entity_uuid().to_string()),
                     accepted_ms,
                 ],
             )?;
@@ -828,17 +1003,28 @@ impl Store {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(crate) fn recover_submission(
         &self,
         idempotency_key: Uuid,
         payload_hash: &str,
     ) -> StoreResult<RecoveryResult> {
+        self.recover_submission_scoped(SubmissionScope::Unmanaged, idempotency_key, payload_hash)
+    }
+
+    pub(crate) fn recover_submission_scoped(
+        &self,
+        scope: SubmissionScope,
+        idempotency_key: Uuid,
+        payload_hash: &str,
+    ) -> StoreResult<RecoveryResult> {
+        let scope_key = scope.key();
         let row = self
             .connection
             .query_row(
                 "SELECT id, payload_hash, state, job_id, batch_id, kind
-                 FROM submissions WHERE scope = 'unmanaged' AND idempotency_key = ?1",
-                [idempotency_key.to_string()],
+                 FROM submissions WHERE scope = ?1 AND idempotency_key = ?2",
+                params![scope_key, idempotency_key.to_string()],
                 |row| {
                     Ok((
                         row.get::<_, String>(0)?,
@@ -852,8 +1038,21 @@ impl Store {
             )
             .optional()?;
         let Some((submission_id, stored_hash, state, job_id, batch_id, kind)) = row else {
-            // An unmanaged caller has no retained parent Attempt proving absence.
-            return Ok(RecoveryResult::Unknown);
+            return match scope {
+                SubmissionScope::Unmanaged => Ok(RecoveryResult::Unknown),
+                SubmissionScope::Managed(_) => {
+                    match validate_current_parent(
+                        &self.connection,
+                        self.store_uuid,
+                        self.daemon_generation,
+                        scope,
+                    ) {
+                        Ok(()) => Ok(RecoveryResult::NotReceived),
+                        Err(StoreError::Rejected(_)) => Ok(RecoveryResult::Unknown),
+                        Err(error) => Err(error),
+                    }
+                }
+            };
         };
         if stored_hash != payload_hash {
             return Ok(RecoveryResult::Conflict);
@@ -896,6 +1095,7 @@ impl Store {
         submission_id: SubmissionId,
         spec: &JobSpec,
         stdin: Option<&StagedInputRef>,
+        scope: SubmissionScope,
     ) -> StoreResult<SubmitResult> {
         if let Err(error) = self.verify_staged_input(spec, stdin) {
             self.reject_received(submission_id)?;
@@ -945,10 +1145,19 @@ impl Store {
                 "submission {submission_id} is terminal in state {state}"
             )));
         }
+        if let Err(error) =
+            validate_current_parent(&transaction, self.store_uuid, self.daemon_generation, scope)
+        {
+            drop(transaction);
+            self.reject_received(submission_id)?;
+            return Err(StoreError::Rejected(error.to_string()));
+        }
+        let parent = scope.parent();
         transaction.execute(
             "INSERT INTO jobs(
-                id, submission_id, state, spec_json, claims_json, stdin_hash, stdin_len, accepted_ms
-             ) VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7)",
+                id, submission_id, state, spec_json, claims_json, stdin_hash, stdin_len,
+                parent_job_id, parent_attempt_id, parent_invocation_id, accepted_ms
+             ) VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 job_id.entity_uuid().to_string(),
                 submission_id.entity_uuid().to_string(),
@@ -956,6 +1165,9 @@ impl Store {
                 serde_json::to_string(&claims)?,
                 stdin.map(|stdin| stdin.sha256.as_str()),
                 stdin.map(|stdin| stdin.length),
+                parent.map(|parent| parent.job_id.entity_uuid().to_string()),
+                parent.map(|parent| parent.attempt_id.entity_uuid().to_string()),
+                parent.map(|parent| parent.invocation_id.entity_uuid().to_string()),
                 accepted_ms,
             ],
         )?;
@@ -1001,6 +1213,7 @@ impl Store {
             Vec::new()
         };
         let estimate = self.estimate_for_job(job_id, &blockers)?;
+        let parent = self.parent_for_job(job_id)?;
         Ok(JobReceipt {
             submission_id,
             job_id,
@@ -1009,7 +1222,24 @@ impl Store {
             blockers,
             queue_rank,
             estimate,
+            parent,
         })
+    }
+
+    fn parent_for_job(&self, job_id: JobId) -> StoreResult<Option<ManagedParent>> {
+        let row = self.connection.query_row(
+            "SELECT parent_job_id, parent_attempt_id, parent_invocation_id
+             FROM jobs WHERE id = ?1",
+            [self.local_id(job_id)?],
+            |row| {
+                Ok((
+                    row.get::<_, Option<String>>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            },
+        )?;
+        managed_parent_from_columns(self.store_uuid, row)
     }
 
     fn blockers_for_job(&self, job_id: JobId) -> StoreResult<Vec<Blocker>> {
@@ -1387,12 +1617,13 @@ impl Store {
         }
         transaction.execute(
             "UPDATE invocations SET state = 'started', root_pid = ?2,
-                executable_hash = ?3, started_ms = ?4 WHERE id = ?1",
+                executable_hash = ?3, started_ms = ?4, daemon_generation = ?5 WHERE id = ?1",
             params![
                 job.invocation_id.entity_uuid().to_string(),
                 root_pid,
                 executable_hash,
                 now_millis(),
+                self.daemon_generation.to_string(),
             ],
         )?;
         transaction.execute(
@@ -1568,7 +1799,8 @@ impl Store {
             .query_row(
                 "SELECT submission_id, state, outcome, attempt_id, invocation_id,
                     containment_id, root_exit_code, accepted_ms, started_ms, finished_ms,
-                    spec_json, batch_id, batch_member
+                    spec_json, batch_id, batch_member,
+                    parent_job_id, parent_attempt_id, parent_invocation_id
                  FROM jobs WHERE id = ?1",
                 [self.local_id(job_id)?],
                 |row| {
@@ -1593,6 +1825,9 @@ impl Store {
                         spec_json,
                         row.get::<_, Option<String>>(11)?,
                         row.get::<_, Option<String>>(12)?,
+                        row.get::<_, Option<String>>(13)?,
+                        row.get::<_, Option<String>>(14)?,
+                        row.get::<_, Option<String>>(15)?,
                     ))
                 },
             )
@@ -1613,6 +1848,9 @@ impl Store {
                     spec_json,
                     batch_id,
                     batch_member,
+                    parent_job,
+                    parent_attempt,
+                    parent_invocation,
                 )| {
                     let parsed_state = parse_job_state(&state)?;
                     Ok(JobSnapshot {
@@ -1653,6 +1891,10 @@ impl Store {
                         started_unix_millis: started_ms,
                         finished_unix_millis: finished_ms,
                         spec: serde_json::from_str(&spec_json)?,
+                        parent: managed_parent_from_columns(
+                            self.store_uuid,
+                            (parent_job, parent_attempt, parent_invocation),
+                        )?,
                         blockers: if parsed_state == JobState::Pending {
                             self.blockers_for_job(job_id)?
                         } else {
@@ -1862,7 +2104,9 @@ impl Store {
     fn resume_received(&mut self) -> StoreResult<()> {
         let received = {
             let mut statement = self.connection.prepare(
-                "SELECT id, spec_json, stdin_json, kind FROM submissions
+                "SELECT id, spec_json, stdin_json, kind,
+                        parent_job_id, parent_attempt_id, parent_invocation_id
+                 FROM submissions
                  WHERE state = 'received' ORDER BY created_ms",
             )?;
             let rows = statement.query_map([], |row| {
@@ -1871,20 +2115,42 @@ impl Store {
                     row.get::<_, String>(1)?,
                     row.get::<_, Option<String>>(2)?,
                     row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
                 ))
             })?;
             rows.collect::<std::result::Result<Vec<_>, _>>()?
         };
-        for (submission_id, spec_json, stdin_json, kind) in received {
+        for (
+            submission_id,
+            spec_json,
+            stdin_json,
+            kind,
+            parent_job,
+            parent_attempt,
+            parent_invocation,
+        ) in received
+        {
             let submission_id =
                 SubmissionId::from_parts(self.store_uuid, Uuid::parse_str(&submission_id)?);
+            let scope = managed_parent_from_columns(
+                self.store_uuid,
+                (parent_job, parent_attempt, parent_invocation),
+            )?
+            .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed);
             let result = if kind == "batch" {
                 match (
                     serde_json::from_str(&spec_json),
                     stdin_json.as_deref().map(serde_json::from_str).transpose(),
                 ) {
                     (Ok(spec), Ok(stdins)) => self
-                        .accept_received_batch(submission_id, &spec, &stdins.unwrap_or_default())
+                        .accept_received_batch(
+                            submission_id,
+                            &spec,
+                            &stdins.unwrap_or_default(),
+                            scope,
+                        )
                         .map(|_| ()),
                     (Err(error), _) | (_, Err(error)) => {
                         self.reject_received(submission_id)?;
@@ -1899,7 +2165,7 @@ impl Store {
                     stdin_json.as_deref().map(serde_json::from_str).transpose(),
                 ) {
                     (Ok(spec), Ok(stdin)) => self
-                        .accept_received(submission_id, &spec, stdin.as_ref())
+                        .accept_received(submission_id, &spec, stdin.as_ref(), scope)
                         .map(|_| ()),
                     (Err(error), _) | (_, Err(error)) => {
                         self.reject_received(submission_id)?;
@@ -1915,6 +2181,81 @@ impl Store {
             }
         }
         Ok(())
+    }
+}
+
+fn validate_current_parent(
+    connection: &Connection,
+    store_uuid: Uuid,
+    daemon_generation: Uuid,
+    scope: SubmissionScope,
+) -> StoreResult<()> {
+    let SubmissionScope::Managed(parent) = scope else {
+        return Ok(());
+    };
+    if parent.job_id.store_uuid() != store_uuid
+        || parent.attempt_id.store_uuid() != store_uuid
+        || parent.invocation_id.store_uuid() != store_uuid
+    {
+        return Err(StoreError::Rejected(
+            "managed parent belongs to a foreign store".into(),
+        ));
+    }
+    let spec_json = connection
+        .query_row(
+            "SELECT jobs.spec_json
+             FROM jobs
+             JOIN attempts ON attempts.id = jobs.attempt_id
+             JOIN invocations ON invocations.id = jobs.invocation_id
+             JOIN containments ON containments.invocation_id = invocations.id
+             WHERE jobs.id = ?1
+               AND attempts.id = ?2
+               AND invocations.id = ?3
+               AND jobs.state = 'active'
+               AND attempts.state = 'running'
+               AND invocations.state = 'started'
+               AND invocations.role = 'primary'
+               AND invocations.root_pid IS NOT NULL
+               AND invocations.root_exit_code IS NULL
+               AND invocations.daemon_generation = ?4
+               AND containments.state = 'live'",
+            params![
+                parent.job_id.entity_uuid().to_string(),
+                parent.attempt_id.entity_uuid().to_string(),
+                parent.invocation_id.entity_uuid().to_string(),
+                daemon_generation.to_string(),
+            ],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?;
+    let Some(spec_json) = spec_json else {
+        return Err(StoreError::Rejected(
+            "managed parent is no longer the live current primary Invocation".into(),
+        ));
+    };
+    let spec: JobSpec = serde_json::from_str(&spec_json)?;
+    if !spec.allow_child_submissions {
+        return Err(StoreError::Rejected(
+            "managed parent does not allow child submissions".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn managed_parent_from_columns(
+    store_uuid: Uuid,
+    columns: (Option<String>, Option<String>, Option<String>),
+) -> StoreResult<Option<ManagedParent>> {
+    match columns {
+        (None, None, None) => Ok(None),
+        (Some(job), Some(attempt), Some(invocation)) => Ok(Some(ManagedParent {
+            job_id: JobId::from_parts(store_uuid, Uuid::parse_str(&job)?),
+            attempt_id: AttemptId::from_parts(store_uuid, Uuid::parse_str(&attempt)?),
+            invocation_id: InvocationId::from_parts(store_uuid, Uuid::parse_str(&invocation)?),
+        })),
+        _ => Err(StoreError::InvalidState(
+            "managed parent columns are only partially populated".into(),
+        )),
     }
 }
 
@@ -2312,6 +2653,9 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
              job_id TEXT,
              kind TEXT NOT NULL DEFAULT 'job',
              batch_id TEXT,
+             parent_job_id TEXT,
+             parent_attempt_id TEXT,
+             parent_invocation_id TEXT,
              created_ms INTEGER NOT NULL,
              UNIQUE(scope, idempotency_key)
          );
@@ -2341,7 +2685,10 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
              started_ms INTEGER,
              finished_ms INTEGER,
              stdout_len INTEGER NOT NULL DEFAULT 0,
-             stderr_len INTEGER NOT NULL DEFAULT 0
+             stderr_len INTEGER NOT NULL DEFAULT 0,
+             parent_job_id TEXT,
+             parent_attempt_id TEXT,
+             parent_invocation_id TEXT
          );
          CREATE TABLE dependencies(
              predecessor_id TEXT NOT NULL REFERENCES jobs(id),
@@ -2364,6 +2711,7 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
              root_pid INTEGER,
              root_exit_code INTEGER,
              executable_hash TEXT,
+             daemon_generation TEXT,
              started_ms INTEGER,
              finished_ms INTEGER
          );
@@ -2423,7 +2771,17 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
         }
     }
     for (table, columns) in [
-        ("submissions", &["kind", "batch_id", "stdin_json"] as &[_]),
+        (
+            "submissions",
+            &[
+                "kind",
+                "batch_id",
+                "stdin_json",
+                "parent_job_id",
+                "parent_attempt_id",
+                "parent_invocation_id",
+            ] as &[_],
+        ),
         ("batches", &["submission_id", "accepted_ms"] as &[_]),
         (
             "jobs",
@@ -2434,12 +2792,16 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
                 "claims_json",
                 "stdin_hash",
                 "stdin_len",
+                "parent_job_id",
+                "parent_attempt_id",
+                "parent_invocation_id",
             ] as &[_],
         ),
         (
             "dependencies",
             &["predecessor_id", "successor_id", "kind"] as &[_],
         ),
+        ("invocations", &["daemon_generation"] as &[_]),
     ] {
         let present = table_columns(connection, table)?;
         for column in columns {
@@ -2523,6 +2885,7 @@ mod tests {
             timeout_seconds: None,
             quiet: None,
             artifacts: Vec::new(),
+            allow_child_submissions: false,
         }
     }
 
@@ -3748,5 +4111,198 @@ mod tests {
 
         let reopened = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
         assert_eq!(reopened.store_uuid, store_uuid);
+    }
+
+    fn start_managed_parent(store: &mut Store, root: &Path, enabled: bool) -> PreparedJob {
+        let mut parent_spec = spec(root);
+        parent_spec.allow_child_submissions = enabled;
+        let hash = normalized_payload_hash(&parent_spec).unwrap();
+        let receipt = store
+            .submit(Uuid::now_v7(), &hash, &parent_spec)
+            .unwrap()
+            .receipt;
+        let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        store.mark_started(&prepared, 4242, "parent-image").unwrap();
+        prepared
+    }
+
+    fn scope_for(prepared: &PreparedJob) -> SubmissionScope {
+        SubmissionScope::Managed(ManagedParent {
+            job_id: prepared.job_id,
+            attempt_id: prepared.attempt_id,
+            invocation_id: prepared.invocation_id,
+        })
+    }
+
+    #[test]
+    fn managed_not_received_is_provable_only_for_the_live_current_parent() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let parent = start_managed_parent(&mut store, temp.path(), true);
+        let scope = scope_for(&parent);
+        let key = Uuid::now_v7();
+
+        assert_eq!(
+            store
+                .recover_submission_scoped(scope, key, "child-payload")
+                .unwrap(),
+            RecoveryResult::NotReceived
+        );
+
+        store
+            .mark_finished(&parent, Some(0), JobOutcome::Succeeded, "succeeded")
+            .unwrap();
+        assert_eq!(
+            store
+                .recover_submission_scoped(scope, key, "child-payload")
+                .unwrap(),
+            RecoveryResult::Unknown
+        );
+    }
+
+    #[test]
+    fn managed_exact_replay_is_idempotent_and_commits_parentage() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let parent = start_managed_parent(&mut store, temp.path(), true);
+        let scope = scope_for(&parent);
+        let child = spec(temp.path());
+        let hash = normalized_payload_hash(&child).unwrap();
+        let key = Uuid::now_v7();
+
+        assert_eq!(
+            store.recover_submission_scoped(scope, key, &hash).unwrap(),
+            RecoveryResult::NotReceived
+        );
+        let first = store
+            .submit_with_stdin_scoped(scope, key, &hash, &child, None)
+            .unwrap();
+        let replay = store
+            .submit_with_stdin_scoped(scope, key, &hash, &child, None)
+            .unwrap();
+        assert_eq!(first.receipt.job_id, replay.receipt.job_id);
+        assert_eq!(first.receipt.parent, scope.parent());
+        assert_eq!(
+            store.status(first.receipt.job_id).unwrap().parent,
+            scope.parent()
+        );
+        assert!(matches!(
+            store
+                .recover_submission_scoped(scope, key, &hash)
+                .unwrap(),
+            RecoveryResult::Accepted(receipt) if receipt.job_id == first.receipt.job_id
+        ));
+
+        let mut changed = child.clone();
+        changed.args.push("different".into());
+        let changed_hash = normalized_payload_hash(&changed).unwrap();
+        assert!(matches!(
+            store.submit_with_stdin_scoped(scope, key, &changed_hash, &changed, None),
+            Err(StoreError::IdempotencyConflict)
+        ));
+    }
+
+    #[test]
+    fn managed_acceptance_rechecks_parent_and_disabled_primary_never_proves_absence() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let disabled = start_managed_parent(&mut store, temp.path(), false);
+        let disabled_scope = scope_for(&disabled);
+        let child = spec(temp.path());
+        let hash = normalized_payload_hash(&child).unwrap();
+        assert_eq!(
+            store
+                .recover_submission_scoped(disabled_scope, Uuid::now_v7(), &hash)
+                .unwrap(),
+            RecoveryResult::Unknown
+        );
+        assert!(matches!(
+            store.submit_with_stdin_scoped(disabled_scope, Uuid::now_v7(), &hash, &child, None,),
+            Err(StoreError::Rejected(_))
+        ));
+
+        let enabled = start_managed_parent(&mut store, temp.path(), true);
+        let enabled_scope = scope_for(&enabled);
+        store.mark_root_exited(&enabled, 0).unwrap();
+        assert_eq!(
+            store
+                .recover_submission_scoped(enabled_scope, Uuid::now_v7(), &hash)
+                .unwrap(),
+            RecoveryResult::Unknown,
+            "a live descendant cannot submit after the primary root exited"
+        );
+        store
+            .mark_finished(&enabled, Some(0), JobOutcome::Succeeded, "succeeded")
+            .unwrap();
+        let key = Uuid::now_v7();
+        assert!(matches!(
+            store.submit_with_stdin_scoped(enabled_scope, key, &hash, &child, None),
+            Err(StoreError::Rejected(_))
+        ));
+        let retained: u64 = store
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM submissions WHERE idempotency_key = ?1",
+                [key.to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(retained, 0, "late child rejection must create no work");
+    }
+
+    #[test]
+    fn restart_rejects_managed_received_work_from_the_previous_daemon_generation() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let mut store = Store::open(paths.clone()).unwrap();
+        let previous_generation = store.daemon_generation;
+        let parent = start_managed_parent(&mut store, temp.path(), true);
+        let scope = scope_for(&parent);
+        let child = spec(temp.path());
+        let hash = normalized_payload_hash(&child).unwrap();
+        let key = Uuid::now_v7();
+        let submission_id = SubmissionId::new(store.store_uuid);
+        store
+            .connection
+            .execute(
+                "INSERT INTO submissions(
+                    id, scope, idempotency_key, payload_hash, state, spec_json, kind,
+                    parent_job_id, parent_attempt_id, parent_invocation_id, created_ms
+                 ) VALUES (?1, ?2, ?3, ?4, 'received', ?5, 'job', ?6, ?7, ?8, ?9)",
+                params![
+                    submission_id.entity_uuid().to_string(),
+                    scope.key(),
+                    key.to_string(),
+                    hash,
+                    serde_json::to_string(&child).unwrap(),
+                    parent.job_id.entity_uuid().to_string(),
+                    parent.attempt_id.entity_uuid().to_string(),
+                    parent.invocation_id.entity_uuid().to_string(),
+                    now_millis(),
+                ],
+            )
+            .unwrap();
+        drop(store);
+
+        let reopened = Store::open(paths).unwrap();
+        assert_ne!(reopened.daemon_generation, previous_generation);
+        let state: String = reopened
+            .connection
+            .query_row(
+                "SELECT state FROM submissions WHERE id = ?1",
+                [submission_id.entity_uuid().to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(state, "rejected");
+        let child_jobs: u64 = reopened
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM jobs WHERE submission_id = ?1",
+                [submission_id.entity_uuid().to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(child_jobs, 0, "restart must not accept a late child");
     }
 }

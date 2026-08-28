@@ -34,6 +34,9 @@ pub struct JobSpec {
     pub quiet: Option<QuietPolicy>,
     #[serde(default)]
     pub artifacts: Vec<PathBuf>,
+    /// Allows processes in this primary Invocation's OS containment to submit child work.
+    #[serde(default)]
+    pub allow_child_submissions: bool,
 }
 
 impl JobSpec {

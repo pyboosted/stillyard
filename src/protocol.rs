@@ -6,10 +6,10 @@ use uuid::Uuid;
 
 use crate::{
     BatchReceipt, BatchSpec, DaemonSnapshot, JobId, JobReceipt, JobSnapshot, JobSpec, LogChunk,
-    LogStream,
+    LogStream, ManagedParent, SubmissionContext,
 };
 
-pub(crate) const PROTOCOL_VERSION: u32 = 4;
+pub(crate) const PROTOCOL_VERSION: u32 = 5;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -36,12 +36,16 @@ pub(crate) enum Request {
     StageCommit {
         upload_id: Uuid,
     },
+    SubmissionContext {
+        claimed_parent: Option<ManagedParent>,
+    },
     Submit {
         idempotency_key: Uuid,
         payload_hash: String,
         spec: Box<JobSpec>,
         stdin: Option<StagedInputRef>,
         expected_store_uuid: Option<Uuid>,
+        expected_parent: Option<ManagedParent>,
     },
     SubmitBatch {
         idempotency_key: Uuid,
@@ -49,10 +53,12 @@ pub(crate) enum Request {
         spec: Box<BatchSpec>,
         stdins: BTreeMap<String, StagedInputRef>,
         expected_store_uuid: Option<Uuid>,
+        expected_parent: Option<ManagedParent>,
     },
     Recover {
         idempotency_key: Uuid,
         payload_hash: String,
+        expected_parent: Option<ManagedParent>,
     },
     Status {
         job_id: JobId,
@@ -82,6 +88,7 @@ pub(crate) enum Response {
     StageCommitted {
         input: StagedInputRef,
     },
+    SubmissionContext(SubmissionContext),
     Submitted(JobReceipt),
     BatchSubmitted(BatchReceipt),
     Recovered {

@@ -18,8 +18,8 @@ pub(crate) mod store;
 
 pub use api::{
     BatchJobReceipt, BatchReceipt, Blocker, CancellationToken, DaemonSnapshot, Estimate,
-    EstimateConfidence, JobReceipt, JobSnapshot, LogChunk, LogStream, RecoveryResult,
-    SubmitOptions,
+    EstimateConfidence, JobReceipt, JobSnapshot, LogChunk, LogStream, ManagedParent,
+    RecoveryResult, SubmissionContext, SubmitOptions,
 };
 pub use client::{Client, ClientBuilder};
 pub use error::{Error, Result};
