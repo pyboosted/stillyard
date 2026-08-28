@@ -1,5 +1,12 @@
 # Phase 8a isolated daemon instances — implementation handoff
 
+> Completion note (2026-08-28): the bounded corrections below were implemented in `e525fe8`, all
+> Windows and native WSL gates passed, and the focused Grok 4.6 closure review returned no findings.
+> The reviewed contract and final dispositions are recorded in
+> [phase-8a-isolated-daemon-instances.md](phase-8a-isolated-daemon-instances.md). This handoff is
+> retained as the historical review ledger; its “still required” sections describe the inputs to
+> the completed correction pass rather than remaining work.
+
 Date: 2026-08-28  
 Repository: `C:\Development\stillyard`  
 Branch: `main`  

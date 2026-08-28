@@ -1,6 +1,6 @@
 # Phase 8a — Isolated daemon instances
 
-Status: implemented review candidate (2026-08-28)
+Status: reviewed and frozen (2026-08-28)
 
 This bounded foundation makes a Stillyard daemon instance explicitly addressable without changing
 scheduling semantics. It exists so Stillyard's own live tests and external consumers such as `moot`
@@ -149,3 +149,37 @@ foreign durable IDs, wrong expected image, both singleton collision axes, endpoi
 after exact process death, and a helper process carrying complete managed coordinates for another
 instance. Unit tests cover endpoint validation, incomplete managed environment, endpoint lease
 lifetime, CLI parsing, and exact child-environment injection.
+
+## Review dispositions and closure
+
+The fleet review recorded in `docs/phase-8a-isolated-daemon-handoff.md` was dispositioned as
+follows:
+
+- **Accepted and fixed:** authenticated-peer failures are protocol errors and cannot enter
+  auto-start; explicit builder and environment endpoints are structurally connect-only, and
+  default auto-start passes `default_endpoint()` rather than a selected client field.
+- **Accepted and fixed:** explicit daemon coordinates are a complete tuple across CLI/environment
+  source combinations; singleton store or endpoint selections fail before filesystem or IPC side
+  effects.
+- **Accepted and fixed:** the first owner-only pipe instance is acquired before store open and
+  scheduler start, then transferred exactly once to the first connection worker.
+- **Accepted and fixed:** malformed endpoints return `InvalidSpec`, Windows names are ASCII, result
+  files use the same endpoint identity comparison, nearest-existing store ancestry is validated
+  before directory creation, and non-Windows dead-code gates are explicit.
+- **Accepted and fixed:** live tests match wrong-image and foreign-ID failures, prove both explicit
+  endpoint sources cannot spawn a canary daemon, cover mixed daemon coordinate sources, and prove
+  same-endpoint managed claims are reauthenticated rather than always suppressed.
+- **Rejected with primary-platform evidence:** the review claim that a standard user cannot create
+  the owner-scoped `Global\\` mutex; the documented privilege restriction does not apply to mutexes.
+- **Rejected as contract changes without a failing consumer:** stripping canonical `\\?\` store
+  paths, adding store migrations, or introducing a daemon supervisor.
+
+The corrections are commit `e525fe8` (`fix: close isolated daemon review findings`). The focused
+Grok 4.6 high-reasoning closure review returned no findings and explicitly closed the accepted High
+auto-start/authentication defect; its local verdict is
+`C:\Development\review-artifacts\stillyard-instance-isolation\grok-closure-20260828.json`.
+
+Final validation was green on Windows for formatting, strict all-target clippy, the complete test
+suite, the explicit live isolated-daemon test, and `git diff --check`. Native WSL strict all-target
+clippy was also green; the direct Windows cross-target attempt was inadmissible only because the
+host lacks `x86_64-linux-gnu-gcc` for bundled SQLite, not because of a Rust diagnostic.
