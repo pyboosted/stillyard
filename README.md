@@ -62,6 +62,10 @@ This slice deliberately accepts EOF or staged-file stdin, impacts, bounded retri
 
 The tests cover the increment-2a portions of acceptance rows A-03, A-04, and A-06; the increment-2b staged-input, profile, result-file, and process-handle controls; the bounded managed-submission recovery and safe-wait slices of A-11/A-18; and the alpha.6 consumer lifecycle slice of A-04, A-08, A-11, A-14, and A-18. The full baseline rows are not claimed complete until cascade cancellation, drain/force, observed RAM/VRAM freshness, and external Conditions arrive.
 
+The next bounded increment is [alpha.7 live observation](docs/phase-7-live-observation.md): a durable
+cursor/Gap event stream in the public crate, read-only list/events/log-follow CLI surfaces, and the
+first event-driven `stillyard watch` TUI. It deliberately leaves scheduling semantics unchanged.
+
 An uncertain Containment deliberately retains its real Lease after restart. Until the audited `doctor clear-containment` flow ships, that capacity remains unavailable; moving or editing individual store files is not a supported recovery path.
 
 Stillyard is still greenfield. Before the first stable release it has one current SQLite schema epoch and no database migrations: when that epoch or the required schema does not match, daemon startup silently replaces the database and creates a new store identity. The reset is deliberately all-or-nothing and does not delete `config.json` or canonical log files. Old job IDs, cursors, result files, and idempotency history are not recoverable across it.
