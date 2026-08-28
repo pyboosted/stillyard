@@ -130,8 +130,8 @@ enum Command {
         /// Emit the complete LogChunk JSON instead of its byte payload.
         #[arg(long)]
         json: bool,
-        #[arg(long, default_value_t = 86_400)]
-        deadline_seconds: u64,
+        #[arg(long)]
+        deadline_seconds: Option<u64>,
     },
     /// Open the disposable event-driven terminal monitor.
     Watch {
@@ -445,7 +445,7 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             json,
             deadline_seconds,
         } => {
-            let deadline = deadline(deadline_seconds);
+            let deadline = deadline(logs_deadline_seconds(follow, deadline_seconds));
             let client = Client::connect(deadline, None)?;
             let stream = if stderr {
                 LogStream::Stderr
@@ -521,6 +521,10 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
 
 fn deadline(seconds: u64) -> Instant {
     Instant::now() + Duration::from_secs(seconds)
+}
+
+fn logs_deadline_seconds(follow: bool, configured: Option<u64>) -> u64 {
+    configured.unwrap_or(if follow { 86_400 } else { 10 })
 }
 
 fn labels_selector(
@@ -721,12 +725,15 @@ mod tests {
                 stderr: true,
                 follow: true,
                 offset: 7,
-                deadline_seconds: 86_400,
+                deadline_seconds: None,
                 ..
             }
         ));
         assert!(Cli::try_parse_from(["stillyard", "events"]).is_err());
         assert!(Cli::try_parse_from(["stillyard", "events", "--json"]).is_ok());
+        assert_eq!(logs_deadline_seconds(true, None), 86_400);
+        assert_eq!(logs_deadline_seconds(false, None), 10);
+        assert_eq!(logs_deadline_seconds(true, Some(7)), 7);
     }
 
     #[test]
@@ -735,11 +742,11 @@ mod tests {
             .join("\n")
             .to_ascii_lowercase();
         for forbidden in [
-            concat!("rusi", "qlite"),
+            concat!("rus", "qlite"),
             concat!("store", "paths"),
             concat!("stillyard::", "store"),
             concat!("sqlite", "3"),
-            concat!("prag", "ma "),
+            concat!("prag", "ma"),
         ] {
             assert!(
                 !sources.contains(forbidden),

@@ -24,6 +24,7 @@ enum Message {
     Input(Event),
     Observation(stillyard::Result<ObservationFrame>),
     Status(String),
+    Heartbeat,
 }
 
 struct TerminalRestore;
@@ -134,6 +135,9 @@ pub(crate) fn run(
                             ObservationFrame::Events { events, .. } if events.is_empty()
                         ) && cursor == requested
                         {
+                            if sender.send(Message::Heartbeat).is_err() {
+                                break;
+                            }
                             continue;
                         }
                         if sender.send(Message::Observation(Ok(frame))).is_err() {
@@ -144,6 +148,17 @@ pub(crate) fn run(
                         if sender
                             .send(Message::Status(format!(
                                 "reconnecting after daemon loss: {message}"
+                            )))
+                            .is_err()
+                        {
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_secs(1));
+                    }
+                    Err(stillyard::Error::Io(error)) => {
+                        if sender
+                            .send(Message::Status(format!(
+                                "reconnecting after daemon I/O loss: {error}"
                             )))
                             .is_err()
                         {
@@ -254,9 +269,21 @@ pub(crate) fn run(
                 }
             }
             Message::Observation(Err(error)) => {
+                if matches!(
+                    error,
+                    stillyard::Error::DeadlineElapsed | stillyard::Error::Canceled
+                ) {
+                    return Err(error.into());
+                }
                 app.status = format!("stale: observer stopped: {error}");
             }
             Message::Status(status) => app.status = status,
+            Message::Heartbeat => {
+                app.last_refresh = Instant::now();
+                if app.status.starts_with("stale:") {
+                    app.status = "connected; idle".into();
+                }
+            }
         }
     }
 }
@@ -340,7 +367,7 @@ fn read_log_window(
     buffer: &mut VecDeque<u8>,
     deadline: Instant,
 ) -> stillyard::Result<Option<String>> {
-    let chunk = client.logs(
+    let mut chunk = client.logs(
         job_id,
         stream,
         *offset,
@@ -348,7 +375,23 @@ fn read_log_window(
         deadline,
         None,
     )?;
-    let gap = chunk.gap;
+    let gap = chunk.gap.clone();
+    if let Some(replacement_offset) = gap_resync_offset(
+        chunk.offset,
+        chunk.next_offset,
+        gap.is_some(),
+        LOG_WINDOW_BYTES as u64,
+    ) {
+        *offset = replacement_offset;
+        chunk = client.logs(
+            job_id,
+            stream,
+            *offset,
+            LOG_WINDOW_BYTES as u32,
+            deadline,
+            None,
+        )?;
+    }
     if gap.is_some() {
         buffer.clear();
     }
@@ -510,9 +553,8 @@ fn draw(frame: &mut ratatui::Frame<'_>, app: &mut App) {
         logs[1],
     );
     frame.render_widget(
-        Paragraph::new(format!(
-            "↑/↓ navigate  r refresh  q detach    {}",
-            app.status
+        Paragraph::new(terminal_text(
+            format!("↑/↓ navigate  r refresh  q detach    {}", app.status).as_bytes(),
         )),
         areas[3],
     );
@@ -529,9 +571,13 @@ fn terminal_text(bytes: &[u8]) -> String {
         .collect()
 }
 
+fn gap_resync_offset(requested: u64, committed: u64, gap: bool, window: u64) -> Option<u64> {
+    (gap && committed != requested).then(|| committed.saturating_sub(window))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::terminal_text;
+    use super::{gap_resync_offset, terminal_text};
 
     #[test]
     fn terminal_rendering_replaces_controls_without_touching_line_structure() {
@@ -539,5 +585,15 @@ mod tests {
             terminal_text(b"ok\x1b[31m\n\xff"),
             "ok\u{fffd}[31m\n\u{fffd}"
         );
+    }
+
+    #[test]
+    fn retry_gap_reseats_the_log_window_behind_new_committed_output() {
+        assert_eq!(gap_resync_offset(100_000, 8_192, true, 65_536), Some(0));
+        assert_eq!(
+            gap_resync_offset(100_000, 80_000, true, 65_536),
+            Some(14_464)
+        );
+        assert_eq!(gap_resync_offset(8_192, 8_192, true, 65_536), None);
     }
 }
