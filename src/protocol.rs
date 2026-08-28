@@ -9,7 +9,7 @@ use crate::{
     LogStream, ManagedParent, SubmissionContext,
 };
 
-pub(crate) const PROTOCOL_VERSION: u32 = 6;
+pub(crate) const PROTOCOL_VERSION: u32 = 7;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -65,6 +65,9 @@ pub(crate) enum Request {
     Status {
         job_id: JobId,
     },
+    Cancel {
+        job_ids: Vec<JobId>,
+    },
     Wait {
         job_id: JobId,
         max_wait_millis: u32,
@@ -99,6 +102,9 @@ pub(crate) enum Response {
         recovery: crate::RecoveryResult,
     },
     Snapshot(Box<JobSnapshot>),
+    Canceled {
+        snapshots: Vec<JobSnapshot>,
+    },
     Logs(LogChunk),
     DaemonStatus(DaemonSnapshot),
     Error {

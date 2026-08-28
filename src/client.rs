@@ -20,6 +20,8 @@ use crate::{
     SubmissionContext, SubmitOptions,
 };
 
+const RESULT_FILE_VERSION: u32 = 4;
+
 #[derive(Clone, Debug)]
 pub struct ClientBuilder {
     endpoint: Option<String>,
@@ -188,7 +190,7 @@ impl Client {
                     persist_result_receipt(
                         path,
                         &ResultFileRecord {
-                            version: 3,
+                            version: RESULT_FILE_VERSION,
                             idempotency_key: options.idempotency_key,
                             payload_hash: payload_hash.clone(),
                             endpoint: self.endpoint.clone(),
@@ -274,7 +276,7 @@ impl Client {
                     persist_result_receipt(
                         path,
                         &ResultFileRecord {
-                            version: 3,
+                            version: RESULT_FILE_VERSION,
                             idempotency_key: options.idempotency_key,
                             payload_hash: payload_hash.clone(),
                             endpoint: self.endpoint.clone(),
@@ -418,7 +420,7 @@ impl Client {
         cancellation: Option<&CancellationToken>,
     ) -> Result<RecoveryResult> {
         let record: ResultFileRecord = serde_json::from_reader(std::fs::File::open(path)?)?;
-        if record.version != 3 {
+        if record.version != RESULT_FILE_VERSION {
             return Err(Error::Protocol(format!(
                 "unsupported result-file version {}",
                 record.version
@@ -484,6 +486,29 @@ impl Client {
     ) -> Result<JobSnapshot> {
         match self.request(Request::Status { job_id }, deadline, cancellation)? {
             Response::Snapshot(snapshot) => Ok(*snapshot),
+            response => response_error(response),
+        }
+    }
+
+    pub fn cancel(
+        &self,
+        job_ids: &[JobId],
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<Vec<JobSnapshot>> {
+        if job_ids.is_empty() {
+            return Err(Error::InvalidSpec(
+                "cancel requires at least one explicit Job ID".into(),
+            ));
+        }
+        match self.request(
+            Request::Cancel {
+                job_ids: job_ids.to_vec(),
+            },
+            deadline,
+            cancellation,
+        )? {
+            Response::Canceled { snapshots } => Ok(snapshots),
             response => response_error(response),
         }
     }
@@ -955,7 +980,7 @@ fn prepare_result_file(
     context: SubmissionContext,
 ) -> Result<()> {
     let record = ResultFileRecord {
-        version: 3,
+        version: RESULT_FILE_VERSION,
         idempotency_key: options.idempotency_key,
         payload_hash: payload_hash.to_owned(),
         endpoint: endpoint.to_owned(),
@@ -994,7 +1019,7 @@ fn validate_managed_resubmit(
     existing: &ResultFileRecord,
     proposed: &ResultFileRecord,
 ) -> std::result::Result<(), &'static str> {
-    if existing.version != 3 {
+    if existing.version != RESULT_FILE_VERSION {
         return Err("unsupported result-file version");
     }
     if existing.idempotency_key != proposed.idempotency_key
@@ -1051,7 +1076,7 @@ fn persist_submit_decision(
         persist_result_receipt(
             path,
             &ResultFileRecord {
-                version: 3,
+                version: RESULT_FILE_VERSION,
                 idempotency_key,
                 payload_hash: payload_hash.to_owned(),
                 endpoint: endpoint.to_owned(),
@@ -1146,7 +1171,7 @@ fn validate_result_file_identity(
     current: &ResultFileRecord,
     expected: &ResultFileRecord,
 ) -> std::result::Result<(), &'static str> {
-    if current.version != 3 || expected.version != 3 {
+    if current.version != RESULT_FILE_VERSION || expected.version != RESULT_FILE_VERSION {
         return Err("unsupported result-file version");
     }
     if current.idempotency_key != expected.idempotency_key
@@ -1197,7 +1222,7 @@ fn write_result_file(
     write_json_atomically(
         path,
         &ResultFileRecord {
-            version: 3,
+            version: RESULT_FILE_VERSION,
             idempotency_key,
             payload_hash: payload_hash.to_owned(),
             endpoint: endpoint.to_owned(),
@@ -1452,7 +1477,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("operation.result.json");
         let record = ResultFileRecord {
-            version: 3,
+            version: RESULT_FILE_VERSION,
             idempotency_key: uuid::Uuid::now_v7(),
             payload_hash: "payload".into(),
             endpoint: "pipe-a".into(),
@@ -1478,7 +1503,7 @@ mod tests {
         let store_uuid = uuid::Uuid::now_v7();
         let submission_id = crate::SubmissionId::from_parts(store_uuid, uuid::Uuid::now_v7());
         let stale = ResultFileRecord {
-            version: 3,
+            version: RESULT_FILE_VERSION,
             idempotency_key: uuid::Uuid::now_v7(),
             payload_hash: "payload".into(),
             endpoint: "pipe-a".into(),
@@ -1496,6 +1521,7 @@ mod tests {
             queue_rank: Some(1),
             estimate: crate::Estimate::unknown("test"),
             parent: None,
+            daemon_generation: uuid::Uuid::nil(),
         });
         persist_result_receipt(&path, &stale, accepted.clone()).unwrap();
 
@@ -1516,7 +1542,7 @@ mod tests {
         let submission_id = crate::SubmissionId::from_parts(store_uuid, uuid::Uuid::now_v7());
         let job_id = crate::JobId::from_parts(store_uuid, uuid::Uuid::now_v7());
         let record = ResultFileRecord {
-            version: 3,
+            version: RESULT_FILE_VERSION,
             idempotency_key: uuid::Uuid::now_v7(),
             payload_hash: "payload".into(),
             endpoint: "pipe-a".into(),
@@ -1531,6 +1557,7 @@ mod tests {
                 queue_rank: Some(1),
                 estimate: crate::Estimate::unknown("pending"),
                 parent: None,
+                daemon_generation: uuid::Uuid::nil(),
             })),
         };
         write_json_atomically(&path, &record).unwrap();
@@ -1544,6 +1571,7 @@ mod tests {
             queue_rank: None,
             estimate: crate::Estimate::unknown("final"),
             parent: None,
+            daemon_generation: uuid::Uuid::nil(),
         });
         persist_result_receipt(&path, &record, refreshed).unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), before);
@@ -1557,6 +1585,7 @@ mod tests {
             queue_rank: None,
             estimate: crate::Estimate::unknown("foreign"),
             parent: None,
+            daemon_generation: uuid::Uuid::nil(),
         });
         assert!(matches!(
             persist_result_receipt(&path, &record, foreign),
@@ -1581,6 +1610,7 @@ mod tests {
             queue_rank: Some(rank),
             estimate: crate::Estimate::unknown("pending"),
             parent: None,
+            daemon_generation: uuid::Uuid::nil(),
         };
         let durable_batch = BatchReceipt {
             submission_id,
@@ -1602,9 +1632,10 @@ mod tests {
                     ),
                 },
             ],
+            daemon_generation: uuid::Uuid::nil(),
         };
         let record = ResultFileRecord {
-            version: 3,
+            version: RESULT_FILE_VERSION,
             idempotency_key: uuid::Uuid::now_v7(),
             payload_hash: "batch-payload".into(),
             endpoint: "pipe-a".into(),
@@ -1648,7 +1679,7 @@ mod tests {
         let parent = managed_parent(store_uuid);
         let options = SubmitOptions::new(uuid::Uuid::now_v7());
         let record = ResultFileRecord {
-            version: 3,
+            version: RESULT_FILE_VERSION,
             idempotency_key: options.idempotency_key,
             payload_hash: "payload".into(),
             endpoint: "pipe-a".into(),
@@ -1756,7 +1787,7 @@ mod tests {
         let store_uuid = uuid::Uuid::now_v7();
         let parent = managed_parent(store_uuid);
         let baseline = ResultFileRecord {
-            version: 3,
+            version: RESULT_FILE_VERSION,
             idempotency_key: uuid::Uuid::now_v7(),
             payload_hash: "payload".into(),
             endpoint: "pipe-a".into(),
@@ -1791,7 +1822,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("operation.result.json");
         let record = ResultFileRecord {
-            version: 3,
+            version: RESULT_FILE_VERSION,
             idempotency_key: uuid::Uuid::now_v7(),
             payload_hash: "payload".into(),
             endpoint: "pipe-a".into(),

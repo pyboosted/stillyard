@@ -17,9 +17,11 @@ mod spec;
 pub(crate) mod store;
 
 pub use api::{
-    BatchJobReceipt, BatchReceipt, Blocker, CancellationToken, DaemonSnapshot, Estimate,
-    EstimateConfidence, JobReceipt, JobSnapshot, LogChunk, LogStream, ManagedParent,
-    RecoveryResult, SubmissionContext, SubmitOptions,
+    AttemptSnapshot, BatchJobReceipt, BatchReceipt, Blocker, CancellationToken,
+    ContainmentSnapshot, ContainmentState, DaemonSnapshot, Estimate, EstimateConfidence,
+    ExitClassification, InvocationRole, InvocationSnapshot, InvocationState, JobReceipt,
+    JobSnapshot, LogChunk, LogStream, ManagedParent, RecoveryResult, SubmissionContext,
+    SubmitOptions,
 };
 pub use client::{Client, ClientBuilder};
 pub use error::{Error, Result};
@@ -29,8 +31,9 @@ pub use model::{
 };
 pub use spec::{
     BatchMember, BatchSpec, ConditionSpec, DependencyKind, DependencySpec, EnvironmentProfile,
-    EnvironmentSpec, HostConfig, JobSpec, Label, QuietPolicy, ResourceCapacities, ResourceClaims,
-    RetryPolicy, SPEC_VERSION, StdinSpec, SubmissionSpec, config_schema_json, schema_json,
+    EnvironmentSpec, HostConfig, JobSpec, Label, PostconditionSpec, QuietPolicy,
+    ResourceCapacities, ResourceClaims, RetryPolicy, SPEC_VERSION, StdinSpec, SubmissionSpec,
+    config_schema_json, schema_json,
 };
 
 /// Runs the per-user daemon in the foreground.

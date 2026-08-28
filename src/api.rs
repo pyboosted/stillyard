@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    AttemptId, BatchId, ContainmentId, InvocationId, JobId, JobOutcome, JobSpec, JobState,
-    SubmissionId, SubmissionState,
+    AttemptId, AttemptVerdict, BatchId, ContainmentId, InvocationId, JobId, JobOutcome, JobSpec,
+    JobState, SubmissionId, SubmissionState,
 };
 
 /// Server-authenticated identity of the primary Invocation that submitted child work.
@@ -146,6 +146,7 @@ pub struct JobReceipt {
     pub queue_rank: Option<u64>,
     pub estimate: Estimate,
     pub parent: Option<ManagedParent>,
+    pub daemon_generation: Uuid,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -164,6 +165,88 @@ pub struct BatchReceipt {
     pub batch_id: BatchId,
     pub submission_state: SubmissionState,
     pub jobs: Vec<BatchJobReceipt>,
+    pub daemon_generation: Uuid,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum InvocationRole {
+    Primary,
+    Postcondition,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum InvocationState {
+    Prepared,
+    Started,
+    Exited,
+    Resolved,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum ContainmentState {
+    Creating,
+    Live,
+    Empty,
+    Uncertain,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct ContainmentSnapshot {
+    pub containment_id: ContainmentId,
+    pub state: ContainmentState,
+    /// `windows_job_object` in v0.1; kept explicit for Linux v0.2 provenance.
+    pub strength: String,
+    pub incident_id: Option<ContainmentId>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum ExitClassification {
+    Accepted,
+    Retryable,
+    Failed,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct InvocationSnapshot {
+    pub invocation_id: InvocationId,
+    pub role: InvocationRole,
+    pub role_index: u32,
+    pub state: InvocationState,
+    pub root_pid: Option<u32>,
+    pub root_exit_code: Option<i32>,
+    pub exit_classification: Option<ExitClassification>,
+    pub executable_hash: Option<String>,
+    pub daemon_generation: Option<Uuid>,
+    pub started_unix_millis: Option<i64>,
+    pub finished_unix_millis: Option<i64>,
+    pub containment: ContainmentSnapshot,
+    pub stdout_tail: String,
+    pub stderr_tail: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct AttemptSnapshot {
+    pub attempt_id: AttemptId,
+    pub attempt_index: u32,
+    pub verdict: Option<AttemptVerdict>,
+    pub started_unix_millis: i64,
+    pub deadline_unix_millis: Option<i64>,
+    pub finished_unix_millis: Option<i64>,
+    pub invocations: Vec<InvocationSnapshot>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -180,6 +263,7 @@ pub struct JobSnapshot {
     pub invocation_id: Option<InvocationId>,
     pub containment_id: Option<ContainmentId>,
     pub root_exit_code: Option<i32>,
+    pub cancel_requested: bool,
     pub accepted_unix_millis: i64,
     pub started_unix_millis: Option<i64>,
     pub finished_unix_millis: Option<i64>,
@@ -188,6 +272,9 @@ pub struct JobSnapshot {
     pub parent: Option<ManagedParent>,
     #[serde(default)]
     pub blockers: Vec<Blocker>,
+    #[serde(default)]
+    pub attempts: Vec<AttemptSnapshot>,
+    pub daemon_generation: Uuid,
 }
 
 impl JobSnapshot {
@@ -236,11 +323,14 @@ pub struct LogChunk {
 #[serde(deny_unknown_fields)]
 pub struct DaemonSnapshot {
     pub store_uuid: Uuid,
+    pub daemon_generation: Uuid,
     pub version: String,
     pub pid: u32,
     pub store_path: PathBuf,
     pub config_path: PathBuf,
     pub capacities: crate::ResourceCapacities,
+    pub profile_names: Vec<String>,
+    pub config_sha256: String,
     pub queued_jobs: u64,
     pub running_jobs: u64,
 }

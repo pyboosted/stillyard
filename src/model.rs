@@ -130,6 +130,23 @@ pub enum AttemptVerdict {
     Canceled,
 }
 
+impl AttemptVerdict {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Succeeded => "succeeded",
+            Self::ProcessFailed => "process_failed",
+            Self::StartFailed => "start_failed",
+            Self::TimedOut => "timed_out",
+            Self::Interrupted => "interrupted",
+            Self::SafetyFailed => "safety_failed",
+            Self::PostconditionRetryable => "postcondition_retryable",
+            Self::PostconditionFailed => "postcondition_failed",
+            Self::Canceled => "canceled",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Serialize, Deserialize)]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]

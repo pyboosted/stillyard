@@ -100,6 +100,13 @@ enum Command {
         #[arg(long, default_value_t = 10)]
         deadline_seconds: u64,
     },
+    /// Cancel explicitly named Jobs without selecting children or dependency successors.
+    Cancel {
+        #[arg(required = true)]
+        jobs: Vec<JobId>,
+        #[arg(long, default_value_t = 10)]
+        deadline_seconds: u64,
+    },
     /// Print generated public schemas.
     Schema {
         #[command(subcommand)]
@@ -360,6 +367,14 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             let deadline = deadline(deadline_seconds);
             let client = Client::connect(deadline, None)?;
             print_json(&client.daemon_status(deadline, None)?)?;
+        }
+        Command::Cancel {
+            jobs,
+            deadline_seconds,
+        } => {
+            let deadline = deadline(deadline_seconds);
+            let client = Client::connect(deadline, None)?;
+            print_json(&client.cancel(&jobs, deadline, None)?)?;
         }
         Command::Schema { command } => match command {
             SchemaCommand::Spec => print!("{}", stillyard::schema_json()?),

@@ -19,7 +19,7 @@ The motivating agent-orchestration consumer and its boundary are documented in [
 
 ## Current status
 
-`0.1.0-alpha.5` contains the first five bounded Windows vertical slices:
+`0.1.0-alpha.6` contains six bounded Windows vertical slices:
 
 - a runtime-neutral blocking Rust client with deadlines and cancellation;
 - a framed, owner-only local named-pipe protocol and detached singleton daemon;
@@ -46,10 +46,21 @@ The motivating agent-orchestration consumer and its boundary are documented in [
   plus durable machine-readable rejection reasons across replay, recovery, and result files;
 - detached managed children remain ordinary durable Jobs, and disconnecting a safe wait never
   cancels its child or creates a durable wait edge.
+- executable postconditions run in their own born-contained Invocations after primary cleanup
+  while the Attempt Lease remains held; accepted/retryable/failed exit classifications drive
+  bounded Job-owned retry with a fresh Attempt after finite backoff;
+- public snapshots expose every ordered Attempt, primary/postcondition Invocation, root exit,
+  bounded diagnostic tail, executable hash, daemon generation, and Containment incident;
+- plain cancel is available through the public crate and CLI for explicit Job IDs, terminates a
+  running Containment, suppresses retry, and never selects children or dependency successors;
+- host-configured impact incompatibilities are enforced symmetrically by ordinary admission and
+  managed-wait deadlock checks;
+- receipts preserve the accepting daemon generation, while daemon status exposes its current
+  generation, active profile names, capacities, and a canonical configuration fingerprint.
 
-This slice deliberately accepts EOF or staged-file stdin and single-attempt jobs without Conditions, quiet policies, impacts, secrets, or artifacts. The Windows clean base is limited to `SystemRoot`, `WINDIR`, `TEMP`, and `TMP`; PATH and every application/account variable must come from a profile or Job. Priority, aging, finite-held reservations, and a host-wide default concurrency cap are also later scheduler work; callers should declare a scalar or fence for every bounded kind of work rather than submit an unbounded fleet of zero-claim jobs. General wait graphs, cascade cancellation, cancel/drain, retention/events, and `watch` are still baseline work. Specs declaring an unimplemented policy reject rather than run unenforced. Linux remains the v0.2 target.
+This slice deliberately accepts EOF or staged-file stdin, impacts, bounded retries, and executable postconditions without Conditions, quiet policies, secrets, or artifacts. The Windows clean base is limited to `SystemRoot`, `WINDIR`, `TEMP`, and `TMP`; PATH and every application/account variable must come from a profile or Job. Priority, aging, finite-held reservations, and a host-wide default concurrency cap are also later scheduler work; callers should declare a scalar, fence, or configured impact for every bounded kind of work rather than submit an unbounded fleet of zero-claim jobs. General wait graphs, cascade cancellation, drain/force, retention/events, and `watch` are still baseline work. Specs declaring an unimplemented policy reject rather than run unenforced. Linux remains the v0.2 target.
 
-The tests cover the increment-2a portions of acceptance rows A-03, A-04, and A-06; the increment-2b staged-input, profile, result-file, and process-handle controls; and the bounded managed-submission recovery and safe-wait slices of A-11/A-18. The full baseline rows are not claimed complete until cascade cancellation, retries, observed RAM/VRAM freshness, and external Conditions arrive.
+The tests cover the increment-2a portions of acceptance rows A-03, A-04, and A-06; the increment-2b staged-input, profile, result-file, and process-handle controls; the bounded managed-submission recovery and safe-wait slices of A-11/A-18; and the alpha.6 consumer lifecycle slice of A-04, A-08, A-11, A-14, and A-18. The full baseline rows are not claimed complete until cascade cancellation, drain/force, observed RAM/VRAM freshness, and external Conditions arrive.
 
 An uncertain Containment deliberately retains its real Lease after restart. Until the audited `doctor clear-containment` flow ships, that capacity remains unavailable; moving or editing individual store files is not a supported recovery path.
 
@@ -81,6 +92,9 @@ The daemon reads `config.json` from the fixed store directory reported by `still
       "locked_set": {},
       "locked_unset": ["OPENAI_API_KEY"]
     }
+  },
+  "impact_incompatibilities": {
+    "measurement": ["cpu_heavy", "gpu_heavy"]
   }
 }
 ```

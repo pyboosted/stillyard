@@ -28,6 +28,8 @@ pub struct JobSpec {
     #[serde(default)]
     pub retry: RetryPolicy,
     #[serde(default)]
+    pub postconditions: Vec<PostconditionSpec>,
+    #[serde(default)]
     pub labels: Vec<Label>,
     pub expected_duration_seconds: Option<u64>,
     pub timeout_seconds: Option<u64>,
@@ -89,13 +91,16 @@ impl JobSpec {
         // The first executable slice fails closed for baseline features whose admission providers
         // are not shipped yet. Declaring a claim must never silently run as if it were satisfied.
         self.resources.validate()?;
-        if !self.conditions.is_empty()
-            || self.retry != RetryPolicy::default()
-            || self.quiet.is_some()
-            || !self.artifacts.is_empty()
-        {
+        self.retry.validate()?;
+        if self.postconditions.len() > 32 {
+            return Err(Error::InvalidSpec("more than 32 postconditions".into()));
+        }
+        for postcondition in &self.postconditions {
+            postcondition.validate(self)?;
+        }
+        if !self.conditions.is_empty() || self.quiet.is_some() || !self.artifacts.is_empty() {
             return Err(Error::InvalidSpec(
-                "this alpha implements staged/EOF stdin, environment profiles, resource admission, and single-attempt jobs without Conditions/quiet/artifacts only".into(),
+                "this alpha implements staged/EOF stdin, environment profiles, resource admission, retries, and postconditions without Conditions/quiet/artifacts only".into(),
             ));
         }
         Ok(())
@@ -401,10 +406,12 @@ impl ResourceClaims {
                 "resource quantities and custom names must be non-zero".into(),
             ));
         }
-        if !self.impacts.is_empty() {
-            return Err(Error::InvalidSpec(
-                "impact incompatibility policies are not implemented in increment 2a".into(),
-            ));
+        let mut impacts = BTreeSet::new();
+        for impact in &self.impacts {
+            validate_policy_name("impact", impact)?;
+            if !impacts.insert(impact) {
+                return Err(Error::InvalidSpec("duplicate impact tag".into()));
+            }
         }
         let shared: BTreeSet<_> = self.shared_fences.iter().collect();
         if self
@@ -449,6 +456,9 @@ pub struct ResourceCapacities {
 pub struct HostConfig {
     pub resources: ResourceCapacities,
     pub profiles: BTreeMap<String, EnvironmentProfile>,
+    /// Directed declarations interpreted symmetrically by admission.
+    #[serde(default)]
+    pub impact_incompatibilities: BTreeMap<String, Vec<String>>,
 }
 
 impl HostConfig {
@@ -461,6 +471,18 @@ impl HostConfig {
                 ));
             }
             profile.validate()?;
+        }
+        for (impact, incompatible) in &self.impact_incompatibilities {
+            validate_policy_name("impact", impact)?;
+            let mut seen = BTreeSet::new();
+            for other in incompatible {
+                validate_policy_name("impact", other)?;
+                if !seen.insert(other) {
+                    return Err(Error::InvalidSpec(format!(
+                        "duplicate incompatibility for impact {impact}"
+                    )));
+                }
+            }
         }
         Ok(())
     }
@@ -533,6 +555,123 @@ pub struct RetryPolicy {
     pub retryable: Vec<String>,
 }
 
+impl RetryPolicy {
+    fn validate(&self) -> Result<()> {
+        const VERDICTS: &[&str] = &[
+            "succeeded",
+            "process_failed",
+            "start_failed",
+            "timed_out",
+            "interrupted",
+            "safety_failed",
+            "postcondition_retryable",
+            "postcondition_failed",
+            "canceled",
+        ];
+        if self.max_attempts == 0 || self.max_attempts > 100 {
+            return Err(Error::InvalidSpec(
+                "retry.max_attempts must be in 1..=100".into(),
+            ));
+        }
+        let mut seen = BTreeSet::new();
+        for verdict in &self.retryable {
+            if !VERDICTS.contains(&verdict.as_str()) {
+                return Err(Error::InvalidSpec(format!(
+                    "unknown retryable Attempt verdict {verdict}"
+                )));
+            }
+            if matches!(
+                verdict.as_str(),
+                "succeeded" | "canceled" | "timed_out" | "interrupted"
+            ) {
+                return Err(Error::InvalidSpec(format!(
+                    "Attempt verdict {verdict} cannot be retried"
+                )));
+            }
+            if !seen.insert(verdict) {
+                return Err(Error::InvalidSpec(
+                    "retry.retryable contains a duplicate verdict".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PostconditionSpec {
+    pub executable: PathBuf,
+    #[serde(default)]
+    pub args: Vec<String>,
+    /// Defaults to the owning Job's working directory.
+    pub working_directory: Option<PathBuf>,
+    #[serde(default = "default_accepted_exit_codes")]
+    pub accepted_exit_codes: Vec<i32>,
+    #[serde(default)]
+    pub retryable_exit_codes: Vec<i32>,
+}
+
+impl PostconditionSpec {
+    fn validate(&self, job: &JobSpec) -> Result<()> {
+        if !self.executable.is_absolute()
+            || self.executable.as_os_str().to_string_lossy().contains('\0')
+            || self.args.iter().any(|argument| argument.contains('\0'))
+        {
+            return Err(Error::InvalidSpec(
+                "postcondition executable must be absolute and process fields must not contain NUL"
+                    .into(),
+            ));
+        }
+        let working_directory = self
+            .working_directory
+            .as_deref()
+            .unwrap_or(&job.working_directory);
+        if !working_directory.is_absolute()
+            || working_directory
+                .as_os_str()
+                .to_string_lossy()
+                .contains('\0')
+        {
+            return Err(Error::InvalidSpec(
+                "postcondition working_directory must be absolute without NUL".into(),
+            ));
+        }
+        let accepted: BTreeSet<_> = self.accepted_exit_codes.iter().collect();
+        if self.accepted_exit_codes.len() > 256
+            || self.retryable_exit_codes.len() > 256
+            || accepted.len() != self.accepted_exit_codes.len()
+            || self
+                .retryable_exit_codes
+                .iter()
+                .any(|code| accepted.contains(code))
+            || self
+                .retryable_exit_codes
+                .iter()
+                .collect::<BTreeSet<_>>()
+                .len()
+                != self.retryable_exit_codes.len()
+        {
+            return Err(Error::InvalidSpec(
+                "postcondition accepted/retryable exit-code sets must be unique and disjoint"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+fn default_accepted_exit_codes() -> Vec<i32> {
+    vec![0]
+}
+
+fn validate_policy_name(kind: &str, name: &str) -> Result<()> {
+    if name.is_empty() || name.len() > 128 || name.contains('\0') {
+        return Err(Error::InvalidSpec(format!("invalid {kind} name")));
+    }
+    Ok(())
+}
+
 impl Default for RetryPolicy {
     fn default() -> Self {
         Self {
@@ -584,6 +723,14 @@ mod tests {
 
     #[test]
     fn schema_is_stable_within_one_build() {
+        if std::env::var_os("STILLYARD_UPDATE_SCHEMA").is_some() {
+            std::fs::write("schema/stillyard-spec-v1.json", schema_json().unwrap()).unwrap();
+            std::fs::write(
+                "schema/stillyard-config-v1.json",
+                config_schema_json().unwrap(),
+            )
+            .unwrap();
+        }
         assert_eq!(
             schema_json().unwrap(),
             include_str!("../schema/stillyard-spec-v1.json")
@@ -606,7 +753,7 @@ mod tests {
     }
 
     #[test]
-    fn supported_claim_validates_but_unimplemented_impact_rejects() {
+    fn supported_claim_and_impact_validate() {
         let mut job: JobSpec = serde_json::from_str(
             r#"{
                 "spec_version": 1,
@@ -621,6 +768,17 @@ mod tests {
         job.working_directory = root;
         assert!(job.validate().is_ok());
         job.resources.impacts.push("measurement".into());
-        assert!(job.validate().is_err());
+        assert!(job.validate().is_ok());
+    }
+
+    #[test]
+    fn retry_verdicts_must_be_unique() {
+        let retry = RetryPolicy {
+            max_attempts: 2,
+            backoff_seconds: 0,
+            retryable: vec!["process_failed".into(), "process_failed".into()],
+        };
+
+        assert!(retry.validate().is_err());
     }
 }

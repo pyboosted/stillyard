@@ -216,6 +216,13 @@
             "$ref": "#/$defs/Label"
           }
         },
+        "postconditions": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PostconditionSpec"
+          }
+        },
         "quiet": {
           "anyOf": [
             {
@@ -291,6 +298,50 @@
       "required": [
         "key",
         "value"
+      ]
+    },
+    "PostconditionSpec": {
+      "type": "object",
+      "properties": {
+        "accepted_exit_codes": {
+          "type": "array",
+          "default": [
+            0
+          ],
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "args": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "executable": {
+          "type": "string"
+        },
+        "retryable_exit_codes": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "working_directory": {
+          "description": "Defaults to the owning Job's working directory.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "executable"
       ]
     },
     "QuietPolicy": {

@@ -16,6 +16,7 @@ pub(crate) struct ResolvedClaims {
     pub(crate) custom: BTreeMap<String, u64>,
     pub(crate) shared_fences: BTreeSet<String>,
     pub(crate) exclusive_fences: BTreeSet<String>,
+    pub(crate) impacts: BTreeSet<String>,
 }
 
 impl ResolvedClaims {
@@ -28,6 +29,7 @@ impl ResolvedClaims {
             custom: claims.custom.clone(),
             shared_fences: resolve_fences(&claims.shared_fences)?,
             exclusive_fences: resolve_fences(&claims.exclusive_fences)?,
+            impacts: claims.impacts.iter().cloned().collect(),
         };
         if resolved
             .shared_fences
@@ -46,6 +48,7 @@ impl ResolvedClaims {
         &self,
         capacities: &ResourceCapacities,
         active: &[Self],
+        impact_incompatibilities: &BTreeMap<String, Vec<String>>,
     ) -> Vec<Blocker> {
         let mut blockers = Vec::new();
         scalar_blocker(
@@ -98,6 +101,16 @@ impl ResolvedClaims {
             for fence in self.shared_fences.intersection(&claim.exclusive_fences) {
                 fence_blocker(&mut blockers, fence);
             }
+            for impact in &self.impacts {
+                for active_impact in &claim.impacts {
+                    if impacts_conflict(impact, active_impact, impact_incompatibilities) {
+                        blockers.push(Blocker {
+                            code: "impact_busy".into(),
+                            detail: format!("{impact} incompatible with active {active_impact}"),
+                        });
+                    }
+                }
+            }
         }
         blockers.sort_by(|left, right| {
             left.code
@@ -114,6 +127,7 @@ impl ResolvedClaims {
         &self,
         capacities: &ResourceCapacities,
         ancestors: &[Self],
+        impact_incompatibilities: &BTreeMap<String, Vec<String>>,
     ) -> Vec<Blocker> {
         let mut blockers = Vec::new();
         ancestor_scalar_blocker(
@@ -166,6 +180,18 @@ impl ResolvedClaims {
             for fence in self.shared_fences.intersection(&claim.exclusive_fences) {
                 ancestor_fence_blocker(&mut blockers, fence);
             }
+            for impact in &self.impacts {
+                for ancestor_impact in &claim.impacts {
+                    if impacts_conflict(impact, ancestor_impact, impact_incompatibilities) {
+                        blockers.push(Blocker {
+                            code: "blocked_by_ancestor".into(),
+                            detail: format!(
+                                "impact {impact} incompatible with ancestor {ancestor_impact}"
+                            ),
+                        });
+                    }
+                }
+            }
         }
         blockers.sort_by(|left, right| {
             left.code
@@ -175,6 +201,15 @@ impl ResolvedClaims {
         blockers.dedup();
         blockers
     }
+}
+
+fn impacts_conflict(left: &str, right: &str, rules: &BTreeMap<String, Vec<String>>) -> bool {
+    rules
+        .get(left)
+        .is_some_and(|values| values.iter().any(|value| value == right))
+        || rules
+            .get(right)
+            .is_some_and(|values| values.iter().any(|value| value == left))
 }
 
 fn ancestor_scalar_blocker(
@@ -383,7 +418,7 @@ mod tests {
             ram_mb: 90,
             ..ResolvedClaims::default()
         };
-        let blockers = requested.blockers(&capacities, &[active]);
+        let blockers = requested.blockers(&capacities, &[active], &BTreeMap::new());
         assert_eq!(blockers.len(), 1);
         assert!(blockers[0].detail.starts_with("ram_mb:"));
     }
@@ -399,7 +434,8 @@ mod tests {
             shared
                 .blockers(
                     &ResourceCapacities::default(),
-                    std::slice::from_ref(&shared)
+                    std::slice::from_ref(&shared),
+                    &BTreeMap::new(),
                 )
                 .is_empty()
         );
@@ -409,7 +445,7 @@ mod tests {
         };
         assert_eq!(
             exclusive
-                .blockers(&ResourceCapacities::default(), &[shared])
+                .blockers(&ResourceCapacities::default(), &[shared], &BTreeMap::new())
                 .first()
                 .map(|blocker| blocker.code.as_str()),
             Some("path_fence_busy")
@@ -439,7 +475,11 @@ mod tests {
         };
         assert!(
             orthogonal
-                .ancestor_blockers(&capacities, std::slice::from_ref(&ancestor))
+                .ancestor_blockers(
+                    &capacities,
+                    std::slice::from_ref(&ancestor),
+                    &BTreeMap::new(),
+                )
                 .is_empty()
         );
 
@@ -448,7 +488,7 @@ mod tests {
             shared_fences: ["exclusive".into()].into(),
             ..ResolvedClaims::default()
         };
-        let blockers = blocked.ancestor_blockers(&capacities, &[ancestor]);
+        let blockers = blocked.ancestor_blockers(&capacities, &[ancestor], &BTreeMap::new());
         assert_eq!(blockers.len(), 2);
         assert!(
             blockers
@@ -462,7 +502,7 @@ mod tests {
         };
         assert_eq!(
             impossible
-                .ancestor_blockers(&capacities, &[])
+                .ancestor_blockers(&capacities, &[], &BTreeMap::new())
                 .first()
                 .map(|blocker| blocker.code.as_str()),
             Some("resource_capacity")
@@ -484,8 +524,52 @@ mod tests {
         let second = ResolvedClaims::resolve(&second).unwrap();
         assert!(
             first
-                .blockers(&ResourceCapacities::default(), &[second])
+                .blockers(&ResourceCapacities::default(), &[second], &BTreeMap::new(),)
                 .is_empty()
+        );
+    }
+
+    #[test]
+    fn impact_rules_are_symmetric_self_compatibility_is_explicit_and_ancestors_block() {
+        let rules: BTreeMap<String, Vec<String>> = [(
+            "measurement".into(),
+            vec!["cpu_heavy".into(), "gpu_heavy".into()],
+        )]
+        .into();
+        let cpu = ResolvedClaims {
+            impacts: ["cpu_heavy".into()].into(),
+            ..ResolvedClaims::default()
+        };
+        assert!(
+            cpu.blockers(
+                &ResourceCapacities::default(),
+                std::slice::from_ref(&cpu),
+                &rules,
+            )
+            .is_empty(),
+            "cpu_heavy is self-compatible unless configured otherwise"
+        );
+        let measurement = ResolvedClaims {
+            impacts: ["measurement".into()].into(),
+            ..ResolvedClaims::default()
+        };
+        assert_eq!(
+            measurement
+                .blockers(
+                    &ResourceCapacities::default(),
+                    std::slice::from_ref(&cpu),
+                    &rules,
+                )
+                .first()
+                .map(|blocker| blocker.code.as_str()),
+            Some("impact_busy")
+        );
+        assert_eq!(
+            measurement
+                .ancestor_blockers(&ResourceCapacities::default(), &[cpu], &rules)
+                .first()
+                .map(|blocker| blocker.code.as_str()),
+            Some("blocked_by_ancestor")
         );
     }
 }

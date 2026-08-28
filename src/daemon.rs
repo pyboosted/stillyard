@@ -308,16 +308,37 @@ impl Scheduler {
                 std::thread::sleep(Duration::from_millis(100));
                 continue;
             }
+            let retry_delay = store
+                .lock()
+                .ok()
+                .and_then(|guard| guard.next_retry_delay().ok())
+                .flatten();
+            let retry_deadline = retry_delay.and_then(|delay| Instant::now().checked_add(delay));
             let (lock, condition) = &*self.signal;
             let mut pending = match lock.lock() {
                 Ok(pending) => pending,
                 Err(_) => return,
             };
             while !*pending {
-                pending = match condition.wait(pending) {
-                    Ok(pending) => pending,
-                    Err(_) => return,
-                };
+                if let Some(deadline) = retry_deadline {
+                    let remaining = deadline.saturating_duration_since(Instant::now());
+                    if remaining.is_zero() {
+                        break;
+                    }
+                    let waited = match condition.wait_timeout(pending, remaining) {
+                        Ok(waited) => waited,
+                        Err(_) => return,
+                    };
+                    pending = waited.0;
+                    if waited.1.timed_out() {
+                        break;
+                    }
+                } else {
+                    pending = match condition.wait(pending) {
+                        Ok(pending) => pending,
+                        Err(_) => return,
+                    };
+                }
             }
             *pending = false;
         }
@@ -490,6 +511,14 @@ fn handle_request(
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
             .and_then(|store| store.status(job_id))
             .map(|snapshot| Response::Snapshot(Box::new(snapshot))),
+        Request::Cancel { job_ids } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|mut store| store.cancel_jobs(&job_ids))
+            .map(|snapshots| {
+                scheduler.wake();
+                Response::Canceled { snapshots }
+            }),
         Request::Wait {
             job_id,
             max_wait_millis,

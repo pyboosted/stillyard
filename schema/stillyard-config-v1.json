@@ -3,6 +3,17 @@
   "title": "HostConfig",
   "type": "object",
   "properties": {
+    "impact_incompatibilities": {
+      "description": "Directed declarations interpreted symmetrically by admission.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "default": {}
+    },
     "profiles": {
       "type": "object",
       "additionalProperties": {

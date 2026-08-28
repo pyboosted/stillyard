@@ -89,7 +89,7 @@ mod windows {
     use std::path::{Path, PathBuf};
     use std::ptr::{null, null_mut};
     use std::sync::{Arc, Mutex};
-    use std::time::{Duration, Instant};
+    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
     use sha2::{Digest, Sha256};
     use windows_sys::Win32::Foundation::{
@@ -118,7 +118,7 @@ mod windows {
     };
 
     use crate::store::{PreparedJob, Store, StoreError};
-    use crate::{JobOutcome, LogStream};
+    use crate::{AttemptVerdict, ExitClassification, InvocationRole, LogStream};
 
     #[cfg(test)]
     thread_local! {
@@ -239,6 +239,7 @@ mod windows {
         cleanup_proven: bool,
         exit_code: Option<i32>,
         timed_out: bool,
+        canceled: bool,
     }
 
     type RunResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -248,39 +249,181 @@ mod windows {
             cleanup_proven: true,
             ..RunProgress::default()
         };
-        if let Err(error) = run_inner(job, store, &mut progress) {
-            if let Ok(mut store) = store.lock() {
-                if progress.cleanup_proven {
-                    let (outcome, verdict) = failed_run_classification(&progress);
-                    let _ = store.mark_finished(job, progress.exit_code, outcome, verdict);
+        let primary = match run_inner(job, store, &mut progress) {
+            Ok(result) => result,
+            Err(error) => {
+                finish_failed_invocation(job, store, &progress, false);
+                report_runner_error(job, error.as_ref());
+                return;
+            }
+        };
+        if let Ok(mut locked) = store.lock() {
+            if locked
+                .mark_invocation_resolved(job, Some(primary.0 as i32), None)
+                .is_err()
+            {
+                return;
+            }
+        } else {
+            return;
+        }
+
+        let mut verdict = if progress.canceled {
+            AttemptVerdict::Canceled
+        } else if primary.1 {
+            AttemptVerdict::TimedOut
+        } else if primary.0 == 0 {
+            AttemptVerdict::Succeeded
+        } else {
+            AttemptVerdict::ProcessFailed
+        };
+        if !matches!(verdict, AttemptVerdict::Canceled | AttemptVerdict::TimedOut) {
+            for index in 0..job.spec.postconditions.len() {
+                let postcondition = match store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                    .and_then(|mut locked| locked.prepare_postcondition(job, index))
+                {
+                    Ok(postcondition) => postcondition,
+                    Err(error) => {
+                        verdict = AttemptVerdict::PostconditionFailed;
+                        report_runner_error(job, &error);
+                        break;
+                    }
+                };
+                let mut post_progress = RunProgress {
+                    cleanup_proven: true,
+                    ..RunProgress::default()
+                };
+                let result = match run_inner(&postcondition, store, &mut post_progress) {
+                    Ok(result) => result,
+                    Err(error) => {
+                        finish_failed_invocation(&postcondition, store, &post_progress, true);
+                        report_runner_error(&postcondition, error.as_ref());
+                        return;
+                    }
+                };
+                if post_progress.canceled || result.1 {
+                    if let Ok(mut locked) = store.lock() {
+                        if locked
+                            .mark_invocation_resolved(&postcondition, Some(result.0 as i32), None)
+                            .is_err()
+                        {
+                            return;
+                        }
+                    } else {
+                        return;
+                    }
+                    verdict = if post_progress.canceled {
+                        AttemptVerdict::Canceled
+                    } else {
+                        AttemptVerdict::TimedOut
+                    };
+                    break;
+                }
+                let definition = &job.spec.postconditions[index];
+                let classification = if definition.accepted_exit_codes.contains(&(result.0 as i32))
+                {
+                    ExitClassification::Accepted
+                } else if definition.retryable_exit_codes.contains(&(result.0 as i32)) {
+                    ExitClassification::Retryable
                 } else {
-                    let _ = store.mark_uncertain(job, progress.exit_code, "interrupted");
+                    ExitClassification::Failed
+                };
+                if let Ok(mut locked) = store.lock() {
+                    if locked
+                        .mark_invocation_resolved(
+                            &postcondition,
+                            Some(result.0 as i32),
+                            Some(classification),
+                        )
+                        .is_err()
+                    {
+                        return;
+                    }
+                } else {
+                    return;
+                }
+                match classification {
+                    ExitClassification::Accepted => {}
+                    ExitClassification::Retryable => {
+                        verdict = AttemptVerdict::PostconditionRetryable;
+                        break;
+                    }
+                    ExitClassification::Failed => {
+                        verdict = AttemptVerdict::PostconditionFailed;
+                        break;
+                    }
                 }
             }
-            use std::io::Write as _;
-            let _ = writeln!(
-                std::io::stderr(),
-                "stillyard runner for {} failed: {error}",
-                job.job_id
-            );
+        }
+        if let Ok(mut locked) = store.lock() {
+            let _ = locked.settle_attempt(job, verdict);
         }
     }
 
-    fn failed_run_classification(progress: &RunProgress) -> (JobOutcome, &'static str) {
-        if progress.timed_out {
-            (JobOutcome::TimedOut, "timed_out")
+    fn failed_run_verdict(progress: &RunProgress) -> AttemptVerdict {
+        if progress.canceled {
+            AttemptVerdict::Canceled
+        } else if progress.timed_out {
+            AttemptVerdict::TimedOut
         } else if progress.user_code_released {
-            (JobOutcome::Interrupted, "interrupted")
+            AttemptVerdict::Interrupted
         } else {
-            (JobOutcome::Failed, "start_failed")
+            AttemptVerdict::StartFailed
         }
+    }
+
+    #[cfg(test)]
+    fn failed_run_classification(progress: &RunProgress) -> (crate::JobOutcome, &'static str) {
+        let verdict = failed_run_verdict(progress);
+        let outcome = match verdict {
+            AttemptVerdict::TimedOut => crate::JobOutcome::TimedOut,
+            AttemptVerdict::Interrupted => crate::JobOutcome::Interrupted,
+            AttemptVerdict::Canceled => crate::JobOutcome::Canceled,
+            _ => crate::JobOutcome::Failed,
+        };
+        (outcome, verdict.as_str())
+    }
+
+    fn finish_failed_invocation(
+        job: &PreparedJob,
+        store: &Arc<Mutex<Store>>,
+        progress: &RunProgress,
+        postcondition: bool,
+    ) {
+        if let Ok(mut locked) = store.lock() {
+            if progress.cleanup_proven {
+                let failed_verdict = failed_run_verdict(progress);
+                let verdict = if postcondition && failed_verdict == AttemptVerdict::StartFailed {
+                    AttemptVerdict::PostconditionFailed
+                } else {
+                    failed_verdict
+                };
+                let classification = (verdict == AttemptVerdict::PostconditionFailed)
+                    .then_some(ExitClassification::Failed);
+                let _ = locked.mark_invocation_resolved(job, progress.exit_code, classification);
+                let _ = locked.settle_attempt(job, verdict);
+            } else {
+                let _ = locked.mark_uncertain(job, progress.exit_code, "interrupted");
+            }
+        }
+    }
+
+    fn report_runner_error(job: &PreparedJob, error: &dyn std::error::Error) {
+        use std::io::Write as _;
+        let _ = writeln!(
+            std::io::stderr(),
+            "stillyard runner for {} failed: {error}",
+            job.job_id
+        );
     }
 
     fn run_inner(
         job: &PreparedJob,
         store: &Arc<Mutex<Store>>,
         progress: &mut RunProgress,
-    ) -> RunResult<()> {
+    ) -> RunResult<(u32, bool)> {
         validate_paths(&job.spec.executable, &job.spec.working_directory)?;
         let mut executable_file = OpenOptions::new()
             .read(true)
@@ -405,6 +548,7 @@ mod windows {
             job.job_id,
             LogStream::Stdout,
             Arc::clone(store),
+            job.role == InvocationRole::Primary,
         ));
         let stderr = prestart_try!(spawn_drain(
             stderr_file,
@@ -412,6 +556,7 @@ mod windows {
             job.job_id,
             LogStream::Stderr,
             Arc::clone(store),
+            job.role == InvocationRole::Primary,
         ));
 
         let execution = (|| -> RunResult<(u32, bool)> {
@@ -421,10 +566,16 @@ mod windows {
             }
             progress.user_code_released = true;
 
-            let deadline = job
-                .spec
-                .timeout_seconds
-                .and_then(|seconds| Instant::now().checked_add(Duration::from_secs(seconds)));
+            let deadline = job.attempt_deadline_unix_millis.and_then(|deadline| {
+                let now: i64 = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis()
+                    .try_into()
+                    .unwrap_or(i64::MAX);
+                let remaining = u64::try_from(deadline.saturating_sub(now)).unwrap_or(0);
+                Instant::now().checked_add(Duration::from_millis(remaining))
+            });
             let mut timed_out = false;
             loop {
                 // SAFETY: process_handle remains valid throughout the wait.
@@ -446,6 +597,25 @@ mod windows {
                         return Err(std::io::Error::new(
                             std::io::ErrorKind::TimedOut,
                             "terminated root did not exit within cleanup bound",
+                        )
+                        .into());
+                    }
+                    break;
+                }
+                if store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .cancel_requested(job.job_id)?
+                {
+                    progress.canceled = true;
+                    // SAFETY: job is valid and contains the complete Invocation tree.
+                    unsafe { TerminateJobObject(job_object.raw(), 22) };
+                    // SAFETY: process_handle remains valid.
+                    if unsafe { WaitForSingleObject(process_handle.raw(), 30_000) } != WAIT_OBJECT_0
+                    {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            "canceled root did not exit within cleanup bound",
                         )
                         .into());
                     }
@@ -492,7 +662,7 @@ mod windows {
                 .mark_uncertain(job, progress.exit_code, "interrupted")?;
             drop(registration);
             drop(job_object);
-            return execution.map(|_| ());
+            return execution;
         }
 
         let stdout_result = stdout.join().map_err(|_| "stdout drain thread panicked")?;
@@ -500,24 +670,12 @@ mod windows {
         stdout_result?;
         stderr_result?;
 
-        let (exit_code, timed_out) = execution?;
-
-        let (outcome, verdict) = if timed_out {
-            (JobOutcome::TimedOut, "timed_out")
-        } else if exit_code == 0 {
-            (JobOutcome::Succeeded, "succeeded")
-        } else {
-            (JobOutcome::Failed, "process_failed")
-        };
-        store
-            .lock()
-            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
-            .mark_finished(job, Some(exit_code as i32), outcome, verdict)?;
+        let result = execution?;
         // Membership queries hold the same registry mutex used by registration Drop, so no
         // query can observe this raw HANDLE after it is closed or numerically recycled.
         drop(registration);
         drop(job_object);
-        Ok(())
+        Ok(result)
     }
 
     fn create_job_object() -> std::io::Result<OwnedHandle> {
@@ -645,6 +803,7 @@ mod windows {
         job_id: crate::JobId,
         stream: LogStream,
         store: Arc<Mutex<Store>>,
+        publish_job_offset: bool,
     ) -> std::io::Result<std::thread::JoinHandle<RunResult<()>>> {
         std::thread::Builder::new()
             .name(format!("stillyard-log-{}-{stream:?}", job_id.entity_uuid()))
@@ -664,10 +823,12 @@ mod windows {
                     output.write_all(&buffer[..read])?;
                     output.sync_data()?;
                     offset += read as u64;
-                    store
-                        .lock()
-                        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
-                        .commit_log_offset(job_id, stream, offset)?;
+                    if publish_job_offset {
+                        store
+                            .lock()
+                            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                            .commit_log_offset(job_id, stream, offset)?;
+                    }
                 }
                 output.sync_all()?;
                 Ok(())
@@ -787,7 +948,14 @@ mod windows {
             "STILLYARD_INVOCATION_ID".into(),
             job.invocation_id.to_string(),
         );
-        environment.insert("STILLYARD_ROLE".into(), "primary".into());
+        environment.insert(
+            "STILLYARD_ROLE".into(),
+            match job.role {
+                InvocationRole::Primary => "primary",
+                InvocationRole::Postcondition => "postcondition",
+            }
+            .into(),
+        );
         environment.insert(
             "STILLYARD_ENDPOINT".into(),
             crate::client::default_endpoint().map_err(std::io::Error::other)?,
@@ -855,7 +1023,8 @@ mod windows {
             StorePaths, normalized_payload_hash, normalized_payload_hash_with_input,
         };
         use crate::{
-            EnvironmentSpec, JobSpec, JobState, ResourceClaims, RetryPolicy, SPEC_VERSION,
+            AttemptVerdict, EnvironmentSpec, ExitClassification, InvocationRole, JobOutcome,
+            JobSpec, JobState, PostconditionSpec, ResourceClaims, RetryPolicy, SPEC_VERSION,
             StdinSpec,
         };
         use uuid::Uuid;
@@ -871,6 +1040,7 @@ mod windows {
                 resources: ResourceClaims::default(),
                 conditions: Vec::new(),
                 retry: RetryPolicy::default(),
+                postconditions: Vec::new(),
                 labels: Vec::new(),
                 expected_duration_seconds: Some(1),
                 timeout_seconds: Some(10),
@@ -963,10 +1133,92 @@ mod windows {
             let store = store.lock().unwrap();
             let snapshot = store.status(job.job_id).unwrap();
             assert_eq!(snapshot.state, JobState::Final);
-            assert_eq!(snapshot.outcome, Some(JobOutcome::Succeeded));
+            assert_eq!(
+                snapshot.outcome,
+                Some(JobOutcome::Succeeded),
+                "{snapshot:#?}"
+            );
             let logs = store.logs(job.job_id, LogStream::Stdout, 0, 1024).unwrap();
             assert!(String::from_utf8_lossy(&logs.bytes).contains("stillyard-smoke"));
             assert!(logs.eof);
+        }
+
+        #[test]
+        fn postcondition_retry_runs_a_second_attempt_under_the_same_job() {
+            let temp = tempfile::tempdir().unwrap();
+            let command = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+                .join("System32")
+                .join("cmd.exe");
+            let marker = temp.path().join("validator-seen.marker");
+            let powershell = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+                .join("System32")
+                .join("WindowsPowerShell")
+                .join("v1.0")
+                .join("powershell.exe");
+            let mut spec = job_spec(
+                temp.path(),
+                command.clone(),
+                vec!["/D".into(), "/C".into(), "echo primary".into()],
+            );
+            spec.retry = RetryPolicy {
+                max_attempts: 2,
+                backoff_seconds: 0,
+                retryable: vec!["postcondition_retryable".into()],
+            };
+            spec.environment.set.insert(
+                "STY_VALIDATOR_MARKER".into(),
+                marker.to_string_lossy().into_owned(),
+            );
+            spec.postconditions.push(PostconditionSpec {
+                executable: powershell,
+                args: vec![
+                    "-NoLogo".into(),
+                    "-NoProfile".into(),
+                    "-NonInteractive".into(),
+                    "-Command".into(),
+                    "if (Test-Path -LiteralPath $env:STY_VALIDATOR_MARKER) { exit 0 } else { New-Item -ItemType File -Path $env:STY_VALIDATOR_MARKER | Out-Null; exit 10 }".into(),
+                ],
+                working_directory: None,
+                accepted_exit_codes: vec![0],
+                retryable_exit_codes: vec![10],
+            });
+            let (first, store) = prepared(&spec, temp.path());
+            run(&first, &store);
+            let second = {
+                let mut locked = store.lock().unwrap();
+                let snapshot = locked.status(first.job_id).unwrap();
+                assert_eq!(snapshot.state, JobState::Pending);
+                assert_eq!(
+                    snapshot.attempts[0].verdict,
+                    Some(AttemptVerdict::PostconditionRetryable)
+                );
+                assert_eq!(
+                    snapshot.attempts[0].invocations[1].role,
+                    InvocationRole::Postcondition
+                );
+                assert_eq!(
+                    snapshot.attempts[0].invocations[1].exit_classification,
+                    Some(ExitClassification::Retryable)
+                );
+                locked.prepare_job(first.job_id).unwrap().unwrap()
+            };
+            run(&second, &store);
+            let snapshot = store.lock().unwrap().status(first.job_id).unwrap();
+            assert_eq!(
+                snapshot.outcome,
+                Some(JobOutcome::Succeeded),
+                "{snapshot:#?}"
+            );
+            assert_eq!(snapshot.attempts.len(), 2);
+            assert_eq!(
+                snapshot.started_unix_millis,
+                snapshot.attempts[0].invocations[0].started_unix_millis,
+                "Job start must remain the first primary start across postconditions and retries"
+            );
+            assert_eq!(
+                snapshot.attempts[1].invocations[1].exit_classification,
+                Some(ExitClassification::Accepted)
+            );
         }
 
         #[test]
@@ -1102,6 +1354,182 @@ mod windows {
             assert_eq!(snapshot.state, JobState::Final);
             assert_eq!(snapshot.outcome, Some(JobOutcome::TimedOut));
             assert_eq!(snapshot.root_exit_code, Some(21));
+        }
+
+        #[test]
+        fn plain_cancel_terminates_a_running_containment_and_suppresses_retry() {
+            let temp = tempfile::tempdir().unwrap();
+            let powershell = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+                .join("System32")
+                .join("WindowsPowerShell")
+                .join("v1.0")
+                .join("powershell.exe");
+            let mut spec = job_spec(
+                temp.path(),
+                powershell,
+                vec![
+                    "-NoLogo".into(),
+                    "-NoProfile".into(),
+                    "-NonInteractive".into(),
+                    "-Command".into(),
+                    "Start-Sleep -Seconds 30".into(),
+                ],
+            );
+            spec.retry = RetryPolicy {
+                max_attempts: 2,
+                backoff_seconds: 0,
+                retryable: vec!["process_failed".into()],
+            };
+            let (job, store) = prepared(&spec, temp.path());
+            let worker_store = Arc::clone(&store);
+            let worker_job = job.clone();
+            let worker = std::thread::spawn(move || run(&worker_job, &worker_store));
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                let started = store
+                    .lock()
+                    .unwrap()
+                    .status(job.job_id)
+                    .unwrap()
+                    .attempts
+                    .first()
+                    .and_then(|attempt| attempt.invocations.first())
+                    .is_some_and(|invocation| invocation.state == crate::InvocationState::Started);
+                if started {
+                    break;
+                }
+                assert!(Instant::now() < deadline, "managed root did not start");
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            store.lock().unwrap().cancel_jobs(&[job.job_id]).unwrap();
+            worker.join().unwrap();
+            let snapshot = store.lock().unwrap().status(job.job_id).unwrap();
+            assert_eq!(snapshot.outcome, Some(JobOutcome::Canceled));
+            assert_eq!(snapshot.attempts.len(), 1, "cancel must suppress retry");
+            assert_eq!(snapshot.attempts[0].verdict, Some(AttemptVerdict::Canceled));
+            assert_eq!(
+                snapshot.attempts[0].invocations[0].containment.state,
+                crate::ContainmentState::Empty
+            );
+        }
+
+        #[test]
+        fn plain_cancel_during_postcondition_remains_canceled() {
+            let temp = tempfile::tempdir().unwrap();
+            let system32 = PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join("System32");
+            let command = system32.join("cmd.exe");
+            let powershell = system32
+                .join("WindowsPowerShell")
+                .join("v1.0")
+                .join("powershell.exe");
+            let mut spec = job_spec(
+                temp.path(),
+                command,
+                vec!["/D".into(), "/C".into(), "exit 0".into()],
+            );
+            spec.retry = RetryPolicy {
+                max_attempts: 2,
+                backoff_seconds: 0,
+                retryable: vec!["postcondition_failed".into()],
+            };
+            spec.postconditions.push(PostconditionSpec {
+                executable: powershell,
+                args: vec![
+                    "-NoLogo".into(),
+                    "-NoProfile".into(),
+                    "-NonInteractive".into(),
+                    "-Command".into(),
+                    "Start-Sleep -Seconds 30".into(),
+                ],
+                working_directory: None,
+                accepted_exit_codes: vec![0],
+                retryable_exit_codes: Vec::new(),
+            });
+            let (job, store) = prepared(&spec, temp.path());
+            let worker_store = Arc::clone(&store);
+            let worker_job = job.clone();
+            let worker = std::thread::spawn(move || run(&worker_job, &worker_store));
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                let postcondition_started = store
+                    .lock()
+                    .unwrap()
+                    .status(job.job_id)
+                    .unwrap()
+                    .attempts
+                    .first()
+                    .and_then(|attempt| attempt.invocations.get(1))
+                    .is_some_and(|invocation| invocation.state == crate::InvocationState::Started);
+                if postcondition_started {
+                    break;
+                }
+                assert!(Instant::now() < deadline, "postcondition did not start");
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            store.lock().unwrap().cancel_jobs(&[job.job_id]).unwrap();
+            worker.join().unwrap();
+
+            let snapshot = store.lock().unwrap().status(job.job_id).unwrap();
+            assert_eq!(snapshot.outcome, Some(JobOutcome::Canceled));
+            assert_eq!(snapshot.attempts.len(), 1, "cancel must suppress retry");
+            assert_eq!(snapshot.attempts[0].verdict, Some(AttemptVerdict::Canceled));
+            assert_eq!(snapshot.attempts[0].invocations.len(), 2);
+            assert_eq!(
+                snapshot.attempts[0].invocations[1].exit_classification,
+                None
+            );
+            assert_eq!(
+                snapshot.attempts[0].invocations[1].containment.state,
+                crate::ContainmentState::Empty
+            );
+        }
+
+        #[test]
+        fn attempt_timeout_covers_postconditions() {
+            let temp = tempfile::tempdir().unwrap();
+            let system32 = PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join("System32");
+            let command = system32.join("cmd.exe");
+            let powershell = system32
+                .join("WindowsPowerShell")
+                .join("v1.0")
+                .join("powershell.exe");
+            let mut spec = job_spec(
+                temp.path(),
+                command,
+                vec!["/D".into(), "/C".into(), "exit 0".into()],
+            );
+            spec.timeout_seconds = Some(1);
+            spec.postconditions.push(PostconditionSpec {
+                executable: powershell,
+                args: vec![
+                    "-NoLogo".into(),
+                    "-NoProfile".into(),
+                    "-NonInteractive".into(),
+                    "-Command".into(),
+                    "Start-Sleep -Seconds 30".into(),
+                ],
+                working_directory: None,
+                accepted_exit_codes: vec![0],
+                retryable_exit_codes: Vec::new(),
+            });
+            let (job, store) = prepared(&spec, temp.path());
+            let started = Instant::now();
+            run(&job, &store);
+
+            assert!(started.elapsed() < Duration::from_secs(10));
+            let snapshot = store.lock().unwrap().status(job.job_id).unwrap();
+            assert_eq!(snapshot.outcome, Some(JobOutcome::TimedOut));
+            assert_eq!(snapshot.root_exit_code, Some(0));
+            assert_eq!(snapshot.attempts[0].verdict, Some(AttemptVerdict::TimedOut));
+            assert_eq!(snapshot.attempts[0].invocations.len(), 2);
+            assert_eq!(
+                snapshot.attempts[0].invocations[1].exit_classification,
+                None
+            );
+            assert_eq!(
+                snapshot.attempts[0].invocations[1].containment.state,
+                crate::ContainmentState::Empty
+            );
         }
 
         #[test]

@@ -10,15 +10,17 @@ use uuid::Uuid;
 use crate::protocol::StagedInputRef;
 use crate::resources::ResolvedClaims;
 use crate::{
-    AttemptId, BatchId, BatchJobReceipt, BatchReceipt, BatchSpec, Blocker, ContainmentId,
-    DaemonSnapshot, Estimate, HostConfig, InvocationId, JobId, JobOutcome, JobReceipt, JobSnapshot,
-    JobSpec, JobState, LogChunk, LogStream, ManagedParent, RecoveryResult, ResourceCapacities,
-    StdinSpec, SubmissionId, SubmissionState,
+    AttemptId, AttemptSnapshot, AttemptVerdict, BatchId, BatchJobReceipt, BatchReceipt, BatchSpec,
+    Blocker, ContainmentId, ContainmentSnapshot, ContainmentState, DaemonSnapshot, Estimate,
+    ExitClassification, HostConfig, InvocationId, InvocationRole, InvocationSnapshot,
+    InvocationState, JobId, JobOutcome, JobReceipt, JobSnapshot, JobSpec, JobState, LogChunk,
+    LogStream, ManagedParent, RecoveryResult, ResourceCapacities, StdinSpec, SubmissionId,
+    SubmissionState,
 };
 
 // Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
 // the current schema changes; daemon startup will replace the whole SQLite database.
-const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-managed-wait-2026-08-28";
+const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-consumer-lifecycle-2026-08-28";
 const MAX_STDIN_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_UPLOAD_CHUNK_BYTES: usize = 256 * 1024;
 
@@ -162,6 +164,8 @@ pub(crate) struct PreparedJob {
     pub(crate) stderr_path: PathBuf,
     pub(crate) stdin: Option<StagedInputRef>,
     pub(crate) stdin_path: Option<PathBuf>,
+    pub(crate) role: InvocationRole,
+    pub(crate) attempt_deadline_unix_millis: Option<i64>,
 }
 
 pub(crate) struct PrepareNext {
@@ -182,6 +186,8 @@ pub(crate) struct Store {
     daemon_generation: Uuid,
     capacities: ResourceCapacities,
     profiles: std::collections::BTreeMap<String, crate::EnvironmentProfile>,
+    impact_incompatibilities: std::collections::BTreeMap<String, Vec<String>>,
+    config_sha256: String,
 }
 
 impl Store {
@@ -285,6 +291,7 @@ impl Store {
             HostConfig {
                 resources: capacities,
                 profiles: Default::default(),
+                impact_incompatibilities: Default::default(),
             },
         )
     }
@@ -337,6 +344,7 @@ impl Store {
     ) -> StoreResult<Self> {
         configure_database(&connection)?;
         let store_uuid = current_store_uuid(&connection)?;
+        let config_sha256 = format!("{:x}", Sha256::digest(serde_json::to_vec(&config)?));
         let mut store = Self {
             connection,
             paths,
@@ -344,6 +352,8 @@ impl Store {
             daemon_generation: Uuid::now_v7(),
             capacities: config.resources,
             profiles: config.profiles,
+            impact_incompatibilities: config.impact_incompatibilities,
+            config_sha256,
         };
         store.recover_interrupted()?;
         store.resume_received()?;
@@ -963,6 +973,7 @@ impl Store {
         let store_uuid = self.store_uuid;
         let daemon_generation = self.daemon_generation;
         let capacities = self.capacities.clone();
+        let impact_incompatibilities = self.impact_incompatibilities.clone();
         let transaction = self.connection.transaction()?;
         let state: String = transaction.query_row(
             "SELECT state FROM submissions WHERE id = ?1",
@@ -1061,6 +1072,7 @@ impl Store {
                 store_uuid,
                 daemon_generation,
                 &capacities,
+                &impact_incompatibilities,
                 scope,
                 &targets,
             ) {
@@ -1070,10 +1082,12 @@ impl Store {
             }
         }
         transaction.execute(
-            "UPDATE submissions SET state = 'accepted', batch_id = ?2 WHERE id = ?1",
+            "UPDATE submissions SET state = 'accepted', batch_id = ?2,
+                daemon_generation = ?3 WHERE id = ?1",
             params![
                 submission_id.entity_uuid().to_string(),
-                batch_id.entity_uuid().to_string()
+                batch_id.entity_uuid().to_string(),
+                daemon_generation.to_string()
             ],
         )?;
         transaction.commit()?;
@@ -1116,6 +1130,7 @@ impl Store {
             batch_id,
             submission_state: SubmissionState::Accepted,
             jobs,
+            daemon_generation: self.accepting_daemon_generation(submission_id)?,
         })
     }
 
@@ -1284,6 +1299,7 @@ impl Store {
         let store_uuid = self.store_uuid;
         let daemon_generation = self.daemon_generation;
         let capacities = self.capacities.clone();
+        let impact_incompatibilities = self.impact_incompatibilities.clone();
         let transaction = self.connection.transaction()?;
         let state: String = transaction.query_row(
             "SELECT state FROM submissions WHERE id = ?1",
@@ -1342,6 +1358,7 @@ impl Store {
                 store_uuid,
                 daemon_generation,
                 &capacities,
+                &impact_incompatibilities,
                 scope,
                 &[job_id],
             ) {
@@ -1351,10 +1368,12 @@ impl Store {
             }
         }
         transaction.execute(
-            "UPDATE submissions SET state = 'accepted', job_id = ?2 WHERE id = ?1",
+            "UPDATE submissions SET state = 'accepted', job_id = ?2,
+                daemon_generation = ?3 WHERE id = ?1",
             params![
                 submission_id.entity_uuid().to_string(),
-                job_id.entity_uuid().to_string()
+                job_id.entity_uuid().to_string(),
+                daemon_generation.to_string()
             ],
         )?;
         transaction.commit()?;
@@ -1402,7 +1421,17 @@ impl Store {
             queue_rank,
             estimate,
             parent,
+            daemon_generation: self.accepting_daemon_generation(submission_id)?,
         })
+    }
+
+    fn accepting_daemon_generation(&self, submission_id: SubmissionId) -> StoreResult<Uuid> {
+        let value: String = self.connection.query_row(
+            "SELECT daemon_generation FROM submissions WHERE id = ?1 AND state = 'accepted'",
+            [submission_id.entity_uuid().to_string()],
+            |row| row.get(0),
+        )?;
+        Ok(Uuid::parse_str(&value)?)
     }
 
     fn parent_for_job(&self, job_id: JobId) -> StoreResult<Option<ManagedParent>> {
@@ -1424,6 +1453,17 @@ impl Store {
     fn blockers_for_job(&self, job_id: JobId) -> StoreResult<Vec<Blocker>> {
         let job_key = self.local_id(job_id)?;
         let mut blockers = self.dependency_blockers(&job_key)?.0;
+        let retry_not_before: Option<i64> = self.connection.query_row(
+            "SELECT retry_not_before_ms FROM jobs WHERE id = ?1",
+            [&job_key],
+            |row| row.get(0),
+        )?;
+        if retry_not_before.is_some_and(|instant| instant > now_millis()) {
+            blockers.push(Blocker {
+                code: "retry_backoff".into(),
+                detail: format!("retry_not_before_unix_millis={}", retry_not_before.unwrap()),
+            });
+        }
         let claims: String = self.connection.query_row(
             "SELECT claims_json FROM jobs WHERE id = ?1",
             [&job_key],
@@ -1433,6 +1473,7 @@ impl Store {
         blockers.extend(claims.blockers(
             &self.capacities,
             &self.active_and_reserved_claims_before(&job_key)?,
+            &self.impact_incompatibilities,
         ));
         Ok(blockers)
     }
@@ -1440,21 +1481,31 @@ impl Store {
     fn active_and_reserved_claims_before(&self, job_key: &str) -> StoreResult<Vec<ResolvedClaims>> {
         let mut granted = self.active_claims()?;
         let mut statement = self.connection.prepare(
-            "SELECT id, claims_json FROM jobs
+            "SELECT id, claims_json, retry_not_before_ms FROM jobs
              WHERE state = 'pending' AND rowid < (SELECT rowid FROM jobs WHERE id = ?1)
              ORDER BY accepted_ms, rowid",
         )?;
         let rows = statement.query_map([job_key], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<i64>>(2)?,
+            ))
         })?;
         for row in rows {
-            let (candidate, claims) = row?;
+            let (candidate, claims, retry_not_before) = row?;
+            if retry_not_before.is_some_and(|instant| instant > now_millis()) {
+                continue;
+            }
             let (dependencies, impossible) = self.dependency_blockers(&candidate)?;
             if impossible || !dependencies.is_empty() {
                 continue;
             }
             let claims: ResolvedClaims = serde_json::from_str(&claims)?;
-            if claims.blockers(&self.capacities, &granted).is_empty() {
+            if claims
+                .blockers(&self.capacities, &granted, &self.impact_incompatibilities)
+                .is_empty()
+            {
                 granted.push(claims);
             }
         }
@@ -1546,7 +1597,10 @@ impl Store {
         )?;
         let claims: ResolvedClaims = serde_json::from_str(&claims_json)?;
         let retained = self.settled_granted_claims()?;
-        if !claims.blockers(&self.capacities, &retained).is_empty() {
+        if !claims
+            .blockers(&self.capacities, &retained, &self.impact_incompatibilities)
+            .is_empty()
+        {
             return Ok(Estimate::unknown(
                 "a retained Lease from an uncertain Containment has no automatic release estimate",
             ));
@@ -1660,6 +1714,7 @@ impl Store {
     fn prepare_job_inner(&mut self, job_id: JobId) -> StoreResult<PrepareJob> {
         let job_key = self.local_id(job_id)?;
         let capacities = self.capacities.clone();
+        let impact_incompatibilities = self.impact_incompatibilities.clone();
         let attempt_id = AttemptId::new(self.store_uuid);
         let invocation_id = InvocationId::new(self.store_uuid);
         let containment_id = ContainmentId::new(self.store_uuid);
@@ -1668,8 +1723,9 @@ impl Store {
         let row = transaction
             .query_row(
                 "SELECT spec_json, claims_json, stdin_hash, stdin_len
-                 FROM jobs WHERE id = ?1 AND state = 'pending'",
-                [job_key],
+                 FROM jobs WHERE id = ?1 AND state = 'pending'
+                   AND COALESCE(retry_not_before_ms, 0) <= ?2",
+                params![job_key, now_millis()],
                 |row| {
                     Ok((
                         row.get::<_, String>(0)?,
@@ -1700,7 +1756,10 @@ impl Store {
         }
         let claims: ResolvedClaims = serde_json::from_str(&claims_json)?;
         let active = active_claims_tx(&transaction)?;
-        if !claims.blockers(&capacities, &active).is_empty() {
+        if !claims
+            .blockers(&capacities, &active, &impact_incompatibilities)
+            .is_empty()
+        {
             transaction.rollback()?;
             return Ok(PrepareJob::Blocked);
         }
@@ -1717,9 +1776,15 @@ impl Store {
         validate_input_shape(&spec, stdin.as_ref())?;
         let log_directory = self.paths.logs.join(job_id.entity_uuid().to_string());
         std::fs::create_dir_all(&log_directory)?;
+        let attempt_index: u32 = transaction.query_row(
+            "SELECT COALESCE(MAX(attempt_index), 0) + 1 FROM attempts WHERE job_id = ?1",
+            [job_id.entity_uuid().to_string()],
+            |row| row.get(0),
+        )?;
         transaction.execute(
             "UPDATE jobs SET state = 'active', attempt_id = ?2, invocation_id = ?3,
-                containment_id = ?4 WHERE id = ?1 AND state = 'pending'",
+                containment_id = ?4, stdout_len = 0, stderr_len = 0,
+                retry_not_before_ms = NULL WHERE id = ?1 AND state = 'pending'",
             params![
                 job_id.entity_uuid().to_string(),
                 attempt_id.entity_uuid().to_string(),
@@ -1727,12 +1792,20 @@ impl Store {
                 containment_id.entity_uuid().to_string(),
             ],
         )?;
+        let attempt_started = now_millis();
+        let attempt_deadline = spec.timeout_seconds.map(|seconds| {
+            attempt_started
+                .saturating_add(i64::try_from(seconds.saturating_mul(1000)).unwrap_or(i64::MAX))
+        });
         transaction.execute(
-            "INSERT INTO attempts(id, job_id, state, attempt_index)
-             VALUES (?1, ?2, 'starting', 1)",
+            "INSERT INTO attempts(id, job_id, state, attempt_index, started_ms, deadline_ms)
+             VALUES (?1, ?2, 'starting', ?3, ?4, ?5)",
             params![
                 attempt_id.entity_uuid().to_string(),
-                job_id.entity_uuid().to_string()
+                job_id.entity_uuid().to_string(),
+                attempt_index,
+                attempt_started,
+                attempt_deadline,
             ],
         )?;
         transaction.execute(
@@ -1773,7 +1846,86 @@ impl Store {
                 .as_ref()
                 .map(|stdin| self.paths.blob_path(&stdin.sha256)),
             stdin,
+            role: InvocationRole::Primary,
+            attempt_deadline_unix_millis: attempt_deadline,
         })))
+    }
+
+    pub(crate) fn prepare_postcondition(
+        &mut self,
+        primary: &PreparedJob,
+        index: usize,
+    ) -> StoreResult<PreparedJob> {
+        let postcondition =
+            primary.spec.postconditions.get(index).ok_or_else(|| {
+                StoreError::InvalidState("postcondition index out of range".into())
+            })?;
+        let invocation_id = InvocationId::new(self.store_uuid);
+        let containment_id = ContainmentId::new(self.store_uuid);
+        let transaction = self.connection.transaction()?;
+        let current: (String, String, Option<i64>) = transaction.query_row(
+            "SELECT jobs.state, jobs.attempt_id, attempts.deadline_ms
+             FROM jobs JOIN attempts ON attempts.id = jobs.attempt_id WHERE jobs.id = ?1",
+            [primary.job_id.entity_uuid().to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+        if current.0 != "active" || current.1 != primary.attempt_id.entity_uuid().to_string() {
+            return Err(StoreError::InvalidState(
+                "postcondition requires the current active Attempt".into(),
+            ));
+        }
+        transaction.execute(
+            "INSERT INTO invocations(id, attempt_id, role, role_index, state)
+             VALUES (?1, ?2, 'postcondition', ?3, 'prepared')",
+            params![
+                invocation_id.entity_uuid().to_string(),
+                primary.attempt_id.entity_uuid().to_string(),
+                u32::try_from(index + 1)
+                    .map_err(|_| StoreError::InvalidState("too many postconditions".into()))?,
+            ],
+        )?;
+        transaction.execute(
+            "INSERT INTO containments(id, invocation_id, state) VALUES (?1, ?2, 'creating')",
+            params![
+                containment_id.entity_uuid().to_string(),
+                invocation_id.entity_uuid().to_string(),
+            ],
+        )?;
+        transaction.execute(
+            "UPDATE jobs SET invocation_id = ?2, containment_id = ?3 WHERE id = ?1",
+            params![
+                primary.job_id.entity_uuid().to_string(),
+                invocation_id.entity_uuid().to_string(),
+                containment_id.entity_uuid().to_string(),
+            ],
+        )?;
+        transaction.commit()?;
+        let mut spec = primary.spec.clone();
+        spec.executable = postcondition.executable.clone();
+        spec.args = postcondition.args.clone();
+        if let Some(working_directory) = &postcondition.working_directory {
+            spec.working_directory = working_directory.clone();
+        }
+        spec.stdin = StdinSpec::Eof;
+        spec.postconditions.clear();
+        spec.allow_child_submissions = false;
+        let log_directory = self
+            .paths
+            .logs
+            .join(primary.job_id.entity_uuid().to_string());
+        Ok(PreparedJob {
+            job_id: primary.job_id,
+            attempt_id: primary.attempt_id,
+            invocation_id,
+            containment_id,
+            spec,
+            stdout_path: log_directory.join(format!("{invocation_id}.stdout")),
+            stderr_path: log_directory.join(format!("{invocation_id}.stderr")),
+            stdin: None,
+            stdin_path: None,
+            role: InvocationRole::Postcondition,
+            attempt_deadline_unix_millis: current.2,
+        })
     }
 
     pub(crate) fn mark_started(
@@ -1814,7 +1966,7 @@ impl Store {
             [job.attempt_id.entity_uuid().to_string()],
         )?;
         transaction.execute(
-            "UPDATE jobs SET started_ms = ?2 WHERE id = ?1",
+            "UPDATE jobs SET started_ms = COALESCE(started_ms, ?2) WHERE id = ?1",
             params![job.job_id.entity_uuid().to_string(), now_millis()],
         )?;
         transaction.commit()?;
@@ -1856,15 +2008,187 @@ impl Store {
             )));
         }
         transaction.execute(
-            "UPDATE invocations SET root_exit_code = ?2 WHERE id = ?1 AND state = 'started'",
+            "UPDATE invocations SET state = 'exited', root_exit_code = ?2
+             WHERE id = ?1 AND state = 'started'",
             params![job.invocation_id.entity_uuid().to_string(), exit_code],
         )?;
+        if job.role == InvocationRole::Primary {
+            transaction.execute(
+                "UPDATE jobs SET root_exit_code = ?2 WHERE id = ?1 AND state = 'active'",
+                params![job.job_id.entity_uuid().to_string(), exit_code],
+            )?;
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
+    pub(crate) fn mark_invocation_resolved(
+        &mut self,
+        job: &PreparedJob,
+        exit_code: Option<i32>,
+        classification: Option<ExitClassification>,
+    ) -> StoreResult<()> {
+        let stdout_tail = read_diagnostic_tail(&job.stdout_path)?;
+        let stderr_tail = read_diagnostic_tail(&job.stderr_path)?;
+        let transaction = self.connection.transaction()?;
         transaction.execute(
-            "UPDATE jobs SET root_exit_code = ?2 WHERE id = ?1 AND state = 'active'",
-            params![job.job_id.entity_uuid().to_string(), exit_code],
+            "UPDATE invocations SET state = 'resolved', root_exit_code = COALESCE(?2, root_exit_code),
+                exit_classification = ?3, finished_ms = ?4, stdout_tail = ?5, stderr_tail = ?6
+             WHERE id = ?1",
+            params![
+                job.invocation_id.entity_uuid().to_string(),
+                exit_code,
+                classification.map(exit_classification_string),
+                now_millis(),
+                stdout_tail,
+                stderr_tail,
+            ],
+        )?;
+        transaction.execute(
+            "UPDATE containments SET state = 'empty' WHERE id = ?1",
+            [job.containment_id.entity_uuid().to_string()],
         )?;
         transaction.commit()?;
         Ok(())
+    }
+
+    pub(crate) fn settle_attempt(
+        &mut self,
+        job: &PreparedJob,
+        verdict: AttemptVerdict,
+    ) -> StoreResult<bool> {
+        let transaction = self.connection.transaction()?;
+        let (state, spec_json, attempt_index, cancel_requested): (String, String, u32, bool) =
+            transaction.query_row(
+                "SELECT jobs.state, jobs.spec_json, attempts.attempt_index,
+                        jobs.cancel_requested != 0
+                 FROM jobs JOIN attempts ON attempts.id = jobs.attempt_id
+                 WHERE jobs.id = ?1 AND attempts.id = ?2",
+                params![
+                    job.job_id.entity_uuid().to_string(),
+                    job.attempt_id.entity_uuid().to_string(),
+                ],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )?;
+        if state != "active" {
+            return Err(StoreError::InvalidState(format!(
+                "job {} cannot settle Attempt from {state}",
+                job.job_id
+            )));
+        }
+        let spec: JobSpec = serde_json::from_str(&spec_json)?;
+        let verdict_text = verdict.as_str();
+        let retry = !cancel_requested
+            && attempt_index < spec.retry.max_attempts
+            && spec
+                .retry
+                .retryable
+                .iter()
+                .any(|value| value == verdict_text);
+        transaction.execute(
+            "UPDATE attempts SET state = 'settled', verdict = ?2, finished_ms = ?3 WHERE id = ?1",
+            params![
+                job.attempt_id.entity_uuid().to_string(),
+                verdict_text,
+                now_millis()
+            ],
+        )?;
+        transaction.execute(
+            "UPDATE leases SET state = 'released' WHERE attempt_id = ?1",
+            [job.attempt_id.entity_uuid().to_string()],
+        )?;
+        if retry {
+            let not_before = now_millis().saturating_add(
+                i64::try_from(spec.retry.backoff_seconds.saturating_mul(1000)).unwrap_or(i64::MAX),
+            );
+            transaction.execute(
+                "UPDATE jobs SET state = 'pending', attempt_id = NULL, invocation_id = NULL,
+                    containment_id = NULL, retry_not_before_ms = ?2, cancel_requested = 0
+                 WHERE id = ?1",
+                params![job.job_id.entity_uuid().to_string(), not_before],
+            )?;
+        } else {
+            let effective_verdict = if cancel_requested {
+                AttemptVerdict::Canceled
+            } else {
+                verdict
+            };
+            if effective_verdict != verdict {
+                transaction.execute(
+                    "UPDATE attempts SET verdict = ?2 WHERE id = ?1",
+                    params![
+                        job.attempt_id.entity_uuid().to_string(),
+                        effective_verdict.as_str()
+                    ],
+                )?;
+            }
+            transaction.execute(
+                "UPDATE jobs SET state = 'final', outcome = ?2, finished_ms = ?3,
+                    retry_not_before_ms = NULL WHERE id = ?1",
+                params![
+                    job.job_id.entity_uuid().to_string(),
+                    outcome_string(outcome_for_verdict(effective_verdict)),
+                    now_millis(),
+                ],
+            )?;
+        }
+        transaction.commit()?;
+        Ok(retry)
+    }
+
+    pub(crate) fn cancel_requested(&self, job_id: JobId) -> StoreResult<bool> {
+        self.connection
+            .query_row(
+                "SELECT cancel_requested != 0 FROM jobs WHERE id = ?1",
+                [self.local_id(job_id)?],
+                |row| row.get(0),
+            )
+            .map_err(Into::into)
+    }
+
+    pub(crate) fn cancel_jobs(&mut self, job_ids: &[JobId]) -> StoreResult<Vec<JobSnapshot>> {
+        if job_ids.is_empty() {
+            return Err(StoreError::InvalidSpec(
+                "cancel requires at least one explicit Job ID".into(),
+            ));
+        }
+        let local_ids = job_ids
+            .iter()
+            .map(|job_id| self.local_id(*job_id))
+            .collect::<StoreResult<Vec<_>>>()?;
+        let transaction = self.connection.transaction()?;
+        for local_id in &local_ids {
+            let state = transaction
+                .query_row("SELECT state FROM jobs WHERE id = ?1", [local_id], |row| {
+                    row.get::<_, String>(0)
+                })
+                .optional()?
+                .ok_or_else(|| StoreError::NotFound(local_id.clone()))?;
+            match state.as_str() {
+                "pending" => {
+                    transaction.execute(
+                        "UPDATE jobs SET state = 'final', outcome = 'canceled',
+                            cancel_requested = 1, retry_not_before_ms = NULL, finished_ms = ?2
+                         WHERE id = ?1",
+                        params![local_id, now_millis()],
+                    )?;
+                }
+                "active" => {
+                    transaction.execute(
+                        "UPDATE jobs SET cancel_requested = 1 WHERE id = ?1",
+                        [local_id],
+                    )?;
+                }
+                "final" => {}
+                other => {
+                    return Err(StoreError::InvalidState(format!(
+                        "cannot cancel Job in state {other}"
+                    )));
+                }
+            }
+        }
+        transaction.commit()?;
+        job_ids.iter().map(|job_id| self.status(*job_id)).collect()
     }
 
     pub(crate) fn mark_finished(
@@ -1900,8 +2224,12 @@ impl Store {
             [job.containment_id.entity_uuid().to_string()],
         )?;
         transaction.execute(
-            "UPDATE attempts SET state = 'settled', verdict = ?2 WHERE id = ?1",
-            params![job.attempt_id.entity_uuid().to_string(), verdict],
+            "UPDATE attempts SET state = 'settled', verdict = ?2, finished_ms = ?3 WHERE id = ?1",
+            params![
+                job.attempt_id.entity_uuid().to_string(),
+                verdict,
+                now_millis()
+            ],
         )?;
         transaction.execute(
             "UPDATE leases SET state = 'released' WHERE attempt_id = ?1",
@@ -1941,7 +2269,7 @@ impl Store {
         }
         transaction.execute(
             "UPDATE invocations SET state = 'resolved', root_exit_code = COALESCE(?2, root_exit_code),
-                finished_ms = ?3 WHERE id = ?1 AND state IN ('prepared', 'started')",
+                finished_ms = ?3 WHERE id = ?1 AND state IN ('prepared', 'started', 'exited')",
             params![
                 job.invocation_id.entity_uuid().to_string(),
                 exit_code,
@@ -1954,9 +2282,13 @@ impl Store {
             [job.containment_id.entity_uuid().to_string()],
         )?;
         transaction.execute(
-            "UPDATE attempts SET state = 'settled', verdict = ?2
+            "UPDATE attempts SET state = 'settled', verdict = ?2, finished_ms = ?3
              WHERE id = ?1 AND state != 'settled'",
-            params![job.attempt_id.entity_uuid().to_string(), verdict],
+            params![
+                job.attempt_id.entity_uuid().to_string(),
+                verdict,
+                now_millis()
+            ],
         )?;
         // An uncertain Containment deliberately keeps its Lease granted.
         transaction.execute(
@@ -1965,7 +2297,9 @@ impl Store {
              WHERE id = ?1 AND state = 'active'",
             params![
                 job.job_id.entity_uuid().to_string(),
-                exit_code,
+                (job.role == InvocationRole::Primary)
+                    .then_some(exit_code)
+                    .flatten(),
                 now_millis()
             ],
         )?;
@@ -1979,7 +2313,8 @@ impl Store {
                 "SELECT submission_id, state, outcome, attempt_id, invocation_id,
                     containment_id, root_exit_code, accepted_ms, started_ms, finished_ms,
                     spec_json, batch_id, batch_member,
-                    parent_job_id, parent_attempt_id, parent_invocation_id
+                    parent_job_id, parent_attempt_id, parent_invocation_id,
+                    cancel_requested != 0
                  FROM jobs WHERE id = ?1",
                 [self.local_id(job_id)?],
                 |row| {
@@ -2007,6 +2342,7 @@ impl Store {
                         row.get::<_, Option<String>>(13)?,
                         row.get::<_, Option<String>>(14)?,
                         row.get::<_, Option<String>>(15)?,
+                        row.get::<_, bool>(16)?,
                     ))
                 },
             )
@@ -2030,6 +2366,7 @@ impl Store {
                     parent_job,
                     parent_attempt,
                     parent_invocation,
+                    cancel_requested,
                 )| {
                     let parsed_state = parse_job_state(&state)?;
                     Ok(JobSnapshot {
@@ -2066,6 +2403,7 @@ impl Store {
                             })
                             .transpose()?,
                         root_exit_code,
+                        cancel_requested,
                         accepted_unix_millis: accepted_ms,
                         started_unix_millis: started_ms,
                         finished_unix_millis: finished_ms,
@@ -2079,9 +2417,154 @@ impl Store {
                         } else {
                             Vec::new()
                         },
+                        attempts: self.attempt_snapshots(job_id)?,
+                        daemon_generation: self.daemon_generation,
                     })
                 },
             )
+    }
+
+    fn attempt_snapshots(&self, job_id: JobId) -> StoreResult<Vec<AttemptSnapshot>> {
+        let mut statement = self.connection.prepare(
+            "SELECT attempts.id, attempts.attempt_index, attempts.verdict,
+                    attempts.started_ms, attempts.deadline_ms, attempts.finished_ms,
+                    invocations.id, invocations.role, invocations.role_index, invocations.state,
+                    invocations.root_pid, invocations.root_exit_code,
+                    invocations.exit_classification, invocations.executable_hash,
+                    invocations.daemon_generation, invocations.started_ms,
+                    invocations.finished_ms, invocations.stdout_tail, invocations.stderr_tail,
+                    containments.id, containments.state
+             FROM attempts
+             LEFT JOIN invocations ON invocations.attempt_id = attempts.id
+             LEFT JOIN containments ON containments.invocation_id = invocations.id
+             WHERE attempts.job_id = ?1
+             ORDER BY attempts.attempt_index, invocations.role_index, invocations.rowid",
+        )?;
+        let rows = statement.query_map([self.local_id(job_id)?], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, u32>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, i64>(3)?,
+                row.get::<_, Option<i64>>(4)?,
+                row.get::<_, Option<i64>>(5)?,
+                row.get::<_, Option<String>>(6)?,
+                row.get::<_, Option<String>>(7)?,
+                row.get::<_, Option<u32>>(8)?,
+                row.get::<_, Option<String>>(9)?,
+                row.get::<_, Option<u32>>(10)?,
+                row.get::<_, Option<i32>>(11)?,
+                row.get::<_, Option<String>>(12)?,
+                row.get::<_, Option<String>>(13)?,
+                row.get::<_, Option<String>>(14)?,
+                row.get::<_, Option<i64>>(15)?,
+                row.get::<_, Option<i64>>(16)?,
+                row.get::<_, Option<String>>(17)?,
+                row.get::<_, Option<String>>(18)?,
+                row.get::<_, Option<String>>(19)?,
+                row.get::<_, Option<String>>(20)?,
+            ))
+        })?;
+        let mut attempts = Vec::<AttemptSnapshot>::new();
+        for row in rows {
+            let (
+                attempt,
+                attempt_index,
+                verdict,
+                attempt_started,
+                attempt_deadline,
+                attempt_finished,
+                invocation,
+                role,
+                role_index,
+                invocation_state,
+                root_pid,
+                root_exit_code,
+                exit_classification,
+                executable_hash,
+                daemon_generation,
+                started,
+                finished,
+                stdout_tail,
+                stderr_tail,
+                containment,
+                containment_state,
+            ) = row?;
+            if attempts
+                .last()
+                .is_none_or(|current| current.attempt_id.entity_uuid().to_string() != attempt)
+            {
+                attempts.push(AttemptSnapshot {
+                    attempt_id: AttemptId::from_parts(self.store_uuid, Uuid::parse_str(&attempt)?),
+                    attempt_index,
+                    verdict: verdict.as_deref().map(parse_attempt_verdict).transpose()?,
+                    started_unix_millis: attempt_started,
+                    deadline_unix_millis: attempt_deadline,
+                    finished_unix_millis: attempt_finished,
+                    invocations: Vec::new(),
+                });
+            }
+            let (
+                Some(invocation),
+                Some(role),
+                Some(role_index),
+                Some(invocation_state),
+                Some(containment),
+                Some(containment_state),
+            ) = (
+                invocation,
+                role,
+                role_index,
+                invocation_state,
+                containment,
+                containment_state,
+            )
+            else {
+                continue;
+            };
+            let containment_id =
+                ContainmentId::from_parts(self.store_uuid, Uuid::parse_str(&containment)?);
+            let containment_state = parse_containment_state(&containment_state)?;
+            attempts
+                .last_mut()
+                .expect("attempt inserted above")
+                .invocations
+                .push(InvocationSnapshot {
+                    invocation_id: InvocationId::from_parts(
+                        self.store_uuid,
+                        Uuid::parse_str(&invocation)?,
+                    ),
+                    role: parse_invocation_role(&role)?,
+                    role_index,
+                    state: parse_invocation_state(&invocation_state)?,
+                    root_pid,
+                    root_exit_code,
+                    exit_classification: exit_classification
+                        .as_deref()
+                        .map(parse_exit_classification)
+                        .transpose()?,
+                    executable_hash,
+                    daemon_generation: daemon_generation
+                        .map(|value| Uuid::parse_str(&value))
+                        .transpose()?,
+                    started_unix_millis: started,
+                    finished_unix_millis: finished,
+                    containment: ContainmentSnapshot {
+                        containment_id,
+                        state: containment_state,
+                        strength: if cfg!(windows) {
+                            "windows_job_object".into()
+                        } else {
+                            "unsupported".into()
+                        },
+                        incident_id: (containment_state == ContainmentState::Uncertain)
+                            .then_some(containment_id),
+                    },
+                    stdout_tail: stdout_tail.unwrap_or_default(),
+                    stderr_tail: stderr_tail.unwrap_or_default(),
+                });
+        }
+        Ok(attempts)
     }
 
     pub(crate) fn validate_managed_wait(
@@ -2094,6 +2577,7 @@ impl Store {
             self.store_uuid,
             self.daemon_generation,
             &self.capacities,
+            &self.impact_incompatibilities,
             scope,
             targets,
         )
@@ -2187,11 +2671,14 @@ impl Store {
         )?;
         Ok(DaemonSnapshot {
             store_uuid: self.store_uuid,
+            daemon_generation: self.daemon_generation,
             version: env!("CARGO_PKG_VERSION").to_owned(),
             pid: std::process::id(),
             store_path: self.paths.root.clone(),
             config_path: self.paths.config.clone(),
             capacities: self.capacities.clone(),
+            profile_names: self.profiles.keys().cloned().collect(),
+            config_sha256: self.config_sha256.clone(),
             queued_jobs,
             running_jobs,
         })
@@ -2207,6 +2694,20 @@ impl Store {
             jobs.push(JobId::from_parts(self.store_uuid, Uuid::parse_str(&row?)?));
         }
         Ok(jobs)
+    }
+
+    pub(crate) fn next_retry_delay(&self) -> StoreResult<Option<std::time::Duration>> {
+        let next: Option<i64> = self.connection.query_row(
+            "SELECT MIN(retry_not_before_ms) FROM jobs
+             WHERE state = 'pending' AND retry_not_before_ms IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(next.map(|instant| {
+            std::time::Duration::from_millis(
+                u64::try_from(instant.saturating_sub(now_millis())).unwrap_or(0),
+            )
+        }))
     }
 
     fn recover_interrupted(&mut self) -> StoreResult<()> {
@@ -2243,9 +2744,9 @@ impl Store {
             [],
         )?;
         transaction.execute(
-            "UPDATE attempts SET state = 'settled', verdict = 'start_failed'
+            "UPDATE attempts SET state = 'settled', verdict = 'start_failed', finished_ms = ?1
              WHERE state = 'starting'",
-            [],
+            [finished],
         )?;
         transaction.execute(
             "UPDATE leases SET state = 'released' WHERE state = 'granted' AND attempt_id IN (
@@ -2270,9 +2771,9 @@ impl Store {
             [],
         )?;
         transaction.execute(
-            "UPDATE attempts SET state = 'settled', verdict = 'interrupted'
+            "UPDATE attempts SET state = 'settled', verdict = 'interrupted', finished_ms = ?1
              WHERE state != 'settled'",
-            [],
+            [finished],
         )?;
         transaction.execute(
             "UPDATE jobs SET state = 'final', outcome = 'interrupted', finished_ms = ?1
@@ -2474,6 +2975,7 @@ fn validate_managed_wait_targets(
     store_uuid: Uuid,
     daemon_generation: Uuid,
     capacities: &ResourceCapacities,
+    impact_incompatibilities: &std::collections::BTreeMap<String, Vec<String>>,
     scope: SubmissionScope,
     targets: &[JobId],
 ) -> StoreResult<()> {
@@ -2548,7 +3050,8 @@ fn validate_managed_wait_targets(
         }
     }
     for (job_id, display_name, claims) in waited_claims {
-        let blockers = claims.ancestor_blockers(capacities, &ancestor_claims);
+        let blockers =
+            claims.ancestor_blockers(capacities, &ancestor_claims, impact_incompatibilities);
         if !blockers.is_empty() {
             let detail = format!(
                 "target {display_name} ({job_id}): {}",
@@ -3091,6 +3594,7 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
              wait_intent INTEGER NOT NULL DEFAULT 0,
              reject_code TEXT,
              reject_detail TEXT,
+             daemon_generation TEXT,
              created_ms INTEGER NOT NULL,
              UNIQUE(scope, idempotency_key)
          );
@@ -3121,6 +3625,8 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
              finished_ms INTEGER,
              stdout_len INTEGER NOT NULL DEFAULT 0,
              stderr_len INTEGER NOT NULL DEFAULT 0,
+             cancel_requested INTEGER NOT NULL DEFAULT 0,
+             retry_not_before_ms INTEGER,
              parent_job_id TEXT,
              parent_attempt_id TEXT,
              parent_invocation_id TEXT
@@ -3136,19 +3642,28 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
              job_id TEXT NOT NULL REFERENCES jobs(id),
              state TEXT NOT NULL,
              attempt_index INTEGER NOT NULL,
-             verdict TEXT
+             verdict TEXT,
+             started_ms INTEGER NOT NULL,
+             deadline_ms INTEGER,
+             finished_ms INTEGER,
+             UNIQUE(job_id, attempt_index)
          );
          CREATE TABLE invocations(
              id TEXT PRIMARY KEY,
              attempt_id TEXT NOT NULL REFERENCES attempts(id),
              role TEXT NOT NULL,
+             role_index INTEGER NOT NULL DEFAULT 0,
              state TEXT NOT NULL,
              root_pid INTEGER,
              root_exit_code INTEGER,
              executable_hash TEXT,
              daemon_generation TEXT,
              started_ms INTEGER,
-             finished_ms INTEGER
+             finished_ms INTEGER,
+             exit_classification TEXT,
+             stdout_tail TEXT NOT NULL DEFAULT '',
+             stderr_tail TEXT NOT NULL DEFAULT '',
+             UNIQUE(attempt_id, role_index)
          );
          CREATE TABLE containments(
              id TEXT PRIMARY KEY,
@@ -3218,6 +3733,7 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
                 "wait_intent",
                 "reject_code",
                 "reject_detail",
+                "daemon_generation",
             ] as &[_],
         ),
         ("batches", &["submission_id", "accepted_ms"] as &[_]),
@@ -3230,6 +3746,8 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
                 "claims_json",
                 "stdin_hash",
                 "stdin_len",
+                "cancel_requested",
+                "retry_not_before_ms",
                 "parent_job_id",
                 "parent_attempt_id",
                 "parent_invocation_id",
@@ -3239,7 +3757,20 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
             "dependencies",
             &["predecessor_id", "successor_id", "kind"] as &[_],
         ),
-        ("invocations", &["daemon_generation"] as &[_]),
+        (
+            "attempts",
+            &["attempt_index", "started_ms", "deadline_ms", "finished_ms"] as &[_],
+        ),
+        (
+            "invocations",
+            &[
+                "role_index",
+                "daemon_generation",
+                "exit_classification",
+                "stdout_tail",
+                "stderr_tail",
+            ] as &[_],
+        ),
     ] {
         let present = table_columns(connection, table)?;
         for column in columns {
@@ -3279,6 +3810,68 @@ fn parse_outcome(outcome: &str) -> StoreResult<JobOutcome> {
     }
 }
 
+fn parse_attempt_verdict(verdict: &str) -> StoreResult<AttemptVerdict> {
+    match verdict {
+        "succeeded" => Ok(AttemptVerdict::Succeeded),
+        "process_failed" => Ok(AttemptVerdict::ProcessFailed),
+        "start_failed" => Ok(AttemptVerdict::StartFailed),
+        "timed_out" => Ok(AttemptVerdict::TimedOut),
+        "interrupted" => Ok(AttemptVerdict::Interrupted),
+        "safety_failed" => Ok(AttemptVerdict::SafetyFailed),
+        "postcondition_retryable" => Ok(AttemptVerdict::PostconditionRetryable),
+        "postcondition_failed" => Ok(AttemptVerdict::PostconditionFailed),
+        "canceled" => Ok(AttemptVerdict::Canceled),
+        other => Err(StoreError::InvalidState(format!(
+            "unknown Attempt verdict {other}"
+        ))),
+    }
+}
+
+fn parse_invocation_role(role: &str) -> StoreResult<InvocationRole> {
+    match role {
+        "primary" => Ok(InvocationRole::Primary),
+        "postcondition" => Ok(InvocationRole::Postcondition),
+        other => Err(StoreError::InvalidState(format!(
+            "unknown Invocation role {other}"
+        ))),
+    }
+}
+
+fn parse_invocation_state(state: &str) -> StoreResult<InvocationState> {
+    match state {
+        "prepared" => Ok(InvocationState::Prepared),
+        "started" => Ok(InvocationState::Started),
+        "exited" => Ok(InvocationState::Exited),
+        "resolved" => Ok(InvocationState::Resolved),
+        other => Err(StoreError::InvalidState(format!(
+            "unknown Invocation state {other}"
+        ))),
+    }
+}
+
+fn parse_containment_state(state: &str) -> StoreResult<ContainmentState> {
+    match state {
+        "creating" => Ok(ContainmentState::Creating),
+        "live" => Ok(ContainmentState::Live),
+        "empty" => Ok(ContainmentState::Empty),
+        "uncertain" => Ok(ContainmentState::Uncertain),
+        other => Err(StoreError::InvalidState(format!(
+            "unknown Containment state {other}"
+        ))),
+    }
+}
+
+fn parse_exit_classification(value: &str) -> StoreResult<ExitClassification> {
+    match value {
+        "accepted" => Ok(ExitClassification::Accepted),
+        "retryable" => Ok(ExitClassification::Retryable),
+        "failed" => Ok(ExitClassification::Failed),
+        other => Err(StoreError::InvalidState(format!(
+            "unknown exit classification {other}"
+        ))),
+    }
+}
+
 fn outcome_string(outcome: JobOutcome) -> &'static str {
     match outcome {
         JobOutcome::Succeeded => "succeeded",
@@ -3288,6 +3881,42 @@ fn outcome_string(outcome: JobOutcome) -> &'static str {
         JobOutcome::Canceled => "canceled",
         JobOutcome::Skipped => "skipped",
     }
+}
+
+fn outcome_for_verdict(verdict: AttemptVerdict) -> JobOutcome {
+    match verdict {
+        AttemptVerdict::Succeeded => JobOutcome::Succeeded,
+        AttemptVerdict::TimedOut => JobOutcome::TimedOut,
+        AttemptVerdict::Interrupted => JobOutcome::Interrupted,
+        AttemptVerdict::Canceled => JobOutcome::Canceled,
+        AttemptVerdict::ProcessFailed
+        | AttemptVerdict::StartFailed
+        | AttemptVerdict::SafetyFailed
+        | AttemptVerdict::PostconditionRetryable
+        | AttemptVerdict::PostconditionFailed => JobOutcome::Failed,
+    }
+}
+
+fn exit_classification_string(classification: ExitClassification) -> &'static str {
+    match classification {
+        ExitClassification::Accepted => "accepted",
+        ExitClassification::Retryable => "retryable",
+        ExitClassification::Failed => "failed",
+    }
+}
+
+fn read_diagnostic_tail(path: &Path) -> StoreResult<String> {
+    const LIMIT: u64 = 16 * 1024;
+    let mut file = match File::open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(String::new()),
+        Err(error) => return Err(error.into()),
+    };
+    let length = file.metadata()?.len();
+    file.seek(SeekFrom::Start(length.saturating_sub(LIMIT)))?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)?;
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 fn now_millis() -> i64 {
@@ -3304,7 +3933,8 @@ mod tests {
     use super::*;
     use crate::{
         BatchMember, DependencyKind, DependencySpec, EnvironmentProfile, EnvironmentSpec,
-        EstimateConfidence, ResourceClaims, RetryPolicy, SPEC_VERSION, StdinSpec,
+        EstimateConfidence, PostconditionSpec, ResourceClaims, RetryPolicy, SPEC_VERSION,
+        StdinSpec,
     };
 
     fn spec(root: &Path) -> JobSpec {
@@ -3318,6 +3948,7 @@ mod tests {
             resources: ResourceClaims::default(),
             conditions: Vec::new(),
             retry: RetryPolicy::default(),
+            postconditions: Vec::new(),
             labels: Vec::new(),
             expected_duration_seconds: None,
             timeout_seconds: None,
@@ -3582,6 +4213,7 @@ mod tests {
         let paths = StorePaths::new(temp.path().to_path_buf());
         let config = HostConfig {
             resources: capacities(),
+            impact_incompatibilities: Default::default(),
             profiles: [(
                 "codex".to_owned(),
                 EnvironmentProfile {
@@ -4376,6 +5008,7 @@ mod tests {
         let config = HostConfig {
             resources: capacities(),
             profiles: Default::default(),
+            impact_incompatibilities: Default::default(),
         };
         std::fs::write(&paths.config, serde_json::to_vec(&config).unwrap()).unwrap();
         let store = Store::open(paths).unwrap();
@@ -5111,5 +5744,241 @@ mod tests {
             )
             .unwrap();
         assert_eq!(child_jobs, 0, "restart must not accept a late child");
+    }
+
+    #[test]
+    fn alpha6_postcondition_retry_keeps_one_job_and_exposes_ordered_attempts() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store =
+            Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+                .unwrap();
+        let mut job = spec(temp.path());
+        job.resources.cargo_slots = Some(1);
+        job.retry = RetryPolicy {
+            max_attempts: 2,
+            backoff_seconds: 0,
+            retryable: vec!["postcondition_retryable".into()],
+        };
+        job.postconditions.push(PostconditionSpec {
+            executable: temp.path().join("validate.exe"),
+            args: vec!["--result".into()],
+            working_directory: None,
+            accepted_exit_codes: vec![0],
+            retryable_exit_codes: vec![10],
+        });
+        let hash = normalized_payload_hash(&job).unwrap();
+        let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+        let first = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        store
+            .mark_invocation_resolved(&first, Some(0), None)
+            .unwrap();
+
+        let mut contender = spec(temp.path());
+        contender.resources.cargo_slots = Some(1);
+        let contender_hash = normalized_payload_hash(&contender).unwrap();
+        let contender = store
+            .submit(Uuid::now_v7(), &contender_hash, &contender)
+            .unwrap()
+            .receipt;
+        assert!(
+            contender
+                .blockers
+                .iter()
+                .any(|blocker| blocker.code == "resource_busy"),
+            "primary cleanup must not release the Attempt Lease before postconditions"
+        );
+
+        let validator = store.prepare_postcondition(&first, 0).unwrap();
+        store
+            .mark_invocation_resolved(&validator, Some(10), Some(ExitClassification::Retryable))
+            .unwrap();
+        assert!(
+            store
+                .settle_attempt(&first, AttemptVerdict::PostconditionRetryable)
+                .unwrap()
+        );
+        let between = store.status(receipt.job_id).unwrap();
+        assert_eq!(between.state, JobState::Pending);
+        assert_eq!(between.attempts.len(), 1);
+        assert_eq!(
+            between.attempts[0].verdict,
+            Some(AttemptVerdict::PostconditionRetryable)
+        );
+        assert_eq!(between.attempts[0].invocations.len(), 2);
+        assert_eq!(
+            between.attempts[0].invocations[1].exit_classification,
+            Some(ExitClassification::Retryable)
+        );
+
+        let second = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        assert_ne!(first.attempt_id, second.attempt_id);
+        store
+            .mark_invocation_resolved(&second, Some(0), None)
+            .unwrap();
+        let validator = store.prepare_postcondition(&second, 0).unwrap();
+        store
+            .mark_invocation_resolved(&validator, Some(0), Some(ExitClassification::Accepted))
+            .unwrap();
+        assert!(
+            !store
+                .settle_attempt(&second, AttemptVerdict::Succeeded)
+                .unwrap()
+        );
+        let final_snapshot = store.status(receipt.job_id).unwrap();
+        assert_eq!(final_snapshot.outcome, Some(JobOutcome::Succeeded));
+        assert_eq!(
+            final_snapshot
+                .attempts
+                .iter()
+                .map(|attempt| attempt.attempt_index)
+                .collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+    }
+
+    #[test]
+    fn alpha6_plain_cancel_covers_queued_active_and_backoff_without_successors() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store =
+            Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+                .unwrap();
+        let batch = BatchSpec {
+            spec_version: SPEC_VERSION,
+            jobs: vec![
+                member("reviewer", spec(temp.path()), vec![]),
+                member(
+                    "collect",
+                    spec(temp.path()),
+                    vec![DependencySpec {
+                        job: "reviewer".into(),
+                        on: DependencyKind::Terminal,
+                    }],
+                ),
+            ],
+        };
+        let hash = normalized_batch_payload_hash(&batch).unwrap();
+        let receipt = store
+            .submit_batch(Uuid::now_v7(), &hash, &batch)
+            .unwrap()
+            .receipt;
+        let reviewer = receipt.jobs[0].receipt.job_id;
+        let collect = receipt.jobs[1].receipt.job_id;
+        let canceled = store.cancel_jobs(&[reviewer]).unwrap();
+        assert_eq!(canceled[0].outcome, Some(JobOutcome::Canceled));
+        assert!(canceled[0].cancel_requested);
+        let prepared_collect = store.prepare_next_job().unwrap().unwrap();
+        assert_eq!(
+            prepared_collect.job_id, collect,
+            "plain cancel must not select collect"
+        );
+
+        let mut active_spec = spec(temp.path());
+        active_spec.retry = RetryPolicy {
+            max_attempts: 2,
+            backoff_seconds: 60,
+            retryable: vec!["process_failed".into()],
+        };
+        let hash = normalized_payload_hash(&active_spec).unwrap();
+        let active = store
+            .submit(Uuid::now_v7(), &hash, &active_spec)
+            .unwrap()
+            .receipt
+            .job_id;
+        let prepared = store.prepare_job(active).unwrap().unwrap();
+        let canceling = store.cancel_jobs(&[active]).unwrap();
+        assert_eq!(canceling[0].state, JobState::Active);
+        assert!(canceling[0].cancel_requested);
+        assert!(store.cancel_requested(active).unwrap());
+        store
+            .mark_invocation_resolved(&prepared, Some(1), None)
+            .unwrap();
+        assert!(
+            !store
+                .settle_attempt(&prepared, AttemptVerdict::ProcessFailed)
+                .unwrap()
+        );
+        let active = store.status(active).unwrap();
+        assert_eq!(active.outcome, Some(JobOutcome::Canceled));
+        assert_eq!(active.attempts[0].verdict, Some(AttemptVerdict::Canceled));
+    }
+
+    #[test]
+    fn alpha6_impact_rules_block_admission_and_ancestor_waits_symmetrically() {
+        let temp = tempfile::tempdir().unwrap();
+        let config = HostConfig {
+            resources: capacities(),
+            profiles: Default::default(),
+            impact_incompatibilities: [(
+                "measurement".into(),
+                vec!["cpu_heavy".into(), "gpu_heavy".into()],
+            )]
+            .into(),
+        };
+        let mut store =
+            Store::open_with_config(StorePaths::new(temp.path().to_path_buf()), config).unwrap();
+        let mut cpu = spec(temp.path());
+        cpu.resources.impacts = vec!["cpu_heavy".into()];
+        let hash = normalized_payload_hash(&cpu).unwrap();
+        let cpu = store.submit(Uuid::now_v7(), &hash, &cpu).unwrap().receipt;
+        store.prepare_job(cpu.job_id).unwrap().unwrap();
+
+        let mut measurement = spec(temp.path());
+        measurement.resources.impacts = vec!["measurement".into()];
+        let hash = normalized_payload_hash(&measurement).unwrap();
+        let measurement = store
+            .submit(Uuid::now_v7(), &hash, &measurement)
+            .unwrap()
+            .receipt;
+        assert!(
+            measurement
+                .blockers
+                .iter()
+                .any(|blocker| blocker.code == "impact_busy")
+        );
+        let daemon = store.daemon_status().unwrap();
+        assert_eq!(daemon.daemon_generation, cpu.daemon_generation);
+        assert!(!daemon.config_sha256.is_empty());
+    }
+
+    #[test]
+    fn alpha6_receipt_preserves_accepting_generation_across_daemon_restart() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let key = Uuid::now_v7();
+        let job = spec(temp.path());
+        let hash = normalized_payload_hash(&job).unwrap();
+        let accepted_generation = {
+            let mut store = Store::open(paths.clone()).unwrap();
+            store
+                .submit(key, &hash, &job)
+                .unwrap()
+                .receipt
+                .daemon_generation
+        };
+        let mut reopened = Store::open(paths).unwrap();
+        assert_ne!(reopened.daemon_generation, accepted_generation);
+        let replay = reopened.submit(key, &hash, &job).unwrap();
+        assert!(!replay.should_schedule);
+        assert_eq!(replay.receipt.daemon_generation, accepted_generation);
+    }
+
+    #[test]
+    fn alpha6_root_exit_is_visible_before_containment_resolution() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store =
+            Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+                .unwrap();
+        let job = spec(temp.path());
+        let hash = normalized_payload_hash(&job).unwrap();
+        let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+        let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        store.mark_started(&prepared, 42, "test-hash").unwrap();
+        store.mark_root_exited(&prepared, 0).unwrap();
+
+        let snapshot = store.status(receipt.job_id).unwrap();
+        let invocation = &snapshot.attempts[0].invocations[0];
+        assert_eq!(invocation.state, InvocationState::Exited);
+        assert_eq!(invocation.root_exit_code, Some(0));
+        assert_eq!(invocation.containment.state, ContainmentState::Live);
     }
 }
