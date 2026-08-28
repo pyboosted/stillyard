@@ -557,6 +557,29 @@ impl Client {
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<ObservationFrame> {
+        self.observe_inner(
+            selector,
+            cursor,
+            limit,
+            max_wait,
+            false,
+            deadline,
+            cancellation,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn observe_inner(
+        &self,
+        selector: JobSelector,
+        cursor: Option<EventCursor>,
+        limit: u32,
+        max_wait: Duration,
+        managed_wait: bool,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<ObservationFrame> {
+        let remaining = deadline.saturating_duration_since(Instant::now());
         match self.request(
             Request::Observe {
                 selector,
@@ -564,9 +587,11 @@ impl Client {
                 limit: limit.clamp(1, MAX_OBSERVATION_PAGE),
                 max_wait_millis: max_wait
                     .min(Duration::from_secs(60))
+                    .min(remaining)
                     .as_millis()
                     .try_into()
                     .unwrap_or(60_000),
+                managed_wait,
             },
             deadline,
             cancellation,
@@ -614,6 +639,19 @@ impl Client {
             )));
         }
         let jobs = page.jobs.iter().map(|job| job.job_id).collect::<Vec<_>>();
+        if !jobs.is_empty() {
+            self.observe_inner(
+                JobSelector::Jobs {
+                    job_ids: jobs.clone(),
+                },
+                Some(page.event_cursor),
+                1,
+                Duration::ZERO,
+                true,
+                deadline,
+                cancellation,
+            )?;
+        }
         let mut stream = WaitStream {
             client: self.clone(),
             jobs,
@@ -627,7 +665,7 @@ impl Client {
             deadline,
             cancellation: cancellation.cloned(),
         };
-        stream.refresh_settlements()?;
+        stream.refresh_settlements(None)?;
         Ok(stream)
     }
 
@@ -897,6 +935,7 @@ impl Iterator for ObservationStream {
             return None;
         }
         loop {
+            let requested = self.cursor;
             let frame = match self.client.observe(
                 self.selector.clone(),
                 self.cursor,
@@ -914,6 +953,7 @@ impl Iterator for ObservationStream {
             self.cursor = Some(frame.cursor());
             if matches!(&frame, ObservationFrame::Gap { .. })
                 || matches!(&frame, ObservationFrame::Events { events, .. } if !events.is_empty())
+                || requested != self.cursor
             {
                 return Some(Ok(frame));
             }
@@ -926,9 +966,14 @@ impl Iterator for ObservationStream {
 }
 
 impl WaitStream {
-    fn refresh_settlements(&mut self) -> Result<()> {
+    fn refresh_settlements(
+        &mut self,
+        candidates: Option<&std::collections::BTreeSet<JobId>>,
+    ) -> Result<()> {
         for job_id in self.jobs.iter().copied() {
-            if self.settled.contains(&job_id) {
+            if self.settled.contains(&job_id)
+                || candidates.is_some_and(|candidates| !candidates.contains(&job_id))
+            {
                 continue;
             }
             let snapshot = self
@@ -976,13 +1021,14 @@ impl Iterator for WaitStream {
                 self.finished = true;
                 return None;
             }
-            let frame = match self.client.observe(
+            let frame = match self.client.observe_inner(
                 JobSelector::Jobs {
                     job_ids: self.jobs.clone(),
                 },
                 Some(self.cursor),
                 MAX_OBSERVATION_PAGE,
                 Duration::from_secs(30),
+                true,
                 self.deadline,
                 self.cancellation.as_ref(),
             ) {
@@ -993,12 +1039,17 @@ impl Iterator for WaitStream {
                 }
             };
             self.cursor = frame.cursor();
-            let changed = matches!(&frame, ObservationFrame::Gap { .. })
-                || matches!(&frame, ObservationFrame::Events { events, .. } if !events.is_empty());
-            if !changed {
-                continue;
-            }
-            if let Err(error) = self.refresh_settlements() {
+            let candidates = match &frame {
+                ObservationFrame::Gap { .. } => None,
+                ObservationFrame::Events { events, .. } if !events.is_empty() => Some(
+                    events
+                        .iter()
+                        .map(|event| event.job_id)
+                        .collect::<std::collections::BTreeSet<_>>(),
+                ),
+                ObservationFrame::Events { .. } => continue,
+            };
+            if let Err(error) = self.refresh_settlements(candidates.as_ref()) {
                 self.finished = true;
                 return Some(Err(error));
             }
@@ -1029,8 +1080,9 @@ impl Iterator for LogFollower {
                 }
             };
             if chunk.gap.is_some() || !chunk.bytes.is_empty() || chunk.eof {
+                let unrecoverable_gap = chunk.gap.is_some() && chunk.next_offset == self.offset;
                 self.offset = chunk.next_offset;
-                self.finished = chunk.eof;
+                self.finished = chunk.eof || unrecoverable_gap;
                 return Some(Ok(chunk));
             }
             let frame = match self.client.observe(

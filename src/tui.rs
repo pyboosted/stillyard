@@ -45,6 +45,7 @@ struct App {
     stdout: VecDeque<u8>,
     stderr: VecDeque<u8>,
     status: String,
+    last_refresh: Instant,
 }
 
 impl App {
@@ -71,7 +72,13 @@ pub(crate) fn run(
     deadline: Instant,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let limit = limit.clamp(1, stillyard::MAX_OBSERVATION_PAGE);
-    let page = client.list(selector.clone(), None, limit, deadline, None)?;
+    let page = client.list(
+        selector.clone(),
+        None,
+        limit,
+        request_deadline(deadline),
+        None,
+    )?;
     let initial_cursor = page.event_cursor;
     let mut app = App {
         page,
@@ -83,8 +90,9 @@ pub(crate) fn run(
         stdout: VecDeque::with_capacity(LOG_WINDOW_BYTES),
         stderr: VecDeque::with_capacity(LOG_WINDOW_BYTES),
         status: "connected".into(),
+        last_refresh: Instant::now(),
     };
-    refresh_detail(&client, &mut app, deadline)?;
+    refresh_detail(&client, &mut app, request_deadline(deadline))?;
 
     enable_raw_mode()?;
     execute!(io::stdout(), EnterAlternateScreen)?;
@@ -92,7 +100,7 @@ pub(crate) fn run(
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
     terminal.clear()?;
 
-    let (sender, receiver) = mpsc::channel();
+    let (sender, receiver) = mpsc::sync_channel(1);
     let input_sender = sender.clone();
     std::thread::Builder::new()
         .name("stillyard-watch-input".into())
@@ -110,6 +118,7 @@ pub(crate) fn run(
         .spawn(move || {
             let mut cursor = initial_cursor;
             loop {
+                let requested = cursor;
                 match observer.observe(
                     selector.clone(),
                     Some(cursor),
@@ -123,7 +132,8 @@ pub(crate) fn run(
                         if matches!(
                             &frame,
                             ObservationFrame::Events { events, .. } if events.is_empty()
-                        ) {
+                        ) && cursor == requested
+                        {
                             continue;
                         }
                         if sender.send(Message::Observation(Ok(frame))).is_err() {
@@ -151,21 +161,61 @@ pub(crate) fn run(
 
     loop {
         terminal.draw(|frame| draw(frame, &mut app))?;
-        match receiver.recv()? {
+        let message = match receiver.recv_timeout(std::time::Duration::from_secs(1)) {
+            Ok(message) => message,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                if app.last_refresh.elapsed() >= std::time::Duration::from_secs(30) {
+                    app.status = format!(
+                        "stale: no successful refresh for {:.0}s",
+                        app.last_refresh.elapsed().as_secs_f64()
+                    );
+                }
+                continue;
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err("watch channels disconnected".into());
+            }
+        };
+        match message {
             Message::Input(Event::Key(key)) if key.kind == KeyEventKind::Press => match key.code {
                 KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
                 KeyCode::Up | KeyCode::Char('k') => {
                     app.select_relative(-1);
-                    refresh_detail(&client, &mut app, deadline)?;
+                    if let Err(error) =
+                        refresh_detail(&client, &mut app, request_deadline(deadline))
+                    {
+                        app.status = format!("stale after detail error: {error}");
+                    } else {
+                        app.last_refresh = Instant::now();
+                    }
                 }
                 KeyCode::Down | KeyCode::Char('j') => {
                     app.select_relative(1);
-                    refresh_detail(&client, &mut app, deadline)?;
+                    if let Err(error) =
+                        refresh_detail(&client, &mut app, request_deadline(deadline))
+                    {
+                        app.status = format!("stale after detail error: {error}");
+                    } else {
+                        app.last_refresh = Instant::now();
+                    }
                 }
                 KeyCode::Char('r') => {
-                    refresh_page(&client, &mut app, &refresh_selector, limit, deadline)?;
-                    refresh_detail(&client, &mut app, deadline)?;
-                    app.status = "manually refreshed".into();
+                    let refresh_deadline = request_deadline(deadline);
+                    match refresh_page(
+                        &client,
+                        &mut app,
+                        &refresh_selector,
+                        limit,
+                        refresh_deadline,
+                    )
+                    .and_then(|()| refresh_detail(&client, &mut app, refresh_deadline))
+                    {
+                        Ok(()) => {
+                            app.status = "manually refreshed".into();
+                            app.last_refresh = Instant::now();
+                        }
+                        Err(error) => app.status = format!("stale after refresh error: {error}"),
+                    }
                 }
                 _ => {}
             },
@@ -181,15 +231,47 @@ pub(crate) fn run(
                     ),
                     _ => "unknown observation frame; refreshed".into(),
                 };
-                refresh_page(&client, &mut app, &refresh_selector, limit, deadline)?;
-                refresh_detail(&client, &mut app, deadline)?;
+                let refresh_deadline = request_deadline(deadline);
+                let refresh = match frame {
+                    ObservationFrame::Gap { snapshot, .. } => {
+                        replace_page(&mut app, snapshot);
+                        refresh_detail(&client, &mut app, refresh_deadline)
+                    }
+                    ObservationFrame::Events { .. } => refresh_page(
+                        &client,
+                        &mut app,
+                        &refresh_selector,
+                        limit,
+                        refresh_deadline,
+                    )
+                    .and_then(|()| refresh_detail(&client, &mut app, refresh_deadline)),
+                    _ => Ok(()),
+                };
+                if let Err(error) = refresh {
+                    app.status = format!("stale after observation refresh error: {error}");
+                } else {
+                    app.last_refresh = Instant::now();
+                }
             }
             Message::Observation(Err(error)) => {
-                return Err(error.into());
+                app.status = format!("stale: observer stopped: {error}");
             }
             Message::Status(status) => app.status = status,
         }
     }
+}
+
+fn request_deadline(overall: Instant) -> Instant {
+    overall.min(Instant::now() + std::time::Duration::from_secs(2))
+}
+
+fn replace_page(app: &mut App, page: JobListPage) {
+    let selected = app.selected_job();
+    app.page = page;
+    app.selected = selected
+        .and_then(|job_id| app.page.jobs.iter().position(|job| job.job_id == job_id))
+        .unwrap_or(0)
+        .min(app.page.jobs.len().saturating_sub(1));
 }
 
 fn refresh_page(
@@ -228,7 +310,7 @@ fn refresh_detail(client: &Client, app: &mut App, deadline: Instant) -> stillyar
         return Ok(());
     };
     app.detail = Some(client.status(job_id, deadline, None)?);
-    read_log_window(
+    let stdout_gap = read_log_window(
         client,
         job_id,
         LogStream::Stdout,
@@ -236,7 +318,7 @@ fn refresh_detail(client: &Client, app: &mut App, deadline: Instant) -> stillyar
         &mut app.stdout,
         deadline,
     )?;
-    read_log_window(
+    let stderr_gap = read_log_window(
         client,
         job_id,
         LogStream::Stderr,
@@ -244,6 +326,9 @@ fn refresh_detail(client: &Client, app: &mut App, deadline: Instant) -> stillyar
         &mut app.stderr,
         deadline,
     )?;
+    if let Some(gap) = stdout_gap.or(stderr_gap) {
+        app.status = format!("log GAP resynchronized: {gap}");
+    }
     Ok(())
 }
 
@@ -254,7 +339,7 @@ fn read_log_window(
     offset: &mut u64,
     buffer: &mut VecDeque<u8>,
     deadline: Instant,
-) -> stillyard::Result<()> {
+) -> stillyard::Result<Option<String>> {
     let chunk = client.logs(
         job_id,
         stream,
@@ -263,14 +348,16 @@ fn read_log_window(
         deadline,
         None,
     )?;
-    if chunk.gap.is_none() {
-        buffer.extend(chunk.bytes);
-        *offset = chunk.next_offset;
-        while buffer.len() > LOG_WINDOW_BYTES {
-            buffer.pop_front();
-        }
+    let gap = chunk.gap;
+    if gap.is_some() {
+        buffer.clear();
     }
-    Ok(())
+    buffer.extend(chunk.bytes);
+    *offset = chunk.next_offset;
+    while buffer.len() > LOG_WINDOW_BYTES {
+        buffer.pop_front();
+    }
+    Ok(gap)
 }
 
 fn draw(frame: &mut ratatui::Frame<'_>, app: &mut App) {
@@ -411,13 +498,13 @@ fn draw(frame: &mut ratatui::Frame<'_>, app: &mut App) {
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(areas[2]);
     frame.render_widget(
-        Paragraph::new(String::from_utf8_lossy(app.stdout.make_contiguous()).into_owned())
+        Paragraph::new(terminal_text(app.stdout.make_contiguous()))
             .block(Block::default().title(" stdout ").borders(Borders::ALL))
             .wrap(Wrap { trim: false }),
         logs[0],
     );
     frame.render_widget(
-        Paragraph::new(String::from_utf8_lossy(app.stderr.make_contiguous()).into_owned())
+        Paragraph::new(terminal_text(app.stderr.make_contiguous()))
             .block(Block::default().title(" stderr ").borders(Borders::ALL))
             .wrap(Wrap { trim: false }),
         logs[1],
@@ -429,4 +516,28 @@ fn draw(frame: &mut ratatui::Frame<'_>, app: &mut App) {
         )),
         areas[3],
     );
+}
+
+fn terminal_text(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes)
+        .chars()
+        .map(|character| match character {
+            '\n' | '\r' | '\t' => character,
+            character if character.is_control() => '\u{fffd}',
+            character => character,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::terminal_text;
+
+    #[test]
+    fn terminal_rendering_replaces_controls_without_touching_line_structure() {
+        assert_eq!(
+            terminal_text(b"ok\x1b[31m\n\xff"),
+            "ok\u{fffd}[31m\n\u{fffd}"
+        );
+    }
 }

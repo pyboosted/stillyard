@@ -130,7 +130,7 @@ enum Command {
         /// Emit the complete LogChunk JSON instead of its byte payload.
         #[arg(long)]
         json: bool,
-        #[arg(long, default_value_t = 10)]
+        #[arg(long, default_value_t = 86_400)]
         deadline_seconds: u64,
     },
     /// Open the disposable event-driven terminal monitor.
@@ -455,6 +455,13 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             if follow {
                 for chunk in client.follow_logs(job_id, stream, offset, deadline, None)? {
                     let chunk = chunk?;
+                    if let Some(gap) = chunk
+                        .gap
+                        .as_deref()
+                        .filter(|_| chunk.next_offset == chunk.offset && !json)
+                    {
+                        return Err(stillyard::Error::Protocol(gap.to_owned()).into());
+                    }
                     if json {
                         print_json(&chunk)?;
                     } else {
@@ -714,10 +721,30 @@ mod tests {
                 stderr: true,
                 follow: true,
                 offset: 7,
+                deadline_seconds: 86_400,
                 ..
             }
         ));
         assert!(Cli::try_parse_from(["stillyard", "events"]).is_err());
         assert!(Cli::try_parse_from(["stillyard", "events", "--json"]).is_ok());
+    }
+
+    #[test]
+    fn cli_and_tui_have_no_private_store_read_path() {
+        let sources = [include_str!("main.rs"), include_str!("tui.rs")]
+            .join("\n")
+            .to_ascii_lowercase();
+        for forbidden in [
+            concat!("rusi", "qlite"),
+            concat!("store", "paths"),
+            concat!("stillyard::", "store"),
+            concat!("sqlite", "3"),
+            concat!("prag", "ma "),
+        ] {
+            assert!(
+                !sources.contains(forbidden),
+                "private-read mutant survived source audit: {forbidden}"
+            );
+        }
     }
 }

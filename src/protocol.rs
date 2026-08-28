@@ -10,7 +10,7 @@ use crate::{
     ObservationFrame, SubmissionContext,
 };
 
-pub(crate) const PROTOCOL_VERSION: u32 = 8;
+pub(crate) const PROTOCOL_VERSION: u32 = 9;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -76,6 +76,7 @@ pub(crate) enum Request {
         cursor: Option<EventCursor>,
         limit: u32,
         max_wait_millis: u32,
+        managed_wait: bool,
     },
     Cancel {
         job_ids: Vec<JobId>,

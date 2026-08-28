@@ -40,11 +40,15 @@ pub(crate) fn run() -> Result<()> {
     let (_lock, store) = open_store_under_lock(StorePaths::new(default_store_root()?))?;
     let store = Arc::new(Mutex::new(store));
     let scheduler = Scheduler::start(Arc::clone(&store));
-    let notifier = Arc::clone(&scheduler);
+    let notifier = Arc::downgrade(&scheduler);
     store
         .lock()
         .map_err(|_| Error::Unavailable("store mutex poisoned".into()))?
-        .set_change_notifier(Arc::new(move || notifier.notify_change()));
+        .set_change_notifier(Arc::new(move || {
+            if let Some(notifier) = notifier.upgrade() {
+                notifier.notify_change();
+            }
+        }));
     scheduler.wake();
     serve(store, scheduler)
 }
@@ -273,6 +277,7 @@ impl Scheduler {
                 .lock()
                 .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))
                 .map(|generation| *generation)?;
+            let requested = cursor;
             let frame = store
                 .lock()
                 .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
@@ -280,7 +285,7 @@ impl Scheduler {
             let ready = match &frame {
                 crate::ObservationFrame::Events { events, .. } => !events.is_empty(),
                 crate::ObservationFrame::Gap { .. } => true,
-            };
+            } || requested != Some(frame.cursor());
             if ready || Instant::now() >= deadline {
                 return Ok(frame);
             }
@@ -585,15 +590,35 @@ fn handle_request(
             cursor,
             limit,
             max_wait_millis,
-        } => scheduler
-            .wait_observation(
-                store,
-                &selector,
-                cursor,
-                limit,
-                Duration::from_millis(u64::from(max_wait_millis.min(60_000))),
-            )
-            .map(Response::Observed),
+            managed_wait,
+        } => (|| {
+            if managed_wait {
+                let context = submission_context(store, peer)?;
+                let crate::JobSelector::Jobs { job_ids } = &selector else {
+                    return Err(StoreError::InvalidSpec(
+                        "managed wait observation requires explicit Job IDs".into(),
+                    ));
+                };
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .validate_managed_wait(
+                        context
+                            .parent
+                            .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
+                        job_ids,
+                    )?;
+            }
+            scheduler
+                .wait_observation(
+                    store,
+                    &selector,
+                    cursor,
+                    limit,
+                    Duration::from_millis(u64::from(max_wait_millis.min(60_000))),
+                )
+                .map(Response::Observed)
+        })(),
         Request::Cancel { job_ids } => store
             .lock()
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
@@ -1038,8 +1063,12 @@ mod tests {
             .unwrap()
             .event_cursor;
         let scheduler = observation_scheduler();
-        let notifier = Arc::clone(&scheduler);
-        store.set_change_notifier(Arc::new(move || notifier.notify_change()));
+        let notifier = Arc::downgrade(&scheduler);
+        store.set_change_notifier(Arc::new(move || {
+            if let Some(notifier) = notifier.upgrade() {
+                notifier.notify_change();
+            }
+        }));
         let store = Arc::new(Mutex::new(store));
         let waiting_store = Arc::clone(&store);
         let waiting_scheduler = Arc::clone(&scheduler);
@@ -1053,16 +1082,82 @@ mod tests {
             )
         });
         std::thread::sleep(Duration::from_millis(25));
+        let committed_at = Instant::now();
         store
             .lock()
             .unwrap()
             .commit_log_offset(receipt.job_id, crate::LogStream::Stdout, 7)
             .unwrap();
         let frame = waiter.join().unwrap().unwrap();
+        assert!(
+            committed_at.elapsed() < Duration::from_millis(500),
+            "waiter slept until its timeout instead of consuming the notification"
+        );
         assert!(matches!(
-            frame,
+            &frame,
+            crate::ObservationFrame::Events { events, .. }
+                if events.iter().any(|event| event.kind == crate::SchedulerEventKind::LogCommitted)
+        ));
+
+        let before_second = frame.cursor();
+        store
+            .lock()
+            .unwrap()
+            .commit_log_offset(receipt.job_id, crate::LogStream::Stdout, 8)
+            .unwrap();
+        let started = Instant::now();
+        let already_committed = scheduler
+            .wait_observation(
+                &store,
+                &crate::JobSelector::All,
+                Some(before_second),
+                16,
+                Duration::from_secs(2),
+            )
+            .unwrap();
+        assert!(started.elapsed() < Duration::from_millis(100));
+        assert!(matches!(
+            already_committed,
             crate::ObservationFrame::Events { ref events, .. }
                 if events.iter().any(|event| event.kind == crate::SchedulerEventKind::LogCommitted)
+        ));
+
+        let invalidation_cursor = store
+            .lock()
+            .unwrap()
+            .list_jobs(&crate::JobSelector::All, None, 1)
+            .unwrap()
+            .event_cursor;
+        let other = crate::JobSpec {
+            labels: vec![crate::Label {
+                key: "other".into(),
+                value: "job".into(),
+            }],
+            ..spec
+        };
+        let other_hash = crate::store::normalized_payload_hash(&other).unwrap();
+        store
+            .lock()
+            .unwrap()
+            .submit(uuid::Uuid::now_v7(), &other_hash, &other)
+            .unwrap();
+        let started = Instant::now();
+        let invalidation = scheduler
+            .wait_observation(
+                &store,
+                &crate::JobSelector::Jobs {
+                    job_ids: vec![receipt.job_id],
+                },
+                Some(invalidation_cursor),
+                16,
+                Duration::from_secs(2),
+            )
+            .unwrap();
+        assert!(started.elapsed() < Duration::from_millis(100));
+        assert!(matches!(
+            invalidation,
+            crate::ObservationFrame::Events { ref events, cursor }
+                if events.is_empty() && cursor.sequence > invalidation_cursor.sequence
         ));
     }
 }

@@ -116,6 +116,7 @@ pub enum SchedulerEventKind {
     AttemptChanged,
     InvocationChanged,
     ContainmentChanged,
+    CancellationRequested,
     /// A newer daemon committed a change kind this client does not yet name.
     #[serde(other)]
     Unknown,
@@ -548,5 +549,9 @@ mod tests {
         };
         assert_eq!(list.to_string().parse::<JobListCursor>().unwrap(), list);
         assert!("not-a-cursor".parse::<EventCursor>().is_err());
+        assert_eq!(
+            serde_json::from_str::<SchedulerEventKind>("\"future_kind\"").unwrap(),
+            SchedulerEventKind::Unknown
+        );
     }
 }

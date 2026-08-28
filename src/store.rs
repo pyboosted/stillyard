@@ -21,7 +21,7 @@ use crate::{
 
 // Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
 // the current schema changes; daemon startup will replace the whole SQLite database.
-const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-live-observation-2026-08-28";
+const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-live-observation-r2-2026-08-28";
 const MAX_EVENT_ROWS: u64 = 16_384;
 const MAX_CANCEL_JOBS: usize = 16;
 const SNAPSHOT_DIAGNOSTIC_BUDGET_BYTES: usize = 64 * 1024;
@@ -192,7 +192,6 @@ pub(crate) struct Store {
     profiles: std::collections::BTreeMap<String, crate::EnvironmentProfile>,
     impact_incompatibilities: std::collections::BTreeMap<String, Vec<String>>,
     config_sha256: String,
-    change_notifier: Option<std::sync::Arc<dyn Fn() + Send + Sync>>,
 }
 
 impl Store {
@@ -201,15 +200,16 @@ impl Store {
     }
 
     pub(crate) fn set_change_notifier(&mut self, notifier: std::sync::Arc<dyn Fn() + Send + Sync>) {
-        let hook = std::sync::Arc::clone(&notifier);
+        // SQLite invokes update hooks before the surrounding transaction commits. This is only a
+        // wake hint: every reader rechecks durable state, and the daemon's single Store mutex keeps
+        // it from observing the connection until the writer commits and releases that mutex.
         self.connection.update_hook(Some(
             move |_action: rusqlite::hooks::Action, _database: &str, table: &str, _row_id: i64| {
                 if table == "events" {
-                    hook();
+                    notifier();
                 }
             },
         ));
-        self.change_notifier = Some(notifier);
     }
 
     pub(crate) fn managed_containment_candidates(&self) -> StoreResult<Vec<ManagedCandidate>> {
@@ -371,7 +371,6 @@ impl Store {
             profiles: config.profiles,
             impact_incompatibilities: config.impact_incompatibilities,
             config_sha256,
-            change_notifier: None,
         };
         store.recover_interrupted()?;
         store.resume_received()?;
@@ -2495,7 +2494,7 @@ impl Store {
                 });
             }
             for row in rows {
-                if self.row_matches_selector(row.0, row.3.as_deref(), &row.4, selector)? {
+                if self.row_matches_selector(row.0, row.3.as_deref(), Some(&row.4), selector)? {
                     selected.push(row);
                     if selected.len() > limit {
                         break;
@@ -2534,14 +2533,22 @@ impl Store {
         cursor: Option<EventCursor>,
         limit: u32,
     ) -> StoreResult<ObservationFrame> {
-        self.validate_selector(selector)?;
         let head = self.event_head()?;
         let requested = cursor.unwrap_or(EventCursor {
             store_uuid: self.store_uuid,
             sequence: 0,
         });
         if requested.store_uuid != self.store_uuid {
-            let snapshot = self.list_jobs(selector, None, MAX_OBSERVATION_PAGE)?;
+            let snapshot = match selector {
+                JobSelector::All | JobSelector::Labels { .. } => {
+                    self.list_jobs(selector, None, MAX_OBSERVATION_PAGE)?
+                }
+                JobSelector::Jobs { .. } | JobSelector::Batch { .. } => JobListPage {
+                    jobs: Vec::new(),
+                    next_cursor: None,
+                    event_cursor: head,
+                },
+            };
             return Ok(ObservationFrame::Gap {
                 gap: EventGap {
                     requested,
@@ -2551,6 +2558,7 @@ impl Store {
                 cursor: head,
             });
         }
+        self.validate_selector(selector)?;
         if requested.sequence > head.sequence {
             return Err(StoreError::Rejected(
                 "event cursor is ahead of durable history".into(),
@@ -2572,7 +2580,7 @@ impl Store {
         let wanted = usize::try_from(limit.clamp(1, MAX_OBSERVATION_PAGE)).unwrap_or(1);
         let mut events = Vec::with_capacity(wanted);
         let mut scanned = requested.sequence;
-        while events.len() < wanted && scanned < head.sequence {
+        if scanned < head.sequence {
             let mut statement = self.connection.prepare(
                 "SELECT sequence, kind, job_id, batch_id, committed_ms FROM events
                  WHERE sequence > ?1 ORDER BY sequence LIMIT ?2",
@@ -2590,36 +2598,45 @@ impl Store {
                 .collect::<std::result::Result<Vec<_>, _>>()?;
             if rows.is_empty() {
                 scanned = head.sequence;
-                break;
-            }
-            for (sequence, kind, job, batch, committed) in rows {
-                scanned = sequence;
-                let job_id = JobId::from_parts(self.store_uuid, Uuid::parse_str(&job)?);
-                let spec_json: String = self.connection.query_row(
-                    "SELECT spec_json FROM jobs WHERE id = ?1",
-                    [&job],
-                    |row| row.get(0),
-                )?;
-                if !self.row_matches_selector(job_id, batch.as_deref(), &spec_json, selector)? {
-                    continue;
-                }
-                events.push(SchedulerEvent {
-                    cursor: EventCursor {
-                        store_uuid: self.store_uuid,
-                        sequence,
-                    },
-                    kind: parse_scheduler_event_kind(&kind)?,
-                    job_id,
-                    batch_id: batch
-                        .map(|value| {
-                            Uuid::parse_str(&value)
-                                .map(|uuid| BatchId::from_parts(self.store_uuid, uuid))
-                        })
-                        .transpose()?,
-                    committed_unix_millis: committed,
-                });
-                if events.len() == wanted {
-                    break;
+            } else {
+                for (sequence, kind, job, batch, committed) in rows {
+                    scanned = sequence;
+                    let job_id = JobId::from_parts(self.store_uuid, Uuid::parse_str(&job)?);
+                    let spec_json = if matches!(selector, JobSelector::Labels { .. }) {
+                        Some(self.connection.query_row(
+                            "SELECT spec_json FROM jobs WHERE id = ?1",
+                            [&job],
+                            |row| row.get::<_, String>(0),
+                        )?)
+                    } else {
+                        None
+                    };
+                    if !self.row_matches_selector(
+                        job_id,
+                        batch.as_deref(),
+                        spec_json.as_deref(),
+                        selector,
+                    )? {
+                        continue;
+                    }
+                    events.push(SchedulerEvent {
+                        cursor: EventCursor {
+                            store_uuid: self.store_uuid,
+                            sequence,
+                        },
+                        kind: parse_scheduler_event_kind(&kind)?,
+                        job_id,
+                        batch_id: batch
+                            .map(|value| {
+                                Uuid::parse_str(&value)
+                                    .map(|uuid| BatchId::from_parts(self.store_uuid, uuid))
+                            })
+                            .transpose()?,
+                        committed_unix_millis: committed,
+                    });
+                    if events.len() == wanted {
+                        break;
+                    }
                 }
             }
         }
@@ -2728,7 +2745,7 @@ impl Store {
         &self,
         job_id: JobId,
         batch_id: Option<&str>,
-        spec_json: &str,
+        spec_json: Option<&str>,
         selector: &JobSelector,
     ) -> StoreResult<bool> {
         Ok(match selector {
@@ -2739,7 +2756,9 @@ impl Store {
                 .transpose()?
                 .is_some_and(|batch| batch == selected.entity_uuid()),
             JobSelector::Labels { labels } => {
-                let spec: JobSpec = serde_json::from_str(spec_json)?;
+                let spec: JobSpec = serde_json::from_str(spec_json.ok_or_else(|| {
+                    StoreError::InvalidState("label match is missing retained Job spec".into())
+                })?)?;
                 labels.iter().all(|label| spec.labels.contains(label))
             }
         })
@@ -4185,9 +4204,31 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
              VALUES ('job_changed', NEW.id, NEW.batch_id,
                  CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER));
          END;
-         CREATE TRIGGER jobs_event_update AFTER UPDATE ON jobs BEGIN
+         CREATE TRIGGER jobs_event_update AFTER UPDATE ON jobs
+         WHEN OLD.state IS NOT NEW.state
+           OR OLD.outcome IS NOT NEW.outcome
+           OR OLD.spec_json IS NOT NEW.spec_json
+           OR OLD.claims_json IS NOT NEW.claims_json
+           OR OLD.stdin_hash IS NOT NEW.stdin_hash
+           OR OLD.stdin_len IS NOT NEW.stdin_len
+           OR OLD.attempt_id IS NOT NEW.attempt_id
+           OR OLD.invocation_id IS NOT NEW.invocation_id
+           OR OLD.containment_id IS NOT NEW.containment_id
+           OR OLD.root_exit_code IS NOT NEW.root_exit_code
+           OR OLD.started_ms IS NOT NEW.started_ms
+           OR OLD.finished_ms IS NOT NEW.finished_ms
+           OR OLD.retry_not_before_ms IS NOT NEW.retry_not_before_ms
+           OR OLD.parent_job_id IS NOT NEW.parent_job_id
+           OR OLD.parent_attempt_id IS NOT NEW.parent_attempt_id
+           OR OLD.parent_invocation_id IS NOT NEW.parent_invocation_id BEGIN
              INSERT INTO events(kind, job_id, batch_id, committed_ms)
              VALUES ('job_changed', NEW.id, NEW.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER));
+         END;
+         CREATE TRIGGER cancellation_event_update AFTER UPDATE OF cancel_requested ON jobs
+         WHEN OLD.cancel_requested IS NOT NEW.cancel_requested BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             VALUES ('cancellation_requested', NEW.id, NEW.batch_id,
                  CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER));
          END;
          CREATE TRIGGER logs_event_update AFTER UPDATE OF stdout_len, stderr_len ON jobs
@@ -4342,6 +4383,7 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
         "events_prune",
         "jobs_event_insert",
         "jobs_event_update",
+        "cancellation_event_update",
         "logs_event_update",
         "attempts_event_insert",
         "attempts_event_update",
@@ -4459,6 +4501,7 @@ fn parse_scheduler_event_kind(value: &str) -> StoreResult<SchedulerEventKind> {
         "attempt_changed" => Ok(SchedulerEventKind::AttemptChanged),
         "invocation_changed" => Ok(SchedulerEventKind::InvocationChanged),
         "containment_changed" => Ok(SchedulerEventKind::ContainmentChanged),
+        "cancellation_requested" => Ok(SchedulerEventKind::CancellationRequested),
         other => Err(StoreError::InvalidState(format!(
             "unknown scheduler event kind {other}"
         ))),
@@ -6912,6 +6955,49 @@ mod tests {
         assert_eq!(events.last().unwrap().cursor, cursor);
         assert!(events.iter().all(|event| event.job_id == receipt.job_id));
 
+        store
+            .commit_log_offset(receipt.job_id, LogStream::Stdout, 1)
+            .unwrap();
+        store
+            .commit_log_offset(receipt.job_id, LogStream::Stdout, 2)
+            .unwrap();
+        let first_events = store
+            .observe(
+                &JobSelector::Jobs {
+                    job_ids: vec![receipt.job_id],
+                },
+                Some(cursor),
+                1,
+            )
+            .unwrap();
+        let ObservationFrame::Events {
+            events: first_events,
+            cursor: first_cursor,
+        } = first_events
+        else {
+            panic!("paged event read must stay on the Events branch");
+        };
+        assert_eq!(first_events.len(), 1);
+        assert_eq!(first_events[0].cursor, first_cursor);
+        let second_events = store
+            .observe(
+                &JobSelector::Jobs {
+                    job_ids: vec![receipt.job_id],
+                },
+                Some(first_cursor),
+                10,
+            )
+            .unwrap();
+        let ObservationFrame::Events {
+            events: second_events,
+            ..
+        } = second_events
+        else {
+            panic!("remaining events must be readable after a truncated page");
+        };
+        assert_eq!(second_events.len(), 1);
+        assert!(second_events[0].cursor.sequence > first_cursor.sequence);
+
         let replaced = store
             .observe(
                 &JobSelector::All,
@@ -6923,6 +7009,28 @@ mod tests {
             )
             .unwrap();
         assert!(matches!(replaced, ObservationFrame::Gap { .. }));
+        let exact_replaced = store
+            .observe(
+                &JobSelector::Jobs {
+                    job_ids: vec![receipt.job_id],
+                },
+                Some(EventCursor {
+                    store_uuid: Uuid::now_v7(),
+                    sequence: cursor.sequence,
+                }),
+                10,
+            )
+            .unwrap();
+        assert!(matches!(
+            exact_replaced,
+            ObservationFrame::Gap {
+                ref snapshot,
+                cursor: replacement_cursor,
+                ..
+            } if snapshot.jobs.is_empty()
+                && snapshot.event_cursor == replacement_cursor
+                && replacement_cursor.store_uuid == store.store_uuid
+        ));
 
         let before = store.event_head().unwrap();
         let transaction = store.connection.transaction().unwrap();
@@ -6936,7 +7044,7 @@ mod tests {
         assert_eq!(store.event_head().unwrap(), before);
         assert_eq!(
             store.job_summary(receipt.job_id).unwrap().stdout_committed,
-            0
+            2
         );
     }
 
@@ -6981,20 +7089,85 @@ mod tests {
         else {
             panic!("expired cursor must produce Gap");
         };
-        assert!(gap.oldest_available.sequence > 1);
+        assert_eq!(
+            gap.oldest_available.sequence,
+            cursor.sequence - MAX_EVENT_ROWS + 1
+        );
         assert_eq!(snapshot.jobs[0].job_id, receipt.job_id);
         assert_eq!(snapshot.jobs[0].stdout_committed, MAX_EVENT_ROWS + 8);
         assert_eq!(snapshot.event_cursor, cursor);
+
+        let continuous = store
+            .observe(
+                &JobSelector::All,
+                Some(EventCursor {
+                    store_uuid: store.store_uuid,
+                    sequence: gap.oldest_available.sequence - 1,
+                }),
+                1,
+            )
+            .unwrap();
+        assert!(matches!(continuous, ObservationFrame::Events { .. }));
+        let expired_by_one = store
+            .observe(
+                &JobSelector::All,
+                Some(EventCursor {
+                    store_uuid: store.store_uuid,
+                    sequence: gap.oldest_available.sequence - 2,
+                }),
+                1,
+            )
+            .unwrap();
+        assert!(matches!(expired_by_one, ObservationFrame::Gap { .. }));
+    }
+
+    #[test]
+    fn alpha7_lifecycle_and_cancellation_transitions_emit_named_events() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store =
+            Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+                .unwrap();
+        let job = spec(temp.path());
+        let hash = normalized_payload_hash(&job).unwrap();
+        let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+        let before = store.event_head().unwrap();
+        let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        store.mark_started(&prepared, 42, "alpha7-hash").unwrap();
+        store.cancel_jobs(&[receipt.job_id]).unwrap();
+        let frame = store
+            .observe(
+                &JobSelector::Jobs {
+                    job_ids: vec![receipt.job_id],
+                },
+                Some(before),
+                MAX_OBSERVATION_PAGE,
+            )
+            .unwrap();
+        let ObservationFrame::Events { events, .. } = frame else {
+            panic!("retained lifecycle events must not Gap");
+        };
+        let kinds = events.iter().map(|event| event.kind).collect::<Vec<_>>();
+        assert!(kinds.contains(&SchedulerEventKind::AttemptChanged));
+        assert!(kinds.contains(&SchedulerEventKind::InvocationChanged));
+        assert!(kinds.contains(&SchedulerEventKind::ContainmentChanged));
+        assert!(kinds.contains(&SchedulerEventKind::CancellationRequested));
     }
 
     #[test]
     fn alpha7_list_cursor_is_stable_and_store_scoped() {
         let temp = tempfile::tempdir().unwrap();
         let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let mut submitted = Vec::new();
         for _ in 0..3 {
             let job = spec(temp.path());
             let hash = normalized_payload_hash(&job).unwrap();
-            store.submit(Uuid::now_v7(), &hash, &job).unwrap();
+            submitted.push(
+                store
+                    .submit(Uuid::now_v7(), &hash, &job)
+                    .unwrap()
+                    .receipt
+                    .job_id,
+            );
         }
         let first = store.list_jobs(&JobSelector::All, None, 1).unwrap();
         store
@@ -7008,6 +7181,18 @@ mod tests {
             .list_jobs(&JobSelector::All, first.next_cursor, 1)
             .unwrap();
         assert_ne!(first.jobs[0].job_id, second.jobs[0].job_id);
+        let third = store
+            .list_jobs(&JobSelector::All, second.next_cursor, 1)
+            .unwrap();
+        assert!(third.next_cursor.is_none());
+        let mut paged = vec![
+            first.jobs[0].job_id,
+            second.jobs[0].job_id,
+            third.jobs[0].job_id,
+        ];
+        paged.sort();
+        submitted.sort();
+        assert_eq!(paged, submitted);
         let mut foreign = first.next_cursor.unwrap();
         foreign.store_uuid = Uuid::now_v7();
         assert!(matches!(

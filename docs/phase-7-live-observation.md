@@ -32,7 +32,9 @@ without affecting work, and reconnect from a durable event cursor. The first ext
   Consumers must treat unknown future kinds as a reason to refresh, not as an error.
 - One event may invalidate queue rank, blockers, or estimates for Jobs other than its subject.
   A watcher therefore refreshes its bounded selected view after an event batch; the event stream is
-  not a materialized copy of every derived snapshot field.
+  not a materialized copy of every derived snapshot field. A filtered frame may therefore contain
+  no subject events while still advancing its cursor; that advance is an explicit view
+  invalidation, not an idle timeout.
 - `ObservationFrame` is either `Events`, or `Gap` followed by a bounded current snapshot page and a
   new cursor. A caller never infers that no transition occurred across a store reset or expired
   event range.
@@ -69,9 +71,10 @@ process. They may perform repeated deadline-bounded local protocol calls interna
   transition without the corresponding cursor advance.
 - Event history has a fixed alpha.7 row bound of 16,384. Pruning advances the durable oldest
   available sequence. General configurable Job/log/input retention remains later work.
-- A request before the oldest available sequence returns `Gap`; a future sequence, wrong store UUID,
-  or malformed cursor rejects explicitly. The current head cursor is returned with every page and
-  snapshot resynchronization.
+- A request before the oldest available sequence returns `Gap`; a wrong-store cursor also returns
+  visible `Gap` resynchronization (with an empty page for obsolete exact Job/Batch identities).
+  A future sequence in the current store or a malformed cursor rejects explicitly. The current
+  head cursor is returned with every page and snapshot resynchronization.
 - Daemon-local condition variables remain wakeup hints only. Every wake, timeout, reconnect, and
   daemon restart rechecks durable sequence/state. Lost or spurious notifications cannot lose a
   transition or fabricate one.
