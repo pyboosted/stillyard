@@ -70,26 +70,13 @@ impl JobSpec {
         for label in &self.labels {
             label.validate()?;
         }
-        for (name, value) in &self.environment.set {
-            if name.is_empty()
-                || name.contains(['\0', '='])
-                || value.contains('\0')
-                || name.to_ascii_uppercase().starts_with("STILLYARD_")
-            {
-                return Err(Error::InvalidSpec(format!(
-                    "invalid or reserved environment entry {name:?}"
-                )));
+        self.environment.validate()?;
+        if let StdinSpec::File { path } = &self.stdin {
+            if !path.is_absolute() || path.as_os_str().to_string_lossy().contains('\0') {
+                return Err(Error::InvalidSpec(
+                    "stdin file source must be an absolute path without NUL".into(),
+                ));
             }
-        }
-        if self
-            .environment
-            .unset
-            .iter()
-            .any(|name| name.is_empty() || name.contains(['\0', '=']))
-        {
-            return Err(Error::InvalidSpec(
-                "invalid environment name in unset list".into(),
-            ));
         }
         if self.retry.max_attempts == 0 {
             return Err(Error::InvalidSpec(
@@ -99,15 +86,13 @@ impl JobSpec {
         // The first executable slice fails closed for baseline features whose admission providers
         // are not shipped yet. Declaring a claim must never silently run as if it were satisfied.
         self.resources.validate()?;
-        if self.stdin != StdinSpec::Eof
-            || self.environment.profile.is_some()
-            || !self.conditions.is_empty()
+        if !self.conditions.is_empty()
             || self.retry != RetryPolicy::default()
             || self.quiet.is_some()
             || !self.artifacts.is_empty()
         {
             return Err(Error::InvalidSpec(
-                "this alpha implements EOF stdin, resource admission, and single-attempt jobs without Conditions/quiet/artifacts only".into(),
+                "this alpha implements staged/EOF stdin, environment profiles, resource admission, and single-attempt jobs without Conditions/quiet/artifacts only".into(),
             ));
         }
         Ok(())
@@ -247,6 +232,137 @@ pub struct EnvironmentSpec {
     pub unset: Vec<String>,
 }
 
+impl EnvironmentSpec {
+    fn validate(&self) -> Result<()> {
+        if self
+            .profile
+            .as_ref()
+            .is_some_and(|name| name.is_empty() || name.len() > 128 || name.contains('\0'))
+        {
+            return Err(Error::InvalidSpec(
+                "invalid environment profile name".into(),
+            ));
+        }
+        let mut names = BTreeSet::new();
+        for (name, value) in &self.set {
+            validate_environment_entry(name, Some(value))?;
+            if !names.insert(canonical_environment_name(name)) {
+                return Err(Error::InvalidSpec(format!("environment repeats {name:?}")));
+            }
+        }
+        for name in &self.unset {
+            validate_environment_entry(name, None)?;
+            if !names.insert(canonical_environment_name(name)) {
+                return Err(Error::InvalidSpec(format!(
+                    "environment both sets and unsets {name:?}"
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn expand_environment(
+    requested: &EnvironmentSpec,
+    profiles: &BTreeMap<String, EnvironmentProfile>,
+) -> Result<EnvironmentSpec> {
+    requested.validate()?;
+    let mut values = BTreeMap::<String, String>::new();
+    let mut removed = BTreeSet::<String>::new();
+    let mut locked = BTreeSet::<String>::new();
+    let mut profile_unset = BTreeSet::<String>::new();
+
+    if let Some(profile_name) = &requested.profile {
+        let profile = profiles.get(profile_name).ok_or_else(|| {
+            Error::InvalidSpec(format!("unknown environment profile {profile_name:?}"))
+        })?;
+        profile.validate()?;
+        for (name, value) in &profile.set {
+            let name = canonical_environment_name(name);
+            values.insert(name.clone(), value.clone());
+            removed.remove(&name);
+        }
+        for name in &profile.unset {
+            let name = canonical_environment_name(name);
+            values.remove(&name);
+            removed.insert(name.clone());
+            profile_unset.insert(name);
+        }
+        for (name, value) in &profile.locked_set {
+            let name = canonical_environment_name(name);
+            values.insert(name.clone(), value.clone());
+            removed.remove(&name);
+            locked.insert(name);
+        }
+        for name in &profile.locked_unset {
+            let name = canonical_environment_name(name);
+            values.remove(&name);
+            removed.insert(name.clone());
+            locked.insert(name);
+        }
+    }
+
+    for (name, value) in &requested.set {
+        let name = canonical_environment_name(name);
+        if locked.contains(&name) {
+            return Err(Error::InvalidSpec(format!(
+                "job overrides locked environment name {name:?}"
+            )));
+        }
+        if profile_unset.contains(&name) {
+            continue;
+        }
+        values.insert(name.clone(), value.clone());
+        removed.remove(&name);
+    }
+    for name in &requested.unset {
+        let name = canonical_environment_name(name);
+        if locked.contains(&name) {
+            return Err(Error::InvalidSpec(format!(
+                "job overrides locked environment name {name:?}"
+            )));
+        }
+        values.remove(&name);
+        removed.insert(name);
+    }
+
+    Ok(EnvironmentSpec {
+        profile: requested.profile.clone(),
+        set: values,
+        unset: removed.into_iter().collect(),
+    })
+}
+
+fn validate_environment_entry(name: &str, value: Option<&String>) -> Result<()> {
+    if name.is_empty()
+        || name.contains(['\0', '='])
+        || value.is_some_and(|value| value.contains('\0'))
+        || canonical_environment_name(name).starts_with("STILLYARD_")
+    {
+        return Err(Error::InvalidSpec(format!(
+            "invalid or reserved environment entry {name:?}"
+        )));
+    }
+    Ok(())
+}
+
+fn canonical_environment_name(name: &str) -> String {
+    if cfg!(windows) {
+        name.to_uppercase()
+    } else {
+        name.to_owned()
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct EnvironmentProfile {
+    pub set: BTreeMap<String, String>,
+    pub unset: Vec<String>,
+    pub locked_set: BTreeMap<String, String>,
+    pub locked_unset: Vec<String>,
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ResourceClaims {
@@ -323,6 +439,51 @@ pub struct ResourceCapacities {
     pub gpu_slots: u32,
     #[serde(default)]
     pub custom: BTreeMap<String, u64>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct HostConfig {
+    pub resources: ResourceCapacities,
+    pub profiles: BTreeMap<String, EnvironmentProfile>,
+}
+
+impl HostConfig {
+    pub fn validate(&self) -> Result<()> {
+        self.resources.validate()?;
+        for (name, profile) in &self.profiles {
+            if name.is_empty() || name.len() > 128 || name.contains('\0') {
+                return Err(Error::InvalidSpec(
+                    "invalid environment profile name".into(),
+                ));
+            }
+            profile.validate()?;
+        }
+        Ok(())
+    }
+}
+
+impl EnvironmentProfile {
+    fn validate(&self) -> Result<()> {
+        let mut names = BTreeSet::new();
+        for (name, value) in self.set.iter().chain(&self.locked_set) {
+            validate_environment_entry(name, Some(value))?;
+            if !names.insert(canonical_environment_name(name)) {
+                return Err(Error::InvalidSpec(format!(
+                    "environment profile repeats {name:?}"
+                )));
+            }
+        }
+        for name in self.unset.iter().chain(&self.locked_unset) {
+            validate_environment_entry(name, None)?;
+            if !names.insert(canonical_environment_name(name)) {
+                return Err(Error::InvalidSpec(format!(
+                    "environment profile repeats {name:?}"
+                )));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl ResourceCapacities {
@@ -408,7 +569,7 @@ pub fn schema_json() -> Result<String> {
 }
 
 pub fn config_schema_json() -> Result<String> {
-    let schema = schema_for!(ResourceCapacities);
+    let schema = schema_for!(HostConfig);
     let mut json = serde_json::to_string_pretty(&schema)?;
     json.push('\n');
     Ok(json)

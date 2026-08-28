@@ -15,11 +15,11 @@ mod windows {
     use std::collections::BTreeMap;
     use std::ffi::{OsStr, c_void};
     use std::fs::{File, OpenOptions};
-    use std::io::{Read, Write};
+    use std::io::{Read, Seek, SeekFrom, Write};
     use std::mem::{size_of, zeroed};
     use std::os::windows::ffi::OsStrExt;
     use std::os::windows::fs::OpenOptionsExt;
-    use std::os::windows::io::{FromRawHandle, RawHandle};
+    use std::os::windows::io::{AsRawHandle, FromRawHandle, RawHandle};
     use std::path::{Path, PathBuf};
     use std::ptr::{null, null_mut};
     use std::sync::{Arc, Mutex};
@@ -226,10 +226,14 @@ mod windows {
         progress.cleanup_proven = true;
         let (stdout_read, stdout_write) = create_inherited_pipe()?;
         let (stderr_read, stderr_write) = create_inherited_pipe()?;
-        let stdin = open_nul_for_read()?;
+        let stdin = open_stdin(job)?;
         let mut attributes = AttributeList::with_job_and_handles(
             job_object.raw(),
-            [stdin.raw(), stdout_write.raw(), stderr_write.raw()],
+            [
+                stdin.as_raw_handle() as HANDLE,
+                stdout_write.raw(),
+                stderr_write.raw(),
+            ],
         )
         .map_err(|error| io_context("building born-contained attribute list", error))?;
 
@@ -240,7 +244,7 @@ mod windows {
         let mut startup: STARTUPINFOEXW = unsafe { zeroed() };
         startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
         startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
-        startup.StartupInfo.hStdInput = stdin.raw();
+        startup.StartupInfo.hStdInput = stdin.as_raw_handle() as HANDLE;
         startup.StartupInfo.hStdOutput = stdout_write.raw();
         startup.StartupInfo.hStdError = stderr_write.raw();
         startup.lpAttributeList = attributes.raw();
@@ -506,6 +510,57 @@ mod windows {
         OwnedHandle::new(handle)
     }
 
+    fn open_stdin(job: &PreparedJob) -> std::io::Result<File> {
+        let mut file = match (&job.stdin, &job.stdin_path) {
+            (None, None) => {
+                let handle = open_nul_for_read()?.into_raw();
+                // SAFETY: ownership of the valid NUL handle transfers into File exactly once.
+                unsafe { File::from_raw_handle(handle as RawHandle) }
+            }
+            (Some(expected), Some(path)) => {
+                let file = OpenOptions::new()
+                    .read(true)
+                    .share_mode(FILE_SHARE_READ)
+                    .open(path)?;
+                if file.metadata()?.len() != expected.length {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "staged stdin length changed before launch",
+                    ));
+                }
+                file
+            }
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "partial staged stdin reference",
+                ));
+            }
+        };
+        if let Some(expected) = &job.stdin {
+            if hash_reader(&mut file)? != expected.sha256 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "staged stdin hash changed before launch",
+                ));
+            }
+            file.seek(SeekFrom::Start(0))?;
+        }
+        // SAFETY: file owns a valid handle; setting inheritance is limited by the explicit handle
+        // list supplied to CreateProcessW.
+        if unsafe {
+            SetHandleInformation(
+                file.as_raw_handle() as HANDLE,
+                HANDLE_FLAG_INHERIT,
+                HANDLE_FLAG_INHERIT,
+            )
+        } == 0
+        {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(file)
+    }
+
     fn spawn_drain(
         mut input: File,
         path: PathBuf,
@@ -636,26 +691,20 @@ mod windows {
     }
 
     fn environment_block(job: &PreparedJob) -> std::io::Result<Vec<u16>> {
-        if job.spec.environment.profile.is_some() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
-                "named environment profiles are not implemented yet",
-            ));
-        }
         let mut environment = BTreeMap::<String, String>::new();
         for name in ["SystemRoot", "WINDIR", "TEMP", "TMP"] {
             if let Ok(value) = std::env::var(name) {
-                environment.insert(name.to_owned(), value);
+                environment.insert(name.to_uppercase(), value);
             }
         }
         for (name, value) in &job.spec.environment.set {
-            environment.insert(name.clone(), value.clone());
+            environment.insert(name.to_uppercase(), value.clone());
         }
         for name in &job.spec.environment.unset {
-            environment.remove(name);
+            environment.remove(&name.to_uppercase());
         }
         environment.insert("STILLYARD_JOB_ID".into(), job.job_id.to_string());
-        environment.insert("STILLYARD_ATTEMPT".into(), "1".into());
+        environment.insert("STILLYARD_ATTEMPT".into(), job.attempt_id.to_string());
         environment.insert(
             "STILLYARD_INVOCATION_ID".into(),
             job.invocation_id.to_string(),
@@ -664,6 +713,10 @@ mod windows {
         environment.insert(
             "STILLYARD_ENDPOINT".into(),
             crate::client::default_endpoint().map_err(std::io::Error::other)?,
+        );
+        environment.insert(
+            "STILLYARD_DAEMON_ID".into(),
+            job.job_id.store_uuid().to_string(),
         );
         let mut pairs: Vec<_> = environment.into_iter().collect();
         pairs.sort_by_key(|(name, _)| name.to_uppercase());
@@ -719,7 +772,10 @@ mod windows {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::store::{StorePaths, normalized_payload_hash};
+        use crate::protocol::StagedInputRef;
+        use crate::store::{
+            StorePaths, normalized_payload_hash, normalized_payload_hash_with_input,
+        };
         use crate::{
             EnvironmentSpec, JobSpec, JobState, ResourceClaims, RetryPolicy, SPEC_VERSION,
             StdinSpec,
@@ -749,6 +805,33 @@ mod windows {
             let mut store = Store::open(StorePaths::new(root.to_path_buf())).unwrap();
             let hash = normalized_payload_hash(spec).unwrap();
             let submitted = store.submit(Uuid::now_v7(), &hash, spec).unwrap();
+            let job = store
+                .prepare_job(submitted.receipt.job_id)
+                .unwrap()
+                .unwrap();
+            (job, Arc::new(Mutex::new(store)))
+        }
+
+        fn prepared_with_stdin(
+            spec: &JobSpec,
+            root: &Path,
+            bytes: &[u8],
+        ) -> (PreparedJob, Arc<Mutex<Store>>) {
+            let mut store = Store::open(StorePaths::new(root.to_path_buf())).unwrap();
+            let input = StagedInputRef {
+                sha256: format!("{:x}", Sha256::digest(bytes)),
+                length: bytes.len() as u64,
+            };
+            let upload_id = Uuid::now_v7();
+            store
+                .stage_begin(upload_id, &input.sha256, input.length)
+                .unwrap();
+            store.stage_chunk(upload_id, 0, bytes).unwrap();
+            assert_eq!(store.stage_commit(upload_id).unwrap(), input);
+            let hash = normalized_payload_hash_with_input(spec, Some(&input)).unwrap();
+            let submitted = store
+                .submit_with_stdin(Uuid::now_v7(), &hash, spec, Some(&input))
+                .unwrap();
             let job = store
                 .prepare_job(submitted.receipt.job_id)
                 .unwrap()
@@ -805,6 +888,111 @@ mod windows {
             let logs = store.logs(job.job_id, LogStream::Stdout, 0, 1024).unwrap();
             assert!(String::from_utf8_lossy(&logs.bytes).contains("stillyard-smoke"));
             assert!(logs.eof);
+        }
+
+        #[test]
+        fn staged_stdin_handle_reaches_the_contained_process() {
+            let temp = tempfile::tempdir().unwrap();
+            let payload = b"stillyard staged stdin marker\nsecond line\n";
+            let mut spec = job_spec(
+                temp.path(),
+                std::env::current_exe().unwrap(),
+                vec![
+                    "--ignored".into(),
+                    "--exact".into(),
+                    "runner::windows::tests::stdin_echo_helper".into(),
+                    "--nocapture".into(),
+                ],
+            );
+            spec.stdin = StdinSpec::File {
+                path: temp.path().join("client-prompt.bin"),
+            };
+            let (job, store) = prepared_with_stdin(&spec, temp.path(), payload);
+            run(&job, &store);
+            let store = store.lock().unwrap();
+            let snapshot = store.status(job.job_id).unwrap();
+            assert_eq!(snapshot.outcome, Some(JobOutcome::Succeeded));
+            let logs = store
+                .logs(job.job_id, LogStream::Stdout, 0, 64 * 1024)
+                .unwrap();
+            assert!(
+                logs.bytes
+                    .windows(payload.len())
+                    .any(|window| window == payload),
+                "the managed root must read the immutable staged bytes"
+            );
+        }
+
+        #[test]
+        #[allow(clippy::permissions_set_readonly_false)]
+        fn staged_stdin_changed_after_acceptance_fails_before_user_code() {
+            let temp = tempfile::tempdir().unwrap();
+            let payload = b"trusted stdin";
+            let mut spec = job_spec(
+                temp.path(),
+                std::env::current_exe().unwrap(),
+                vec![
+                    "--ignored".into(),
+                    "--exact".into(),
+                    "runner::windows::tests::stdin_echo_helper".into(),
+                    "--nocapture".into(),
+                ],
+            );
+            spec.stdin = StdinSpec::File {
+                path: temp.path().join("client-prompt.bin"),
+            };
+            let (job, store) = prepared_with_stdin(&spec, temp.path(), payload);
+            let blob = job.stdin_path.as_ref().unwrap();
+            let mut permissions = std::fs::metadata(blob).unwrap().permissions();
+            permissions.set_readonly(false);
+            std::fs::set_permissions(blob, permissions).unwrap();
+            std::fs::write(blob, b"altered stdin").unwrap();
+
+            run(&job, &store);
+            let store = store.lock().unwrap();
+            let snapshot = store.status(job.job_id).unwrap();
+            assert_eq!(snapshot.outcome, Some(JobOutcome::Failed));
+            assert_eq!(snapshot.root_exit_code, None);
+            let logs = store.logs(job.job_id, LogStream::Stdout, 0, 1024).unwrap();
+            assert!(logs.bytes.is_empty(), "user code must not have run");
+        }
+
+        #[test]
+        #[ignore = "launched only as a managed staged-stdin probe"]
+        fn stdin_echo_helper() {
+            std::io::copy(&mut std::io::stdin(), &mut std::io::stdout()).unwrap();
+        }
+
+        #[test]
+        fn environment_block_has_exact_path_and_no_daemon_ambient_user_profile() {
+            let temp = tempfile::tempdir().unwrap();
+            let command = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+                .join("System32")
+                .join("cmd.exe");
+            let mut spec = job_spec(temp.path(), command, vec![]);
+            spec.environment
+                .set
+                .insert("PATH".into(), r"C:\Exact\Tools".into());
+            let (job, _store) = prepared(&spec, temp.path());
+            let block = environment_block(&job).unwrap();
+            let decoded = String::from_utf16(&block[..block.len() - 2]).unwrap();
+            let values: BTreeMap<_, _> = decoded
+                .split('\0')
+                .filter_map(|pair| pair.split_once('='))
+                .map(|(name, value)| (name.to_owned(), value.to_owned()))
+                .collect();
+            assert_eq!(values.get("PATH").unwrap(), r"C:\Exact\Tools");
+            assert!(!values.contains_key("USERPROFILE"));
+            assert!(!values.contains_key("SSH_AUTH_SOCK"));
+            assert!(!values.contains_key("ANTHROPIC_API_KEY"));
+            assert_eq!(
+                values.get("STILLYARD_ATTEMPT").unwrap(),
+                &job.attempt_id.to_string()
+            );
+            assert_eq!(
+                values.get("STILLYARD_DAEMON_ID").unwrap(),
+                &job.job_id.store_uuid().to_string()
+            );
         }
 
         #[test]

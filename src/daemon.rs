@@ -201,14 +201,46 @@ fn handle_request(store: &SharedStore, scheduler: &Scheduler, request: Request) 
                 protocol_version: PROTOCOL_VERSION,
             };
         }
+        Request::StageBegin {
+            upload_id,
+            expected_sha256,
+            expected_length,
+        } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.stage_begin(upload_id, &expected_sha256, expected_length))
+            .map(|next_offset| Response::StageReady { next_offset }),
+        Request::StageChunk {
+            upload_id,
+            offset,
+            bytes,
+        } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.stage_chunk(upload_id, offset, &bytes))
+            .map(|next_offset| Response::StageReady { next_offset }),
+        Request::StageCommit { upload_id } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.stage_commit(upload_id))
+            .map(|input| Response::StageCommitted { input }),
         Request::Submit {
             idempotency_key,
             payload_hash,
             spec,
+            stdin,
+            expected_store_uuid,
         } => store
             .lock()
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-            .and_then(|mut store| store.submit(idempotency_key, &payload_hash, &spec))
+            .and_then(|mut store| {
+                if expected_store_uuid.is_some_and(|expected| expected != store.store_uuid()) {
+                    return Err(StoreError::InvalidState(
+                        "store identity changed during submission".into(),
+                    ));
+                }
+                store.submit_with_stdin(idempotency_key, &payload_hash, &spec, stdin.as_ref())
+            })
             .map(|submitted| {
                 if submitted.should_schedule {
                     scheduler.wake();
@@ -219,10 +251,19 @@ fn handle_request(store: &SharedStore, scheduler: &Scheduler, request: Request) 
             idempotency_key,
             payload_hash,
             spec,
+            stdins,
+            expected_store_uuid,
         } => store
             .lock()
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-            .and_then(|mut store| store.submit_batch(idempotency_key, &payload_hash, &spec))
+            .and_then(|mut store| {
+                if expected_store_uuid.is_some_and(|expected| expected != store.store_uuid()) {
+                    return Err(StoreError::InvalidState(
+                        "store identity changed during submission".into(),
+                    ));
+                }
+                store.submit_batch_with_stdins(idempotency_key, &payload_hash, &spec, &stdins)
+            })
             .map(|submitted| {
                 if submitted.should_schedule {
                     scheduler.wake();
@@ -235,8 +276,14 @@ fn handle_request(store: &SharedStore, scheduler: &Scheduler, request: Request) 
         } => store
             .lock()
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-            .and_then(|store| store.recover_submission(idempotency_key, &payload_hash))
-            .map(Response::Recovered),
+            .and_then(|store| {
+                store
+                    .recover_submission(idempotency_key, &payload_hash)
+                    .map(|recovery| Response::Recovered {
+                        store_uuid: store.store_uuid(),
+                        recovery,
+                    })
+            }),
         Request::Status { job_id } => store
             .lock()
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))

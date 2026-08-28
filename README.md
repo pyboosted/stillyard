@@ -19,7 +19,7 @@ The motivating agent-orchestration consumer and its boundary are documented in [
 
 ## Current status
 
-`0.1.0-alpha.2` contains the first two bounded Windows vertical slices:
+`0.1.0-alpha.3` contains the first three bounded Windows vertical slices:
 
 - a runtime-neutral blocking Rust client with deadlines and cancellation;
 - a framed, owner-only local named-pipe protocol and detached singleton daemon;
@@ -30,10 +30,13 @@ The motivating agent-orchestration consumer and its boundary are documented in [
 - atomic Batch submission with acyclic success/failure/terminal dependencies;
 - one non-preemptive Lease scheduler for CPU, RAM, cargo/GPU slots, custom scalars, and stable shared/exclusive path fences;
 - immediate blockers, deterministic queue rank, and honest estimated-or-unknown start estimates.
+- immutable staged file stdin for Jobs and atomic Batches, uploaded before `received` in bounded chunks;
+- named clean-environment profiles with set/unset/locked operations and an exact explicit PATH;
+- fresh atomic result files, recovery by retained operation identity, and canonical-log passthrough.
 
-This slice deliberately accepts EOF-stdin, single-attempt jobs without Conditions, quiet policies, impacts, profiles, secrets, or artifacts. Priority, aging, finite-held reservations, and a host-wide default concurrency cap are also later scheduler work; callers should declare a scalar or fence for every bounded kind of work rather than submit an unbounded fleet of zero-claim jobs. Cancel/drain, retention/events, and `watch` are still baseline work. Specs declaring an unimplemented policy reject rather than run unenforced. Linux remains the v0.2 target.
+This slice deliberately accepts EOF or staged-file stdin and single-attempt jobs without Conditions, quiet policies, impacts, secrets, or artifacts. The Windows clean base is limited to `SystemRoot`, `WINDIR`, `TEMP`, and `TMP`; PATH and every application/account variable must come from a profile or Job. Priority, aging, finite-held reservations, and a host-wide default concurrency cap are also later scheduler work; callers should declare a scalar or fence for every bounded kind of work rather than submit an unbounded fleet of zero-claim jobs. Cancel/drain, retention/events, and `watch` are still baseline work. Specs declaring an unimplemented policy reject rather than run unenforced. Linux remains the v0.2 target.
 
-The tests cover the increment-2a portions of acceptance rows A-03, A-04, and A-06. Those rows are not claimed complete until retries, observed RAM/VRAM freshness, and external Conditions arrive in the following slice.
+The tests cover the increment-2a portions of acceptance rows A-03, A-04, and A-06 plus the increment-2b staged-input, profile, result-file, and process-handle controls. The full baseline rows are not claimed complete until retries, observed RAM/VRAM freshness, external Conditions, and managed nested submission arrive.
 
 An uncertain Containment deliberately retains its real Lease after restart. Until the audited `doctor clear-containment` flow ships, that capacity remains unavailable; moving or editing individual store files is not a supported recovery path.
 
@@ -45,13 +48,26 @@ The daemon reads `config.json` from the fixed store directory reported by `still
 
 ```json
 {
-  "cpu_units": 16,
-  "ram_mb": 32768,
-  "cargo_slots": 1,
-  "gpu_slots": 1,
-  "custom": {
-    "review_slots": 4,
-    "vram_mb:gpu-uuid": 16384
+  "resources": {
+    "cpu_units": 16,
+    "ram_mb": 32768,
+    "cargo_slots": 1,
+    "gpu_slots": 1,
+    "custom": {
+      "review_slots": 4,
+      "vram_mb:gpu-uuid": 16384
+    }
+  },
+  "profiles": {
+    "codex-account-2": {
+      "set": {
+        "PATH": "C:\\Tools;C:\\Users\\me\\.cargo\\bin",
+        "CODEX_HOME": "C:\\Users\\me\\.codex-account-2"
+      },
+      "unset": ["ANTHROPIC_API_KEY"],
+      "locked_set": {},
+      "locked_unset": ["OPENAI_API_KEY"]
+    }
   }
 }
 ```
@@ -66,7 +82,9 @@ cargo test
 cargo run -- schema spec
 cargo run -- schema config
 cargo run -- daemon-status
-cargo run -- submit --spec job.json --wait
+cargo run -- submit --spec job.json --wait --passthrough --silent --result-file operation.json
+cargo run -- recover --result-file operation.json --wait --passthrough --silent
+cargo run -- wait JOB_ID --passthrough
 cargo run -- submit --batch batch.json --wait
 cargo run -- logs JOB_ID
 ```

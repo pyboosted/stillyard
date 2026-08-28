@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::io::{Read, Write};
 
 use serde::{Deserialize, Serialize};
@@ -8,22 +9,46 @@ use crate::{
     LogStream,
 };
 
-pub(crate) const PROTOCOL_VERSION: u32 = 3;
+pub(crate) const PROTOCOL_VERSION: u32 = 4;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct StagedInputRef {
+    pub(crate) sha256: String,
+    pub(crate) length: u64,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Request {
     Ping,
+    StageBegin {
+        upload_id: Uuid,
+        expected_sha256: String,
+        expected_length: u64,
+    },
+    StageChunk {
+        upload_id: Uuid,
+        offset: u64,
+        bytes: Vec<u8>,
+    },
+    StageCommit {
+        upload_id: Uuid,
+    },
     Submit {
         idempotency_key: Uuid,
         payload_hash: String,
         spec: Box<JobSpec>,
+        stdin: Option<StagedInputRef>,
+        expected_store_uuid: Option<Uuid>,
     },
     SubmitBatch {
         idempotency_key: Uuid,
         payload_hash: String,
         spec: Box<BatchSpec>,
+        stdins: BTreeMap<String, StagedInputRef>,
+        expected_store_uuid: Option<Uuid>,
     },
     Recover {
         idempotency_key: Uuid,
@@ -48,14 +73,28 @@ pub(crate) enum Request {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "result", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Response {
-    Pong { protocol_version: u32 },
+    Pong {
+        protocol_version: u32,
+    },
+    StageReady {
+        next_offset: u64,
+    },
+    StageCommitted {
+        input: StagedInputRef,
+    },
     Submitted(JobReceipt),
     BatchSubmitted(BatchReceipt),
-    Recovered(crate::RecoveryResult),
+    Recovered {
+        store_uuid: Uuid,
+        recovery: crate::RecoveryResult,
+    },
     Snapshot(Box<JobSnapshot>),
     Logs(LogChunk),
     DaemonStatus(DaemonSnapshot),
-    Error { code: String, message: String },
+    Error {
+        code: String,
+        message: String,
+    },
 }
 
 pub(crate) fn write_frame(mut writer: impl Write, value: &impl Serialize) -> std::io::Result<()> {

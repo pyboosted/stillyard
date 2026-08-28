@@ -42,6 +42,12 @@ enum Command {
         /// Wait for the terminal snapshot after printing the receipt.
         #[arg(long)]
         wait: bool,
+        /// Stream committed canonical stdout/stderr while waiting (single Job only).
+        #[arg(long, requires = "wait")]
+        passthrough: bool,
+        /// Emit no scheduler JSON; requires a durable result file.
+        #[arg(long, requires = "result_file")]
+        silent: bool,
         /// Overall client deadline.
         #[arg(long, default_value_t = 86_400)]
         deadline_seconds: u64,
@@ -50,7 +56,13 @@ enum Command {
     Recover {
         #[arg(long)]
         result_file: PathBuf,
-        #[arg(long, default_value_t = 10)]
+        #[arg(long)]
+        wait: bool,
+        #[arg(long, requires = "wait")]
+        passthrough: bool,
+        #[arg(long)]
+        silent: bool,
+        #[arg(long, default_value_t = 86_400)]
         deadline_seconds: u64,
     },
     /// Print the current durable state of one job.
@@ -62,6 +74,9 @@ enum Command {
     /// Wait for one job to become terminal.
     Wait {
         job_id: JobId,
+        /// Stream committed canonical stdout/stderr while waiting.
+        #[arg(long)]
+        passthrough: bool,
         #[arg(long, default_value_t = 86_400)]
         deadline_seconds: u64,
     },
@@ -145,6 +160,8 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             idempotency_key,
             result_file,
             wait,
+            passthrough,
+            silent,
             deadline_seconds,
         } => {
             let deadline = deadline(deadline_seconds);
@@ -154,14 +171,21 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 options = options.with_result_file(result_file);
             }
             if let Some(path) = batch {
+                if passthrough {
+                    return Err("--passthrough is valid only for a single Job".into());
+                }
                 let spec: BatchSpec = serde_json::from_slice(&read_input(&path)?)?;
                 let receipt = client.submit_batch(spec, &options, deadline, None)?;
-                print_json(&receipt)?;
+                if !silent {
+                    print_json(&receipt)?;
+                }
                 if wait {
                     let mut worst = (0_u8, 0_i32);
                     for member in receipt.jobs {
                         let snapshot = client.wait(member.receipt.job_id, deadline, None)?;
-                        print_json(&snapshot)?;
+                        if !silent {
+                            print_json(&snapshot)?;
+                        }
                         let candidate = snapshot_exit_rank(&snapshot);
                         if candidate.0 > worst.0 {
                             worst = candidate;
@@ -175,22 +199,106 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 let path = spec.expect("clap requires --spec or --batch");
                 let spec: JobSpec = serde_json::from_slice(&read_input(&path)?)?;
                 let receipt = client.submit(spec, &options, deadline, None)?;
-                print_json(&receipt)?;
+                if !silent {
+                    if passthrough {
+                        print_json_stderr(&receipt)?;
+                    } else {
+                        print_json(&receipt)?;
+                    }
+                }
                 if wait {
-                    let snapshot = client.wait(receipt.job_id, deadline, None)?;
-                    print_json(&snapshot)?;
+                    let snapshot = if passthrough {
+                        client.wait_with_passthrough(
+                            receipt.job_id,
+                            &mut 0,
+                            &mut 0,
+                            &mut io::stdout(),
+                            &mut io::stderr(),
+                            deadline,
+                            None,
+                        )?
+                    } else {
+                        client.wait(receipt.job_id, deadline, None)?
+                    };
+                    if !silent {
+                        if passthrough {
+                            print_json_stderr(&snapshot)?;
+                        } else {
+                            print_json(&snapshot)?;
+                        }
+                    }
                     exit_for_snapshot(&snapshot);
                 }
             }
         }
         Command::Recover {
             result_file,
+            wait,
+            passthrough,
+            silent,
             deadline_seconds,
         } => {
             let deadline = deadline(deadline_seconds);
             let client = Client::connect(deadline, None)?;
-            let recovery = client.recover_result_file(&result_file, deadline, None)?;
-            print_json(&recovery)?;
+            let mut recovery = client.recover_result_file(&result_file, deadline, None)?;
+            while wait && matches!(recovery, RecoveryResult::Received { .. }) {
+                std::thread::sleep(Duration::from_millis(100));
+                recovery = client.recover_result_file(&result_file, deadline, None)?;
+            }
+            if !silent {
+                if passthrough {
+                    print_json_stderr(&recovery)?;
+                } else {
+                    print_json(&recovery)?;
+                }
+            }
+            if wait {
+                match &recovery {
+                    RecoveryResult::Accepted(receipt) => {
+                        let snapshot = if passthrough {
+                            client.wait_with_passthrough(
+                                receipt.job_id,
+                                &mut 0,
+                                &mut 0,
+                                &mut io::stdout(),
+                                &mut io::stderr(),
+                                deadline,
+                                None,
+                            )?
+                        } else {
+                            client.wait(receipt.job_id, deadline, None)?
+                        };
+                        if !silent {
+                            if passthrough {
+                                print_json_stderr(&snapshot)?;
+                            } else {
+                                print_json(&snapshot)?;
+                            }
+                        }
+                        exit_for_snapshot(&snapshot);
+                    }
+                    RecoveryResult::AcceptedBatch(batch) => {
+                        if passthrough {
+                            return Err("--passthrough is valid only for a single Job".into());
+                        }
+                        let mut worst = (0_u8, 0_i32);
+                        for member in &batch.jobs {
+                            let snapshot = client.wait(member.receipt.job_id, deadline, None)?;
+                            if !silent {
+                                print_json(&snapshot)?;
+                            }
+                            let candidate = snapshot_exit_rank(&snapshot);
+                            if candidate.0 > worst.0 {
+                                worst = candidate;
+                            }
+                        }
+                        if worst.1 != 0 {
+                            std::process::exit(worst.1);
+                        }
+                    }
+                    _ => {}
+                }
+            }
             exit_for_recovery(&recovery);
         }
         Command::Status {
@@ -203,12 +311,29 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         }
         Command::Wait {
             job_id,
+            passthrough,
             deadline_seconds,
         } => {
             let deadline = deadline(deadline_seconds);
             let client = Client::connect(deadline, None)?;
-            let snapshot = client.wait(job_id, deadline, None)?;
-            print_json(&snapshot)?;
+            let snapshot = if passthrough {
+                client.wait_with_passthrough(
+                    job_id,
+                    &mut 0,
+                    &mut 0,
+                    &mut io::stdout(),
+                    &mut io::stderr(),
+                    deadline,
+                    None,
+                )?
+            } else {
+                client.wait(job_id, deadline, None)?
+            };
+            if passthrough {
+                print_json_stderr(&snapshot)?;
+            } else {
+                print_json(&snapshot)?;
+            }
             exit_for_snapshot(&snapshot);
         }
         Command::Logs {
@@ -260,6 +385,11 @@ fn print_json(value: &impl serde::Serialize) -> Result<(), serde_json::Error> {
     Ok(())
 }
 
+fn print_json_stderr(value: &impl serde::Serialize) -> Result<(), serde_json::Error> {
+    eprintln!("{}", serde_json::to_string_pretty(value)?);
+    Ok(())
+}
+
 fn exit_for_snapshot(snapshot: &JobSnapshot) {
     let code = snapshot_exit_code(snapshot);
     if code != 0 {
@@ -270,7 +400,10 @@ fn exit_for_snapshot(snapshot: &JobSnapshot) {
 fn snapshot_exit_code(snapshot: &JobSnapshot) -> i32 {
     match snapshot.outcome {
         Some(JobOutcome::Succeeded) => 0,
-        Some(JobOutcome::Failed) => 20,
+        Some(JobOutcome::Failed) => match snapshot.root_exit_code {
+            Some(code) if code != 0 => code,
+            Some(_) | None => 20,
+        },
         Some(JobOutcome::TimedOut) => 21,
         Some(JobOutcome::Canceled) => 22,
         Some(JobOutcome::Interrupted) => 23,
@@ -287,7 +420,7 @@ fn snapshot_exit_rank(snapshot: &JobSnapshot) -> (u8, i32) {
         Some(JobOutcome::Canceled) => (2, 22),
         Some(JobOutcome::Interrupted) => (3, 23),
         Some(JobOutcome::TimedOut) => (4, 21),
-        Some(JobOutcome::Failed) => (5, 20),
+        Some(JobOutcome::Failed) => (5, snapshot_exit_code(snapshot)),
         None => (6, 25),
         Some(_) => (7, 70),
     }
@@ -328,4 +461,42 @@ fn error_exit_code(error: &(dyn std::error::Error + 'static)) -> i32 {
         return 64;
     }
     70
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recover_wait_and_wait_passthrough_have_agent_sized_defaults() {
+        let recover = Cli::try_parse_from([
+            "stillyard",
+            "recover",
+            "--result-file",
+            "operation.json",
+            "--wait",
+            "--passthrough",
+        ])
+        .unwrap();
+        assert!(matches!(
+            recover.command,
+            Command::Recover {
+                deadline_seconds: 86_400,
+                wait: true,
+                passthrough: true,
+                ..
+            }
+        ));
+
+        let job_id = format!("{}~{}", Uuid::now_v7(), Uuid::now_v7());
+        let wait = Cli::try_parse_from(["stillyard", "wait", &job_id, "--passthrough"]).unwrap();
+        assert!(matches!(
+            wait.command,
+            Command::Wait {
+                deadline_seconds: 86_400,
+                passthrough: true,
+                ..
+            }
+        ));
+    }
 }

@@ -1,42 +1,101 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "ResourceCapacities",
-  "description": "Scalar capacities configured by the owner for one host-local daemon.",
+  "title": "HostConfig",
   "type": "object",
   "properties": {
-    "cargo_slots": {
-      "type": "integer",
-      "format": "uint32",
-      "default": 0,
-      "minimum": 0
-    },
-    "cpu_units": {
-      "type": "integer",
-      "format": "uint32",
-      "default": 0,
-      "minimum": 0
-    },
-    "custom": {
+    "profiles": {
       "type": "object",
       "additionalProperties": {
-        "type": "integer",
-        "format": "uint64",
-        "minimum": 0
+        "$ref": "#/$defs/EnvironmentProfile"
       },
       "default": {}
     },
-    "gpu_slots": {
-      "type": "integer",
-      "format": "uint32",
-      "default": 0,
-      "minimum": 0
-    },
-    "ram_mb": {
-      "type": "integer",
-      "format": "uint64",
-      "default": 0,
-      "minimum": 0
+    "resources": {
+      "$ref": "#/$defs/ResourceCapacities",
+      "default": {
+        "cargo_slots": 0,
+        "cpu_units": 0,
+        "custom": {},
+        "gpu_slots": 0,
+        "ram_mb": 0
+      }
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "EnvironmentProfile": {
+      "type": "object",
+      "properties": {
+        "locked_set": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "locked_unset": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "set": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "unset": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ResourceCapacities": {
+      "description": "Scalar capacities configured by the owner for one host-local daemon.",
+      "type": "object",
+      "properties": {
+        "cargo_slots": {
+          "type": "integer",
+          "format": "uint32",
+          "default": 0,
+          "minimum": 0
+        },
+        "cpu_units": {
+          "type": "integer",
+          "format": "uint32",
+          "default": 0,
+          "minimum": 0
+        },
+        "custom": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "default": {}
+        },
+        "gpu_slots": {
+          "type": "integer",
+          "format": "uint32",
+          "default": 0,
+          "minimum": 0
+        },
+        "ram_mb": {
+          "type": "integer",
+          "format": "uint64",
+          "default": 0,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  }
 }

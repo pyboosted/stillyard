@@ -28,9 +28,9 @@ pub use model::{
     JobOutcome, JobState, SubmissionId, SubmissionState,
 };
 pub use spec::{
-    BatchMember, BatchSpec, ConditionSpec, DependencyKind, DependencySpec, EnvironmentSpec,
-    JobSpec, Label, QuietPolicy, ResourceCapacities, ResourceClaims, RetryPolicy, SPEC_VERSION,
-    StdinSpec, SubmissionSpec, config_schema_json, schema_json,
+    BatchMember, BatchSpec, ConditionSpec, DependencyKind, DependencySpec, EnvironmentProfile,
+    EnvironmentSpec, HostConfig, JobSpec, Label, QuietPolicy, ResourceCapacities, ResourceClaims,
+    RetryPolicy, SPEC_VERSION, StdinSpec, SubmissionSpec, config_schema_json, schema_json,
 };
 
 /// Runs the per-user daemon in the foreground.

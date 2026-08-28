@@ -1,7 +1,8 @@
+use std::collections::BTreeMap;
 #[cfg(windows)]
 use std::ffi::OsStr;
 use std::fs::OpenOptions;
-use std::io::Write;
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -9,7 +10,7 @@ use std::time::{Duration, Instant};
 use directories::ProjectDirs;
 use sha2::{Digest, Sha256};
 
-use crate::protocol::{PROTOCOL_VERSION, Request, Response};
+use crate::protocol::{PROTOCOL_VERSION, Request, Response, StagedInputRef};
 #[cfg(windows)]
 use crate::protocol::{read_frame, write_frame};
 use crate::{
@@ -120,6 +121,12 @@ pub struct Client {
     daemon_executable: PathBuf,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct StreamProgress {
+    eof: bool,
+    caught_up: bool,
+}
+
 impl Client {
     #[must_use]
     pub fn builder() -> ClientBuilder {
@@ -138,16 +145,36 @@ impl Client {
         cancellation: Option<&CancellationToken>,
     ) -> Result<JobReceipt> {
         spec.validate()?;
-        let normalized = serde_json::to_vec(&spec)?;
+        let stdin = inspect_stdin(&spec.stdin)?;
+        let normalized = serde_json::to_vec(&(&spec, stdin.as_ref().map(|(input, _)| input)))?;
         let payload_hash = format!("{:x}", Sha256::digest(&normalized));
+        let result_identity = if options.result_file.is_some() {
+            Some(self.daemon_status(deadline, cancellation)?.store_uuid)
+        } else {
+            None
+        };
         if let Some(path) = &options.result_file {
-            write_initial_result_file(path, options, &payload_hash)?;
+            write_initial_result_file(
+                path,
+                options,
+                &payload_hash,
+                &self.endpoint,
+                result_identity.expect("identity is fetched for a result file"),
+            )?;
         }
+        let stdin = match stdin {
+            Some((input, path)) => {
+                Some(self.upload_stdin(&path, &input, deadline, cancellation)?)
+            }
+            None => None,
+        };
         let response = self.request(
             Request::Submit {
                 idempotency_key: options.idempotency_key,
                 payload_hash: payload_hash.clone(),
                 spec: Box::new(spec),
+                stdin,
+                expected_store_uuid: result_identity,
             },
             deadline,
             cancellation,
@@ -159,6 +186,8 @@ impl Client {
                         path,
                         options.idempotency_key,
                         &payload_hash,
+                        &self.endpoint,
+                        result_identity.expect("identity is fetched for a result file"),
                         Some(serde_json::to_value(&receipt)?),
                     )?;
                 }
@@ -176,16 +205,44 @@ impl Client {
         cancellation: Option<&CancellationToken>,
     ) -> Result<BatchReceipt> {
         spec.validate()?;
-        let normalized = serde_json::to_vec(&spec)?;
+        let mut inspected = Vec::new();
+        let mut input_refs = BTreeMap::new();
+        for member in &spec.jobs {
+            if let Some((input, path)) = inspect_stdin(&member.spec.stdin)? {
+                input_refs.insert(member.name.clone(), input.clone());
+                inspected.push((member.name.clone(), input, path));
+            }
+        }
+        let normalized = serde_json::to_vec(&(&spec, &input_refs))?;
         let payload_hash = format!("{:x}", Sha256::digest(&normalized));
+        let result_identity = if options.result_file.is_some() {
+            Some(self.daemon_status(deadline, cancellation)?.store_uuid)
+        } else {
+            None
+        };
         if let Some(path) = &options.result_file {
-            write_initial_result_file(path, options, &payload_hash)?;
+            write_initial_result_file(
+                path,
+                options,
+                &payload_hash,
+                &self.endpoint,
+                result_identity.expect("identity is fetched for a result file"),
+            )?;
+        }
+        let mut stdins = BTreeMap::new();
+        for (name, input, path) in inspected {
+            stdins.insert(
+                name,
+                self.upload_stdin(&path, &input, deadline, cancellation)?,
+            );
         }
         let response = self.request(
             Request::SubmitBatch {
                 idempotency_key: options.idempotency_key,
                 payload_hash: payload_hash.clone(),
                 spec: Box::new(spec),
+                stdins,
+                expected_store_uuid: result_identity,
             },
             deadline,
             cancellation,
@@ -197,11 +254,78 @@ impl Client {
                         path,
                         options.idempotency_key,
                         &payload_hash,
+                        &self.endpoint,
+                        result_identity.expect("identity is fetched for a result file"),
                         Some(serde_json::to_value(&receipt)?),
                     )?;
                 }
                 Ok(receipt)
             }
+            response => response_error(response),
+        }
+    }
+
+    fn upload_stdin(
+        &self,
+        path: &Path,
+        expected: &StagedInputRef,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<StagedInputRef> {
+        const CHUNK_BYTES: usize = 256 * 1024;
+
+        let upload_id = uuid::Uuid::now_v7();
+        let mut offset = match self.request(
+            Request::StageBegin {
+                upload_id,
+                expected_sha256: expected.sha256.clone(),
+                expected_length: expected.length,
+            },
+            deadline,
+            cancellation,
+        )? {
+            Response::StageReady { next_offset } => next_offset,
+            response => return response_error(response),
+        };
+        let mut input = std::fs::File::open(path)?;
+        input.seek(SeekFrom::Start(offset))?;
+        let mut buffer = vec![0_u8; CHUNK_BYTES];
+        while offset < expected.length {
+            check_wait(deadline, cancellation)?;
+            let remaining = usize::try_from(expected.length - offset)
+                .unwrap_or(usize::MAX)
+                .min(buffer.len());
+            let read = input.read(&mut buffer[..remaining])?;
+            if read == 0 {
+                return Err(Error::InvalidSpec(format!(
+                    "stdin file changed or was truncated during upload: {}",
+                    path.display()
+                )));
+            }
+            offset = match self.request(
+                Request::StageChunk {
+                    upload_id,
+                    offset,
+                    bytes: buffer[..read].to_vec(),
+                },
+                deadline,
+                cancellation,
+            )? {
+                Response::StageReady { next_offset } => next_offset,
+                response => return response_error(response),
+            };
+        }
+        if input.read(&mut [0_u8; 1])? != 0 {
+            return Err(Error::InvalidSpec(format!(
+                "stdin file grew during upload: {}",
+                path.display()
+            )));
+        }
+        match self.request(Request::StageCommit { upload_id }, deadline, cancellation)? {
+            Response::StageCommitted { input } if input == *expected => Ok(input),
+            Response::StageCommitted { .. } => Err(Error::Protocol(
+                "daemon committed different stdin metadata".into(),
+            )),
             response => response_error(response),
         }
     }
@@ -213,15 +337,34 @@ impl Client {
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<RecoveryResult> {
+        self.recover_submission_with_store(
+            idempotency_key,
+            payload_hash.into(),
+            deadline,
+            cancellation,
+        )
+        .map(|(_, recovery)| recovery)
+    }
+
+    fn recover_submission_with_store(
+        &self,
+        idempotency_key: uuid::Uuid,
+        payload_hash: String,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<(uuid::Uuid, RecoveryResult)> {
         match self.request(
             Request::Recover {
                 idempotency_key,
-                payload_hash: payload_hash.into(),
+                payload_hash,
             },
             deadline,
             cancellation,
         )? {
-            Response::Recovered(recovery) => Ok(recovery),
+            Response::Recovered {
+                store_uuid,
+                recovery,
+            } => Ok((store_uuid, recovery)),
             response => response_error(response),
         }
     }
@@ -233,18 +376,32 @@ impl Client {
         cancellation: Option<&CancellationToken>,
     ) -> Result<RecoveryResult> {
         let record: ResultFileRecord = serde_json::from_reader(std::fs::File::open(path)?)?;
-        if record.version != 1 {
+        if record.version != 2 {
             return Err(Error::Protocol(format!(
                 "unsupported result-file version {}",
                 record.version
             )));
         }
-        self.recover_submission(
+        if record.endpoint != self.endpoint {
+            return Err(Error::Protocol(format!(
+                "result file belongs to endpoint {:?}, connected to {:?}",
+                record.endpoint, self.endpoint
+            )));
+        }
+        let (store_uuid, recovery) = self.recover_submission_with_store(
             record.idempotency_key,
-            record.payload_hash,
+            record.payload_hash.clone(),
             deadline,
             cancellation,
-        )
+        )?;
+        if store_uuid != record.store_uuid {
+            return Err(Error::Protocol(format!(
+                "result file belongs to store {}, connected to {}",
+                record.store_uuid, store_uuid
+            )));
+        }
+        persist_recovery(path, &record, &recovery)?;
+        Ok(recovery)
     }
 
     pub fn status(
@@ -280,6 +437,82 @@ impl Client {
                 response => return response_error(response),
             }
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn wait_with_passthrough(
+        &self,
+        job_id: JobId,
+        stdout_offset: &mut u64,
+        stderr_offset: &mut u64,
+        stdout: &mut impl Write,
+        stderr: &mut impl Write,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<JobSnapshot> {
+        loop {
+            let snapshot = match self.request(
+                Request::Wait {
+                    job_id,
+                    max_wait_millis: 250,
+                },
+                deadline,
+                cancellation,
+            )? {
+                Response::Snapshot(snapshot) => *snapshot,
+                response => return response_error(response),
+            };
+            let stdout_progress = self.passthrough_stream(
+                job_id,
+                LogStream::Stdout,
+                stdout_offset,
+                stdout,
+                deadline,
+                cancellation,
+            )?;
+            let stderr_progress = self.passthrough_stream(
+                job_id,
+                LogStream::Stderr,
+                stderr_offset,
+                stderr,
+                deadline,
+                cancellation,
+            )?;
+            if passthrough_is_complete(&snapshot, stdout_progress, stderr_progress) {
+                stdout.flush()?;
+                stderr.flush()?;
+                return Ok(snapshot);
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn passthrough_stream(
+        &self,
+        job_id: JobId,
+        stream: LogStream,
+        offset: &mut u64,
+        output: &mut impl Write,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<StreamProgress> {
+        let chunk = self.logs(job_id, stream, *offset, 1024 * 1024, deadline, cancellation)?;
+        if let Some(gap) = chunk.gap {
+            return Err(Error::Protocol(format!(
+                "canonical {stream:?} log gap at offset {}: {gap}",
+                *offset
+            )));
+        }
+        let caught_up = chunk.bytes.is_empty() || chunk.eof;
+        if !chunk.bytes.is_empty() {
+            output.write_all(&chunk.bytes)?;
+            output.flush()?;
+            *offset = chunk.next_offset;
+        }
+        Ok(StreamProgress {
+            eof: chunk.eof,
+            caught_up,
+        })
     }
 
     pub fn submit_and_wait(
@@ -365,6 +598,60 @@ impl Client {
             }
         }
     }
+}
+
+fn passthrough_is_complete(
+    snapshot: &JobSnapshot,
+    stdout: StreamProgress,
+    stderr: StreamProgress,
+) -> bool {
+    passthrough_state_is_complete(snapshot.is_final(), snapshot.outcome, stdout, stderr)
+}
+
+fn passthrough_state_is_complete(
+    is_final: bool,
+    outcome: Option<crate::JobOutcome>,
+    stdout: StreamProgress,
+    stderr: StreamProgress,
+) -> bool {
+    if !is_final {
+        return false;
+    }
+    if stdout.eof && stderr.eof {
+        return true;
+    }
+    outcome == Some(crate::JobOutcome::Interrupted) && stdout.caught_up && stderr.caught_up
+}
+
+fn inspect_stdin(stdin: &crate::StdinSpec) -> Result<Option<(StagedInputRef, PathBuf)>> {
+    const MAX_STDIN_BYTES: u64 = 64 * 1024 * 1024;
+
+    let crate::StdinSpec::File { path } = stdin else {
+        return Ok(None);
+    };
+    let mut file = std::fs::File::open(path)?;
+    let length = file.metadata()?.len();
+    if length > MAX_STDIN_BYTES {
+        return Err(Error::InvalidSpec(format!(
+            "stdin file exceeds the {MAX_STDIN_BYTES}-byte alpha limit"
+        )));
+    }
+    let mut hash = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hash.update(&buffer[..read]);
+    }
+    Ok(Some((
+        StagedInputRef {
+            sha256: format!("{:x}", hash.finalize()),
+            length,
+        },
+        path.clone(),
+    )))
 }
 
 fn response_error<T>(response: Response) -> Result<T> {
@@ -544,14 +831,24 @@ fn write_initial_result_file(
     path: &Path,
     options: &SubmitOptions,
     payload_hash: &str,
+    endpoint: &str,
+    store_uuid: uuid::Uuid,
 ) -> Result<()> {
-    if path.exists() {
-        return Err(Error::InvalidSpec(format!(
-            "result file already exists: {}",
-            path.display()
-        )));
-    }
-    write_result_file(path, options.idempotency_key, payload_hash, None)
+    let record = ResultFileRecord {
+        version: 2,
+        idempotency_key: options.idempotency_key,
+        payload_hash: payload_hash.to_owned(),
+        endpoint: endpoint.to_owned(),
+        store_uuid,
+        receipt: None,
+    };
+    write_json_new_atomically(path, &record).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            Error::InvalidSpec(format!("result file already exists: {}", path.display()))
+        } else {
+            Error::Io(error)
+        }
+    })
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -560,21 +857,46 @@ struct ResultFileRecord {
     version: u32,
     idempotency_key: uuid::Uuid,
     payload_hash: String,
+    endpoint: String,
+    store_uuid: uuid::Uuid,
     receipt: Option<serde_json::Value>,
+}
+
+fn persist_recovery(
+    path: &Path,
+    record: &ResultFileRecord,
+    recovery: &RecoveryResult,
+) -> Result<()> {
+    let durable = serde_json::to_value(recovery)?;
+    if !matches!(recovery, RecoveryResult::Unknown) && record.receipt.as_ref() != Some(&durable) {
+        write_result_file(
+            path,
+            record.idempotency_key,
+            &record.payload_hash,
+            &record.endpoint,
+            record.store_uuid,
+            Some(durable),
+        )?;
+    }
+    Ok(())
 }
 
 fn write_result_file(
     path: &Path,
     idempotency_key: uuid::Uuid,
     payload_hash: &str,
+    endpoint: &str,
+    store_uuid: uuid::Uuid,
     receipt: Option<serde_json::Value>,
 ) -> Result<()> {
     write_json_atomically(
         path,
         &ResultFileRecord {
-            version: 1,
+            version: 2,
             idempotency_key,
             payload_hash: payload_hash.to_owned(),
+            endpoint: endpoint.to_owned(),
+            store_uuid,
             receipt,
         },
     )
@@ -596,8 +918,40 @@ fn write_json_atomically(path: &Path, value: &impl serde::Serialize) -> Result<(
     file.write_all(b"\n")?;
     file.sync_all()?;
     drop(file);
-    replace_file_atomically(&temp, path)?;
-    Ok(())
+    let result = replace_file_atomically(&temp, path);
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+    result
+}
+
+fn write_json_new_atomically(path: &Path, value: &impl serde::Serialize) -> std::io::Result<()> {
+    let parent = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => std::env::current_dir()?,
+    };
+    std::fs::create_dir_all(&parent)?;
+    crate::filesystem::require_fixed_local_ntfs(&parent).map_err(std::io::Error::other)?;
+    let temp = parent.join(format!(".stillyard-result-{}.tmp", uuid::Uuid::now_v7()));
+    let result = (|| {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp)?;
+        serde_json::to_writer_pretty(&mut file, value).map_err(std::io::Error::other)?;
+        file.write_all(b"\n")?;
+        file.sync_all()?;
+        drop(file);
+        // Creating a hard link is an atomic create-if-absent operation on the required local
+        // NTFS volume. Removing the temporary name cannot invalidate the published receipt.
+        std::fs::hard_link(&temp, path)?;
+        let _ = std::fs::remove_file(&temp);
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+    result
 }
 
 #[cfg(windows)]
@@ -649,10 +1003,10 @@ pub(crate) fn default_endpoint() -> Result<String> {
     #[cfg(windows)]
     let digest = format!("{:x}", Sha256::digest(identity.as_bytes()));
     #[cfg(windows)]
-    return Ok(format!(r"\\.\pipe\stillyard-v3-{}", &digest[..16]));
+    return Ok(format!(r"\\.\pipe\stillyard-v4-{}", &digest[..16]));
     #[cfg(not(windows))]
     return Ok(default_store_root()?
-        .join("stillyard-v3.sock")
+        .join("stillyard-v4.sock")
         .to_string_lossy()
         .into_owned());
 }
@@ -726,4 +1080,134 @@ pub(crate) fn current_user_sid_string() -> Result<String> {
     let text = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(sid_text, length) });
     drop(sid);
     Ok(text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn result_file_fresh_create_is_atomic_and_never_overwrites() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("operation.result.json");
+        let first = SubmitOptions::new(uuid::Uuid::now_v7());
+        let store_uuid = uuid::Uuid::now_v7();
+        write_initial_result_file(&path, &first, "first-hash", "pipe-a", store_uuid).unwrap();
+        let before = std::fs::read(&path).unwrap();
+
+        let second = SubmitOptions::new(uuid::Uuid::now_v7());
+        assert!(matches!(
+            write_initial_result_file(
+                &path,
+                &second,
+                "second-hash",
+                "pipe-b",
+                uuid::Uuid::now_v7()
+            ),
+            Err(Error::InvalidSpec(_))
+        ));
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+
+        write_result_file(
+            &path,
+            first.idempotency_key,
+            "first-hash",
+            "pipe-a",
+            store_uuid,
+            Some(serde_json::json!({"state": "accepted"})),
+        )
+        .unwrap();
+        let record: ResultFileRecord =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(record.idempotency_key, first.idempotency_key);
+        assert_eq!(record.payload_hash, "first-hash");
+        assert_eq!(record.endpoint, "pipe-a");
+        assert_eq!(record.store_uuid, store_uuid);
+        assert_eq!(record.receipt.unwrap()["state"], "accepted");
+    }
+
+    #[test]
+    fn unknown_recovery_preserves_the_last_durable_receipt() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("operation.result.json");
+        let record = ResultFileRecord {
+            version: 2,
+            idempotency_key: uuid::Uuid::now_v7(),
+            payload_hash: "payload".into(),
+            endpoint: "pipe-a".into(),
+            store_uuid: uuid::Uuid::now_v7(),
+            receipt: Some(serde_json::json!({"result": "accepted", "job": "retained"})),
+        };
+        write_json_atomically(&path, &record).unwrap();
+        let before = std::fs::read(&path).unwrap();
+        persist_recovery(&path, &record, &RecoveryResult::Unknown).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
+
+    #[test]
+    fn recovery_rejects_a_foreign_endpoint_without_touching_the_receipt() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("operation.result.json");
+        let record = ResultFileRecord {
+            version: 2,
+            idempotency_key: uuid::Uuid::now_v7(),
+            payload_hash: "payload".into(),
+            endpoint: "pipe-a".into(),
+            store_uuid: uuid::Uuid::now_v7(),
+            receipt: Some(serde_json::json!({"result": "accepted"})),
+        };
+        write_json_atomically(&path, &record).unwrap();
+        let before = std::fs::read(&path).unwrap();
+        let client = Client {
+            endpoint: "pipe-b".into(),
+            daemon_executable: temp.path().join("unused.exe"),
+        };
+        assert!(matches!(
+            client.recover_result_file(&path, Instant::now() + Duration::from_secs(1), None,),
+            Err(Error::Protocol(_))
+        ));
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
+
+    #[test]
+    fn recover_missing_result_file_does_not_create_it() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("missing.result.json");
+        let client = Client {
+            endpoint: "unused".into(),
+            daemon_executable: temp.path().join("unused.exe"),
+        };
+        assert!(
+            client
+                .recover_result_file(&path, Instant::now() + Duration::from_secs(1), None)
+                .is_err()
+        );
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn interrupted_passthrough_stops_at_a_quiescent_unclaimed_prefix() {
+        let caught_up = StreamProgress {
+            eof: false,
+            caught_up: true,
+        };
+        assert!(passthrough_state_is_complete(
+            true,
+            Some(crate::JobOutcome::Interrupted),
+            caught_up,
+            caught_up,
+        ));
+        assert!(!passthrough_state_is_complete(
+            true,
+            Some(crate::JobOutcome::Failed),
+            caught_up,
+            caught_up,
+        ));
+        assert!(!passthrough_state_is_complete(
+            false,
+            Some(crate::JobOutcome::Interrupted),
+            caught_up,
+            caught_up,
+        ));
+    }
 }

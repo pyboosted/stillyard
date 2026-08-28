@@ -1,5 +1,5 @@
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -7,23 +7,35 @@ use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use crate::protocol::StagedInputRef;
 use crate::resources::ResolvedClaims;
 use crate::{
     AttemptId, BatchId, BatchJobReceipt, BatchReceipt, BatchSpec, Blocker, ContainmentId,
-    DaemonSnapshot, Estimate, InvocationId, JobId, JobOutcome, JobReceipt, JobSnapshot, JobSpec,
-    JobState, LogChunk, LogStream, RecoveryResult, ResourceCapacities, SubmissionId,
-    SubmissionState,
+    DaemonSnapshot, Estimate, HostConfig, InvocationId, JobId, JobOutcome, JobReceipt, JobSnapshot,
+    JobSpec, JobState, LogChunk, LogStream, RecoveryResult, ResourceCapacities, StdinSpec,
+    SubmissionId, SubmissionState,
 };
 
 // Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
 // the current schema changes; daemon startup will replace the whole SQLite database.
-const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-2026-08-27";
+const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-agent-ready-2026-08-28";
+const MAX_STDIN_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_UPLOAD_CHUNK_BYTES: usize = 256 * 1024;
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UploadMetadata {
+    sha256: String,
+    length: u64,
+}
 
 #[derive(Clone)]
 pub(crate) struct StorePaths {
     pub(crate) root: PathBuf,
     pub(crate) database: PathBuf,
     pub(crate) logs: PathBuf,
+    pub(crate) uploads: PathBuf,
+    pub(crate) blobs: PathBuf,
     pub(crate) lock: PathBuf,
     pub(crate) config: PathBuf,
 }
@@ -33,6 +45,8 @@ impl StorePaths {
         Self {
             database: root.join("stillyard.sqlite3"),
             logs: root.join("logs"),
+            uploads: root.join("staging").join("uploads"),
+            blobs: root.join("staging").join("blobs"),
             lock: root.join("daemon.lock"),
             config: root.join("config.json"),
             root,
@@ -43,6 +57,8 @@ impl StorePaths {
         std::fs::create_dir_all(&self.root)?;
         crate::filesystem::require_fixed_local_ntfs(&self.root)?;
         std::fs::create_dir_all(&self.logs)?;
+        std::fs::create_dir_all(&self.uploads)?;
+        std::fs::create_dir_all(&self.blobs)?;
         Ok(())
     }
 
@@ -56,6 +72,10 @@ impl StorePaths {
         self.logs
             .join(job_id.entity_uuid().to_string())
             .join("stderr.bin")
+    }
+
+    pub(crate) fn blob_path(&self, hash: &str) -> PathBuf {
+        self.blobs.join(format!("{hash}.stdin"))
     }
 }
 
@@ -102,6 +122,8 @@ pub(crate) struct PreparedJob {
     pub(crate) spec: JobSpec,
     pub(crate) stdout_path: PathBuf,
     pub(crate) stderr_path: PathBuf,
+    pub(crate) stdin: Option<StagedInputRef>,
+    pub(crate) stdin_path: Option<PathBuf>,
 }
 
 pub(crate) struct PrepareNext {
@@ -120,31 +142,47 @@ pub(crate) struct Store {
     pub(crate) paths: StorePaths,
     store_uuid: Uuid,
     capacities: ResourceCapacities,
+    profiles: std::collections::BTreeMap<String, crate::EnvironmentProfile>,
 }
 
 impl Store {
-    pub(crate) fn open(paths: StorePaths) -> StoreResult<Self> {
-        let capacities = load_capacities(&paths.config)?;
-        Self::open_with_capacities(paths, capacities)
+    pub(crate) fn store_uuid(&self) -> Uuid {
+        self.store_uuid
     }
 
+    pub(crate) fn open(paths: StorePaths) -> StoreResult<Self> {
+        let config = load_host_config(&paths.config)?;
+        Self::open_with_config(paths, config)
+    }
+
+    #[cfg(test)]
     fn open_with_capacities(
         paths: StorePaths,
         capacities: ResourceCapacities,
     ) -> StoreResult<Self> {
+        Self::open_with_config(
+            paths,
+            HostConfig {
+                resources: capacities,
+                profiles: Default::default(),
+            },
+        )
+    }
+
+    fn open_with_config(paths: StorePaths, config: HostConfig) -> StoreResult<Self> {
         paths.ensure()?;
         let database_existed = paths.database.try_exists()?;
         if !database_existed {
             // A crash may have left sidecars without a main database file.
             reset_database_files(&paths)?;
-            return Self::open_fresh(paths, capacities);
+            return Self::open_fresh(paths, config);
         }
 
         let connection = match Connection::open(&paths.database) {
             Ok(connection) => connection,
             Err(error) if is_database_corruption(&error) => {
                 reset_database_files(&paths)?;
-                return Self::open_fresh(paths, capacities);
+                return Self::open_fresh(paths, config);
             }
             Err(error) => return Err(error.into()),
         };
@@ -152,30 +190,30 @@ impl Store {
         if !schema_is_current(&connection)? {
             drop(connection);
             reset_database_files(&paths)?;
-            return Self::open_fresh(paths, capacities);
+            return Self::open_fresh(paths, config);
         }
 
-        match Self::finish_open(connection, paths.clone(), capacities.clone()) {
+        match Self::finish_open(connection, paths.clone(), config.clone()) {
             Ok(store) => Ok(store),
             Err(StoreError::Sqlite(error)) if is_database_corruption(&error) => {
                 reset_database_files(&paths)?;
-                Self::open_fresh(paths, capacities)
+                Self::open_fresh(paths, config)
             }
             Err(error) => Err(error),
         }
     }
 
-    fn open_fresh(paths: StorePaths, capacities: ResourceCapacities) -> StoreResult<Self> {
+    fn open_fresh(paths: StorePaths, config: HostConfig) -> StoreResult<Self> {
         let connection = Connection::open(&paths.database)?;
         configure_database(&connection)?;
         create_current_schema(&connection, Uuid::now_v7())?;
-        Self::finish_open(connection, paths, capacities)
+        Self::finish_open(connection, paths, config)
     }
 
     fn finish_open(
         connection: Connection,
         paths: StorePaths,
-        capacities: ResourceCapacities,
+        config: HostConfig,
     ) -> StoreResult<Self> {
         configure_database(&connection)?;
         let store_uuid = current_store_uuid(&connection)?;
@@ -183,10 +221,12 @@ impl Store {
             connection,
             paths,
             store_uuid,
-            capacities,
+            capacities: config.resources,
+            profiles: config.profiles,
         };
         store.recover_interrupted()?;
         store.resume_received()?;
+        store.collect_abandoned_staging()?;
         Ok(store)
     }
 
@@ -200,25 +240,236 @@ impl Store {
         Ok(id.entity_uuid().to_string())
     }
 
+    pub(crate) fn stage_begin(
+        &self,
+        upload_id: Uuid,
+        expected_sha256: &str,
+        expected_length: u64,
+    ) -> StoreResult<u64> {
+        validate_input_ref(&StagedInputRef {
+            sha256: expected_sha256.to_owned(),
+            length: expected_length,
+        })?;
+        let metadata_path = self.upload_metadata_path(upload_id);
+        let partial_path = self.upload_partial_path(upload_id);
+        let expected = UploadMetadata {
+            sha256: expected_sha256.to_owned(),
+            length: expected_length,
+        };
+        let metadata_exists = metadata_path.try_exists()?;
+        let partial_exists = partial_path.try_exists()?;
+        if metadata_exists && partial_exists {
+            let actual: UploadMetadata = serde_json::from_reader(File::open(&metadata_path)?)?;
+            if actual.sha256 != expected.sha256 || actual.length != expected.length {
+                return Err(StoreError::InvalidSpec(
+                    "upload ID was reused with different stdin metadata".into(),
+                ));
+            }
+            let offset = std::fs::metadata(&partial_path)?.len();
+            if offset > expected_length {
+                return Err(StoreError::InvalidState(
+                    "partial stdin upload exceeds its declared length".into(),
+                ));
+            }
+            return Ok(offset);
+        }
+        if metadata_exists || partial_exists {
+            remove_file_allow_readonly(&metadata_path)?;
+            remove_file_allow_readonly(&partial_path)?;
+        }
+        let mut metadata = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&metadata_path)?;
+        let initialized = (|| -> StoreResult<()> {
+            serde_json::to_writer(&mut metadata, &expected)?;
+            metadata.write_all(b"\n")?;
+            metadata.sync_all()?;
+            OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&partial_path)?
+                .sync_all()?;
+            Ok(())
+        })();
+        if let Err(error) = initialized {
+            drop(metadata);
+            let _ = std::fs::remove_file(&partial_path);
+            let _ = std::fs::remove_file(&metadata_path);
+            return Err(error);
+        }
+        Ok(0)
+    }
+
+    pub(crate) fn stage_chunk(
+        &self,
+        upload_id: Uuid,
+        offset: u64,
+        bytes: &[u8],
+    ) -> StoreResult<u64> {
+        if bytes.is_empty() || bytes.len() > MAX_UPLOAD_CHUNK_BYTES {
+            return Err(StoreError::InvalidSpec(format!(
+                "stdin upload chunks must contain 1..={MAX_UPLOAD_CHUNK_BYTES} bytes"
+            )));
+        }
+        let metadata: UploadMetadata =
+            serde_json::from_reader(File::open(self.upload_metadata_path(upload_id))?)?;
+        let partial_path = self.upload_partial_path(upload_id);
+        let current = std::fs::metadata(&partial_path)?.len();
+        if current != offset {
+            return Err(StoreError::InvalidState(format!(
+                "stdin upload offset mismatch: expected {current}, received {offset}"
+            )));
+        }
+        let next = current.saturating_add(bytes.len() as u64);
+        if next > metadata.length {
+            return Err(StoreError::InvalidSpec(
+                "stdin upload exceeds its declared length".into(),
+            ));
+        }
+        let mut partial = OpenOptions::new().append(true).open(partial_path)?;
+        partial.write_all(bytes)?;
+        Ok(next)
+    }
+
+    pub(crate) fn stage_commit(&self, upload_id: Uuid) -> StoreResult<StagedInputRef> {
+        let metadata_path = self.upload_metadata_path(upload_id);
+        let metadata: UploadMetadata = serde_json::from_reader(File::open(&metadata_path)?)?;
+        let input = StagedInputRef {
+            sha256: metadata.sha256,
+            length: metadata.length,
+        };
+        validate_input_ref(&input)?;
+        let partial_path = self.upload_partial_path(upload_id);
+        let blob_path = self.paths.blob_path(&input.sha256);
+        if !partial_path.try_exists()? && blob_path.try_exists()? {
+            verify_file(&blob_path, &input)?;
+            set_file_readonly(&blob_path)?;
+            std::fs::remove_file(metadata_path)?;
+            return Ok(input);
+        }
+        verify_file(&partial_path, &input)?;
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&partial_path)?
+            .sync_all()?;
+        if blob_path.try_exists()? {
+            verify_file(&blob_path, &input)?;
+            set_file_readonly(&blob_path)?;
+            remove_file_allow_readonly(&partial_path)?;
+        } else {
+            std::fs::rename(&partial_path, &blob_path).map_err(|error| {
+                StoreError::InvalidState(format!(
+                    "cannot publish staged stdin {}: {error}",
+                    blob_path.display()
+                ))
+            })?;
+            if let Err(error) = set_file_readonly(&blob_path) {
+                let _ = std::fs::rename(&blob_path, &partial_path);
+                return Err(error);
+            }
+        }
+        std::fs::remove_file(&metadata_path).map_err(|error| {
+            StoreError::InvalidState(format!(
+                "cannot finalize staged stdin metadata {}: {error}",
+                metadata_path.display()
+            ))
+        })?;
+        Ok(input)
+    }
+
+    fn upload_metadata_path(&self, upload_id: Uuid) -> PathBuf {
+        self.paths.uploads.join(format!("{upload_id}.json"))
+    }
+
+    fn upload_partial_path(&self, upload_id: Uuid) -> PathBuf {
+        self.paths.uploads.join(format!("{upload_id}.partial"))
+    }
+
+    fn collect_abandoned_staging(&self) -> StoreResult<()> {
+        for entry in std::fs::read_dir(&self.paths.uploads)? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                remove_file_allow_readonly(&entry.path())?;
+            }
+        }
+        let mut referenced = std::collections::HashSet::new();
+        let mut statement = self
+            .connection
+            .prepare("SELECT DISTINCT stdin_hash FROM jobs WHERE stdin_hash IS NOT NULL")?;
+        for hash in statement.query_map([], |row| row.get::<_, String>(0))? {
+            referenced.insert(hash?);
+        }
+        for entry in std::fs::read_dir(&self.paths.blobs)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_file() {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let hash = name.strip_suffix(".stdin").unwrap_or_default();
+            if !referenced.contains(hash) {
+                remove_file_allow_readonly(&entry.path())?;
+            }
+        }
+        Ok(())
+    }
+
+    fn verify_staged_input(
+        &self,
+        spec: &JobSpec,
+        stdin: Option<&StagedInputRef>,
+    ) -> StoreResult<()> {
+        validate_input_shape(spec, stdin)?;
+        if let Some(stdin) = stdin {
+            verify_file(&self.paths.blob_path(&stdin.sha256), stdin)?;
+        }
+        Ok(())
+    }
+
+    fn verify_staged_batch_inputs(
+        &self,
+        spec: &BatchSpec,
+        stdins: &std::collections::BTreeMap<String, StagedInputRef>,
+    ) -> StoreResult<()> {
+        validate_batch_input_shape(spec, stdins)?;
+        for stdin in stdins.values() {
+            verify_file(&self.paths.blob_path(&stdin.sha256), stdin)?;
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
     pub(crate) fn submit(
         &mut self,
         idempotency_key: Uuid,
         claimed_payload_hash: &str,
         spec: &JobSpec,
     ) -> StoreResult<SubmitResult> {
+        self.submit_with_stdin(idempotency_key, claimed_payload_hash, spec, None)
+    }
+
+    pub(crate) fn submit_with_stdin(
+        &mut self,
+        idempotency_key: Uuid,
+        claimed_payload_hash: &str,
+        spec: &JobSpec,
+        stdin: Option<&StagedInputRef>,
+    ) -> StoreResult<SubmitResult> {
         spec.validate()
             .map_err(|error| StoreError::InvalidSpec(error.to_string()))?;
-        let payload_hash = normalized_payload_hash(spec)?;
+        validate_input_shape(spec, stdin)?;
+        let payload_hash = normalized_payload_hash_with_input(spec, stdin)?;
         if claimed_payload_hash != payload_hash {
             return Err(StoreError::InvalidSpec(
                 "payload hash does not match the normalized specification".into(),
             ));
         }
         let key = idempotency_key.to_string();
-        if let Some((submission_id, stored_hash, state, job_id, spec_json, kind)) = self
+        if let Some((submission_id, stored_hash, state, job_id, spec_json, stdin_json, kind)) = self
             .connection
             .query_row(
-                "SELECT id, payload_hash, state, job_id, spec_json, kind
+                "SELECT id, payload_hash, state, job_id, spec_json, stdin_json, kind
                  FROM submissions WHERE scope = 'unmanaged' AND idempotency_key = ?1",
                 [&key],
                 |row| {
@@ -228,7 +479,8 @@ impl Store {
                         row.get::<_, String>(2)?,
                         row.get::<_, Option<String>>(3)?,
                         row.get::<_, String>(4)?,
-                        row.get::<_, String>(5)?,
+                        row.get::<_, Option<String>>(5)?,
+                        row.get::<_, String>(6)?,
                     ))
                 },
             )
@@ -251,9 +503,14 @@ impl Store {
             }
             if state == "received" {
                 let durable_spec = serde_json::from_str(&spec_json)?;
+                let durable_stdin = stdin_json
+                    .as_deref()
+                    .map(serde_json::from_str)
+                    .transpose()?;
                 return self.accept_received(
                     SubmissionId::from_parts(self.store_uuid, Uuid::parse_str(&submission_id)?),
                     &durable_spec,
+                    durable_stdin.as_ref(),
                 );
             }
             if state == "rejected" {
@@ -266,43 +523,62 @@ impl Store {
             )));
         }
 
+        self.verify_staged_input(spec, stdin)?;
         let submission_id = SubmissionId::new(self.store_uuid);
         let received = self.connection.transaction()?;
         received.execute(
             "INSERT INTO submissions(
-                id, scope, idempotency_key, payload_hash, state, spec_json, kind, created_ms
-             ) VALUES (?1, 'unmanaged', ?2, ?3, 'received', ?4, 'job', ?5)",
+                id, scope, idempotency_key, payload_hash, state, spec_json, stdin_json, kind, created_ms
+             ) VALUES (?1, 'unmanaged', ?2, ?3, 'received', ?4, ?5, 'job', ?6)",
             params![
                 submission_id.entity_uuid().to_string(),
                 key,
                 payload_hash,
                 serde_json::to_string(spec)?,
+                stdin.map(serde_json::to_string).transpose()?,
                 now_millis(),
             ],
         )?;
         received.commit()?;
-        self.accept_received(submission_id, spec)
+        self.accept_received(submission_id, spec, stdin)
     }
 
+    #[cfg(test)]
     pub(crate) fn submit_batch(
         &mut self,
         idempotency_key: Uuid,
         claimed_payload_hash: &str,
         spec: &BatchSpec,
     ) -> StoreResult<BatchSubmitResult> {
+        self.submit_batch_with_stdins(
+            idempotency_key,
+            claimed_payload_hash,
+            spec,
+            &Default::default(),
+        )
+    }
+
+    pub(crate) fn submit_batch_with_stdins(
+        &mut self,
+        idempotency_key: Uuid,
+        claimed_payload_hash: &str,
+        spec: &BatchSpec,
+        stdins: &std::collections::BTreeMap<String, StagedInputRef>,
+    ) -> StoreResult<BatchSubmitResult> {
         spec.validate()
             .map_err(|error| StoreError::InvalidSpec(error.to_string()))?;
-        let payload_hash = normalized_batch_payload_hash(spec)?;
+        validate_batch_input_shape(spec, stdins)?;
+        let payload_hash = normalized_batch_payload_hash_with_inputs(spec, stdins)?;
         if claimed_payload_hash != payload_hash {
             return Err(StoreError::InvalidSpec(
                 "payload hash does not match the normalized specification".into(),
             ));
         }
         let key = idempotency_key.to_string();
-        if let Some((submission, stored_hash, state, batch, spec_json, kind)) = self
+        if let Some((submission, stored_hash, state, batch, spec_json, stdin_json, kind)) = self
             .connection
             .query_row(
-                "SELECT id, payload_hash, state, batch_id, spec_json, kind
+                "SELECT id, payload_hash, state, batch_id, spec_json, stdin_json, kind
                  FROM submissions WHERE scope = 'unmanaged' AND idempotency_key = ?1",
                 [&key],
                 |row| {
@@ -312,7 +588,8 @@ impl Store {
                         row.get::<_, String>(2)?,
                         row.get::<_, Option<String>>(3)?,
                         row.get::<_, String>(4)?,
-                        row.get::<_, String>(5)?,
+                        row.get::<_, Option<String>>(5)?,
+                        row.get::<_, String>(6)?,
                     ))
                 },
             )
@@ -337,7 +614,12 @@ impl Store {
             }
             if state == "received" {
                 let durable: BatchSpec = serde_json::from_str(&spec_json)?;
-                return self.accept_received_batch(submission_id, &durable);
+                let durable_stdins = stdin_json
+                    .as_deref()
+                    .map(serde_json::from_str)
+                    .transpose()?
+                    .unwrap_or_default();
+                return self.accept_received_batch(submission_id, &durable, &durable_stdins);
             }
             if state == "rejected" {
                 return Err(StoreError::Rejected(
@@ -349,39 +631,52 @@ impl Store {
             )));
         }
 
+        self.verify_staged_batch_inputs(spec, stdins)?;
         let submission_id = SubmissionId::new(self.store_uuid);
         let received = self.connection.transaction()?;
         received.execute(
             "INSERT INTO submissions(
-                id, scope, idempotency_key, payload_hash, state, spec_json, kind, created_ms
-             ) VALUES (?1, 'unmanaged', ?2, ?3, 'received', ?4, 'batch', ?5)",
+                id, scope, idempotency_key, payload_hash, state, spec_json, stdin_json, kind, created_ms
+             ) VALUES (?1, 'unmanaged', ?2, ?3, 'received', ?4, ?5, 'batch', ?6)",
             params![
                 submission_id.entity_uuid().to_string(),
                 key,
                 payload_hash,
                 serde_json::to_string(spec)?,
+                serde_json::to_string(stdins)?,
                 now_millis(),
             ],
         )?;
         received.commit()?;
-        self.accept_received_batch(submission_id, spec)
+        self.accept_received_batch(submission_id, spec, stdins)
     }
 
     fn accept_received_batch(
         &mut self,
         submission_id: SubmissionId,
         spec: &BatchSpec,
+        stdins: &std::collections::BTreeMap<String, StagedInputRef>,
     ) -> StoreResult<BatchSubmitResult> {
+        if let Err(error) = self.verify_staged_batch_inputs(spec, stdins) {
+            self.reject_received(submission_id)?;
+            return Err(StoreError::Rejected(error.to_string()));
+        }
         let batch_id = BatchId::new(self.store_uuid);
         let accepted_ms = now_millis();
         let jobs: StoreResult<Vec<_>> = spec
             .jobs
             .iter()
             .map(|member| {
+                let mut accepted_spec = member.spec.clone();
+                accepted_spec.environment =
+                    crate::spec::expand_environment(&member.spec.environment, &self.profiles)
+                        .map_err(|error| StoreError::InvalidSpec(error.to_string()))?;
                 Ok((
                     JobId::new(self.store_uuid),
                     ResolvedClaims::resolve(&member.spec.resources)
                         .map_err(|error| StoreError::InvalidSpec(error.to_string()))?,
+                    accepted_spec,
+                    stdins.get(&member.name).cloned(),
                 ))
             })
             .collect();
@@ -396,7 +691,7 @@ impl Store {
             .jobs
             .iter()
             .zip(&jobs)
-            .map(|(member, (job_id, _))| (member.name.as_str(), *job_id))
+            .map(|(member, (job_id, _, _, _))| (member.name.as_str(), *job_id))
             .collect();
         let transaction = self.connection.transaction()?;
         let state: String = transaction.query_row(
@@ -433,25 +728,29 @@ impl Store {
                 accepted_ms,
             ],
         )?;
-        for (index, (member, (job_id, claims))) in spec.jobs.iter().zip(&jobs).enumerate() {
+        for (index, (member, (job_id, claims, accepted_spec, stdin))) in
+            spec.jobs.iter().zip(&jobs).enumerate()
+        {
             transaction.execute(
                 "INSERT INTO jobs(
                     id, submission_id, batch_id, batch_member, batch_index, state,
-                    spec_json, claims_json, accepted_ms
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, 'pending', ?6, ?7, ?8)",
+                    spec_json, claims_json, stdin_hash, stdin_len, accepted_ms
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, 'pending', ?6, ?7, ?8, ?9, ?10)",
                 params![
                     job_id.entity_uuid().to_string(),
                     submission_id.entity_uuid().to_string(),
                     batch_id.entity_uuid().to_string(),
                     member.name,
                     index as u64,
-                    serde_json::to_string(&member.spec)?,
+                    serde_json::to_string(accepted_spec)?,
                     serde_json::to_string(claims)?,
+                    stdin.as_ref().map(|stdin| stdin.sha256.as_str()),
+                    stdin.as_ref().map(|stdin| stdin.length),
                     accepted_ms,
                 ],
             )?;
         }
-        for (member, (successor, _)) in spec.jobs.iter().zip(&jobs) {
+        for (member, (successor, _, _, _)) in spec.jobs.iter().zip(&jobs) {
             for dependency in &member.dependencies {
                 let predecessor = names.get(dependency.job.as_str()).copied().ok_or_else(|| {
                     StoreError::InvalidState(format!(
@@ -596,7 +895,21 @@ impl Store {
         &mut self,
         submission_id: SubmissionId,
         spec: &JobSpec,
+        stdin: Option<&StagedInputRef>,
     ) -> StoreResult<SubmitResult> {
+        if let Err(error) = self.verify_staged_input(spec, stdin) {
+            self.reject_received(submission_id)?;
+            return Err(StoreError::Rejected(error.to_string()));
+        }
+        let mut accepted_spec = spec.clone();
+        accepted_spec.environment =
+            match crate::spec::expand_environment(&spec.environment, &self.profiles) {
+                Ok(environment) => environment,
+                Err(error) => {
+                    self.reject_received(submission_id)?;
+                    return Err(StoreError::Rejected(error.to_string()));
+                }
+            };
         let job_id = JobId::new(self.store_uuid);
         let claims = match ResolvedClaims::resolve(&spec.resources) {
             Ok(claims) => claims,
@@ -633,13 +946,16 @@ impl Store {
             )));
         }
         transaction.execute(
-            "INSERT INTO jobs(id, submission_id, state, spec_json, claims_json, accepted_ms)
-             VALUES (?1, ?2, 'pending', ?3, ?4, ?5)",
+            "INSERT INTO jobs(
+                id, submission_id, state, spec_json, claims_json, stdin_hash, stdin_len, accepted_ms
+             ) VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7)",
             params![
                 job_id.entity_uuid().to_string(),
                 submission_id.entity_uuid().to_string(),
-                serde_json::to_string(spec)?,
+                serde_json::to_string(&accepted_spec)?,
                 serde_json::to_string(&claims)?,
+                stdin.map(|stdin| stdin.sha256.as_str()),
+                stdin.map(|stdin| stdin.length),
                 accepted_ms,
             ],
         )?;
@@ -942,12 +1258,20 @@ impl Store {
         let transaction = self.connection.transaction()?;
         let row = transaction
             .query_row(
-                "SELECT spec_json, claims_json FROM jobs WHERE id = ?1 AND state = 'pending'",
+                "SELECT spec_json, claims_json, stdin_hash, stdin_len
+                 FROM jobs WHERE id = ?1 AND state = 'pending'",
                 [job_key],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                        row.get::<_, Option<u64>>(3)?,
+                    ))
+                },
             )
             .optional()?;
-        let Some((spec_json, claims_json)) = row else {
+        let Some((spec_json, claims_json, stdin_hash, stdin_len)) = row else {
             transaction.rollback()?;
             return Ok(PrepareJob::Blocked);
         };
@@ -972,6 +1296,16 @@ impl Store {
             return Ok(PrepareJob::Blocked);
         }
         let spec = serde_json::from_str(&spec_json)?;
+        let stdin = match (stdin_hash, stdin_len) {
+            (Some(sha256), Some(length)) => Some(StagedInputRef { sha256, length }),
+            (None, None) => None,
+            _ => {
+                return Err(StoreError::InvalidState(
+                    "job has a partial staged stdin reference".into(),
+                ));
+            }
+        };
+        validate_input_shape(&spec, stdin.as_ref())?;
         let log_directory = self.paths.logs.join(job_id.entity_uuid().to_string());
         std::fs::create_dir_all(&log_directory)?;
         transaction.execute(
@@ -1026,6 +1360,10 @@ impl Store {
             spec,
             stdout_path: self.paths.stdout_path(job_id),
             stderr_path: self.paths.stderr_path(job_id),
+            stdin_path: stdin
+                .as_ref()
+                .map(|stdin| self.paths.blob_path(&stdin.sha256)),
+            stdin,
         })))
     }
 
@@ -1524,25 +1862,31 @@ impl Store {
     fn resume_received(&mut self) -> StoreResult<()> {
         let received = {
             let mut statement = self.connection.prepare(
-                "SELECT id, spec_json, kind FROM submissions
+                "SELECT id, spec_json, stdin_json, kind FROM submissions
                  WHERE state = 'received' ORDER BY created_ms",
             )?;
             let rows = statement.query_map([], |row| {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, String>(3)?,
                 ))
             })?;
             rows.collect::<std::result::Result<Vec<_>, _>>()?
         };
-        for (submission_id, spec_json, kind) in received {
+        for (submission_id, spec_json, stdin_json, kind) in received {
             let submission_id =
                 SubmissionId::from_parts(self.store_uuid, Uuid::parse_str(&submission_id)?);
             let result = if kind == "batch" {
-                match serde_json::from_str(&spec_json) {
-                    Ok(spec) => self.accept_received_batch(submission_id, &spec).map(|_| ()),
-                    Err(error) => {
+                match (
+                    serde_json::from_str(&spec_json),
+                    stdin_json.as_deref().map(serde_json::from_str).transpose(),
+                ) {
+                    (Ok(spec), Ok(stdins)) => self
+                        .accept_received_batch(submission_id, &spec, &stdins.unwrap_or_default())
+                        .map(|_| ()),
+                    (Err(error), _) | (_, Err(error)) => {
                         self.reject_received(submission_id)?;
                         Err(StoreError::Rejected(format!(
                             "retained BatchSpec cannot be decoded: {error}"
@@ -1550,9 +1894,14 @@ impl Store {
                     }
                 }
             } else {
-                match serde_json::from_str(&spec_json) {
-                    Ok(spec) => self.accept_received(submission_id, &spec).map(|_| ()),
-                    Err(error) => {
+                match (
+                    serde_json::from_str(&spec_json),
+                    stdin_json.as_deref().map(serde_json::from_str).transpose(),
+                ) {
+                    (Ok(spec), Ok(stdin)) => self
+                        .accept_received(submission_id, &spec, stdin.as_ref())
+                        .map(|_| ()),
+                    (Err(error), _) | (_, Err(error)) => {
                         self.reject_received(submission_id)?;
                         Err(StoreError::Rejected(format!(
                             "retained JobSpec cannot be decoded: {error}"
@@ -1619,14 +1968,147 @@ fn active_claims_tx(transaction: &rusqlite::Transaction<'_>) -> StoreResult<Vec<
     rows.map(|row| Ok(serde_json::from_str(&row?)?)).collect()
 }
 
+#[cfg(test)]
 pub(crate) fn normalized_payload_hash(spec: &JobSpec) -> StoreResult<String> {
-    let normalized = serde_json::to_vec(spec)?;
+    normalized_payload_hash_with_input(spec, None)
+}
+
+pub(crate) fn normalized_payload_hash_with_input(
+    spec: &JobSpec,
+    stdin: Option<&StagedInputRef>,
+) -> StoreResult<String> {
+    let normalized = serde_json::to_vec(&(spec, stdin))?;
     Ok(format!("{:x}", Sha256::digest(normalized)))
 }
 
+#[cfg(test)]
 pub(crate) fn normalized_batch_payload_hash(spec: &BatchSpec) -> StoreResult<String> {
-    let normalized = serde_json::to_vec(spec)?;
+    normalized_batch_payload_hash_with_inputs(spec, &Default::default())
+}
+
+pub(crate) fn normalized_batch_payload_hash_with_inputs(
+    spec: &BatchSpec,
+    stdins: &std::collections::BTreeMap<String, StagedInputRef>,
+) -> StoreResult<String> {
+    let normalized = serde_json::to_vec(&(spec, stdins))?;
     Ok(format!("{:x}", Sha256::digest(normalized)))
+}
+
+fn validate_input_ref(input: &StagedInputRef) -> StoreResult<()> {
+    if input.length > MAX_STDIN_BYTES
+        || input.sha256.len() != 64
+        || !input
+            .sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(StoreError::InvalidSpec(format!(
+            "staged stdin must be at most {MAX_STDIN_BYTES} bytes with a lowercase SHA-256"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_input_shape(spec: &JobSpec, stdin: Option<&StagedInputRef>) -> StoreResult<()> {
+    match (&spec.stdin, stdin) {
+        (StdinSpec::Eof, None) => Ok(()),
+        (StdinSpec::File { .. }, Some(stdin)) => validate_input_ref(stdin),
+        (StdinSpec::Eof, Some(_)) => Err(StoreError::InvalidSpec(
+            "EOF stdin must not carry a staged input".into(),
+        )),
+        (StdinSpec::File { .. }, None) => Err(StoreError::InvalidSpec(
+            "file stdin requires one committed staged input".into(),
+        )),
+    }
+}
+
+fn validate_batch_input_shape(
+    spec: &BatchSpec,
+    stdins: &std::collections::BTreeMap<String, StagedInputRef>,
+) -> StoreResult<()> {
+    let expected: std::collections::BTreeSet<_> = spec
+        .jobs
+        .iter()
+        .filter(|member| matches!(member.spec.stdin, StdinSpec::File { .. }))
+        .map(|member| member.name.as_str())
+        .collect();
+    if expected.len() != stdins.len() || !stdins.keys().all(|name| expected.contains(name.as_str()))
+    {
+        return Err(StoreError::InvalidSpec(
+            "Batch staged stdin mapping must exactly match file-stdin members".into(),
+        ));
+    }
+    for stdin in stdins.values() {
+        validate_input_ref(stdin)?;
+    }
+    Ok(())
+}
+
+fn verify_file(path: &Path, input: &StagedInputRef) -> StoreResult<()> {
+    validate_input_ref(input)?;
+    let mut file = File::open(path)?;
+    if file.metadata()?.len() != input.length {
+        return Err(StoreError::InvalidSpec(
+            "staged stdin length does not match its reference".into(),
+        ));
+    }
+    let mut hash = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hash.update(&buffer[..read]);
+    }
+    if format!("{:x}", hash.finalize()) != input.sha256 {
+        return Err(StoreError::InvalidSpec(
+            "staged stdin hash does not match its reference".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn remove_file_allow_readonly(path: &Path) -> StoreResult<()> {
+    if !path.try_exists()? {
+        return Ok(());
+    }
+    let mut permissions = std::fs::metadata(path)?.permissions();
+    if permissions.readonly() {
+        make_file_writable(path, &mut permissions)?;
+    }
+    std::fs::remove_file(path)?;
+    Ok(())
+}
+
+#[cfg(windows)]
+fn make_file_writable(path: &Path, permissions: &mut std::fs::Permissions) -> StoreResult<()> {
+    permissions.set_readonly(false);
+    std::fs::set_permissions(path, permissions.clone())?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn make_file_writable(path: &Path, permissions: &mut std::fs::Permissions) -> StoreResult<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    permissions.set_mode(permissions.mode() | 0o200);
+    std::fs::set_permissions(path, permissions.clone())?;
+    Ok(())
+}
+
+fn set_file_readonly(path: &Path) -> StoreResult<()> {
+    let mut permissions = std::fs::metadata(path)?.permissions();
+    if !permissions.readonly() {
+        permissions.set_readonly(true);
+        std::fs::set_permissions(path, permissions).map_err(|error| {
+            StoreError::InvalidState(format!(
+                "cannot make staged stdin immutable at {}: {error}",
+                path.display()
+            ))
+        })?;
+    }
+    Ok(())
 }
 
 fn dependency_kind(kind: crate::DependencyKind) -> &'static str {
@@ -1637,18 +2119,16 @@ fn dependency_kind(kind: crate::DependencyKind) -> &'static str {
     }
 }
 
-fn load_capacities(path: &Path) -> StoreResult<ResourceCapacities> {
+fn load_host_config(path: &Path) -> StoreResult<HostConfig> {
     match File::open(path) {
         Ok(file) => {
-            let capacities: ResourceCapacities = serde_json::from_reader(file)?;
-            capacities
+            let config: HostConfig = serde_json::from_reader(file)?;
+            config
                 .validate()
                 .map_err(|error| StoreError::InvalidSpec(error.to_string()))?;
-            Ok(capacities)
+            Ok(config)
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            Ok(ResourceCapacities::default())
-        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(HostConfig::default()),
         Err(error) => Err(error.into()),
     }
 }
@@ -1828,6 +2308,7 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
              payload_hash TEXT NOT NULL,
              state TEXT NOT NULL,
              spec_json TEXT NOT NULL,
+             stdin_json TEXT,
              job_id TEXT,
              kind TEXT NOT NULL DEFAULT 'job',
              batch_id TEXT,
@@ -1850,6 +2331,8 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
              outcome TEXT,
              spec_json TEXT NOT NULL,
              claims_json TEXT NOT NULL DEFAULT '{{}}',
+             stdin_hash TEXT,
+             stdin_len INTEGER,
              attempt_id TEXT,
              invocation_id TEXT,
              containment_id TEXT,
@@ -1940,11 +2423,18 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
         }
     }
     for (table, columns) in [
-        ("submissions", &["kind", "batch_id"] as &[_]),
+        ("submissions", &["kind", "batch_id", "stdin_json"] as &[_]),
         ("batches", &["submission_id", "accepted_ms"] as &[_]),
         (
             "jobs",
-            &["batch_id", "batch_member", "batch_index", "claims_json"] as &[_],
+            &[
+                "batch_id",
+                "batch_member",
+                "batch_index",
+                "claims_json",
+                "stdin_hash",
+                "stdin_len",
+            ] as &[_],
         ),
         (
             "dependencies",
@@ -2013,8 +2503,8 @@ fn now_millis() -> i64 {
 mod tests {
     use super::*;
     use crate::{
-        BatchMember, DependencyKind, DependencySpec, EnvironmentSpec, EstimateConfidence,
-        ResourceClaims, RetryPolicy, SPEC_VERSION, StdinSpec,
+        BatchMember, DependencyKind, DependencySpec, EnvironmentProfile, EnvironmentSpec,
+        EstimateConfidence, ResourceClaims, RetryPolicy, SPEC_VERSION, StdinSpec,
     };
 
     fn spec(root: &Path) -> JobSpec {
@@ -2052,6 +2542,303 @@ mod tests {
             spec,
             dependencies,
         }
+    }
+
+    fn stage_bytes(store: &Store, bytes: &[u8]) -> StagedInputRef {
+        let input = StagedInputRef {
+            sha256: format!("{:x}", Sha256::digest(bytes)),
+            length: bytes.len() as u64,
+        };
+        let upload_id = Uuid::now_v7();
+        assert_eq!(
+            store
+                .stage_begin(upload_id, &input.sha256, input.length)
+                .unwrap(),
+            0
+        );
+        let mut offset = 0_u64;
+        for chunk in bytes.chunks(17_003) {
+            offset = store.stage_chunk(upload_id, offset, chunk).unwrap();
+        }
+        assert_eq!(store.stage_commit(upload_id).unwrap(), input);
+        input
+    }
+
+    #[test]
+    fn increment_2b_staged_stdin_is_pre_received_immutable_and_idempotent() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+        let bytes = (0..90_000)
+            .map(|index| (index % 251) as u8)
+            .collect::<Vec<_>>();
+        let upload_id = Uuid::now_v7();
+        let input = StagedInputRef {
+            sha256: format!("{:x}", Sha256::digest(&bytes)),
+            length: bytes.len() as u64,
+        };
+        store
+            .stage_begin(upload_id, &input.sha256, input.length)
+            .unwrap();
+        let midpoint = 41_000;
+        assert_eq!(
+            store.stage_chunk(upload_id, 0, &bytes[..midpoint]).unwrap(),
+            midpoint as u64
+        );
+        let submissions: u64 = store
+            .connection
+            .query_row("SELECT COUNT(*) FROM submissions", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(
+            submissions, 0,
+            "partial upload must not create a Submission"
+        );
+        store
+            .stage_chunk(upload_id, midpoint as u64, &bytes[midpoint..])
+            .unwrap();
+        assert_eq!(store.stage_commit(upload_id).unwrap(), input);
+
+        let source = temp.path().join("client-source.bin");
+        let mut job = spec(temp.path());
+        job.stdin = StdinSpec::File { path: source };
+        let key = Uuid::now_v7();
+        let hash = normalized_payload_hash_with_input(&job, Some(&input)).unwrap();
+        let accepted = store
+            .submit_with_stdin(key, &hash, &job, Some(&input))
+            .unwrap();
+        let prepared = store.prepare_job(accepted.receipt.job_id).unwrap().unwrap();
+        assert_eq!(prepared.stdin, Some(input.clone()));
+        assert_eq!(
+            std::fs::read(prepared.stdin_path.as_ref().unwrap()).unwrap(),
+            bytes
+        );
+        assert!(
+            std::fs::metadata(prepared.stdin_path.unwrap())
+                .unwrap()
+                .permissions()
+                .readonly(),
+            "published stdin blob must be immutable to ordinary writers"
+        );
+
+        let changed = stage_bytes(&store, b"different immutable input");
+        let changed_hash = normalized_payload_hash_with_input(&job, Some(&changed)).unwrap();
+        assert!(matches!(
+            store.submit_with_stdin(key, &changed_hash, &job, Some(&changed)),
+            Err(StoreError::IdempotencyConflict)
+        ));
+    }
+
+    #[test]
+    fn increment_2b_corrupt_staged_input_rejects_before_received() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store =
+            Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+                .unwrap();
+        let input = stage_bytes(&store, b"trusted");
+        let blob = store.paths.blob_path(&input.sha256);
+        let mut permissions = std::fs::metadata(&blob).unwrap().permissions();
+        make_file_writable(&blob, &mut permissions).unwrap();
+        std::fs::write(&blob, b"altered").unwrap();
+        let mut job = spec(temp.path());
+        job.stdin = StdinSpec::File {
+            path: temp.path().join("client-source.bin"),
+        };
+        let hash = normalized_payload_hash_with_input(&job, Some(&input)).unwrap();
+        assert!(matches!(
+            store.submit_with_stdin(Uuid::now_v7(), &hash, &job, Some(&input)),
+            Err(StoreError::InvalidSpec(_))
+        ));
+        let submissions: u64 = store
+            .connection
+            .query_row("SELECT COUNT(*) FROM submissions", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(submissions, 0);
+    }
+
+    #[test]
+    fn increment_2b_restart_collects_partial_upload_without_submission() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let key = Uuid::now_v7();
+        {
+            let store = Store::open_with_capacities(paths.clone(), capacities()).unwrap();
+            let bytes = b"never committed";
+            let hash = format!("{:x}", Sha256::digest(bytes));
+            let upload_id = Uuid::now_v7();
+            store
+                .stage_begin(upload_id, &hash, bytes.len() as u64)
+                .unwrap();
+            store.stage_chunk(upload_id, 0, bytes).unwrap();
+            assert!(matches!(
+                store.recover_submission(key, &hash).unwrap(),
+                RecoveryResult::Unknown
+            ));
+        }
+        let store = Store::open_with_capacities(paths, capacities()).unwrap();
+        assert_eq!(std::fs::read_dir(&store.paths.uploads).unwrap().count(), 0);
+        assert_eq!(std::fs::read_dir(&store.paths.blobs).unwrap().count(), 0);
+        let submissions: u64 = store
+            .connection
+            .query_row("SELECT COUNT(*) FROM submissions", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(submissions, 0);
+    }
+
+    #[test]
+    fn increment_2b_partial_batch_input_map_is_atomic() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store =
+            Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+                .unwrap();
+        let mut first = spec(temp.path());
+        first.stdin = StdinSpec::File {
+            path: temp.path().join("first.in"),
+        };
+        let mut second = spec(temp.path());
+        second.stdin = StdinSpec::File {
+            path: temp.path().join("second.in"),
+        };
+        let batch = BatchSpec {
+            spec_version: SPEC_VERSION,
+            jobs: vec![
+                member("first", first, vec![]),
+                member("second", second, vec![]),
+            ],
+        };
+        let stdins = [("first".to_owned(), stage_bytes(&store, b"first"))].into();
+        let hash = normalized_batch_payload_hash_with_inputs(&batch, &stdins).unwrap();
+        assert!(matches!(
+            store.submit_batch_with_stdins(Uuid::now_v7(), &hash, &batch, &stdins),
+            Err(StoreError::InvalidSpec(_))
+        ));
+        for table in ["submissions", "batches", "jobs"] {
+            let count: u64 = store
+                .connection
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(count, 0, "partial Batch stdin must create no {table}");
+        }
+    }
+
+    #[test]
+    fn increment_2b_received_batch_revalidates_staged_inputs_before_acceptance() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store =
+            Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+                .unwrap();
+        let mut job = spec(temp.path());
+        job.stdin = StdinSpec::File {
+            path: temp.path().join("member.in"),
+        };
+        let batch = BatchSpec {
+            spec_version: SPEC_VERSION,
+            jobs: vec![member("member", job, vec![])],
+        };
+        let input = stage_bytes(&store, b"trusted");
+        let stdins = [("member".to_owned(), input.clone())].into();
+        let hash = normalized_batch_payload_hash_with_inputs(&batch, &stdins).unwrap();
+        let key = Uuid::now_v7();
+        let submission_id = SubmissionId::new(store.store_uuid);
+        store
+            .connection
+            .execute(
+                "INSERT INTO submissions(
+                    id, scope, idempotency_key, payload_hash, state, spec_json, stdin_json,
+                    kind, created_ms
+                 ) VALUES (?1, 'unmanaged', ?2, ?3, 'received', ?4, ?5, 'batch', ?6)",
+                params![
+                    submission_id.entity_uuid().to_string(),
+                    key.to_string(),
+                    hash,
+                    serde_json::to_string(&batch).unwrap(),
+                    serde_json::to_string(&stdins).unwrap(),
+                    now_millis(),
+                ],
+            )
+            .unwrap();
+        let blob = store.paths.blob_path(&input.sha256);
+        let mut permissions = std::fs::metadata(&blob).unwrap().permissions();
+        make_file_writable(&blob, &mut permissions).unwrap();
+        std::fs::write(&blob, b"altered").unwrap();
+
+        store.resume_received().unwrap();
+        assert!(matches!(
+            store.recover_submission(key, &hash).unwrap(),
+            RecoveryResult::Rejected { .. }
+        ));
+        let jobs: u64 = store
+            .connection
+            .query_row("SELECT COUNT(*) FROM jobs", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(jobs, 0, "corrupt staged Batch input must never create Jobs");
+    }
+
+    #[test]
+    fn increment_2b_profile_expands_at_acceptance_and_enforces_precedence() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let config = HostConfig {
+            resources: capacities(),
+            profiles: [(
+                "codex".to_owned(),
+                EnvironmentProfile {
+                    set: [("PATH".to_owned(), r"C:\Tools".to_owned())].into(),
+                    unset: vec!["ANTHROPIC_API_KEY".into()],
+                    locked_set: [("CODEX_HOME".to_owned(), r"C:\Accounts\codex2".to_owned())]
+                        .into(),
+                    locked_unset: vec!["XAI_API_KEY".into()],
+                },
+            )]
+            .into(),
+        };
+        std::fs::write(&paths.config, serde_json::to_vec(&config).unwrap()).unwrap();
+        let mut store = Store::open(paths).unwrap();
+        let mut job = spec(temp.path());
+        job.environment.profile = Some("codex".into());
+        job.environment
+            .set
+            .insert("ANTHROPIC_API_KEY".into(), "must-not-leak".into());
+        job.environment.set.insert("ROUND".into(), "2".into());
+        let hash = normalized_payload_hash(&job).unwrap();
+        let accepted = store.submit(Uuid::now_v7(), &hash, &job).unwrap();
+        let effective = store
+            .status(accepted.receipt.job_id)
+            .unwrap()
+            .spec
+            .environment;
+        assert_eq!(effective.profile.as_deref(), Some("codex"));
+        assert_eq!(effective.set.get("PATH").unwrap(), r"C:\Tools");
+        assert_eq!(
+            effective.set.get("CODEX_HOME").unwrap(),
+            r"C:\Accounts\codex2"
+        );
+        assert_eq!(effective.set.get("ROUND").unwrap(), "2");
+        assert!(!effective.set.contains_key("ANTHROPIC_API_KEY"));
+        assert!(
+            effective
+                .unset
+                .iter()
+                .any(|name| name == "ANTHROPIC_API_KEY")
+        );
+        assert!(effective.unset.iter().any(|name| name == "XAI_API_KEY"));
+
+        let mut override_locked = job;
+        override_locked
+            .environment
+            .set
+            .insert("CODEX_HOME".into(), "wrong".into());
+        let hash = normalized_payload_hash(&override_locked).unwrap();
+        assert!(matches!(
+            store.submit(Uuid::now_v7(), &hash, &override_locked),
+            Err(StoreError::Rejected(_))
+        ));
+        let jobs: u64 = store
+            .connection
+            .query_row("SELECT COUNT(*) FROM jobs", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(jobs, 1, "locked override must never create a Job");
     }
 
     #[test]
@@ -2783,13 +3570,17 @@ mod tests {
         let paths = StorePaths::new(temp.path().to_path_buf());
         let log_marker = paths.logs.join("orphaned.log");
         std::fs::write(&log_marker, b"preserve me").unwrap();
-        std::fs::write(&paths.config, serde_json::to_vec(&capacities()).unwrap()).unwrap();
+        let config = HostConfig {
+            resources: capacities(),
+            profiles: Default::default(),
+        };
+        std::fs::write(&paths.config, serde_json::to_vec(&config).unwrap()).unwrap();
         let store = Store::open(paths).unwrap();
         assert_ne!(store.store_uuid, old_uuid);
         assert_eq!(std::fs::read(&log_marker).unwrap(), b"preserve me");
         assert_eq!(
             std::fs::read(&store.paths.config).unwrap(),
-            serde_json::to_vec(&capacities()).unwrap()
+            serde_json::to_vec(&config).unwrap()
         );
         let epoch: String = store
             .connection
