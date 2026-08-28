@@ -10,6 +10,8 @@ use stillyard::{
 };
 use uuid::Uuid;
 
+mod tui;
+
 #[derive(Debug, Parser)]
 #[command(name = "stillyard", version, about)]
 struct Cli {
@@ -71,6 +73,32 @@ enum Command {
         #[arg(long, default_value_t = 10)]
         deadline_seconds: u64,
     },
+    /// List a bounded page of retained Jobs.
+    List {
+        #[arg(long = "label")]
+        labels: Vec<String>,
+        #[arg(long, default_value_t = 100)]
+        limit: u32,
+        #[arg(long)]
+        cursor: Option<stillyard::JobListCursor>,
+        #[arg(long)]
+        json: bool,
+        #[arg(long, default_value_t = 10)]
+        deadline_seconds: u64,
+    },
+    /// Read durable scheduler events after a cursor.
+    Events {
+        #[arg(long)]
+        since: Option<stillyard::EventCursor>,
+        #[arg(long = "label")]
+        labels: Vec<String>,
+        #[arg(long, default_value_t = 256)]
+        limit: u32,
+        #[arg(long, required = true)]
+        json: bool,
+        #[arg(long, default_value_t = 10)]
+        deadline_seconds: u64,
+    },
     /// Wait for one job to become terminal.
     Wait {
         job_id: JobId,
@@ -83,16 +111,39 @@ enum Command {
     /// Read committed bytes from a job's canonical log.
     Logs {
         job_id: JobId,
-        #[arg(long, value_enum, default_value_t = StreamArg::Stdout)]
-        stream: StreamArg,
-        #[arg(long, default_value_t = 0)]
+        /// Read canonical stdout (the default).
+        #[arg(long, conflicts_with_all = ["stderr", "stream"])]
+        stdout: bool,
+        /// Read canonical stderr.
+        #[arg(long, conflicts_with_all = ["stdout", "stream"])]
+        stderr: bool,
+        /// Backward-compatible explicit stream spelling.
+        #[arg(long, value_enum, conflicts_with_all = ["stdout", "stderr"])]
+        stream: Option<StreamArg>,
+        #[arg(long, visible_alias = "since", default_value_t = 0)]
         offset: u64,
+        /// Continue until the selected canonical stream reaches EOF.
+        #[arg(long)]
+        follow: bool,
         #[arg(long, default_value_t = 1_048_576)]
         limit: u32,
         /// Emit the complete LogChunk JSON instead of its byte payload.
         #[arg(long)]
         json: bool,
         #[arg(long, default_value_t = 10)]
+        deadline_seconds: u64,
+    },
+    /// Open the disposable event-driven terminal monitor.
+    Watch {
+        #[arg(long, conflicts_with_all = ["batch", "labels"])]
+        job: Option<JobId>,
+        #[arg(long, conflicts_with_all = ["job", "labels"])]
+        batch: Option<stillyard::BatchId>,
+        #[arg(long = "label", conflicts_with_all = ["job", "batch"])]
+        labels: Vec<String>,
+        #[arg(long, default_value_t = 200)]
+        limit: u32,
+        #[arg(long, default_value_t = 86_400)]
         deadline_seconds: u64,
     },
     /// Print daemon identity and queue counts.
@@ -319,6 +370,43 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             let client = Client::connect(deadline, None)?;
             print_json(&client.status(job_id, deadline, None)?)?;
         }
+        Command::List {
+            labels,
+            limit,
+            cursor,
+            json,
+            deadline_seconds,
+        } => {
+            let deadline = deadline(deadline_seconds);
+            let client = Client::connect(deadline, None)?;
+            let selector = labels_selector(&labels)?;
+            let page = client.list(selector, cursor, limit, deadline, None)?;
+            if json {
+                print_json(&page)?;
+            } else {
+                print_job_list(&page);
+            }
+        }
+        Command::Events {
+            since,
+            labels,
+            limit,
+            json,
+            deadline_seconds,
+        } => {
+            let deadline = deadline(deadline_seconds);
+            let client = Client::connect(deadline, None)?;
+            let frame = client.observe(
+                labels_selector(&labels)?,
+                since,
+                limit,
+                Duration::ZERO,
+                deadline,
+                None,
+            )?;
+            let _ = json;
+            print_json(&frame)?;
+        }
         Command::Wait {
             job_id,
             passthrough,
@@ -348,20 +436,60 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         }
         Command::Logs {
             job_id,
+            stdout: _,
+            stderr,
             stream,
             offset,
+            follow,
             limit,
             json,
             deadline_seconds,
         } => {
             let deadline = deadline(deadline_seconds);
             let client = Client::connect(deadline, None)?;
-            let chunk = client.logs(job_id, stream.into(), offset, limit, deadline, None)?;
-            if json {
-                print_json(&chunk)?;
+            let stream = if stderr {
+                LogStream::Stderr
             } else {
-                io::stdout().write_all(&chunk.bytes)?;
+                stream.unwrap_or(StreamArg::Stdout).into()
+            };
+            if follow {
+                for chunk in client.follow_logs(job_id, stream, offset, deadline, None)? {
+                    let chunk = chunk?;
+                    if json {
+                        print_json(&chunk)?;
+                    } else {
+                        io::stdout().write_all(&chunk.bytes)?;
+                        io::stdout().flush()?;
+                    }
+                }
+            } else {
+                let chunk = client.logs(job_id, stream, offset, limit, deadline, None)?;
+                if json {
+                    print_json(&chunk)?;
+                } else {
+                    io::stdout().write_all(&chunk.bytes)?;
+                }
             }
+        }
+        Command::Watch {
+            job,
+            batch,
+            labels,
+            limit,
+            deadline_seconds,
+        } => {
+            let deadline = deadline(deadline_seconds);
+            let client = Client::connect(deadline, None)?;
+            let selector = if let Some(job_id) = job {
+                stillyard::JobSelector::Jobs {
+                    job_ids: vec![job_id],
+                }
+            } else if let Some(batch_id) = batch {
+                stillyard::JobSelector::Batch { batch_id }
+            } else {
+                labels_selector(&labels)?
+            };
+            tui::run(client, selector, limit, deadline)?;
         }
         Command::DaemonStatus { deadline_seconds } => {
             let deadline = deadline(deadline_seconds);
@@ -386,6 +514,54 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
 
 fn deadline(seconds: u64) -> Instant {
     Instant::now() + Duration::from_secs(seconds)
+}
+
+fn labels_selector(
+    labels: &[String],
+) -> Result<stillyard::JobSelector, Box<dyn std::error::Error>> {
+    if labels.is_empty() {
+        return Ok(stillyard::JobSelector::All);
+    }
+    let labels = labels
+        .iter()
+        .map(|label| {
+            let (key, value) = label
+                .split_once('=')
+                .ok_or_else(|| format!("label must be KEY=VALUE: {label:?}"))?;
+            if key.is_empty() || value.is_empty() {
+                return Err(format!(
+                    "label must have a nonempty key and value: {label:?}"
+                ));
+            }
+            Ok(stillyard::Label {
+                key: key.to_owned(),
+                value: value.to_owned(),
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    Ok(stillyard::JobSelector::Labels { labels })
+}
+
+fn print_job_list(page: &stillyard::JobListPage) {
+    println!("STATE\tRANK\tJOB\tBLOCKER");
+    for job in &page.jobs {
+        println!(
+            "{:?}\t{}\t{}\t{}",
+            job.state,
+            job.queue_rank
+                .map(|rank| rank.to_string())
+                .unwrap_or_else(|| "-".into()),
+            job.job_id,
+            job.blocker
+                .as_ref()
+                .map(|blocker| blocker.code.as_str())
+                .unwrap_or("-")
+        );
+    }
+    if let Some(cursor) = page.next_cursor {
+        println!("next_cursor={cursor}");
+    }
+    println!("event_cursor={}", page.event_cursor);
 }
 
 fn read_input(path: &PathBuf) -> io::Result<Vec<u8>> {
@@ -517,5 +693,31 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn alpha7_observation_cli_keeps_the_public_spellings() {
+        let job_id = format!("{}~{}", Uuid::now_v7(), Uuid::now_v7());
+        let logs = Cli::try_parse_from([
+            "stillyard",
+            "logs",
+            &job_id,
+            "--stderr",
+            "--follow",
+            "--since",
+            "7",
+        ])
+        .unwrap();
+        assert!(matches!(
+            logs.command,
+            Command::Logs {
+                stderr: true,
+                follow: true,
+                offset: 7,
+                ..
+            }
+        ));
+        assert!(Cli::try_parse_from(["stillyard", "events"]).is_err());
+        assert!(Cli::try_parse_from(["stillyard", "events", "--json"]).is_ok());
     }
 }

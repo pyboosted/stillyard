@@ -1,6 +1,6 @@
 # Phase 7 — Live observation
 
-Status: planned alpha.7 bounded contract (2026-08-28)
+Status: alpha.7 implementation candidate; focused review pending (2026-08-28)
 
 This increment makes the already durable scheduler observable as a live system. It adds one
 event-driven public observation path and the first useful terminal monitor without changing

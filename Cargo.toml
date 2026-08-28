@@ -1,6 +1,6 @@
 [package]
 name = "stillyard"
-version = "0.1.0-alpha.6"
+version = "0.1.0-alpha.7"
 edition = "2024"
 rust-version = "1.85"
 description = "A quiet, local-first scheduler for real processes"
@@ -21,9 +21,11 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
+crossterm = "0.28"
 directories = "6.0"
 fs2 = "0.4"
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.37", features = ["bundled", "hooks"] }
+ratatui = "0.29"
 schemars = { version = "1.0", features = ["uuid1"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

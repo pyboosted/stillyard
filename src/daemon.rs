@@ -40,6 +40,11 @@ pub(crate) fn run() -> Result<()> {
     let (_lock, store) = open_store_under_lock(StorePaths::new(default_store_root()?))?;
     let store = Arc::new(Mutex::new(store));
     let scheduler = Scheduler::start(Arc::clone(&store));
+    let notifier = Arc::clone(&scheduler);
+    store
+        .lock()
+        .map_err(|_| Error::Unavailable("store mutex poisoned".into()))?
+        .set_change_notifier(Arc::new(move || notifier.notify_change()));
     scheduler.wake();
     serve(store, scheduler)
 }
@@ -231,6 +236,55 @@ impl Scheduler {
             if snapshot.is_final() || Instant::now() >= deadline {
                 return Ok(snapshot);
             }
+            let (lock, condition) = &*self.events;
+            let mut generation = lock
+                .lock()
+                .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
+            while *generation == observed {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    break;
+                }
+                let waited = condition
+                    .wait_timeout(generation, remaining)
+                    .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
+                generation = waited.0;
+                if waited.1.timed_out() {
+                    break;
+                }
+            }
+        }
+    }
+
+    fn wait_observation(
+        &self,
+        store: &SharedStore,
+        selector: &crate::JobSelector,
+        cursor: Option<crate::EventCursor>,
+        limit: u32,
+        max_wait: Duration,
+    ) -> std::result::Result<crate::ObservationFrame, StoreError> {
+        let deadline = Instant::now() + max_wait;
+        let mut cursor = cursor;
+        loop {
+            let observed = self
+                .events
+                .0
+                .lock()
+                .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))
+                .map(|generation| *generation)?;
+            let frame = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                .observe(selector, cursor, limit)?;
+            let ready = match &frame {
+                crate::ObservationFrame::Events { events, .. } => !events.is_empty(),
+                crate::ObservationFrame::Gap { .. } => true,
+            };
+            if ready || Instant::now() >= deadline {
+                return Ok(frame);
+            }
+            cursor = Some(frame.cursor());
             let (lock, condition) = &*self.events;
             let mut generation = lock
                 .lock()
@@ -517,6 +571,29 @@ fn handle_request(
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
             .and_then(|store| store.status(job_id))
             .map(|snapshot| Response::Snapshot(Box::new(snapshot))),
+        Request::List {
+            selector,
+            cursor,
+            limit,
+        } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.list_jobs(&selector, cursor, limit))
+            .map(Response::Listed),
+        Request::Observe {
+            selector,
+            cursor,
+            limit,
+            max_wait_millis,
+        } => scheduler
+            .wait_observation(
+                store,
+                &selector,
+                cursor,
+                limit,
+                Duration::from_millis(u64::from(max_wait_millis.min(60_000))),
+            )
+            .map(Response::Observed),
         Request::Cancel { job_ids } => store
             .lock()
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
@@ -804,6 +881,13 @@ fn serve(_store: SharedStore, _scheduler: Arc<Scheduler>) -> Result<()> {
 mod tests {
     use super::*;
 
+    fn observation_scheduler() -> Arc<Scheduler> {
+        Arc::new(Scheduler {
+            signal: Arc::new((Mutex::new(false), Condvar::new())),
+            events: Arc::new((Mutex::new(0), Condvar::new())),
+        })
+    }
+
     fn candidate(store: uuid::Uuid, enabled: bool) -> ManagedCandidate {
         ManagedCandidate {
             parent: crate::ManagedParent {
@@ -912,5 +996,73 @@ mod tests {
             )
             .unwrap();
         assert_eq!(epoch, "obsolete-alpha-schema");
+    }
+
+    #[test]
+    fn alpha7_commit_at_wait_boundary_wakes_from_durable_event() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let mut store = Store::open_with_capacities(
+            paths,
+            crate::ResourceCapacities {
+                cpu_units: 1,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let spec = crate::JobSpec {
+            spec_version: crate::SPEC_VERSION,
+            executable: temp.path().join("tool.exe"),
+            args: Vec::new(),
+            working_directory: temp.path().to_path_buf(),
+            stdin: crate::StdinSpec::Eof,
+            environment: Default::default(),
+            resources: Default::default(),
+            conditions: Vec::new(),
+            retry: Default::default(),
+            postconditions: Vec::new(),
+            labels: Vec::new(),
+            expected_duration_seconds: None,
+            timeout_seconds: None,
+            quiet: None,
+            artifacts: Vec::new(),
+            allow_child_submissions: false,
+        };
+        let hash = crate::store::normalized_payload_hash(&spec).unwrap();
+        let receipt = store
+            .submit(uuid::Uuid::now_v7(), &hash, &spec)
+            .unwrap()
+            .receipt;
+        let cursor = store
+            .list_jobs(&crate::JobSelector::All, None, 1)
+            .unwrap()
+            .event_cursor;
+        let scheduler = observation_scheduler();
+        let notifier = Arc::clone(&scheduler);
+        store.set_change_notifier(Arc::new(move || notifier.notify_change()));
+        let store = Arc::new(Mutex::new(store));
+        let waiting_store = Arc::clone(&store);
+        let waiting_scheduler = Arc::clone(&scheduler);
+        let waiter = std::thread::spawn(move || {
+            waiting_scheduler.wait_observation(
+                &waiting_store,
+                &crate::JobSelector::All,
+                Some(cursor),
+                16,
+                Duration::from_secs(2),
+            )
+        });
+        std::thread::sleep(Duration::from_millis(25));
+        store
+            .lock()
+            .unwrap()
+            .commit_log_offset(receipt.job_id, crate::LogStream::Stdout, 7)
+            .unwrap();
+        let frame = waiter.join().unwrap().unwrap();
+        assert!(matches!(
+            frame,
+            crate::ObservationFrame::Events { ref events, .. }
+                if events.iter().any(|event| event.kind == crate::SchedulerEventKind::LogCommitted)
+        ));
     }
 }

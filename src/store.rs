@@ -12,15 +12,17 @@ use crate::resources::ResolvedClaims;
 use crate::{
     AttemptId, AttemptSnapshot, AttemptVerdict, BatchId, BatchJobReceipt, BatchReceipt, BatchSpec,
     Blocker, ContainmentId, ContainmentSnapshot, ContainmentState, DaemonSnapshot, Estimate,
-    ExitClassification, HostConfig, InvocationId, InvocationRole, InvocationSnapshot,
-    InvocationState, JobId, JobOutcome, JobReceipt, JobSnapshot, JobSpec, JobState, LogChunk,
-    LogStream, ManagedParent, RecoveryResult, ResourceCapacities, StdinSpec, SubmissionId,
-    SubmissionState,
+    EventCursor, EventGap, ExitClassification, HostConfig, InvocationId, InvocationRole,
+    InvocationSnapshot, InvocationState, JobId, JobListCursor, JobListPage, JobOutcome, JobReceipt,
+    JobSelector, JobSnapshot, JobSpec, JobState, JobSummary, LogChunk, LogStream,
+    MAX_OBSERVATION_PAGE, ManagedParent, ObservationFrame, RecoveryResult, ResourceCapacities,
+    SchedulerEvent, SchedulerEventKind, StdinSpec, SubmissionId, SubmissionState,
 };
 
 // Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
 // the current schema changes; daemon startup will replace the whole SQLite database.
-const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-consumer-lifecycle-2026-08-28";
+const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-live-observation-2026-08-28";
+const MAX_EVENT_ROWS: u64 = 16_384;
 const MAX_CANCEL_JOBS: usize = 16;
 const SNAPSHOT_DIAGNOSTIC_BUDGET_BYTES: usize = 64 * 1024;
 const MAX_STDIN_BYTES: u64 = 64 * 1024 * 1024;
@@ -190,11 +192,24 @@ pub(crate) struct Store {
     profiles: std::collections::BTreeMap<String, crate::EnvironmentProfile>,
     impact_incompatibilities: std::collections::BTreeMap<String, Vec<String>>,
     config_sha256: String,
+    change_notifier: Option<std::sync::Arc<dyn Fn() + Send + Sync>>,
 }
 
 impl Store {
     pub(crate) fn store_uuid(&self) -> Uuid {
         self.store_uuid
+    }
+
+    pub(crate) fn set_change_notifier(&mut self, notifier: std::sync::Arc<dyn Fn() + Send + Sync>) {
+        let hook = std::sync::Arc::clone(&notifier);
+        self.connection.update_hook(Some(
+            move |_action: rusqlite::hooks::Action, _database: &str, table: &str, _row_id: i64| {
+                if table == "events" {
+                    hook();
+                }
+            },
+        ));
+        self.change_notifier = Some(notifier);
     }
 
     pub(crate) fn managed_containment_candidates(&self) -> StoreResult<Vec<ManagedCandidate>> {
@@ -284,7 +299,7 @@ impl Store {
     }
 
     #[cfg(test)]
-    fn open_with_capacities(
+    pub(crate) fn open_with_capacities(
         paths: StorePaths,
         capacities: ResourceCapacities,
     ) -> StoreResult<Self> {
@@ -356,6 +371,7 @@ impl Store {
             profiles: config.profiles,
             impact_incompatibilities: config.impact_incompatibilities,
             config_sha256,
+            change_notifier: None,
         };
         store.recover_interrupted()?;
         store.resume_received()?;
@@ -1936,6 +1952,7 @@ impl Store {
         root_pid: u32,
         executable_hash: &str,
     ) -> StoreResult<()> {
+        let started = now_millis();
         let transaction = self.connection.transaction()?;
         let state: String = transaction.query_row(
             "SELECT state FROM jobs WHERE id = ?1",
@@ -1955,7 +1972,7 @@ impl Store {
                 job.invocation_id.entity_uuid().to_string(),
                 root_pid,
                 executable_hash,
-                now_millis(),
+                started,
                 self.daemon_generation.to_string(),
             ],
         )?;
@@ -1969,7 +1986,7 @@ impl Store {
         )?;
         transaction.execute(
             "UPDATE jobs SET started_ms = COALESCE(started_ms, ?2) WHERE id = ?1",
-            params![job.job_id.entity_uuid().to_string(), now_millis()],
+            params![job.job_id.entity_uuid().to_string(), started],
         )?;
         transaction.commit()?;
         Ok(())
@@ -2434,6 +2451,443 @@ impl Store {
                     })
                 },
             )
+    }
+
+    pub(crate) fn list_jobs(
+        &self,
+        selector: &JobSelector,
+        cursor: Option<JobListCursor>,
+        limit: u32,
+    ) -> StoreResult<JobListPage> {
+        self.validate_selector(selector)?;
+        let limit = usize::try_from(limit.clamp(1, MAX_OBSERVATION_PAGE)).unwrap_or(1);
+        if let Some(cursor) = cursor {
+            if cursor.store_uuid != self.store_uuid || cursor.job_id.store_uuid() != self.store_uuid
+            {
+                return Err(StoreError::Rejected(
+                    "list cursor belongs to a different store".into(),
+                ));
+            }
+            let valid = self.connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM jobs WHERE id = ?1 AND accepted_ms = ?2)",
+                params![
+                    cursor.job_id.entity_uuid().to_string(),
+                    cursor.accepted_unix_millis
+                ],
+                |row| row.get::<_, bool>(0),
+            )?;
+            if !valid {
+                return Err(StoreError::Rejected("invalid list cursor".into()));
+            }
+        }
+
+        let mut scan = cursor;
+        let mut selected = Vec::with_capacity(limit + 1);
+        let mut exhausted = false;
+        while selected.len() <= limit && !exhausted {
+            let rows = self.scan_job_rows(scan, MAX_OBSERVATION_PAGE)?;
+            exhausted = rows.len() < usize::try_from(MAX_OBSERVATION_PAGE).unwrap();
+            if let Some(last) = rows.last() {
+                scan = Some(JobListCursor {
+                    store_uuid: self.store_uuid,
+                    accepted_unix_millis: last.1,
+                    job_id: last.0,
+                });
+            }
+            for row in rows {
+                if self.row_matches_selector(row.0, row.3.as_deref(), &row.4, selector)? {
+                    selected.push(row);
+                    if selected.len() > limit {
+                        break;
+                    }
+                }
+            }
+        }
+        let has_more = selected.len() > limit;
+        if has_more {
+            selected.pop();
+        }
+        let next_cursor = if has_more {
+            let last = selected.last().expect("a positive page limit has one row");
+            Some(JobListCursor {
+                store_uuid: self.store_uuid,
+                accepted_unix_millis: last.1,
+                job_id: last.0,
+            })
+        } else {
+            None
+        };
+        let jobs = selected
+            .into_iter()
+            .map(|(job_id, _, _, _, _)| self.job_summary(job_id))
+            .collect::<StoreResult<Vec<_>>>()?;
+        Ok(JobListPage {
+            jobs,
+            next_cursor,
+            event_cursor: self.event_head()?,
+        })
+    }
+
+    pub(crate) fn observe(
+        &self,
+        selector: &JobSelector,
+        cursor: Option<EventCursor>,
+        limit: u32,
+    ) -> StoreResult<ObservationFrame> {
+        self.validate_selector(selector)?;
+        let head = self.event_head()?;
+        let requested = cursor.unwrap_or(EventCursor {
+            store_uuid: self.store_uuid,
+            sequence: 0,
+        });
+        if requested.store_uuid != self.store_uuid {
+            let snapshot = self.list_jobs(selector, None, MAX_OBSERVATION_PAGE)?;
+            return Ok(ObservationFrame::Gap {
+                gap: EventGap {
+                    requested,
+                    oldest_available: self.oldest_event_cursor(head.sequence)?,
+                },
+                snapshot,
+                cursor: head,
+            });
+        }
+        if requested.sequence > head.sequence {
+            return Err(StoreError::Rejected(
+                "event cursor is ahead of durable history".into(),
+            ));
+        }
+        let oldest = self.oldest_event_cursor(head.sequence)?;
+        if requested.sequence.saturating_add(1) < oldest.sequence {
+            let snapshot = self.list_jobs(selector, None, MAX_OBSERVATION_PAGE)?;
+            return Ok(ObservationFrame::Gap {
+                gap: EventGap {
+                    requested,
+                    oldest_available: oldest,
+                },
+                snapshot,
+                cursor: head,
+            });
+        }
+
+        let wanted = usize::try_from(limit.clamp(1, MAX_OBSERVATION_PAGE)).unwrap_or(1);
+        let mut events = Vec::with_capacity(wanted);
+        let mut scanned = requested.sequence;
+        while events.len() < wanted && scanned < head.sequence {
+            let mut statement = self.connection.prepare(
+                "SELECT sequence, kind, job_id, batch_id, committed_ms FROM events
+                 WHERE sequence > ?1 ORDER BY sequence LIMIT ?2",
+            )?;
+            let rows = statement
+                .query_map(params![scanned, MAX_OBSERVATION_PAGE], |row| {
+                    Ok((
+                        row.get::<_, u64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, Option<String>>(3)?,
+                        row.get::<_, i64>(4)?,
+                    ))
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            if rows.is_empty() {
+                scanned = head.sequence;
+                break;
+            }
+            for (sequence, kind, job, batch, committed) in rows {
+                scanned = sequence;
+                let job_id = JobId::from_parts(self.store_uuid, Uuid::parse_str(&job)?);
+                let spec_json: String = self.connection.query_row(
+                    "SELECT spec_json FROM jobs WHERE id = ?1",
+                    [&job],
+                    |row| row.get(0),
+                )?;
+                if !self.row_matches_selector(job_id, batch.as_deref(), &spec_json, selector)? {
+                    continue;
+                }
+                events.push(SchedulerEvent {
+                    cursor: EventCursor {
+                        store_uuid: self.store_uuid,
+                        sequence,
+                    },
+                    kind: parse_scheduler_event_kind(&kind)?,
+                    job_id,
+                    batch_id: batch
+                        .map(|value| {
+                            Uuid::parse_str(&value)
+                                .map(|uuid| BatchId::from_parts(self.store_uuid, uuid))
+                        })
+                        .transpose()?,
+                    committed_unix_millis: committed,
+                });
+                if events.len() == wanted {
+                    break;
+                }
+            }
+        }
+        Ok(ObservationFrame::Events {
+            events,
+            cursor: EventCursor {
+                store_uuid: self.store_uuid,
+                sequence: scanned,
+            },
+        })
+    }
+
+    fn event_head(&self) -> StoreResult<EventCursor> {
+        let sequence = self.connection.query_row(
+            "SELECT COALESCE(MAX(sequence), 0) FROM events",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(EventCursor {
+            store_uuid: self.store_uuid,
+            sequence,
+        })
+    }
+
+    fn oldest_event_cursor(&self, head: u64) -> StoreResult<EventCursor> {
+        let sequence = self.connection.query_row(
+            "SELECT COALESCE(MIN(sequence), ?1 + 1) FROM events",
+            [head],
+            |row| row.get(0),
+        )?;
+        Ok(EventCursor {
+            store_uuid: self.store_uuid,
+            sequence,
+        })
+    }
+
+    fn validate_selector(&self, selector: &JobSelector) -> StoreResult<()> {
+        match selector {
+            JobSelector::All => Ok(()),
+            JobSelector::Jobs { job_ids } => {
+                if job_ids.is_empty() || job_ids.len() > crate::MAX_WAIT_STREAM_JOBS {
+                    return Err(StoreError::Rejected(
+                        "explicit Job selector must contain 1..=1024 IDs".into(),
+                    ));
+                }
+                let mut seen = std::collections::BTreeSet::new();
+                for job_id in job_ids {
+                    if job_id.store_uuid() != self.store_uuid || !seen.insert(*job_id) {
+                        return Err(StoreError::Rejected(
+                            "explicit Job selector contains a foreign or duplicate ID".into(),
+                        ));
+                    }
+                    let exists = self.connection.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM jobs WHERE id = ?1)",
+                        [job_id.entity_uuid().to_string()],
+                        |row| row.get::<_, bool>(0),
+                    )?;
+                    if !exists {
+                        return Err(StoreError::NotFound(job_id.to_string()));
+                    }
+                }
+                Ok(())
+            }
+            JobSelector::Batch { batch_id } => {
+                if batch_id.store_uuid() != self.store_uuid {
+                    return Err(StoreError::Rejected(
+                        "Batch selector belongs to a different store".into(),
+                    ));
+                }
+                let exists = self.connection.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM batches WHERE id = ?1)",
+                    [batch_id.entity_uuid().to_string()],
+                    |row| row.get::<_, bool>(0),
+                )?;
+                if exists {
+                    Ok(())
+                } else {
+                    Err(StoreError::NotFound(batch_id.to_string()))
+                }
+            }
+            JobSelector::Labels { labels } => {
+                if labels.is_empty() || labels.len() > 32 {
+                    return Err(StoreError::Rejected(
+                        "label selector must contain 1..=32 labels".into(),
+                    ));
+                }
+                let mut seen = std::collections::BTreeSet::new();
+                for label in labels {
+                    if label.key.is_empty()
+                        || label.value.is_empty()
+                        || label.key.contains(['\0', '='])
+                        || label.value.contains('\0')
+                        || !seen.insert((label.key.as_str(), label.value.as_str()))
+                    {
+                        return Err(StoreError::Rejected(
+                            "label selector contains an invalid or duplicate label".into(),
+                        ));
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
+
+    fn row_matches_selector(
+        &self,
+        job_id: JobId,
+        batch_id: Option<&str>,
+        spec_json: &str,
+        selector: &JobSelector,
+    ) -> StoreResult<bool> {
+        Ok(match selector {
+            JobSelector::All => true,
+            JobSelector::Jobs { job_ids } => job_ids.contains(&job_id),
+            JobSelector::Batch { batch_id: selected } => batch_id
+                .map(Uuid::parse_str)
+                .transpose()?
+                .is_some_and(|batch| batch == selected.entity_uuid()),
+            JobSelector::Labels { labels } => {
+                let spec: JobSpec = serde_json::from_str(spec_json)?;
+                labels.iter().all(|label| spec.labels.contains(label))
+            }
+        })
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn scan_job_rows(
+        &self,
+        cursor: Option<JobListCursor>,
+        limit: u32,
+    ) -> StoreResult<Vec<(JobId, i64, String, Option<String>, String)>> {
+        let sql = if cursor.is_some() {
+            "SELECT id, accepted_ms, state, batch_id, spec_json FROM jobs
+             WHERE accepted_ms < ?1 OR (accepted_ms = ?1 AND id < ?2)
+             ORDER BY accepted_ms DESC, id DESC LIMIT ?3"
+        } else {
+            "SELECT id, accepted_ms, state, batch_id, spec_json FROM jobs
+             ORDER BY accepted_ms DESC, id DESC LIMIT ?1"
+        };
+        let mut statement = self.connection.prepare(sql)?;
+        let map = |row: &rusqlite::Row<'_>| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, Option<String>>(3)?,
+                row.get::<_, String>(4)?,
+            ))
+        };
+        let rows = if let Some(cursor) = cursor {
+            statement
+                .query_map(
+                    params![
+                        cursor.accepted_unix_millis,
+                        cursor.job_id.entity_uuid().to_string(),
+                        limit
+                    ],
+                    map,
+                )?
+                .collect::<std::result::Result<Vec<_>, _>>()?
+        } else {
+            statement
+                .query_map([limit], map)?
+                .collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        rows.into_iter()
+            .map(|(job, accepted, state, batch, spec)| {
+                Ok((
+                    JobId::from_parts(self.store_uuid, Uuid::parse_str(&job)?),
+                    accepted,
+                    state,
+                    batch,
+                    spec,
+                ))
+            })
+            .collect()
+    }
+
+    fn job_summary(&self, job_id: JobId) -> StoreResult<JobSummary> {
+        let (
+            state,
+            outcome,
+            accepted,
+            started,
+            finished,
+            spec_json,
+            batch,
+            batch_member,
+            attempt,
+            invocation,
+            stdout,
+            stderr,
+        ) = self.connection.query_row(
+            "SELECT state, outcome, accepted_ms, started_ms, finished_ms, spec_json,
+                    batch_id, batch_member, attempt_id, invocation_id, stdout_len, stderr_len
+             FROM jobs WHERE id = ?1",
+            [self.local_id(job_id)?],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, Option<i64>>(3)?,
+                    row.get::<_, Option<i64>>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, Option<String>>(9)?,
+                    row.get::<_, u64>(10)?,
+                    row.get::<_, u64>(11)?,
+                ))
+            },
+        )?;
+        let state = parse_job_state(&state)?;
+        let blockers = if state == JobState::Pending {
+            self.blockers_for_job(job_id)?
+        } else {
+            Vec::new()
+        };
+        let queue_rank = if state == JobState::Pending {
+            Some(self.connection.query_row(
+                "SELECT COUNT(*) FROM jobs WHERE state = 'pending' AND rowid <=
+                    (SELECT rowid FROM jobs WHERE id = ?1)",
+                [job_id.entity_uuid().to_string()],
+                |row| row.get(0),
+            )?)
+        } else {
+            None
+        };
+        let estimate = if state == JobState::Pending {
+            self.estimate_for_job(job_id, &blockers)?
+        } else {
+            Estimate::unknown("Job is no longer pending")
+        };
+        let spec: JobSpec = serde_json::from_str(&spec_json)?;
+        Ok(JobSummary {
+            job_id,
+            batch_id: batch
+                .map(|value| {
+                    Uuid::parse_str(&value).map(|uuid| BatchId::from_parts(self.store_uuid, uuid))
+                })
+                .transpose()?,
+            batch_member,
+            parent: self.parent_for_job(job_id)?,
+            state,
+            outcome: outcome.map(|value| parse_outcome(&value)).transpose()?,
+            accepted_unix_millis: accepted,
+            started_unix_millis: started,
+            finished_unix_millis: finished,
+            queue_rank,
+            estimate,
+            claims: spec.resources,
+            blocker: blockers.into_iter().next(),
+            attempt_id: attempt
+                .map(|value| {
+                    Uuid::parse_str(&value).map(|uuid| AttemptId::from_parts(self.store_uuid, uuid))
+                })
+                .transpose()?,
+            invocation_id: invocation
+                .map(|value| {
+                    Uuid::parse_str(&value)
+                        .map(|uuid| InvocationId::from_parts(self.store_uuid, uuid))
+                })
+                .transpose()?,
+            stdout_committed: stdout,
+            stderr_committed: stderr,
+        })
     }
 
     fn attempt_snapshots(&self, job_id: JobId) -> StoreResult<Vec<AttemptSnapshot>> {
@@ -3715,6 +4169,77 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
              state TEXT NOT NULL,
              claims_json TEXT NOT NULL
          );
+         CREATE TABLE events(
+             sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+             kind TEXT NOT NULL,
+             job_id TEXT NOT NULL REFERENCES jobs(id),
+             batch_id TEXT REFERENCES batches(id),
+             committed_ms INTEGER NOT NULL
+         );
+         CREATE INDEX events_job_sequence ON events(job_id, sequence);
+         CREATE TRIGGER events_prune AFTER INSERT ON events BEGIN
+             DELETE FROM events WHERE sequence <= NEW.sequence - {MAX_EVENT_ROWS};
+         END;
+         CREATE TRIGGER jobs_event_insert AFTER INSERT ON jobs BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             VALUES ('job_changed', NEW.id, NEW.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER));
+         END;
+         CREATE TRIGGER jobs_event_update AFTER UPDATE ON jobs BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             VALUES ('job_changed', NEW.id, NEW.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER));
+         END;
+         CREATE TRIGGER logs_event_update AFTER UPDATE OF stdout_len, stderr_len ON jobs
+         WHEN OLD.stdout_len != NEW.stdout_len OR OLD.stderr_len != NEW.stderr_len BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             VALUES ('log_committed', NEW.id, NEW.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER));
+         END;
+         CREATE TRIGGER attempts_event_insert AFTER INSERT ON attempts BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             SELECT 'attempt_changed', NEW.job_id, jobs.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
+             FROM jobs WHERE jobs.id = NEW.job_id;
+         END;
+         CREATE TRIGGER attempts_event_update AFTER UPDATE ON attempts BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             SELECT 'attempt_changed', NEW.job_id, jobs.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
+             FROM jobs WHERE jobs.id = NEW.job_id;
+         END;
+         CREATE TRIGGER invocations_event_insert AFTER INSERT ON invocations BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             SELECT 'invocation_changed', attempts.job_id, jobs.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
+             FROM attempts JOIN jobs ON jobs.id = attempts.job_id
+             WHERE attempts.id = NEW.attempt_id;
+         END;
+         CREATE TRIGGER invocations_event_update AFTER UPDATE ON invocations BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             SELECT 'invocation_changed', attempts.job_id, jobs.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
+             FROM attempts JOIN jobs ON jobs.id = attempts.job_id
+             WHERE attempts.id = NEW.attempt_id;
+         END;
+         CREATE TRIGGER containments_event_insert AFTER INSERT ON containments BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             SELECT 'containment_changed', attempts.job_id, jobs.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
+             FROM invocations
+             JOIN attempts ON attempts.id = invocations.attempt_id
+             JOIN jobs ON jobs.id = attempts.job_id
+             WHERE invocations.id = NEW.invocation_id;
+         END;
+         CREATE TRIGGER containments_event_update AFTER UPDATE ON containments BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             SELECT 'containment_changed', attempts.job_id, jobs.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
+             FROM invocations
+             JOIN attempts ON attempts.id = invocations.attempt_id
+             JOIN jobs ON jobs.id = attempts.job_id
+             WHERE invocations.id = NEW.invocation_id;
+         END;
          INSERT INTO meta(key, value) VALUES ('store_uuid', '{store_uuid}');
          INSERT INTO meta(key, value) VALUES ('schema_epoch', '{STORE_SCHEMA_EPOCH}');
          COMMIT;"
@@ -3735,6 +4260,7 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
         "observations",
         "leases",
         "dependencies",
+        "events",
     ] {
         let exists: bool = connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1)",
@@ -3798,6 +4324,10 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
                 "stderr_tail",
             ] as &[_],
         ),
+        (
+            "events",
+            &["sequence", "kind", "job_id", "batch_id", "committed_ms"] as &[_],
+        ),
     ] {
         let present = table_columns(connection, table)?;
         for column in columns {
@@ -3806,6 +4336,29 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
                     "current schema table {table} is missing column {column}"
                 )));
             }
+        }
+    }
+    for trigger in [
+        "events_prune",
+        "jobs_event_insert",
+        "jobs_event_update",
+        "logs_event_update",
+        "attempts_event_insert",
+        "attempts_event_update",
+        "invocations_event_insert",
+        "invocations_event_update",
+        "containments_event_insert",
+        "containments_event_update",
+    ] {
+        let exists = connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?1)",
+            [trigger],
+            |row| row.get::<_, bool>(0),
+        )?;
+        if !exists {
+            return Err(StoreError::InvalidState(format!(
+                "current schema is missing trigger {trigger}"
+            )));
         }
     }
     Ok(())
@@ -3895,6 +4448,19 @@ fn parse_exit_classification(value: &str) -> StoreResult<ExitClassification> {
         "failed" => Ok(ExitClassification::Failed),
         other => Err(StoreError::InvalidState(format!(
             "unknown exit classification {other}"
+        ))),
+    }
+}
+
+fn parse_scheduler_event_kind(value: &str) -> StoreResult<SchedulerEventKind> {
+    match value {
+        "job_changed" => Ok(SchedulerEventKind::JobChanged),
+        "log_committed" => Ok(SchedulerEventKind::LogCommitted),
+        "attempt_changed" => Ok(SchedulerEventKind::AttemptChanged),
+        "invocation_changed" => Ok(SchedulerEventKind::InvocationChanged),
+        "containment_changed" => Ok(SchedulerEventKind::ContainmentChanged),
+        other => Err(StoreError::InvalidState(format!(
+            "unknown scheduler event kind {other}"
         ))),
     }
 }
@@ -6295,5 +6861,158 @@ mod tests {
         assert_eq!(newest, "new");
         assert_eq!(older, "er");
         assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn alpha7_list_events_and_cursor_are_one_public_observation_path() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store =
+            Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+                .unwrap();
+        let mut job = spec(temp.path());
+        job.labels.push(crate::Label {
+            key: "round".into(),
+            value: "seven".into(),
+        });
+        job.resources.cargo_slots = Some(1);
+        let hash = normalized_payload_hash(&job).unwrap();
+        let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+
+        let page = store
+            .list_jobs(
+                &JobSelector::Labels {
+                    labels: job.labels.clone(),
+                },
+                None,
+                10,
+            )
+            .unwrap();
+        assert_eq!(page.jobs.len(), 1);
+        assert_eq!(page.jobs[0].job_id, receipt.job_id);
+        assert_eq!(page.jobs[0].queue_rank, Some(1));
+        assert_eq!(page.jobs[0].claims.cargo_slots, Some(1));
+        assert!(page.event_cursor.sequence > 0);
+
+        let frame = store
+            .observe(
+                &JobSelector::Jobs {
+                    job_ids: vec![receipt.job_id],
+                },
+                Some(EventCursor {
+                    store_uuid: store.store_uuid,
+                    sequence: 0,
+                }),
+                100,
+            )
+            .unwrap();
+        let ObservationFrame::Events { events, cursor } = frame else {
+            panic!("fresh retained history must not produce Gap");
+        };
+        assert!(!events.is_empty());
+        assert_eq!(events.last().unwrap().cursor, cursor);
+        assert!(events.iter().all(|event| event.job_id == receipt.job_id));
+
+        let replaced = store
+            .observe(
+                &JobSelector::All,
+                Some(EventCursor {
+                    store_uuid: Uuid::now_v7(),
+                    sequence: cursor.sequence,
+                }),
+                10,
+            )
+            .unwrap();
+        assert!(matches!(replaced, ObservationFrame::Gap { .. }));
+
+        let before = store.event_head().unwrap();
+        let transaction = store.connection.transaction().unwrap();
+        transaction
+            .execute(
+                "UPDATE jobs SET stdout_len = 99 WHERE id = ?1",
+                [receipt.job_id.entity_uuid().to_string()],
+            )
+            .unwrap();
+        drop(transaction);
+        assert_eq!(store.event_head().unwrap(), before);
+        assert_eq!(
+            store.job_summary(receipt.job_id).unwrap().stdout_committed,
+            0
+        );
+    }
+
+    #[test]
+    fn alpha7_event_ring_reports_gap_and_resynchronizes() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let job = spec(temp.path());
+        let hash = normalized_payload_hash(&job).unwrap();
+        let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+        let transaction = store.connection.transaction().unwrap();
+        for offset in 1..=(MAX_EVENT_ROWS + 8) {
+            transaction
+                .execute(
+                    "UPDATE jobs SET stdout_len = ?2 WHERE id = ?1",
+                    params![receipt.job_id.entity_uuid().to_string(), offset],
+                )
+                .unwrap();
+        }
+        transaction.commit().unwrap();
+        let retained: u64 = store
+            .connection
+            .query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(retained, MAX_EVENT_ROWS);
+
+        let frame = store
+            .observe(
+                &JobSelector::All,
+                Some(EventCursor {
+                    store_uuid: store.store_uuid,
+                    sequence: 0,
+                }),
+                16,
+            )
+            .unwrap();
+        let ObservationFrame::Gap {
+            gap,
+            snapshot,
+            cursor,
+        } = frame
+        else {
+            panic!("expired cursor must produce Gap");
+        };
+        assert!(gap.oldest_available.sequence > 1);
+        assert_eq!(snapshot.jobs[0].job_id, receipt.job_id);
+        assert_eq!(snapshot.jobs[0].stdout_committed, MAX_EVENT_ROWS + 8);
+        assert_eq!(snapshot.event_cursor, cursor);
+    }
+
+    #[test]
+    fn alpha7_list_cursor_is_stable_and_store_scoped() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        for _ in 0..3 {
+            let job = spec(temp.path());
+            let hash = normalized_payload_hash(&job).unwrap();
+            store.submit(Uuid::now_v7(), &hash, &job).unwrap();
+        }
+        let first = store.list_jobs(&JobSelector::All, None, 1).unwrap();
+        store
+            .connection
+            .execute(
+                "UPDATE jobs SET state = 'active' WHERE id = ?1",
+                [first.jobs[0].job_id.entity_uuid().to_string()],
+            )
+            .unwrap();
+        let second = store
+            .list_jobs(&JobSelector::All, first.next_cursor, 1)
+            .unwrap();
+        assert_ne!(first.jobs[0].job_id, second.jobs[0].job_id);
+        let mut foreign = first.next_cursor.unwrap();
+        foreign.store_uuid = Uuid::now_v7();
+        assert!(matches!(
+            store.list_jobs(&JobSelector::All, Some(foreign), 1),
+            Err(StoreError::Rejected(_))
+        ));
     }
 }

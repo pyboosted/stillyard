@@ -19,7 +19,8 @@ The motivating agent-orchestration consumer and its boundary are documented in [
 
 ## Current status
 
-`0.1.0-alpha.6` contains six bounded Windows vertical slices:
+`0.1.0-alpha.7` is an implementation candidate containing seven bounded Windows vertical slices
+(focused external review is still pending):
 
 - a runtime-neutral blocking Rust client with deadlines and cancellation;
 - a framed, owner-only local named-pipe protocol and detached singleton daemon;
@@ -57,14 +58,20 @@ The motivating agent-orchestration consumer and its boundary are documented in [
   managed-wait deadlock checks;
 - receipts preserve the accepting daemon generation, while daemon status exposes its current
   generation, active profile names, capacities, and a canonical configuration fingerprint.
+- one durable bounded invalidation stream with store-scoped cursors, explicit `Gap`
+  resynchronization, exact Job/Batch/label selectors, and stable paged Job summaries;
+- owned blocking observation, settlement, and canonical-log streams in the public crate, with
+  deadlines, cancellation, bounded membership, and no async-runtime requirement;
+- read-only `list`, `events`, and `logs --follow` CLI surfaces plus an event-driven disposable
+  `watch` TUI built only on the public crate.
 
-This slice deliberately accepts EOF or staged-file stdin, impacts, bounded retries, and executable postconditions without Conditions, quiet policies, secrets, or artifacts. The Windows clean base is limited to `SystemRoot`, `WINDIR`, `TEMP`, and `TMP`; PATH and every application/account variable must come from a profile or Job. Priority, aging, finite-held reservations, and a host-wide default concurrency cap are also later scheduler work; callers should declare a scalar, fence, or configured impact for every bounded kind of work rather than submit an unbounded fleet of zero-claim jobs. General wait graphs, cascade cancellation, drain/force, retention/events, and `watch` are still baseline work. Specs declaring an unimplemented policy reject rather than run unenforced. Linux remains the v0.2 target.
+This slice deliberately accepts EOF or staged-file stdin, impacts, bounded retries, and executable postconditions without Conditions, quiet policies, secrets, or artifacts. The Windows clean base is limited to `SystemRoot`, `WINDIR`, `TEMP`, and `TMP`; PATH and every application/account variable must come from a profile or Job. Priority, aging, finite-held reservations, and a host-wide default concurrency cap are also later scheduler work; callers should declare a scalar, fence, or configured impact for every bounded kind of work rather than submit an unbounded fleet of zero-claim jobs. General wait graphs, cascade cancellation, drain/force, and configurable Job/log/input retention are still baseline work. Specs declaring an unimplemented policy reject rather than run unenforced. Linux remains the v0.2 target.
 
 The tests cover the increment-2a portions of acceptance rows A-03, A-04, and A-06; the increment-2b staged-input, profile, result-file, and process-handle controls; the bounded managed-submission recovery and safe-wait slices of A-11/A-18; and the alpha.6 consumer lifecycle slice of A-04, A-08, A-11, A-14, and A-18. The full baseline rows are not claimed complete until cascade cancellation, drain/force, observed RAM/VRAM freshness, and external Conditions arrive.
 
-The next bounded increment is [alpha.7 live observation](docs/phase-7-live-observation.md): a durable
-cursor/Gap event stream in the public crate, read-only list/events/log-follow CLI surfaces, and the
-first event-driven `stillyard watch` TUI. It deliberately leaves scheduling semantics unchanged.
+The current candidate is [alpha.7 live observation](docs/phase-7-live-observation.md). It
+deliberately leaves scheduling semantics unchanged; the phase document records the remaining
+external-review and consumer-integration gates before delivery is declared.
 
 An uncertain Containment deliberately retains its real Lease after restart. Until the audited `doctor clear-containment` flow ships, that capacity remains unavailable; moving or editing individual store files is not a supported recovery path.
 
@@ -118,6 +125,9 @@ cargo run -- recover --result-file operation.json --wait --passthrough --silent
 cargo run -- wait JOB_ID --passthrough
 cargo run -- submit --batch batch.json --wait
 cargo run -- logs JOB_ID
+cargo run -- list --json
+cargo run -- events --json
+cargo run -- watch
 ```
 
 Stillyard is licensed under either of Apache License 2.0 or the MIT license, at your option.

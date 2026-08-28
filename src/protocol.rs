@@ -5,11 +5,12 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    BatchReceipt, BatchSpec, DaemonSnapshot, JobId, JobReceipt, JobSnapshot, JobSpec, LogChunk,
-    LogStream, ManagedParent, SubmissionContext,
+    BatchReceipt, BatchSpec, DaemonSnapshot, EventCursor, JobId, JobListCursor, JobListPage,
+    JobReceipt, JobSelector, JobSnapshot, JobSpec, LogChunk, LogStream, ManagedParent,
+    ObservationFrame, SubmissionContext,
 };
 
-pub(crate) const PROTOCOL_VERSION: u32 = 7;
+pub(crate) const PROTOCOL_VERSION: u32 = 8;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -65,6 +66,17 @@ pub(crate) enum Request {
     Status {
         job_id: JobId,
     },
+    List {
+        selector: JobSelector,
+        cursor: Option<JobListCursor>,
+        limit: u32,
+    },
+    Observe {
+        selector: JobSelector,
+        cursor: Option<EventCursor>,
+        limit: u32,
+        max_wait_millis: u32,
+    },
     Cancel {
         job_ids: Vec<JobId>,
     },
@@ -102,6 +114,8 @@ pub(crate) enum Response {
         recovery: crate::RecoveryResult,
     },
     Snapshot(Box<JobSnapshot>),
+    Listed(JobListPage),
+    Observed(ObservationFrame),
     Canceled {
         snapshots: Vec<JobSnapshot>,
     },

@@ -15,9 +15,10 @@ use crate::protocol::{PROTOCOL_VERSION, Request, Response, StagedInputRef};
 #[cfg(windows)]
 use crate::protocol::{read_frame, write_frame};
 use crate::{
-    BatchReceipt, BatchSpec, CancellationToken, DaemonSnapshot, Error, JobId, JobReceipt,
-    JobSnapshot, JobSpec, LogChunk, LogStream, ManagedParent, RecoveryResult, Result,
-    SubmissionContext, SubmitOptions,
+    BatchReceipt, BatchSpec, CancellationToken, DaemonSnapshot, Error, EventCursor, JobId,
+    JobListCursor, JobListPage, JobReceipt, JobSelector, JobSnapshot, JobSpec, LogChunk, LogStream,
+    MAX_OBSERVATION_PAGE, ManagedParent, ObservationFrame, RecoveryResult, Result,
+    SubmissionContext, SubmitOptions, WaitStreamItem,
 };
 
 const RESULT_FILE_VERSION: u32 = 4;
@@ -128,6 +129,40 @@ impl ClientBuilder {
 pub struct Client {
     endpoint: String,
     daemon_executable: PathBuf,
+}
+
+pub struct ObservationStream {
+    client: Client,
+    selector: JobSelector,
+    cursor: Option<EventCursor>,
+    deadline: Instant,
+    cancellation: Option<CancellationToken>,
+    finished: bool,
+}
+
+pub struct WaitStream {
+    client: Client,
+    jobs: Vec<JobId>,
+    settled: std::collections::BTreeSet<JobId>,
+    outcomes: Vec<crate::JobOutcome>,
+    pending: std::collections::VecDeque<WaitStreamItem>,
+    cursor: EventCursor,
+    any: bool,
+    aggregate_emitted: bool,
+    finished: bool,
+    deadline: Instant,
+    cancellation: Option<CancellationToken>,
+}
+
+pub struct LogFollower {
+    client: Client,
+    job_id: JobId,
+    stream: LogStream,
+    offset: u64,
+    cursor: EventCursor,
+    deadline: Instant,
+    cancellation: Option<CancellationToken>,
+    finished: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -491,6 +526,140 @@ impl Client {
         }
     }
 
+    pub fn list(
+        &self,
+        selector: JobSelector,
+        cursor: Option<JobListCursor>,
+        limit: u32,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<JobListPage> {
+        match self.request(
+            Request::List {
+                selector,
+                cursor,
+                limit: limit.clamp(1, MAX_OBSERVATION_PAGE),
+            },
+            deadline,
+            cancellation,
+        )? {
+            Response::Listed(page) => Ok(page),
+            response => response_error(response),
+        }
+    }
+
+    pub fn observe(
+        &self,
+        selector: JobSelector,
+        cursor: Option<EventCursor>,
+        limit: u32,
+        max_wait: Duration,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<ObservationFrame> {
+        match self.request(
+            Request::Observe {
+                selector,
+                cursor,
+                limit: limit.clamp(1, MAX_OBSERVATION_PAGE),
+                max_wait_millis: max_wait
+                    .min(Duration::from_secs(60))
+                    .as_millis()
+                    .try_into()
+                    .unwrap_or(60_000),
+            },
+            deadline,
+            cancellation,
+        )? {
+            Response::Observed(frame) => Ok(frame),
+            response => response_error(response),
+        }
+    }
+
+    pub fn observation_stream(
+        &self,
+        selector: JobSelector,
+        cursor: Option<EventCursor>,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> ObservationStream {
+        ObservationStream {
+            client: self.clone(),
+            selector,
+            cursor,
+            deadline,
+            cancellation: cancellation.cloned(),
+            finished: false,
+        }
+    }
+
+    pub fn wait_stream(
+        &self,
+        selector: JobSelector,
+        any: bool,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<WaitStream> {
+        let page = self.list(
+            selector,
+            None,
+            crate::MAX_WAIT_STREAM_JOBS as u32,
+            deadline,
+            cancellation,
+        )?;
+        if page.next_cursor.is_some() {
+            return Err(Error::InvalidSpec(format!(
+                "wait stream membership exceeds {} Jobs",
+                crate::MAX_WAIT_STREAM_JOBS
+            )));
+        }
+        let jobs = page.jobs.iter().map(|job| job.job_id).collect::<Vec<_>>();
+        let mut stream = WaitStream {
+            client: self.clone(),
+            jobs,
+            settled: Default::default(),
+            outcomes: Vec::new(),
+            pending: Default::default(),
+            cursor: page.event_cursor,
+            any,
+            aggregate_emitted: false,
+            finished: false,
+            deadline,
+            cancellation: cancellation.cloned(),
+        };
+        stream.refresh_settlements()?;
+        Ok(stream)
+    }
+
+    pub fn follow_logs(
+        &self,
+        job_id: JobId,
+        stream: LogStream,
+        offset: u64,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<LogFollower> {
+        let page = self.list(
+            JobSelector::Jobs {
+                job_ids: vec![job_id],
+            },
+            None,
+            1,
+            deadline,
+            cancellation,
+        )?;
+        Ok(LogFollower {
+            client: self.clone(),
+            job_id,
+            stream,
+            offset,
+            cursor: page.event_cursor,
+            deadline,
+            cancellation: cancellation.cloned(),
+            finished: false,
+        })
+    }
+
     pub fn cancel(
         &self,
         job_ids: &[JobId],
@@ -696,6 +865,16 @@ impl Client {
             let result = transport_request(&endpoint, &daemon_executable, &request, deadline);
             let _ = sender.send(result);
         });
+        if cancellation.is_none() {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            return match receiver.recv_timeout(remaining) {
+                Ok(result) => result,
+                Err(mpsc::RecvTimeoutError::Timeout) => Err(Error::DeadlineElapsed),
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    Err(Error::Unavailable("transport worker stopped".into()))
+                }
+            };
+        }
         loop {
             check_wait(deadline, cancellation)?;
             let remaining = deadline.saturating_duration_since(Instant::now());
@@ -708,6 +887,189 @@ impl Client {
             }
         }
     }
+}
+
+impl Iterator for ObservationStream {
+    type Item = Result<ObservationFrame>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+        loop {
+            let frame = match self.client.observe(
+                self.selector.clone(),
+                self.cursor,
+                MAX_OBSERVATION_PAGE,
+                Duration::from_secs(30),
+                self.deadline,
+                self.cancellation.as_ref(),
+            ) {
+                Ok(frame) => frame,
+                Err(error) => {
+                    self.finished = true;
+                    return Some(Err(error));
+                }
+            };
+            self.cursor = Some(frame.cursor());
+            if matches!(&frame, ObservationFrame::Gap { .. })
+                || matches!(&frame, ObservationFrame::Events { events, .. } if !events.is_empty())
+            {
+                return Some(Ok(frame));
+            }
+            if let Err(error) = check_wait(self.deadline, self.cancellation.as_ref()) {
+                self.finished = true;
+                return Some(Err(error));
+            }
+        }
+    }
+}
+
+impl WaitStream {
+    fn refresh_settlements(&mut self) -> Result<()> {
+        for job_id in self.jobs.iter().copied() {
+            if self.settled.contains(&job_id) {
+                continue;
+            }
+            let snapshot = self
+                .client
+                .status(job_id, self.deadline, self.cancellation.as_ref())?;
+            if snapshot.is_final() {
+                self.settled.insert(job_id);
+                if let Some(outcome) = snapshot.outcome {
+                    self.outcomes.push(outcome);
+                }
+                self.pending.push_back(WaitStreamItem::Settlement {
+                    snapshot: Box::new(snapshot),
+                });
+                if self.any {
+                    break;
+                }
+            }
+        }
+        if !self.aggregate_emitted
+            && (self.jobs.is_empty()
+                || (self.any && !self.settled.is_empty())
+                || self.settled.len() == self.jobs.len())
+        {
+            let outcome = worst_wait_outcome(self.outcomes.iter().copied());
+            self.pending
+                .push_back(WaitStreamItem::Aggregate { outcome });
+            self.aggregate_emitted = true;
+        }
+        Ok(())
+    }
+}
+
+impl Iterator for WaitStream {
+    type Item = Result<WaitStreamItem>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+        loop {
+            if let Some(item) = self.pending.pop_front() {
+                return Some(Ok(item));
+            }
+            if self.aggregate_emitted {
+                self.finished = true;
+                return None;
+            }
+            let frame = match self.client.observe(
+                JobSelector::Jobs {
+                    job_ids: self.jobs.clone(),
+                },
+                Some(self.cursor),
+                MAX_OBSERVATION_PAGE,
+                Duration::from_secs(30),
+                self.deadline,
+                self.cancellation.as_ref(),
+            ) {
+                Ok(frame) => frame,
+                Err(error) => {
+                    self.finished = true;
+                    return Some(Err(error));
+                }
+            };
+            self.cursor = frame.cursor();
+            let changed = matches!(&frame, ObservationFrame::Gap { .. })
+                || matches!(&frame, ObservationFrame::Events { events, .. } if !events.is_empty());
+            if !changed {
+                continue;
+            }
+            if let Err(error) = self.refresh_settlements() {
+                self.finished = true;
+                return Some(Err(error));
+            }
+        }
+    }
+}
+
+impl Iterator for LogFollower {
+    type Item = Result<LogChunk>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+        loop {
+            let chunk = match self.client.logs(
+                self.job_id,
+                self.stream,
+                self.offset,
+                1024 * 1024,
+                self.deadline,
+                self.cancellation.as_ref(),
+            ) {
+                Ok(chunk) => chunk,
+                Err(error) => {
+                    self.finished = true;
+                    return Some(Err(error));
+                }
+            };
+            if chunk.gap.is_some() || !chunk.bytes.is_empty() || chunk.eof {
+                self.offset = chunk.next_offset;
+                self.finished = chunk.eof;
+                return Some(Ok(chunk));
+            }
+            let frame = match self.client.observe(
+                JobSelector::Jobs {
+                    job_ids: vec![self.job_id],
+                },
+                Some(self.cursor),
+                MAX_OBSERVATION_PAGE,
+                Duration::from_secs(30),
+                self.deadline,
+                self.cancellation.as_ref(),
+            ) {
+                Ok(frame) => frame,
+                Err(error) => {
+                    self.finished = true;
+                    return Some(Err(error));
+                }
+            };
+            self.cursor = frame.cursor();
+            let changed = matches!(&frame, ObservationFrame::Gap { .. })
+                || matches!(&frame, ObservationFrame::Events { events, .. } if !events.is_empty());
+            if !changed {
+                continue;
+            }
+        }
+    }
+}
+
+fn worst_wait_outcome(
+    outcomes: impl Iterator<Item = crate::JobOutcome>,
+) -> Option<crate::JobOutcome> {
+    outcomes.max_by_key(|outcome| match outcome {
+        crate::JobOutcome::Succeeded => 0,
+        crate::JobOutcome::Skipped => 1,
+        crate::JobOutcome::Canceled => 2,
+        crate::JobOutcome::Interrupted => 3,
+        crate::JobOutcome::TimedOut => 4,
+        crate::JobOutcome::Failed => 5,
+    })
 }
 
 fn passthrough_is_complete(
@@ -1422,6 +1784,22 @@ pub(crate) fn current_user_sid_string() -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wait_aggregate_uses_the_worst_terminal_outcome() {
+        use crate::JobOutcome::{Canceled, Failed, Interrupted, Skipped, Succeeded, TimedOut};
+
+        assert_eq!(worst_wait_outcome([Succeeded].into_iter()), Some(Succeeded));
+        assert_eq!(
+            worst_wait_outcome([Succeeded, Skipped, Canceled, Interrupted, TimedOut].into_iter()),
+            Some(TimedOut)
+        );
+        assert_eq!(
+            worst_wait_outcome([Succeeded, Failed, TimedOut].into_iter()),
+            Some(Failed)
+        );
+        assert_eq!(worst_wait_outcome([].into_iter()), None);
+    }
 
     fn managed_parent(store: uuid::Uuid) -> ManagedParent {
         ManagedParent {
