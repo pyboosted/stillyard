@@ -36,9 +36,13 @@ impl Drop for PeerProcess {
 
 #[cfg(windows)]
 pub(crate) fn run(store_root: Option<PathBuf>, endpoint: Option<String>) -> Result<()> {
+    let store_root = store_root.or_else(|| std::env::var_os("STILLYARD_STORE").map(PathBuf::from));
+    let endpoint = endpoint.or_else(|| std::env::var("STILLYARD_ENDPOINT").ok());
+    validate_instance_tuple(store_root.is_some(), endpoint.is_some())?;
     let store_root = resolve_store_root(store_root)?;
     let endpoint = resolve_endpoint(endpoint)?;
     let _endpoint_lease = acquire_endpoint_lease(&endpoint)?;
+    let first_pipe = create_pipe_instance(&endpoint, true)?;
     let (_lock, store) = open_store_under_lock(StorePaths::new(store_root))?;
     let store = Arc::new(Mutex::new(store));
     let scheduler = Scheduler::start(Arc::clone(&store), endpoint);
@@ -52,7 +56,17 @@ pub(crate) fn run(store_root: Option<PathBuf>, endpoint: Option<String>) -> Resu
             }
         }));
     scheduler.wake();
-    serve(store, scheduler)
+    serve(store, scheduler, first_pipe)
+}
+
+#[cfg(windows)]
+fn validate_instance_tuple(store_selected: bool, endpoint_selected: bool) -> Result<()> {
+    if store_selected != endpoint_selected {
+        return Err(Error::InvalidSpec(
+            "an explicit daemon instance requires both store and endpoint coordinates".into(),
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -81,6 +95,119 @@ impl Drop for EndpointLease {
         // SAFETY: the lease owns the mutex handle returned by CreateMutexW.
         unsafe { windows_sys::Win32::Foundation::CloseHandle(self.0) };
     }
+}
+
+#[cfg(windows)]
+struct OwnedPipe(windows_sys::Win32::Foundation::HANDLE);
+
+#[cfg(windows)]
+impl OwnedPipe {
+    fn as_raw(&self) -> windows_sys::Win32::Foundation::HANDLE {
+        self.0
+    }
+
+    fn into_raw(self) -> windows_sys::Win32::Foundation::HANDLE {
+        let handle = self.0;
+        std::mem::forget(self);
+        handle
+    }
+}
+
+#[cfg(windows)]
+impl Drop for OwnedPipe {
+    fn drop(&mut self) {
+        // SAFETY: this guard exclusively owns a valid named-pipe handle.
+        unsafe { windows_sys::Win32::Foundation::CloseHandle(self.0) };
+    }
+}
+
+#[cfg(windows)]
+fn create_pipe_instance(endpoint: &str, first: bool) -> Result<OwnedPipe> {
+    use std::ffi::c_void;
+    use std::mem::size_of;
+    use std::os::windows::ffi::OsStrExt;
+
+    use windows_sys::Win32::Foundation::{INVALID_HANDLE_VALUE, LocalFree};
+    use windows_sys::Win32::Security::Authorization::{
+        ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
+    };
+    use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX,
+    };
+    use windows_sys::Win32::System::Pipes::{
+        CreateNamedPipeW, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
+    };
+
+    struct LocalAllocation(*mut c_void);
+
+    impl Drop for LocalAllocation {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                // SAFETY: the pointer came from a Windows API documented to use LocalAlloc.
+                unsafe { LocalFree(self.0) };
+            }
+        }
+    }
+
+    let sid = current_user_sid_string()?;
+    let sddl: Vec<u16> = std::ffi::OsStr::new(&format!("D:P(A;;GA;;;{sid})"))
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut descriptor: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
+    // SAFETY: SDDL is NUL-terminated and descriptor is writable.
+    if unsafe {
+        ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            sddl.as_ptr(),
+            SDDL_REVISION_1,
+            &mut descriptor,
+            std::ptr::null_mut(),
+        )
+    } == 0
+    {
+        return Err(Error::Unavailable(format!(
+            "cannot secure daemon endpoint {endpoint:?}: {}",
+            std::io::Error::last_os_error()
+        )));
+    }
+    let descriptor = LocalAllocation(descriptor);
+    let attributes = SECURITY_ATTRIBUTES {
+        nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
+        lpSecurityDescriptor: descriptor.0,
+        bInheritHandle: 0,
+    };
+    let pipe_name: Vec<u16> = std::ffi::OsStr::new(endpoint)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    // SAFETY: pipe_name is NUL-terminated and attributes points to a live self-relative
+    // descriptor whose DACL grants access only to the daemon owner's SID.
+    let handle = unsafe {
+        CreateNamedPipeW(
+            pipe_name.as_ptr(),
+            PIPE_ACCESS_DUPLEX
+                | if first {
+                    FILE_FLAG_FIRST_PIPE_INSTANCE
+                } else {
+                    0
+                },
+            PIPE_TYPE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+            255,
+            64 * 1024,
+            64 * 1024,
+            5_000,
+            &attributes,
+        )
+    };
+    if handle == INVALID_HANDLE_VALUE {
+        return Err(Error::Unavailable(format!(
+            "cannot create {}daemon endpoint {endpoint:?}: {}",
+            if first { "exclusive " } else { "" },
+            std::io::Error::last_os_error()
+        )));
+    }
+    Ok(OwnedPipe(handle))
 }
 
 #[cfg(windows)]
@@ -798,26 +925,14 @@ fn handle_request(
 }
 
 #[cfg(windows)]
-fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
-    use std::ffi::c_void;
+fn serve(store: SharedStore, scheduler: Arc<Scheduler>, first_pipe: OwnedPipe) -> Result<()> {
     use std::fs::File;
-    use std::mem::size_of;
-    use std::os::windows::ffi::OsStrExt;
     use std::os::windows::io::FromRawHandle;
 
     use windows_sys::Win32::Foundation::{
-        CloseHandle, ERROR_PIPE_CONNECTED, FILETIME, GetLastError, INVALID_HANDLE_VALUE, LocalFree,
+        CloseHandle, ERROR_PIPE_CONNECTED, FILETIME, GetLastError,
     };
-    use windows_sys::Win32::Security::Authorization::{
-        ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
-    };
-    use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
-    use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_FIRST_PIPE_INSTANCE;
-    use windows_sys::Win32::Storage::FileSystem::PIPE_ACCESS_DUPLEX;
-    use windows_sys::Win32::System::Pipes::{
-        ConnectNamedPipe, CreateNamedPipeW, GetNamedPipeClientProcessId,
-        PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
-    };
+    use windows_sys::Win32::System::Pipes::{ConnectNamedPipe, GetNamedPipeClientProcessId};
     use windows_sys::Win32::System::SystemInformation::GetSystemTimeAsFileTime;
     use windows_sys::Win32::System::Threading::{
         GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
@@ -827,102 +942,25 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
         u64::from(value.dwLowDateTime) | (u64::from(value.dwHighDateTime) << 32)
     }
 
-    struct LocalAllocation(*mut c_void);
-
-    impl Drop for LocalAllocation {
-        fn drop(&mut self) {
-            if !self.0.is_null() {
-                // SAFETY: the pointer came from a Windows API documented to use LocalAlloc.
-                unsafe { LocalFree(self.0) };
-            }
-        }
-    }
-
-    struct PipeSecurity {
-        descriptor: LocalAllocation,
-    }
-
-    impl PipeSecurity {
-        fn owner_only() -> std::io::Result<Self> {
-            let sid = current_user_sid_string().map_err(std::io::Error::other)?;
-            let sddl: Vec<u16> = std::ffi::OsStr::new(&format!("D:P(A;;GA;;;{sid})"))
-                .encode_wide()
-                .chain(std::iter::once(0))
-                .collect();
-            let mut descriptor: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
-            // SAFETY: SDDL is NUL-terminated and descriptor is writable.
-            if unsafe {
-                ConvertStringSecurityDescriptorToSecurityDescriptorW(
-                    sddl.as_ptr(),
-                    SDDL_REVISION_1,
-                    &mut descriptor,
-                    std::ptr::null_mut(),
-                )
-            } == 0
-            {
-                return Err(std::io::Error::last_os_error());
-            }
-            Ok(Self {
-                descriptor: LocalAllocation(descriptor),
-            })
-        }
-
-        fn attributes(&mut self) -> SECURITY_ATTRIBUTES {
-            SECURITY_ATTRIBUTES {
-                nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
-                lpSecurityDescriptor: self.descriptor.0,
-                bInheritHandle: 0,
-            }
-        }
-    }
-
-    let pipe_name: Vec<u16> = std::ffi::OsStr::new(scheduler.endpoint.as_ref())
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-    let mut first_instance = true;
+    let mut pending_pipe = Some(first_pipe);
     loop {
-        let mut security = PipeSecurity::owner_only()?;
-        let attributes = security.attributes();
-        // SAFETY: pipe_name is NUL-terminated and attributes points to a live self-relative
-        // descriptor whose DACL grants access only to the daemon owner's SID.
-        let handle = unsafe {
-            CreateNamedPipeW(
-                pipe_name.as_ptr(),
-                PIPE_ACCESS_DUPLEX
-                    | if first_instance {
-                        FILE_FLAG_FIRST_PIPE_INSTANCE
-                    } else {
-                        0
-                    },
-                PIPE_TYPE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-                255,
-                64 * 1024,
-                64 * 1024,
-                5_000,
-                &attributes,
-            )
+        let pipe = match pending_pipe.take() {
+            Some(pipe) => pipe,
+            None => match create_pipe_instance(scheduler.endpoint.as_ref(), false) {
+                Ok(pipe) => pipe,
+                Err(_) => {
+                    std::thread::sleep(Duration::from_millis(25));
+                    continue;
+                }
+            },
         };
-        if handle == INVALID_HANDLE_VALUE {
-            if first_instance {
-                return Err(Error::Unavailable(format!(
-                    "cannot create exclusive daemon endpoint {}: {}",
-                    scheduler.endpoint,
-                    std::io::Error::last_os_error()
-                )));
-            }
-            std::thread::sleep(Duration::from_millis(25));
-            continue;
-        }
-        first_instance = false;
+        let handle = pipe.as_raw();
         // SAFETY: handle is a fresh named-pipe server handle.
         let connected = unsafe { ConnectNamedPipe(handle, std::ptr::null_mut()) };
         if connected == 0 {
             // SAFETY: GetLastError has no preconditions.
             let error = unsafe { GetLastError() };
             if error != ERROR_PIPE_CONNECTED {
-                // SAFETY: handle is owned by this function and not converted to File.
-                unsafe { CloseHandle(handle) };
                 continue;
             }
         }
@@ -933,8 +971,6 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
         let mut peer_pid = 0_u32;
         // SAFETY: handle is a connected server pipe and peer_pid is writable.
         if unsafe { GetNamedPipeClientProcessId(handle, &mut peer_pid) } == 0 {
-            // SAFETY: ownership has not yet been transferred to File.
-            unsafe { CloseHandle(handle) };
             continue;
         }
         // Open the peer before reading its frame. Keeping this kernel handle closes the large PID
@@ -942,8 +978,6 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
         // SAFETY: peer_pid came from the connected pipe; requested access is read-only.
         let peer_process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, peer_pid) };
         if peer_process.is_null() {
-            // SAFETY: ownership has not yet been transferred to File.
-            unsafe { CloseHandle(handle) };
             continue;
         }
         let mut creation: FILETIME = unsafe { std::mem::zeroed() };
@@ -963,18 +997,15 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
         } == 0
             || filetime_value(creation) > filetime_value(connection_observed)
         {
-            // SAFETY: neither handle has been transferred.
-            unsafe {
-                CloseHandle(handle);
-                CloseHandle(peer_process);
-            }
+            // SAFETY: the process handle has not been transferred; the pipe guard closes itself.
+            unsafe { CloseHandle(peer_process) };
             continue;
         }
         let store = Arc::clone(&store);
         let scheduler = Arc::clone(&scheduler);
         // Raw Windows handles are pointer-typed and therefore not `Send`; their integer value is
         // safe to transfer because this thread owns the handle after a successful connection.
-        let handle_value = handle as usize;
+        let handle_value = pipe.into_raw() as usize;
         let peer_process_value = peer_process as usize;
         let spawned = std::thread::Builder::new()
             .name("stillyard-client".into())
@@ -1033,6 +1064,38 @@ mod tests {
         ));
         drop(first);
         acquire_endpoint_lease(&endpoint).unwrap();
+    }
+
+    #[test]
+    fn explicit_instance_tuple_accepts_only_both_coordinates_or_neither() {
+        for store_cli in [false, true] {
+            for endpoint_cli in [false, true] {
+                for store_env in [false, true] {
+                    for endpoint_env in [false, true] {
+                        let store_selected = store_cli || store_env;
+                        let endpoint_selected = endpoint_cli || endpoint_env;
+                        let result = validate_instance_tuple(store_selected, endpoint_selected);
+                        assert_eq!(
+                            result.is_ok(),
+                            store_selected == endpoint_selected,
+                            "store_cli={store_cli}, endpoint_cli={endpoint_cli}, store_env={store_env}, endpoint_env={endpoint_env}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn first_pipe_instance_is_exclusive_and_released_with_its_handle() {
+        let endpoint = format!(r"\\.\pipe\stillyard-pipe-test-{}", uuid::Uuid::now_v7());
+        let first = create_pipe_instance(&endpoint, true).unwrap();
+        assert!(matches!(
+            create_pipe_instance(&endpoint, true),
+            Err(Error::Unavailable(_))
+        ));
+        drop(first);
+        create_pipe_instance(&endpoint, true).unwrap();
     }
 
     fn candidate(store: uuid::Uuid, enabled: bool) -> ManagedCandidate {

@@ -66,12 +66,9 @@ impl ClientBuilder {
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<Client> {
-        let explicit_endpoint = self.endpoint.is_some();
         let managed_endpoint = std::env::var("STILLYARD_ENDPOINT").ok();
-        let endpoint = self
-            .endpoint
-            .or_else(|| managed_endpoint.clone())
-            .unwrap_or(default_endpoint()?);
+        let (endpoint, connect_only) =
+            select_client_endpoint(self.endpoint, managed_endpoint.clone())?;
         validate_endpoint(&endpoint)?;
         let claimed_parent = claimed_managed_parent_for_endpoint(
             &endpoint,
@@ -89,7 +86,12 @@ impl ClientBuilder {
         };
         match client.ping(deadline, cancellation) {
             Ok(()) => Ok(client),
-            Err(Error::Unavailable(_)) if self.auto_start && managed_endpoint.is_none() => {
+            Err(Error::Unavailable(detail)) if self.auto_start && connect_only => {
+                Err(Error::Unavailable(format!(
+                    "auto-start is unavailable for an explicit endpoint; connection failed: {detail}"
+                )))
+            }
+            Err(Error::Unavailable(_)) if self.auto_start => {
                 if std::env::var_os("STILLYARD_JOB_ID").is_some()
                     || std::env::var_os("STILLYARD_ROLE").is_some()
                 {
@@ -97,15 +99,11 @@ impl ClientBuilder {
                         "a managed child may not auto-start the daemon".into(),
                     ));
                 }
-                if explicit_endpoint {
-                    return Err(Error::Unavailable(
-                        "auto-start is unavailable for an explicit endpoint".into(),
-                    ));
-                }
+                let default_endpoint = default_endpoint()?;
                 let mut daemon = start_daemon(
                     &client.daemon_executable,
                     &default_store_root()?,
-                    &client.endpoint,
+                    &default_endpoint,
                 )?;
                 let startup_deadline = deadline.min(Instant::now() + Duration::from_secs(10));
                 let mut child_exit = None;
@@ -474,7 +472,7 @@ impl Client {
                 record.version
             )));
         }
-        if record.endpoint != self.endpoint {
+        if !endpoints_equal(&record.endpoint, &self.endpoint) {
             return Err(Error::Protocol(format!(
                 "result file belongs to endpoint {:?}, connected to {:?}",
                 record.endpoint, self.endpoint
@@ -1267,7 +1265,7 @@ fn verify_pipe_server(pipe: &std::fs::File, daemon_executable: &Path) -> Result<
     let mut pid = 0_u32;
     // SAFETY: pipe owns a live named-pipe handle and pid is writable.
     if unsafe { GetNamedPipeServerProcessId(pipe.as_raw_handle() as HANDLE, &mut pid) } == 0 {
-        return Err(Error::Unavailable(format!(
+        return Err(Error::Protocol(format!(
             "cannot identify named-pipe server: {}",
             std::io::Error::last_os_error()
         )));
@@ -1275,7 +1273,7 @@ fn verify_pipe_server(pipe: &std::fs::File, daemon_executable: &Path) -> Result<
     // SAFETY: the requested access is read-only and pid came from the kernel for this pipe.
     let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
     if process.is_null() {
-        return Err(Error::Unavailable(format!(
+        return Err(Error::Protocol(format!(
             "cannot inspect named-pipe server process {pid}: {}",
             std::io::Error::last_os_error()
         )));
@@ -1292,16 +1290,23 @@ fn verify_pipe_server(pipe: &std::fs::File, daemon_executable: &Path) -> Result<
     let mut length = image.len() as u32;
     // SAFETY: process is live and the output buffer/length are writable.
     if unsafe { QueryFullProcessImageNameW(process.0, 0, image.as_mut_ptr(), &mut length) } == 0 {
-        return Err(Error::Unavailable(format!(
+        return Err(Error::Protocol(format!(
             "cannot inspect named-pipe server image: {}",
             std::io::Error::last_os_error()
         )));
     }
     image.truncate(length as usize);
-    let server = std::fs::canonicalize(PathBuf::from(String::from_utf16_lossy(&image)))?;
-    let expected = std::fs::canonicalize(daemon_executable)?;
+    let server = std::fs::canonicalize(PathBuf::from(String::from_utf16_lossy(&image))).map_err(
+        |error| Error::Protocol(format!("cannot resolve named-pipe server image: {error}")),
+    )?;
+    let expected = std::fs::canonicalize(daemon_executable).map_err(|error| {
+        Error::Protocol(format!(
+            "cannot resolve expected daemon executable {}: {error}",
+            daemon_executable.display()
+        ))
+    })?;
     if server != expected {
-        return Err(Error::Unavailable(format!(
+        return Err(Error::Protocol(format!(
             "named-pipe server image mismatch: expected {}, found {}",
             expected.display(),
             server.display()
@@ -1389,6 +1394,16 @@ fn managed_environment_coordinates() -> (Option<String>, Option<String>, Option<
         std::env::var("STILLYARD_ATTEMPT").ok(),
         std::env::var("STILLYARD_INVOCATION_ID").ok(),
     )
+}
+
+fn select_client_endpoint(
+    explicit: Option<String>,
+    inherited: Option<String>,
+) -> Result<(String, bool)> {
+    match (explicit, inherited) {
+        (Some(endpoint), _) | (None, Some(endpoint)) => Ok((endpoint, true)),
+        (None, None) => Ok((default_endpoint()?, false)),
+    }
 }
 
 fn claimed_managed_parent_for_endpoint(
@@ -1485,7 +1500,7 @@ fn validate_managed_resubmit(
     }
     if existing.idempotency_key != proposed.idempotency_key
         || existing.payload_hash != proposed.payload_hash
-        || existing.endpoint != proposed.endpoint
+        || !endpoints_equal(&existing.endpoint, &proposed.endpoint)
         || existing.store_uuid != proposed.store_uuid
         || existing.parent != proposed.parent
     {
@@ -1637,7 +1652,7 @@ fn validate_result_file_identity(
     }
     if current.idempotency_key != expected.idempotency_key
         || current.payload_hash != expected.payload_hash
-        || current.endpoint != expected.endpoint
+        || !endpoints_equal(&current.endpoint, &expected.endpoint)
         || current.store_uuid != expected.store_uuid
         || current.parent != expected.parent
     {
@@ -1803,46 +1818,52 @@ pub(crate) fn default_endpoint() -> Result<String> {
         .into_owned());
 }
 
-pub(crate) fn resolve_store_root(explicit: Option<PathBuf>) -> Result<PathBuf> {
-    let selected = explicit
-        .or_else(|| std::env::var_os("STILLYARD_STORE").map(PathBuf::from))
-        .map(Ok)
-        .unwrap_or_else(default_store_root)?;
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) fn resolve_store_root(selected: Option<PathBuf>) -> Result<PathBuf> {
+    let selected = selected.map(Ok).unwrap_or_else(default_store_root)?;
     if !selected.is_absolute() {
-        return Err(Error::Unavailable(format!(
+        return Err(Error::InvalidSpec(format!(
             "daemon store path must be absolute: {}",
             selected.display()
         )));
     }
+    let mut existing = selected.as_path();
+    while !existing.try_exists()? {
+        existing = existing.parent().ok_or_else(|| {
+            Error::InvalidSpec(format!(
+                "daemon store path has no existing ancestor: {}",
+                selected.display()
+            ))
+        })?;
+    }
+    crate::filesystem::require_fixed_local_ntfs(existing)?;
     std::fs::create_dir_all(&selected)?;
     crate::filesystem::require_fixed_local_ntfs(&selected)?;
     Ok(std::fs::canonicalize(selected)?)
 }
 
-pub(crate) fn resolve_endpoint(explicit: Option<String>) -> Result<String> {
-    let endpoint = explicit
-        .or_else(|| std::env::var("STILLYARD_ENDPOINT").ok())
-        .map(Ok)
-        .unwrap_or_else(default_endpoint)?;
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) fn resolve_endpoint(selected: Option<String>) -> Result<String> {
+    let endpoint = selected.map(Ok).unwrap_or_else(default_endpoint)?;
     validate_endpoint(&endpoint)?;
     Ok(endpoint)
 }
 
 pub(crate) fn validate_endpoint(endpoint: &str) -> Result<()> {
     if endpoint.is_empty() || endpoint.contains('\0') {
-        return Err(Error::Unavailable(
+        return Err(Error::InvalidSpec(
             "daemon endpoint is empty or contains NUL".into(),
         ));
     }
     #[cfg(windows)]
     {
         if endpoint.encode_utf16().count() > 256 {
-            return Err(Error::Unavailable(
+            return Err(Error::InvalidSpec(
                 "Windows named-pipe endpoint exceeds 256 UTF-16 code units".into(),
             ));
         }
         let Some(name) = endpoint.get(9..) else {
-            return Err(Error::Unavailable(format!(
+            return Err(Error::InvalidSpec(format!(
                 "Windows endpoint must be a local \\\\.\\pipe\\NAME path: {endpoint:?}"
             )));
         };
@@ -1850,9 +1871,10 @@ pub(crate) fn validate_endpoint(endpoint: &str) -> Result<()> {
             || name.is_empty()
             || name.contains('\\')
             || name.contains('/')
+            || !name.is_ascii()
         {
-            return Err(Error::Unavailable(format!(
-                "Windows endpoint must be a local \\\\.\\pipe\\NAME path: {endpoint:?}"
+            return Err(Error::InvalidSpec(format!(
+                "Windows endpoint must be an ASCII local \\\\.\\pipe\\NAME path: {endpoint:?}"
             )));
         }
     }
@@ -1999,6 +2021,19 @@ mod tests {
     }
 
     #[test]
+    fn explicit_and_inherited_client_endpoints_are_connect_only() {
+        let (selected, connect_only) =
+            select_client_endpoint(Some("explicit".into()), Some("inherited".into())).unwrap();
+        assert_eq!(selected, "explicit");
+        assert!(connect_only);
+
+        let (selected, connect_only) =
+            select_client_endpoint(None, Some("inherited".into())).unwrap();
+        assert_eq!(selected, "inherited");
+        assert!(connect_only);
+    }
+
+    #[test]
     fn incomplete_managed_environment_fails_even_for_another_endpoint() {
         let inherited = if cfg!(windows) {
             r"\\.\pipe\stillyard-parent"
@@ -2024,10 +2059,18 @@ mod tests {
     #[test]
     fn explicit_windows_endpoints_are_local_single_component_pipe_names() {
         assert!(validate_endpoint(r"\\.\pipe\moot-test-123").is_ok());
-        assert!(validate_endpoint(r"\\server\pipe\moot-test-123").is_err());
-        assert!(validate_endpoint(r"\\.\pipe\nested\name").is_err());
-        assert!(validate_endpoint(r"\\.\pipe\").is_err());
-        assert!(validate_endpoint(&format!(r"\\.\pipe\{}", "x".repeat(248))).is_err());
+        for invalid in [
+            r"\\server\pipe\moot-test-123".to_owned(),
+            r"\\.\pipe\nested\name".to_owned(),
+            r"\\.\pipe\".to_owned(),
+            format!(r"\\.\pipe\{}", "x".repeat(248)),
+            r"\\.\pipe\stillyard-демон".to_owned(),
+        ] {
+            assert!(matches!(
+                validate_endpoint(&invalid),
+                Err(Error::InvalidSpec(_))
+            ));
+        }
     }
 
     #[test]
@@ -2447,6 +2490,33 @@ mod tests {
             Err(Error::Protocol(_))
         ));
         assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn recovery_accepts_a_case_variant_of_the_same_windows_endpoint() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("operation.result.json");
+        let endpoint = format!(r"\\.\pipe\stillyard-result-{}", uuid::Uuid::now_v7());
+        let record = ResultFileRecord {
+            version: RESULT_FILE_VERSION,
+            idempotency_key: uuid::Uuid::now_v7(),
+            payload_hash: "payload".into(),
+            endpoint: endpoint.to_ascii_uppercase(),
+            store_uuid: uuid::Uuid::now_v7(),
+            parent: None,
+            receipt: None,
+        };
+        write_json_atomically(&path, &record).unwrap();
+        let client = Client {
+            endpoint,
+            daemon_executable: temp.path().join("unused.exe"),
+            claimed_parent: None,
+        };
+        assert!(matches!(
+            client.recover_result_file(&path, Instant::now() + Duration::from_secs(1), None),
+            Err(Error::Unavailable(_))
+        ));
     }
 
     #[test]

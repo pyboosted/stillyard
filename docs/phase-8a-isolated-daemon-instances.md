@@ -28,10 +28,12 @@ With no override, behavior is unchanged:
 
 `stillyard daemon --store <absolute-dir> --endpoint <local-pipe>` starts a foreground explicit
 instance. `STILLYARD_STORE` and `STILLYARD_ENDPOINT` provide the same daemon inputs, with command-line
-values taking precedence. Explicit stores must be absolute, canonical fixed local NTFS paths with no
-reparse component. Explicit Windows endpoints must be nonempty local `\\.\pipe\NAME` paths, never a
-remote UNC pipe. A client uses `ClientBuilder::endpoint` or the CLI's global `--endpoint`; an explicit
-builder/CLI value takes precedence over `STILLYARD_ENDPOINT`.
+values taking precedence. An explicit instance must select both store and endpoint together, using
+either source for either coordinate; selecting only one is invalid and never falls back to the other
+default coordinate. Explicit stores must be absolute, canonical fixed local NTFS paths with no
+reparse component. Explicit Windows endpoints must be nonempty ASCII local `\\.\pipe\NAME` paths,
+never a remote UNC pipe. A client uses `ClientBuilder::endpoint` or the CLI's global `--endpoint`; an
+explicit builder/CLI value takes precedence over `STILLYARD_ENDPOINT`.
 
 `STILLYARD_STORE` is daemon-only. Clients select an instance by endpoint and learn its store path and
 UUID from `DaemonSnapshot`; they never inspect a selected store directly. Default auto-start passes
@@ -53,8 +55,11 @@ Consequently:
 - different store and different endpoint coexist; and
 - process death releases both claims without a stale cleanup protocol.
 
-The pipe retains its owner-only DACL and `PIPE_REJECT_REMOTE_CLIENTS`. A unique endpoint changes only
-the address, not the peer-authentication boundary.
+Before opening the store or starting the scheduler, the daemon creates the first real listening pipe
+with `FILE_FLAG_FIRST_PIPE_INSTANCE`. That handle is RAII-owned through startup and becomes the first
+served connection; it is not a reserved, never-served instance. The pipe retains its owner-only DACL
+and `PIPE_REJECT_REMOTE_CLIENTS`. A unique endpoint changes only the address, not the
+peer-authentication boundary.
 
 ## Client and managed-environment rules
 

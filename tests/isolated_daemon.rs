@@ -86,6 +86,17 @@ fn copied_daemon(root: &Path) -> PathBuf {
     pinned
 }
 
+fn canary_daemon(root: &Path) -> (PathBuf, PathBuf) {
+    let executable = root.join("daemon-canary.cmd");
+    let marker = root.join("daemon-canary-invoked.txt");
+    std::fs::write(
+        &executable,
+        format!("@echo invoked>\"{}\"\r\n@exit /b 91\r\n", marker.display()),
+    )
+    .unwrap();
+    (executable, marker)
+}
+
 fn durable_id<T: std::str::FromStr>(store: Uuid) -> T
 where
     T::Err: std::fmt::Debug,
@@ -94,16 +105,108 @@ where
 }
 
 #[test]
+fn daemon_instance_tuple_accepts_mixed_sources_and_rejects_singletons() {
+    let temp = tempfile::tempdir().unwrap();
+    let pinned = copied_daemon(temp.path());
+
+    for (name, args, store_env, endpoint_env) in [
+        (
+            "cli-store-only",
+            vec![
+                "daemon".to_owned(),
+                "--store".to_owned(),
+                temp.path().join("rejected-cli-store").display().to_string(),
+            ],
+            None,
+            None,
+        ),
+        (
+            "cli-endpoint-only",
+            vec![
+                "--endpoint".to_owned(),
+                format!(r"\\.\pipe\stillyard-rejected-{}", Uuid::now_v7()),
+                "daemon".to_owned(),
+            ],
+            None,
+            None,
+        ),
+        (
+            "env-store-only",
+            vec!["daemon".to_owned()],
+            Some(temp.path().join("rejected-env-store")),
+            None,
+        ),
+        (
+            "env-endpoint-only",
+            vec!["daemon".to_owned()],
+            None,
+            Some(format!(r"\\.\pipe\stillyard-rejected-{}", Uuid::now_v7())),
+        ),
+    ] {
+        let mut command = Command::new(&pinned);
+        command
+            .args(args)
+            .env_remove("STILLYARD_STORE")
+            .env_remove("STILLYARD_ENDPOINT")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        if let Some(store) = store_env {
+            command.env("STILLYARD_STORE", store);
+        }
+        if let Some(endpoint) = endpoint_env {
+            command.env("STILLYARD_ENDPOINT", endpoint);
+        }
+        assert!(!command.status().unwrap().success(), "{name}");
+    }
+    assert!(!temp.path().join("rejected-cli-store").exists());
+    assert!(!temp.path().join("rejected-env-store").exists());
+
+    let store_from_cli = temp.path().join("store-from-cli");
+    let endpoint_from_env = format!(r"\\.\pipe\stillyard-mixed-{}", Uuid::now_v7());
+    let mut cli_store = ChildGuard::new(
+        Command::new(&pinned)
+            .args(["daemon", "--store"])
+            .arg(&store_from_cli)
+            .env("STILLYARD_ENDPOINT", &endpoint_from_env)
+            .env_remove("STILLYARD_STORE")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+    connect(&pinned, &endpoint_from_env);
+    cli_store.kill_and_wait();
+
+    let store_from_env = temp.path().join("store-from-env");
+    let endpoint_from_cli = format!(r"\\.\pipe\stillyard-mixed-{}", Uuid::now_v7());
+    let mut cli_endpoint = ChildGuard::new(
+        Command::new(&pinned)
+            .args(["--endpoint", &endpoint_from_cli, "daemon"])
+            .env("STILLYARD_STORE", &store_from_env)
+            .env_remove("STILLYARD_ENDPOINT")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+    connect(&pinned, &endpoint_from_cli);
+    cli_endpoint.kill_and_wait();
+}
+
+#[test]
 fn pinned_isolated_daemons_coexist_and_own_both_coordinates() {
     let temp = tempfile::tempdir().unwrap();
     let pinned = copied_daemon(temp.path());
-    let source = PathBuf::from(env!("CARGO_BIN_EXE_stillyard"));
     let store_a = temp.path().join("store-a");
     let store_b = temp.path().join("store-b");
     let store_c = temp.path().join("store-c");
     let endpoint_a = format!(r"\\.\pipe\stillyard-isolated-a-{}", Uuid::now_v7());
     let endpoint_b = format!(r"\\.\pipe\stillyard-isolated-b-{}", Uuid::now_v7());
     let endpoint_c = format!(r"\\.\pipe\stillyard-isolated-c-{}", Uuid::now_v7());
+    let (canary, canary_marker) = canary_daemon(temp.path());
 
     let mut daemon_a = spawn_daemon(&pinned, &store_a, &endpoint_a);
     let _daemon_b = spawn_daemon(&pinned, &store_b, &endpoint_b);
@@ -191,18 +294,30 @@ fn pinned_isolated_daemons_coexist_and_own_both_coordinates() {
     assert_eq!(nested_status.store_uuid, status_b.store_uuid);
 
     let foreign: JobId = durable_id(status_a.store_uuid);
+    assert!(matches!(
+        client_b.status(foreign, Instant::now() + Duration::from_secs(2), None),
+        Err(Error::Protocol(detail))
+            if detail == format!("not_found: not found: foreign durable ID from store {}", status_a.store_uuid)
+    ));
+    let wrong_image = Client::builder()
+        .endpoint(&endpoint_a)
+        .daemon_executable(&canary)
+        .connect(Instant::now() + Duration::from_secs(2), None)
+        .unwrap_err();
+    let expected_image = std::fs::canonicalize(&canary).unwrap();
+    let actual_image = std::fs::canonicalize(&pinned).unwrap();
+    assert!(matches!(
+        wrong_image,
+        Error::Protocol(detail)
+            if detail == format!(
+                "named-pipe server image mismatch: expected {}, found {}",
+                expected_image.display(),
+                actual_image.display()
+            )
+    ));
     assert!(
-        client_b
-            .status(foreign, Instant::now() + Duration::from_secs(2), None)
-            .is_err()
-    );
-    assert!(
-        Client::builder()
-            .endpoint(&endpoint_a)
-            .daemon_executable(&source)
-            .auto_start(false)
-            .connect(Instant::now() + Duration::from_secs(2), None)
-            .is_err()
+        !canary_marker.exists(),
+        "wrong-image rejection attempted auto-start"
     );
 
     let mut same_endpoint = spawn_daemon(&pinned, &store_c, &endpoint_a);
@@ -257,4 +372,64 @@ fn isolated_client_helper() {
             .endpoint,
         endpoint
     );
+
+    let inherited_endpoint = std::env::var("STILLYARD_ENDPOINT").unwrap();
+    let inherited = Client::builder()
+        .endpoint(inherited_endpoint)
+        .daemon_executable(std::env::var_os("ISOLATED_DAEMON_EXECUTABLE").unwrap())
+        .auto_start(false)
+        .connect(Instant::now() + Duration::from_secs(2), None)
+        .unwrap();
+    assert!(matches!(
+        inherited.submission_context(Instant::now() + Duration::from_secs(2), None),
+        Err(Error::Protocol(detail))
+            if detail == "rejected: submission rejected: claimed managed parent does not match daemon-held OS containment"
+    ));
+}
+
+#[test]
+fn absent_custom_endpoints_never_auto_start() {
+    let temp = tempfile::tempdir().unwrap();
+    let (canary, marker) = canary_daemon(temp.path());
+    let helper = std::env::current_exe().unwrap();
+
+    for mode in ["builder", "environment"] {
+        let endpoint = format!(r"\\.\pipe\stillyard-absent-{}", Uuid::now_v7());
+        let mut command = Command::new(&helper);
+        command
+            .args(["--ignored", "--exact", "no_autostart_helper"])
+            .env("ISOLATED_ENDPOINT_MODE", mode)
+            .env("ISOLATED_TARGET_ENDPOINT", &endpoint)
+            .env("ISOLATED_DAEMON_EXECUTABLE", &canary)
+            .env("ISOLATED_CANARY_MARKER", &marker)
+            .env_remove("STILLYARD_STORE")
+            .env_remove("STILLYARD_ENDPOINT")
+            .env_remove("STILLYARD_JOB_ID")
+            .env_remove("STILLYARD_ATTEMPT")
+            .env_remove("STILLYARD_INVOCATION_ID")
+            .env_remove("STILLYARD_ROLE");
+        if mode == "environment" {
+            command.env("STILLYARD_ENDPOINT", &endpoint);
+        }
+        assert!(command.status().unwrap().success(), "mode={mode}");
+        assert!(!marker.exists(), "mode={mode} attempted daemon auto-start");
+    }
+}
+
+#[test]
+#[ignore = "launched as an absent-custom-endpoint client helper"]
+fn no_autostart_helper() {
+    let endpoint = std::env::var("ISOLATED_TARGET_ENDPOINT").unwrap();
+    let executable = PathBuf::from(std::env::var_os("ISOLATED_DAEMON_EXECUTABLE").unwrap());
+    let marker = PathBuf::from(std::env::var_os("ISOLATED_CANARY_MARKER").unwrap());
+    let mut builder = Client::builder().daemon_executable(executable);
+    if std::env::var("ISOLATED_ENDPOINT_MODE").unwrap() == "builder" {
+        builder = builder.endpoint(&endpoint);
+    }
+    assert!(matches!(
+        builder.connect(Instant::now() + Duration::from_millis(500), None),
+        Err(Error::Unavailable(detail))
+            if detail.starts_with("auto-start is unavailable for an explicit endpoint; connection failed:")
+    ));
+    assert!(!marker.exists());
 }

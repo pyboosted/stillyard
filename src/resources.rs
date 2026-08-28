@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
-use std::path::{Component, Path, PathBuf};
+#[cfg(windows)]
+use std::path::Component;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -385,6 +387,7 @@ fn existing_ancestor(path: &Path) -> io::Result<(PathBuf, PathBuf)> {
     }
 }
 
+#[cfg(windows)]
 fn canonical_remainder(path: &Path) -> String {
     path.components()
         .filter_map(|component| match component {
