@@ -7,6 +7,7 @@ fn list_events_and_cursor_are_one_public_observation_path() {
         Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let mut job = spec(temp.path());
+    job.args = vec!["audit".into(), "two words".into()];
     job.labels.push(crate::Label {
         key: "round".into(),
         value: "seven".into(),
@@ -26,6 +27,10 @@ fn list_events_and_cursor_are_one_public_observation_path() {
         .unwrap();
     assert_eq!(page.jobs.len(), 1);
     assert_eq!(page.jobs[0].job_id, receipt.job_id);
+    assert_eq!(
+        page.jobs[0].command_preview,
+        r#"tool.exe audit "two words""#
+    );
     assert_eq!(page.jobs[0].queue_rank, Some(1));
     assert_eq!(page.jobs[0].claims.cargo_slots, Some(1));
     assert!(page.event_cursor.sequence > 0);

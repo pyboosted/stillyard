@@ -1,5 +1,48 @@
 use super::*;
 
+fn command_preview(spec: &JobSpec, max_chars: usize) -> String {
+    command_preview_from_parts(&spec.executable, &spec.args, max_chars)
+}
+
+fn command_preview_from_parts(executable: &Path, args: &[String], max_chars: usize) -> String {
+    if max_chars == 0 {
+        return String::new();
+    }
+    let executable = executable
+        .file_name()
+        .unwrap_or(executable.as_os_str())
+        .to_string_lossy();
+    let mut preview = String::new();
+    for raw in std::iter::once(executable.as_ref()).chain(args.iter().map(String::as_str)) {
+        let token = if raw.is_empty()
+            || raw.chars().any(|character| {
+                character.is_whitespace() || character.is_control() || character == '"'
+            }) {
+            serde_json::to_string(raw).unwrap_or_else(|_| "\"?\"".into())
+        } else {
+            raw.to_owned()
+        };
+        let separator = if preview.is_empty() { "" } else { " " };
+        let available = max_chars.saturating_sub(preview.chars().count());
+        let required = separator.chars().count() + token.chars().count();
+        if required <= available {
+            preview.push_str(separator);
+            preview.push_str(&token);
+            continue;
+        }
+        if available > 0 {
+            let content = separator
+                .chars()
+                .chain(token.chars())
+                .take(available.saturating_sub(1));
+            preview.extend(content);
+            preview.push('…');
+        }
+        break;
+    }
+    preview
+}
+
 impl Store {
     pub(crate) fn status(&self, job_id: JobId) -> StoreResult<JobSnapshot> {
         self.status_with_reconciliation(job_id, &ReconciliationObservations::default())
@@ -551,6 +594,7 @@ impl Store {
         let spec: JobSpec = serde_json::from_str(&spec_json)?;
         Ok(JobSummary {
             job_id,
+            command_preview: command_preview(&spec, 160),
             batch_id: batch
                 .map(|value| {
                     Uuid::parse_str(&value).map(|uuid| BatchId::from_parts(self.store_uuid, uuid))
@@ -1293,5 +1337,25 @@ impl Store {
                 },
             ],
         })
+    }
+}
+
+#[cfg(test)]
+mod command_preview_tests {
+    use super::command_preview_from_parts;
+
+    #[test]
+    fn preview_is_bounded_single_line_and_identifies_the_command() {
+        let preview = command_preview_from_parts(
+            std::path::Path::new(r"C:\tools\review runner.exe"),
+            &["audit".into(), "two words".into(), "line\nbreak".into()],
+            48,
+        );
+        assert_eq!(
+            preview,
+            r#""review runner.exe" audit "two words" "line\nbr…"#
+        );
+        assert_eq!(preview.chars().count(), 48);
+        assert!(!preview.contains('\n'));
     }
 }

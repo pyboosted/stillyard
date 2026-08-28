@@ -138,6 +138,9 @@ pub struct SchedulerEvent {
 #[serde(deny_unknown_fields)]
 pub struct JobSummary {
     pub job_id: JobId,
+    /// Bounded, single-line executable and argument preview for operator-facing lists.
+    #[serde(default)]
+    pub command_preview: String,
     pub batch_id: Option<BatchId>,
     pub batch_member: Option<String>,
     pub parent: Option<ManagedParent>,
