@@ -1,6 +1,6 @@
 # Phase 8 — Operational diagnostics and containment recovery
 
-Status: alpha.8 design candidate for focused review (2026-08-28)
+Status: alpha.8 reviewed implementation baseline, frozen 2026-08-28
 
 This increment turns the daemon's existing safety facts into one bounded public diagnostic
 snapshot and completes the `uncertain -> cleared` Containment lifecycle. It does not add a second
@@ -570,3 +570,17 @@ reconciliation wake discipline, and whether any requirement accidentally turns d
 second scheduler or policy engine. Confirmed High/Critical/Blocker findings are fixed and sent back
 to the affected reviewer; Medium/Low findings may be corrected silently when they stay within this
 frozen scope.
+
+## Review evidence
+
+The design fleet comprised two independent Claude Opus lenses, Claude Fable xhigh, and Grok 4.6
+high. The first pass found gaps in host/boot and process evidence, managed-caller authorization,
+creating/no-root proof, scheduler wakeup, forward-readable serde, pagination/audit readback, public
+API constructibility, and host-store binding. Corrections were returned only to the affected
+reviewers. Targeted closure passes then verified the Attempt-wide durable transaction predicate,
+safe unknown-value round trips, externally callable client API, and whole-store reset/bind rules.
+
+All Blocker/High findings are closed. Fable, Grok, both focused Opus lenses, and the Opus reporter
+that requested the final transaction clarification returned `PASS`. This document is the alpha.8
+implementation baseline; semantic changes require an explicit later design revision rather than an
+implementation-only reinterpretation.

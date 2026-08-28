@@ -74,6 +74,12 @@ It deliberately leaves scheduling semantics unchanged. The public-crate consumer
 the `moot` adapter rollout remains the consumer repository's planned batch 04 and is recorded as
 an explicit cross-repository acceptance item rather than silently claimed here.
 
+The next frozen implementation baseline is
+[alpha.8 operational diagnostics and containment recovery](docs/phase-8-operational-diagnostics.md).
+Its public doctor snapshot, durable reconciliation evidence, and audited force-clear transaction
+have passed focused Opus, Fable, and Grok design review; they are designed but not yet claimed as
+delivered code.
+
 An uncertain Containment deliberately retains its real Lease after restart. Until the audited `doctor clear-containment` flow ships, that capacity remains unavailable; moving or editing individual store files is not a supported recovery path.
 
 Stillyard is still greenfield. Before the first stable release it has one current SQLite schema epoch and no database migrations: when that epoch or the required schema does not match, daemon startup silently replaces the database and creates a new store identity. The reset is deliberately all-or-nothing and does not delete `config.json` or canonical log files. Old job IDs, cursors, result files, and idempotency history are not recoverable across it.
