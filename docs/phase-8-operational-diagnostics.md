@@ -23,7 +23,7 @@ The increment adds:
 - durable Windows boot and exact root-process identity for every Containment that may release user
   code;
 - bounded reconciliation of uncertain Containments;
-- an audited, idempotent `Client::clear_containment` operation and
+- an audited, idempotent `Client::force_clear_containment` operation and
   `doctor clear-containment ID --force`; and
 - machine-readable checks and documented guarantee boundaries.
 
@@ -40,23 +40,33 @@ Alpha.8 does not introduce another lifecycle entity. It completes the existing C
 with the evidence needed to distinguish proof, uncertainty, PID reuse, and explicit risk
 acceptance.
 
-- `ContainmentState` gains the terminal `cleared` state. Ordinary cleanup still reaches `empty`.
-  Only an `uncertain` Containment reaches `cleared`, with a durable resolution of
-  `proven_empty`, `reboot`, or `forced_risk_acceptance`.
-- The daemon obtains the Windows boot identifier from runtime-linked
-  `SystemBootEnvironmentInformation` and records it as an opaque `BootId`. Failure to obtain a
-  stable boot identifier is a failing doctor check and blocks release of new user code with the
-  explicit `host_capability_unavailable` blocker. Read-only inspection and reconciliation that does
-  not rely on boot proof remain available; the daemon never silently falls back to PID-only
-  identity.
+- `ContainmentState` gains the terminal `cleared` state and a response-only `unknown` fallback.
+  Ordinary cleanup still reaches `empty`. Only an `uncertain` Containment reaches `cleared`, with a
+  durable resolution of `proven_empty`, `reboot`, or `forced_risk_acceptance`; `unknown` never
+  participates in an internal transition or proof.
+- At daemon-generation start, before admission can grant a Lease, the daemon obtains and latches a
+  Windows host identity and boot identifier. `HostId` is a domain-separated SHA-256 of the local
+  MachineGuid; the raw MachineGuid is never exposed. `BootId` comes from runtime-linked
+  `SystemBootEnvironmentInformation`. Either source being unavailable is a failing doctor check and
+  gives pending work the explicit `host_capability_unavailable` blocker before Lease grant. The
+  daemon never re-probes boot as a release-time gate and never silently falls back to PID-only
+  identity. A later probe disagreeing with the latched value is a capability failure, not reboot
+  proof.
 - Before a suspended primary or postcondition is resumed, the same transaction that records its
   root PID also records the exact Windows process identity: boot ID plus the process creation
   `FILETIME` value. A PID by itself is never identity.
-- Each Containment records the daemon generation that created its Job Object and the declared
-  strength `windows_job_object`. The existing executable hash and Invocation provenance remain
-  unchanged.
-- An uncertainty incident records its reason, opened time, last reconciliation time/result, root
-  identity when one existed, retained claims, and eventual resolution. Resolution evidence is
+- The transaction that creates a `creating` Containment records host ID, boot ID, creating daemon
+  generation, and strength `windows_job_object` before any process-creation call. Each daemon
+  generation also durably records its own exact process identity. The existing executable hash and
+  Invocation provenance remain unchanged.
+- The singleton lock is keyed by the canonical fixed-store filesystem identity, not a caller path,
+  and is held for the daemon process lifetime. Job Object handles are non-inheritable and are never
+  duplicated or passed to contained code. A new daemon may infer closure of an old generation's
+  handles only while it holds that lock and the old daemon's exact process identity no longer
+  resolves.
+- An uncertainty incident durably records its reason, opened time, root identity when one existed,
+  retained claims, and eventual resolution. The current daemon's last reconciliation time/result is
+  bounded in-memory diagnostic evidence until the final result is committed. Resolution evidence is
   preserved after the Lease releases; a cleared record is never rewritten as naturally empty.
 - Entering `uncertain` in a live daemon transfers any still-owned Job Object handle from the runner
   registry to the reconciler; it does not drop the handle. The reconciler owns that handle until it
@@ -70,31 +80,42 @@ operation in the new store.
 
 ## Public crate contract
 
-The exact public shape is intentionally small. All structs are owned, serializable,
-`#[non_exhaustive]`, reject unknown fields when deserializing their current representation, and use
-the crate's existing deadline and optional `CancellationToken` conventions.
+The exact public shape is intentionally small. Public response structs are owned, serializable, and
+`#[non_exhaustive]`; they ignore unknown response fields so additive evidence remains readable.
+Public enums are `#[non_exhaustive]` and safety-relevant enums have an `Unknown` fallback; unknown
+identity/proof values never authorize proof or clearance. Requests still reject unknown fields.
+There is no externally constructed clearance request struct: the explicit
+`Client::force_clear_containment` method is the risk acknowledgement. All methods use the crate's
+existing deadline and optional `CancellationToken` conventions.
 
 ```rust
 pub struct BootId(pub String);
+pub struct HostId(pub String);
 
 #[serde(tag = "platform", rename_all = "snake_case")]
 pub enum ProcessIdentity {
     Windows {
+        host_id: HostId,
         boot_id: BootId,
         pid: u32,
         creation_filetime_100ns: u64,
     },
+    Unknown { platform: String, evidence: serde_json::Value },
 }
 
 pub enum DoctorCheckStatus { Pass, Warning, Fail, Unknown }
-pub enum DoctorOverallStatus { Healthy, AttentionRequired, Unsafe }
-pub enum ContainmentResolution { ProvenEmpty, Reboot, ForcedRiskAcceptance }
+pub enum DoctorOverallStatus { Healthy, AttentionRequired, Unsafe, Unknown }
+pub enum ContainmentResolution { ProvenEmpty, Reboot, ForcedRiskAcceptance, Unknown }
 pub enum ReconciliationResult {
     StillResolves,
     BoundaryNotEmpty,
+    BoundaryUninspectable,
     IdentityUnavailable,
+    IdentityAbsent,
+    PidReused,
     ProvenEmpty,
     PriorBoot,
+    Unknown,
 }
 
 pub struct DoctorCheck {
@@ -111,7 +132,8 @@ pub struct DoctorBoundary {
 
 pub struct DoctorHostSnapshot {
     pub platform: String,
-    pub host_name: String,
+    pub host_name: Option<String>,
+    pub host_id: Option<HostId>,
     pub boot_id: Option<BootId>,
     pub containment_strength: String,
     pub session_survival: DoctorCheckStatus,
@@ -120,6 +142,7 @@ pub struct DoctorHostSnapshot {
 pub struct DoctorStoreSnapshot {
     pub store_uuid: Uuid,
     pub schema_epoch: String,
+    pub bound_host_id: Option<HostId>,
     pub filesystem: String,
     pub sqlite_journal_mode: String,
     pub sqlite_synchronous: String,
@@ -128,6 +151,7 @@ pub struct DoctorStoreSnapshot {
 
 pub struct ContainmentIncidentSnapshot {
     pub incident_id: ContainmentId,
+    pub incident_sequence: u64,
     pub containment_id: ContainmentId,
     pub job_id: JobId,
     pub attempt_id: AttemptId,
@@ -148,7 +172,10 @@ pub struct DoctorIncidentPage {
     pub total_unresolved: u64,
     pub incidents: Vec<ContainmentIncidentSnapshot>,
     pub truncated: bool,
+    pub next_cursor: Option<ContainmentIncidentCursor>,
 }
+
+pub struct ContainmentIncidentCursor { /* store UUID + durable incident sequence + Containment ID */ }
 
 pub struct DoctorSnapshot {
     pub schema_version: u32, // 1 in alpha.8
@@ -162,38 +189,56 @@ pub struct DoctorSnapshot {
     pub boundaries: Vec<DoctorBoundary>,
 }
 
-pub struct ClearContainmentRequest {
-    pub containment_id: ContainmentId,
-    pub force: bool,
+pub struct ForcedClearanceAudit {
+    pub requested_unix_millis: i64,
+    pub requester: ProcessIdentity,
 }
 
-pub struct ContainmentClearanceAudit {
-    pub requested_unix_millis: i64,
+pub enum ClearanceOrigin { Automatic, Forced, Unknown }
+
+pub struct ContainmentResolutionAudit {
     pub resolved_unix_millis: i64,
-    pub requester: ProcessIdentity,
     pub daemon_generation: Uuid,
     pub resolution: ContainmentResolution,
     pub last_reconciliation: ReconciliationResult,
+    pub origin: ClearanceOrigin,
+    pub forced: Option<ForcedClearanceAudit>,
+    pub lease_released: bool,
 }
 
 pub struct ClearContainmentResult {
+    pub schema_version: u32, // 1 in alpha.8
     pub containment_id: ContainmentId,
     pub prior_state: ContainmentState,
     pub state: ContainmentState, // cleared
-    pub lease_released: bool,
-    pub audit: ContainmentClearanceAudit,
+    pub audit: ContainmentResolutionAudit,
 }
 ```
 
 `ProcessIdentity` is an enum rather than an untyped start token so later Linux evidence cannot be
-mistaken for Windows evidence. `BootId` is opaque to callers; equality is meaningful only within
-one platform implementation. The Windows representation is the canonical lowercase UUID string.
+mistaken for Windows evidence. `HostId` and `BootId` are opaque to callers; equality is meaningful
+only for the same platform and host binding. The Windows boot representation is the canonical
+lowercase UUID string. A cloned machine identity is part of the documented cooperative-host
+boundary; it never weakens the requirement to match `HostId` before using boot inequality as proof.
 
-`Client::doctor(deadline, cancellation)` returns `DoctorSnapshot`.
-`Client::clear_containment(request, deadline, cancellation)` returns a persisted
+String-valued platform, strength, filesystem, SQLite mode, epoch, check, boundary, and reason codes
+are open vocabularies with stable documented known values. Consumers preserve/tolerate unknown
+values and gate only the specific checks they own; `overall == Healthy` is not a stable substitute
+for checking a consumer's required codes.
+
+`Client::doctor(cursor, limit, deadline, cancellation)` returns `DoctorSnapshot`; limit defaults to
+256 and clamps to 256. `ContainmentIncidentCursor` has the same stable string round-trip and
+store-scoping rules as the existing observation cursors.
+`Client::force_clear_containment(containment_id, deadline, cancellation)` returns a persisted
 `ClearContainmentResult`. A disconnect never makes the result ambiguous: retrying the same
-store-scoped Containment ID returns the already committed clearance result. IDs from a replaced or
-foreign store reject and never select by the entity UUID alone.
+store-scoped Containment ID returns the original `prior_state`, audit, and `lease_released` value.
+IDs from a replaced or foreign store reject and never select by entity UUID alone.
+
+`DaemonSnapshot` gains the current daemon optional `process_identity`. `InvocationSnapshot` gains
+`root_identity`. `ContainmentSnapshot` gains the incident, resolution, and resolution audit, so
+forced or automatic clearance remains publicly inspectable through ordinary `status`/TUI detail
+after immediate command output is gone. Doctor copies only unresolved incident pages; it is not the
+audit-history read path.
 
 The public JSON representation is exactly the serde representation of these public types.
 `stillyard doctor --json` emits one `DoctorSnapshot`; clearance with `--json` emits one
@@ -207,13 +252,22 @@ canonical log files to assemble diagnostics. The daemon materializes the bounded
 releases its store mutex/read transaction before writing to the pipe, so a stalled client cannot
 hold writers or lifecycle progress.
 
-Checks are sorted by stable `code`; incidents are sorted by `(opened_unix_millis,
-containment_id)`. Human summaries and remediation may improve, but consumers branch only on typed
-status and documented codes. Alpha.8 defines at least:
+Host/boot probing precedes store admission initialization. If either source is unavailable the
+daemon can still open/create the store and serve read-only diagnostics, but leaves an unbound new
+store unbound and grants no work Lease. The first later generation with valid evidence may bind an
+empty unbound store atomically; a nonempty unbound or differently bound store is `Unsafe` and never
+admitted, auto-cleared, or force-cleared.
+
+Checks are sorted by stable `code`; incidents are assigned a monotonic durable sequence when
+uncertainty opens and page in `(incident_sequence, containment_id)` order. Wall-clock adjustment
+therefore cannot reorder a cursor window. Human summaries and remediation may improve, but consumers
+branch only on typed status and documented codes. Alpha.8 defines at least:
 
 | Code | Meaning |
 |---|---|
+| `host.machine_identity` | the current host matches the store's latched host binding |
 | `host.boot_identity` | a stable boot ID is available |
+| `host.session_survival` | the platform's declared detach/session-survival prerequisite holds |
 | `ipc.owner_only` | the active endpoint has the required owner-only boundary |
 | `store.schema` | the opened store has the current validated epoch and identity |
 | `store.filesystem` | store and SQLite sidecars are on supported local fixed NTFS |
@@ -233,24 +287,33 @@ lines, child output, or raw configuration. `daemon.profile_names`, `daemon.capac
 `daemon.config_sha256` are the complete consumer-facing configuration evidence. The canonical hash
 continues to cover the loaded non-secret `HostConfig` representation.
 
-The incident page contains at most 256 unresolved incidents and reports the full count and
-`truncated`. This keeps the local protocol frame and client memory bounded. When truncated, an
-operator clears or resolves visible incidents and repeats doctor; exact known IDs remain available
-through Job snapshots and are accepted directly by clearance. Resolved audit history is retained
-with its Job/Containment but is not copied into every doctor snapshot.
+The incident page contains at most 256 unresolved incidents and reports the full count,
+`truncated`, and a stable next cursor. Subsequent pages cannot be starved by an old unresolvable
+first page. Foreign-store, missing-row, future, or malformed cursors reject explicitly. Exact known
+IDs remain available through Job snapshots and are accepted directly by clearance. Resolved audit
+history is retained with its Job/Containment but is not copied into every doctor snapshot.
 
 `incident_id` is the existing compatibility alias for its owning `containment_id`; they are equal in
 alpha.8 and do not create a tenth durable entity. `reason_code` is stable machine-readable data;
 `detail` and remediation text are explanatory and may improve without changing the code.
+Codes are bounded to 128 ASCII bytes, summaries to 1,024 UTF-8 bytes, and detail/remediation to
+2,048 UTF-8 bytes. Incident `retained_claims` is the bounded public `JobSpec.resources` declaration,
+not private resolved fence identities. Command lines, paths outside already-public store paths,
+environment values, and raw OS error buffers are never copied into these strings. The 256-item
+maximum plus these field bounds is tested below the existing 16 MiB protocol limit.
 
 Doctor boundaries include stable codes for at least:
 
 - `physical_power_loss_after_ack`: the R-SCOPE-2 storage boundary;
 - `same_owner_out_of_boundary_process`: deliberate same-owner handle duplication, WMI, Task
   Scheduler, and equivalent bypasses are outside the cooperative containment guarantee; and
+- `cloned_host_identity`: software cannot distinguish two simultaneously running machine clones
+  that carry the same MachineGuid-derived identity; and
 - `no_hard_resource_partition`: resource admission is not CPU/GPU/RAM hard enforcement.
 
-`doctor` is diagnostic, not a policy engine. Successfully returning a complete snapshot exits 0
+The root `doctor` snapshot is diagnostic, not a policy engine. The explicitly named
+`clear-containment` remediation is the one mutating operation assigned to doctor by R-RUN-4; it
+cannot be triggered by reading a snapshot. Successfully returning a complete snapshot exits 0
 even when `overall` is `AttentionRequired` or `Unsafe`; callers decide which checks gate their own
 work. Transport/store failure before a snapshot uses the existing 69/70 errors. This lets `moot`
 read configuration evidence without treating an unrelated retained incident as config drift.
@@ -258,31 +321,52 @@ read configuration evidence without treating an unrelated retained incident as c
 ## Reconciliation and proof rules
 
 Uncertainty never expires and elapsed time is never proof. Reconciliation runs at startup and only
-while at least one uncertain Containment exists. The daemon uses a finite backoff capped at 30
-seconds, wakes promptly on a new incident, and stops the timer when none remain. A healthy idle
-daemon therefore gains no polling wakeup and keeps the A-19 budget.
+while at least one uncertain Containment exists. Each turn takes at most 32 incidents in stable
+round-robin order, snapshots their versioned evidence under the store mutex, performs every OS probe
+outside the mutex, and compare-and-commits any resolution. Per-incident backoff grows through
+1/2/4/8/16/30/60/120/300 seconds; a new incident or owned-boundary empty notification wakes it
+promptly. The timer stops when no incidents remain. A healthy idle daemon therefore gains no polling
+wakeup and keeps the A-19 budget.
+
+Unchanged probes do not write SQLite, fsync, emit an event, or wake watchers. Their latest time and
+result are bounded current-daemon diagnostic memory exposed by doctor; only the durable incident
+opening and final resolution/audit are stored. Restart simply probes unresolved durable incidents
+again. No OS wait or process-handle query occurs while the store mutex is held.
 
 An uncertain Containment may resolve automatically only under one of these proofs:
 
-1. The recorded boot differs from the current stable boot ID. Reboot proves prior-boot Windows
-   processes gone; resolution is `reboot`.
-2. In the creating/no-root state, durable ordering proves user code was never resumed and the
-   creating daemon's Job Object is gone or observed empty.
-3. In the creating daemon generation, the daemon-held Job Object reports zero processes and the
-   exact recorded root identity no longer resolves.
-4. After daemon restart in the same boot, closure of the prior daemon's kill-on-close handle plus
-   disappearance of the exact recorded root identity proves the prior tree gone within the declared
-   cooperative boundary.
+1. The record has the same `HostId`, belongs to a prior daemon generation, and its recorded boot
+   differs from the current daemon's startup-latched `BootId`. Reboot proves prior-boot Windows
+   processes gone; resolution is `reboot`. Host mismatch or any later boot-probe disagreement is a
+   Fail and never proof.
+2. A same-generation creating/no-root Containment clears only when its reconciler-owned Job Object
+   reports zero processes. A prior-generation creating/no-root record clears only after the new
+   daemon holds the canonical singleton lock and the recorded prior daemon process identity no
+   longer resolves; durable ordering proves user code was never resumed and non-inheritable
+   kill-on-close closed the old boundary. An absent/uninspectable same-generation handle is not
+   proof.
+3. In the creating daemon generation, the daemon-held Job Object reporting zero active processes is
+   sufficient born-contained proof. Root identity is still probed and reported as evidence, but an
+   exited process object retained by another handle cannot prevent this stronger boundary proof.
+4. After daemon restart in the same host/boot, the new daemon holds the canonical singleton lock,
+   the recorded old daemon exact identity no longer resolves, and the exact root identity is gone.
+   Those facts plus the non-inheritable kill-on-close handle prove the prior tree gone within the
+   declared cooperative boundary.
 
-PID absence alone is not queried; exact identity is. If the numeric PID now has a different
-creation `FILETIME`, the recorded process is gone and the new occupant is never terminated or
-treated as the old root. Access denied, an unavailable boot source, a matching identity, or an
-uninspectable boundary preserves uncertainty unless the stronger reboot proof applies.
+PID absence alone is not queried; exact identity is. A root "still resolves" only when host, boot,
+PID and creation `FILETIME` match and the process handle is not signaled as terminated. An exited
+process object retained by another observer is gone for this purpose. If the numeric PID has a
+different creation `FILETIME`, the probe is `PidReused`; the new occupant is never terminated or
+treated as the old root. Access denied/identity unavailable, host mismatch, unavailable boot
+evidence, a matching nonterminated identity, or an uninspectable boundary preserves uncertainty
+unless the stronger prior-boot proof applies.
 
 Every successful automatic resolution atomically changes `uncertain -> cleared`, records its proof,
 releases the Attempt Lease only when no creating/live/uncertain sibling Containment remains, and
-commits the ordinary Containment/event invalidation. Watchers therefore refresh without a private
-doctor channel.
+commits the ordinary Containment/event invalidation. After a commit that actually releases a Lease,
+the daemon signals the admission scheduler as well as the observation condition; the event hook
+alone is not an admission wakeup. Watchers therefore refresh without a private doctor channel and
+newly eligible pending Jobs do not remain parked.
 
 ## Explicit clearance
 
@@ -292,29 +376,39 @@ external process.
 
 The daemon applies this order:
 
-1. Authenticate the named-pipe peer and reject every caller that is currently proved inside any
-   Stillyard-managed Invocation. A Job cannot clear its own, an ancestor's, or a competitor's Lease.
-   The request contains no trusted parent/caller identity.
-2. Require `force == true`, a current-store ID, and state `uncertain`. A naturally `empty`
-   Containment is not rewritten. A previously `cleared` Containment returns its persisted result
-   idempotently.
+1. Capture one exact peer process handle/identity at pipe connection and reuse it for authorization
+   and audit; PID is never re-resolved after the decision. For clearance only, test membership
+   against the union of runner- and reconciler-owned Job Objects for every current-generation
+   creating/live/uncertain Invocation of every role. Reject any match; a missing/uninspectable handle
+   for a current-generation candidate rejects authorization rather than downgrading the peer to
+   unmanaged. Also reject a peer whose exact identity matches any unresolved recorded root. A Job
+   cannot clear its own, an ancestor's, or a competitor's Lease. The request contains no trusted
+   parent/caller identity. Under the cooperative non-inheritable-handle rule no prior-generation
+   descendant survives after the old daemon exits; deliberate handle escape remains the stated
+   R-SCOPE-2 boundary.
+2. Require the explicit force-clear operation, a current-store ID, and state `uncertain`. A
+   naturally `empty` Containment is not rewritten. A previously `cleared` Containment returns its
+   original persisted result idempotently, including `prior_state` and whether that resolution
+   released the Lease.
 3. Reconcile once. If proof now exists, commit/return the proof resolution rather than calling it
    forced.
 4. If the exact recorded root identity still resolves on the current boot, reject with stable code
    `containment_identity_still_resolves`, even under `--force`. If a daemon-held Job Object is known
    nonempty, reject with `containment_boundary_not_empty`; if its owned handle cannot be inspected,
    reject with `containment_owned_boundary_uninspectable`. The remediation says to let cleanup
-   finish, terminate the recorded work through its owner, or reboot. Force is available only when
-   the current daemon owns no boundary handle and probing the target identity returns absent,
-   nonmatching, or unavailable rather than an affirmative exact match. A PID occupied by a
-   different creation identity does not trigger the root-identity refusal.
-5. Capture the unmanaged requester's exact process identity. Begin an immediate transaction,
-   re-read the Containment and root identity, and commit only if they still match the probed record.
-   A concurrent proof/clear returns the committed result; any other change retries the bounded
-   decision or rejects.
+   finish, terminate the recorded work through its owner, restart the daemon for an owned-but-
+   uninspectable boundary, or perform a full Restart (Fast Startup shutdown is insufficient) to
+   change the boot identity. Target-identity `IdentityUnavailable` also rejects with
+   `containment_identity_unavailable`. Force is available only when the current daemon owns no
+   boundary handle and the target identity is affirmatively absent or nonmatching. A PID occupied by
+   a different creation identity records `PidReused` and does not trigger the root-identity refusal.
+5. Perform the target probe outside SQLite. Begin an immediate transaction, re-read the
+   Containment's version and identity, and commit only if they match the probed record. A concurrent
+   proof/clear returns the committed result; any other change gets one bounded retry or rejects.
 6. Atomically record `forced_risk_acceptance`, the requester, timestamp and daemon generation;
-   transition to `cleared`; release the Attempt Lease only when no unresolved sibling remains; and
-   emit the normal Containment event.
+   transition to `cleared`; release the Attempt Lease only when no creating/live/uncertain sibling
+   remains; and emit the normal Containment event. If the Lease releases, signal the admission
+   scheduler after commit.
 
 If requester identity or current boot identity cannot be obtained, forced clearance rejects: an
 unauditable operator mutation is worse than a retained Lease. A crash before the transaction leaves
@@ -324,16 +418,26 @@ conditional Lease release, and event together. No success is printed before comm
 ## CLI surface and compatibility
 
 ```text
-stillyard doctor [--json]
+stillyard doctor [--incident-cursor CURSOR] [--incident-limit N] [--json]
 stillyard doctor clear-containment ID --force [--json]
 ```
 
 Human doctor output starts with `healthy`, `attention required`, or `unsafe`, then daemon/store
 identity, configuration evidence, failed/unknown checks, unresolved incidents, and boundaries.
-JSON prints only the public response. Clearance success exits 0. Missing `--force`, managed caller,
-foreign/not-uncertain target, a still-resolving exact identity, or unauditable requester rejects
-with exit 27 and a stable machine-readable error code. Deadline is 25, unavailable daemon/store is
-69, and internal/protocol inconsistency is 70.
+JSON prints only the public response. Clearance success exits 0. Missing `--force` is CLI usage and
+exits 64. The public crate gains `Error::Rejected { code, detail }`; managed caller,
+foreign/not-uncertain target, still-resolving/unavailable target identity, nonempty/uninspectable
+owned boundary, host mismatch, or unauditable requester maps to it and exit 27. The documented codes
+are `containment_caller_managed`, `containment_authorization_unavailable`,
+`containment_foreign`, `containment_not_uncertain`,
+`containment_identity_still_resolves`, `containment_identity_unavailable`,
+`containment_boundary_not_empty`, `containment_owned_boundary_uninspectable`,
+`containment_host_mismatch`, and `containment_requester_unidentifiable`. Deadline is 25,
+unavailable daemon/store is 69, and internal/protocol inconsistency is 70.
+
+`prior_state` always describes the original persisted transition, not the retry caller's observed
+state. Human clearance output distinguishes `cleared now` from `already cleared automatically` and
+`already force-cleared by PID/start identity at time`; JSON always returns the original audit.
 
 `daemon-status` remains present because it is the cheap compatibility/readiness surface. Doctor
 does not replace watch, list, status, logs, or events, and no TUI pane gains privileged access.
@@ -347,38 +451,56 @@ the public crate and CLI; store tests may construct fault states but cannot be t
    same public type and expose the daemon's actually loaded profiles, capacities, and configuration
    hash. Changing configured evidence without restarting does not change the loaded snapshot;
    restarting does. `moot`'s config-drift adapter test consumes only this response. A
-   read-config-file-in-the-consumer mutant fails.
+   separate external crate compiles calls to `doctor` and `force_clear_containment`; additive unknown
+   response fields deserialize, while unknown proof/identity variants become `Unknown` and cannot
+   authorize a transition. Unconstructable-request, reject-additive-response, and
+   read-config-file-in-the-consumer mutants fail.
 2. **Redaction and boundedness.** A configuration containing sentinel environment/profile values
    leaks neither those values nor child output through human or JSON doctor output. More than 256
-   incidents reports the exact total, a stable first page, and `truncated`, within the protocol
-   frame bound. Secret-value and unbounded-incident mutants fail.
+   incidents reports the exact total, stable pages/cursors through the final incident, and
+   `truncated`, below 16 MiB even with maximum legal strings. Secret-value, first-page-starves-tail,
+   and unbounded-incident mutants fail.
 3. **Durable identity.** A real suspended Windows child records boot ID, PID, and creation
-   `FILETIME` before resume. A same-PID/different-creation fixture is not the recorded identity; a
-   matching fixture is. PID-only and record-after-resume mutants fail.
+   `FILETIME` before resume; its creating record already contains host, boot, generation, and
+   strength. Daemon identity is persisted, the canonical singleton lock excludes its exact prior
+   process, and the Job handle is non-inheritable. A same-PID/different-creation fixture is not the
+   recorded identity; a matching nonterminated fixture is, while a matching exited object is gone.
+   PID-only, record-after-resume, path-alias-split-lock, and inheritable-job-handle mutants fail.
 4. **Uncertainty visibility.** Injected cleanup timeout reaches final Job + uncertain Containment,
    retains the complete Lease, appears in doctor with its incident and blocker impact, and updates
    watch through the ordinary event path. A timeout-means-empty mutant fails.
 5. **Automatic proof.** Same-daemon Job Object emptiness, prior-daemon kill-on-close plus exact-root
-   disappearance, creating/no-root proof, and an actual boot-ID change each clear atomically and
-   release only the eligible Attempt Lease. Matching root, unavailable identity, and unavailable
-   boot evidence remain uncertain. Root-gone-alone and daemon-generation-is-boot mutants fail.
+   disappearance with the old daemon identity absent, correctly split creating/no-root proofs, and
+   a same-host prior-generation boot-ID change each clear atomically and release only the eligible
+   Attempt Lease. Current-generation boot inequality, host mismatch, matching root, unavailable
+   identity, and unavailable/changed-after-startup boot evidence remain uncertain/failed. A real
+   Restart changes boot identity; Fast Startup shutdown need not. No-root-means-empty,
+   root-gone-alone, current-generation-reboot, foreign-host-reboot, and
+   daemon-generation-is-boot mutants fail.
 6. **Forced safety.** An unmanaged owner can force an unprovable/root-gone incident; a managed Job,
    missing force, foreign ID, naturally empty record, matching exact root, or unauditable requester
-   cannot. A known-nonempty or owned-but-uninspectable Job Object also refuses; clearance never
-   closes a handle as a hidden kill operation. PID reuse does not refuse and is recorded in probe
-   evidence. Managed-self-clear, force-clears-live-root, force-drops-owned-boundary, and
-   PID-reuse-is-live mutants fail.
+   cannot. Clearance authentication covers primary/postcondition and runner/reconciler handles with
+   one connection-time peer identity. Target identity unavailable, known-nonempty, or
+   owned-but-uninspectable boundary also refuses; clearance never closes a handle as a hidden kill
+   operation. PID reuse does not refuse and is recorded in probe evidence. Managed-self-clear,
+   postcondition-clears-competitor, peer-PID-race, force-clears-unprobeable-root,
+   force-clears-live-root, force-drops-owned-boundary, and PID-reuse-is-live mutants fail.
 7. **Idempotence and concurrency.** Disconnect immediately before/after clearance commit and two
    concurrent clear callers produce either no change or one identical persisted result. No audit,
-   state, Lease, or event is duplicated. A check-then-update mutant fails.
+   state, Lease, or event is duplicated. Automatic resolution has no fabricated requester; a later
+   force attempt returns that same automatic audit. `status` exposes both automatic and forced
+   resolution history. Check-then-update, fabricated-automatic-requester, and audit-write-only
+   mutants fail.
 8. **Sibling and crash atomicity.** Clearing one incident does not release an Attempt Lease while
    any sibling Containment is creating/live/uncertain. SQLite failure at every clearance write
    boundary exposes the full prior or full new state. Release-before-audit and first-sibling-release
    mutants fail.
 9. **Wake and cost discipline.** With no incidents, doctor adds no background thread, helper
-   process, or periodic wake. With incidents, reconciliation backs off and cannot block submission,
-   log draining, or observation; a slow doctor client cannot block writers. Busy-reconcile and
-   viewer-holds-store-lock mutants fail.
+   process, or periodic wake. With incidents, each reconciliation turn probes at most 32 outside the
+   store mutex, stable round-robin prevents starvation, and unchanged probes cause no SQLite write,
+   fsync, event, or watcher refresh. A proof/clear that releases capacity explicitly wakes admission,
+   while a slow doctor client cannot block writers. Busy-reconcile, unbounded-reconcile,
+   probe-emits-event, missing-scheduler-wake, and viewer-holds-store-lock mutants fail.
 10. **Greenfield and provenance.** The new epoch replaces alpha.7 SQLite only under the singleton
     lock, changes store UUID, preserves config/log files, and makes every old Containment ID foreign.
     Doctor reports the new epoch, boot, host, version, generation, and cooperative boundaries.
