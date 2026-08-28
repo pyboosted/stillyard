@@ -58,7 +58,7 @@ fn connect(executable: &Path, endpoint: &str) -> Client {
             .connect(Instant::now() + Duration::from_millis(250), None)
         {
             Ok(client) => return client,
-            Err(Error::Unavailable(_)) if Instant::now() < deadline => {
+            Err(Error::Unavailable(_) | Error::DeadlineElapsed) if Instant::now() < deadline => {
                 std::thread::sleep(Duration::from_millis(25));
             }
             Err(error) => panic!("isolated daemon did not become ready: {error}"),

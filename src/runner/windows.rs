@@ -1622,7 +1622,7 @@ mod tests {
                 "Start-Sleep -Seconds 30".into(),
             ],
         );
-        spec.timeout_seconds = Some(1);
+        spec.timeout_seconds = Some(3);
         let (job, store) = prepared(&spec, temp.path());
         let started = Instant::now();
         run(&job, &store, TEST_ENDPOINT);

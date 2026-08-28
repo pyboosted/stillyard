@@ -1,5 +1,6 @@
 use super::*;
 
+#[cfg(windows)]
 pub(super) struct EndpointLease(windows_sys::Win32::Foundation::HANDLE);
 
 #[cfg(windows)]

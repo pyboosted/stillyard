@@ -63,7 +63,7 @@ impl LiveContainments {
         #[cfg(not(windows))]
         {
             let _ = invocation_id;
-            return Ok(None);
+            Ok(None)
         }
         #[cfg(windows)]
         {
@@ -174,7 +174,7 @@ impl LiveContainments {
         #[cfg(not(windows))]
         {
             let _ = (invocation_id, process_handle);
-            return Ok(None);
+            Ok(None)
         }
         #[cfg(windows)]
         {

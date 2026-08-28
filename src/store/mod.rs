@@ -485,6 +485,7 @@ use database::{
 use input::{validate_batch_input_shape, validate_input_shape};
 use values::*;
 
+#[cfg(windows)]
 pub(crate) use database::open_lock;
 pub(crate) use input::{
     normalized_batch_payload_hash_with_inputs, normalized_payload_hash_with_input,

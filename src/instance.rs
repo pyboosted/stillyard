@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use directories::ProjectDirs;
+#[cfg(windows)]
 use sha2::{Digest, Sha256};
 
 use crate::{Error, Result};

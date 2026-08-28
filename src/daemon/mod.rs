@@ -1,5 +1,7 @@
 use std::path::PathBuf;
+#[cfg(windows)]
 use std::sync::{Arc, Condvar, Mutex};
+#[cfg(windows)]
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[cfg(windows)]
@@ -7,16 +9,16 @@ use fs2::FileExt;
 
 #[cfg(windows)]
 use crate::instance::{current_user_sid_string, resolve_endpoint, resolve_store_root};
-use crate::protocol::{PROTOCOL_VERSION, Request, Response};
 #[cfg(windows)]
-use crate::protocol::{read_frame, write_frame};
-use crate::store::{ManagedCandidate, Store, StoreError, SubmissionScope};
+use crate::protocol::{PROTOCOL_VERSION, Request, Response, read_frame, write_frame};
 #[cfg(windows)]
-use crate::store::{StorePaths, open_lock};
+use crate::store::{ManagedCandidate, Store, StoreError, StorePaths, SubmissionScope, open_lock};
 use crate::{Error, Result};
 
+#[cfg(windows)]
 type SharedStore = Arc<Mutex<Store>>;
 
+#[cfg(windows)]
 struct PeerProcess {
     handle: usize,
     pid: u32,
@@ -87,15 +89,22 @@ pub(crate) fn run(_store_root: Option<PathBuf>, _endpoint: Option<String>) -> Re
     Err(Error::UnsupportedPlatform(std::env::consts::OS))
 }
 
+#[cfg(windows)]
 mod reactor;
 #[cfg(windows)]
 mod reconciliation;
+#[cfg(windows)]
 mod rpc;
+#[cfg(windows)]
 mod transport;
 
+#[cfg(windows)]
 use reactor::*;
+#[cfg(windows)]
 use reconciliation::*;
+#[cfg(windows)]
 use rpc::handle_request;
+#[cfg(windows)]
 use transport::{acquire_endpoint_lease, create_pipe_instance, serve};
 
 #[cfg(all(test, windows))]

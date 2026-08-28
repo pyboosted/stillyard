@@ -1,3 +1,4 @@
+#[cfg(windows)]
 use crate::ReconciliationResult;
 use crate::{BootId, Error, HostId, ProcessIdentity, Result};
 
@@ -296,15 +297,6 @@ pub(crate) fn process_identity_from_handle(
     _boot_id: &BootId,
 ) -> Result<ProcessIdentity> {
     Err(Error::UnsupportedPlatform(std::env::consts::OS))
-}
-
-#[cfg(not(windows))]
-pub(crate) fn probe_recorded_process(
-    _recorded: &ProcessIdentity,
-    _current_host_id: &HostId,
-    _current_boot_id: &BootId,
-) -> ReconciliationResult {
-    ReconciliationResult::IdentityUnavailable
 }
 
 #[cfg(all(test, windows))]
