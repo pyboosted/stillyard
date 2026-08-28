@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand, ValueEnum, error::ErrorKind};
 use stillyard::{
@@ -571,17 +571,14 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 }
                 let deadline = deadline(deadline_seconds);
                 let client = connect_client(endpoint.as_deref(), deadline)?;
+                let request_started_unix_millis = unix_millis();
                 let result = client.force_clear_containment(containment_id, deadline, None)?;
                 if json {
                     print_json(&result)?;
                 } else {
                     println!(
-                        "{}: {:?} -> {:?} ({:?}, lease_released={})",
-                        result.containment_id,
-                        result.prior_state,
-                        result.state,
-                        result.audit.resolution,
-                        result.audit.lease_released,
+                        "{}",
+                        clearance_human_message(&result, request_started_unix_millis)
                     );
                 }
             }
@@ -600,6 +597,101 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         },
     }
     Ok(())
+}
+
+fn unix_millis() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(i64::MAX)
+}
+
+fn clearance_human_message(
+    result: &stillyard::ClearContainmentResult,
+    request_started_unix_millis: i64,
+) -> String {
+    let happened_in_this_call = match result.audit.forced.as_ref() {
+        Some(forced) => current_process_matches(&forced.requester),
+        None => result.audit.resolved_unix_millis >= request_started_unix_millis,
+    };
+    let action = if happened_in_this_call {
+        "cleared now".to_owned()
+    } else {
+        match (&result.audit.origin, result.audit.forced.as_ref()) {
+            (stillyard::ClearanceOrigin::Automatic, _) => format!(
+                "already cleared automatically at {}",
+                result.audit.resolved_unix_millis
+            ),
+            (stillyard::ClearanceOrigin::Forced, Some(forced)) => format!(
+                "already force-cleared by {} at {}",
+                process_identity_summary(&forced.requester),
+                forced.requested_unix_millis
+            ),
+            _ => format!("already cleared at {}", result.audit.resolved_unix_millis),
+        }
+    };
+    format!(
+        "{}: {action}; lease_released={}",
+        result.containment_id, result.audit.lease_released
+    )
+}
+
+fn process_identity_summary(identity: &stillyard::ProcessIdentity) -> String {
+    match identity {
+        stillyard::ProcessIdentity::Windows {
+            pid,
+            creation_filetime_100ns,
+            ..
+        } => format!("PID {pid}/start {creation_filetime_100ns}"),
+        stillyard::ProcessIdentity::Unknown {
+            unknown_platform, ..
+        } => format!("{unknown_platform} requester identity"),
+        _ => "unknown requester identity".into(),
+    }
+}
+
+#[cfg(windows)]
+fn current_process_matches(identity: &stillyard::ProcessIdentity) -> bool {
+    use windows_sys::Win32::Foundation::FILETIME;
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessTimes};
+
+    let stillyard::ProcessIdentity::Windows {
+        pid,
+        creation_filetime_100ns,
+        ..
+    } = identity
+    else {
+        return false;
+    };
+    if *pid != std::process::id() {
+        return false;
+    }
+    let mut creation: FILETIME = unsafe { std::mem::zeroed() };
+    let mut exit: FILETIME = unsafe { std::mem::zeroed() };
+    let mut kernel: FILETIME = unsafe { std::mem::zeroed() };
+    let mut user: FILETIME = unsafe { std::mem::zeroed() };
+    // SAFETY: the current-process pseudohandle is valid and every output is writable.
+    if unsafe {
+        GetProcessTimes(
+            GetCurrentProcess(),
+            &mut creation,
+            &mut exit,
+            &mut kernel,
+            &mut user,
+        )
+    } == 0
+    {
+        return false;
+    }
+    let observed = u64::from(creation.dwLowDateTime) | (u64::from(creation.dwHighDateTime) << 32);
+    observed == *creation_filetime_100ns
+}
+
+#[cfg(not(windows))]
+fn current_process_matches(_identity: &stillyard::ProcessIdentity) -> bool {
+    false
 }
 
 fn connect_client(endpoint: Option<&str>, deadline: Instant) -> Result<Client, stillyard::Error> {

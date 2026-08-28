@@ -20,5 +20,12 @@ fn external_consumer_compiles(
 
 #[test]
 fn alpha8_public_methods_are_callable_from_an_external_crate() {
+    let _: fn(
+        &Client,
+        Option<ContainmentIncidentCursor>,
+        ContainmentId,
+        Instant,
+        Option<&CancellationToken>,
+    ) = external_consumer_compiles;
     assert!(std::mem::size_of::<DoctorSnapshot>() > 0);
 }

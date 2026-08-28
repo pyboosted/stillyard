@@ -381,6 +381,7 @@ pub enum InvocationState {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[schemars(with = "String")]
 #[non_exhaustive]
 pub enum ContainmentState {
     Creating,
@@ -437,6 +438,7 @@ pub struct BootId(pub String);
 pub struct HostId(pub String);
 
 #[derive(Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[schemars(with = "std::collections::BTreeMap<String, serde_json::Value>")]
 #[non_exhaustive]
 pub enum ProcessIdentity {
     Windows {
@@ -565,6 +567,7 @@ impl<'de> Deserialize<'de> for ProcessIdentity {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[schemars(with = "String")]
 #[non_exhaustive]
 pub enum DoctorCheckStatus {
     Pass,
@@ -579,6 +582,7 @@ string_enum!(DoctorCheckStatus {
 });
 
 #[derive(Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[schemars(with = "String")]
 #[non_exhaustive]
 pub enum DoctorOverallStatus {
     Healthy,
@@ -593,6 +597,7 @@ string_enum!(DoctorOverallStatus {
 });
 
 #[derive(Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[schemars(with = "String")]
 #[non_exhaustive]
 pub enum ContainmentResolution {
     ProvenEmpty,
@@ -607,6 +612,7 @@ string_enum!(ContainmentResolution {
 });
 
 #[derive(Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[schemars(with = "String")]
 #[non_exhaustive]
 pub enum ReconciliationResult {
     StillResolves,
@@ -631,6 +637,7 @@ string_enum!(ReconciliationResult {
 });
 
 #[derive(Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[schemars(with = "String")]
 #[non_exhaustive]
 pub enum ClearanceOrigin {
     Automatic,
@@ -683,10 +690,26 @@ pub struct ContainmentIncidentSnapshot {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "String", into = "String")]
+#[schemars(with = "String")]
 pub struct ContainmentIncidentCursor {
-    pub store_uuid: Uuid,
-    pub incident_sequence: u64,
-    pub containment_id: ContainmentId,
+    pub(crate) store_uuid: Uuid,
+    pub(crate) incident_sequence: u64,
+    pub(crate) containment_id: ContainmentId,
+}
+
+impl From<ContainmentIncidentCursor> for String {
+    fn from(cursor: ContainmentIncidentCursor) -> Self {
+        cursor.to_string()
+    }
+}
+
+impl TryFrom<String> for ContainmentIncidentCursor {
+    type Error = ObservationCursorParseError;
+
+    fn try_from(value: String) -> std::result::Result<Self, Self::Error> {
+        value.parse()
+    }
 }
 
 impl fmt::Display for ContainmentIncidentCursor {
@@ -1021,6 +1044,21 @@ mod tests {
                 .parse::<ContainmentIncidentCursor>()
                 .unwrap(),
             cursor
+        );
+        assert_eq!(
+            serde_json::to_value(cursor).unwrap(),
+            serde_json::Value::String(cursor.to_string())
+        );
+        assert_eq!(
+            serde_json::from_value::<ContainmentIncidentCursor>(serde_json::Value::String(
+                cursor.to_string()
+            ))
+            .unwrap(),
+            cursor
+        );
+        assert_eq!(
+            serde_json::to_value(schemars::schema_for!(ContainmentIncidentCursor)).unwrap()["type"],
+            "string"
         );
         assert!("bad:cursor".parse::<ContainmentIncidentCursor>().is_err());
     }

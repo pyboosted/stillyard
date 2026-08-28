@@ -3557,8 +3557,8 @@ impl Store {
                     Uuid::parse_str(&invocation)?,
                 ),
                 state: parse_containment_state(&state)?,
-                reason_code: reason.unwrap_or_else(|| "unknown".into()),
-                detail: detail.unwrap_or_default(),
+                reason_code: bounded_doctor_code(reason.unwrap_or_else(|| "unknown".into())),
+                detail: bounded_doctor_text(detail.unwrap_or_default(), DOCTOR_DETAIL_MAX_BYTES),
                 opened_unix_millis: opened.unwrap_or(0),
                 last_reconciled_unix_millis: observed_reconciliation
                     .as_ref()
@@ -3700,6 +3700,14 @@ impl Store {
                 remediation: None,
             },
         ];
+        for check in &mut checks {
+            check.code = bounded_doctor_code(std::mem::take(&mut check.code));
+            check.summary =
+                bounded_doctor_text(std::mem::take(&mut check.summary), DOCTOR_SUMMARY_MAX_BYTES);
+            if let Some(remediation) = check.remediation.take() {
+                check.remediation = Some(bounded_doctor_text(remediation, DOCTOR_DETAIL_MAX_BYTES));
+            }
+        }
         checks.sort_by(|left, right| left.code.cmp(&right.code));
         let overall = if checks
             .iter()
@@ -3789,7 +3797,12 @@ impl Store {
             .contains_key(&containment_id)
             && self.reconciliation_observations.len() >= MAX_OBSERVATIONS
         {
-            if let Some(oldest) = self.reconciliation_observations.keys().next().copied() {
+            if let Some(oldest) = self
+                .reconciliation_observations
+                .iter()
+                .min_by_key(|(_, (observed, _))| *observed)
+                .map(|(containment_id, _)| *containment_id)
+            {
                 self.reconciliation_observations.remove(&oldest);
             }
         }
@@ -4273,13 +4286,23 @@ impl Store {
             )?;
         }
         transaction.execute(
+            "UPDATE attempts SET state = 'settled', verdict = 'start_failed', finished_ms = ?1
+             WHERE state = 'starting'",
+            [finished],
+        )?;
+        transaction.execute(
             "UPDATE attempts SET state = 'settled', verdict = 'interrupted', finished_ms = ?1
              WHERE state != 'settled'",
             [finished],
         )?;
         transaction.execute(
             "UPDATE jobs SET state = 'final',
-                outcome = 'interrupted',
+                outcome = CASE
+                    WHEN attempt_id IN (
+                        SELECT id FROM attempts WHERE verdict = 'start_failed'
+                    ) THEN 'failed'
+                    ELSE 'interrupted'
+                END,
                 finished_ms = ?1
              WHERE state = 'active'",
             [finished],
@@ -5821,6 +5844,30 @@ fn keep_tail_within_budget(value: &mut String, remaining: &mut usize) {
     *remaining = 0;
 }
 
+const DOCTOR_CODE_MAX_BYTES: usize = 128;
+const DOCTOR_SUMMARY_MAX_BYTES: usize = 1_024;
+const DOCTOR_DETAIL_MAX_BYTES: usize = 2_048;
+
+fn bounded_doctor_code(value: String) -> String {
+    value
+        .chars()
+        .map(|character| if character.is_ascii() { character } else { '?' })
+        .take(DOCTOR_CODE_MAX_BYTES)
+        .collect()
+}
+
+fn bounded_doctor_text(mut value: String, max_bytes: usize) -> String {
+    if value.len() <= max_bytes {
+        return value;
+    }
+    let mut boundary = max_bytes;
+    while !value.is_char_boundary(boundary) {
+        boundary -= 1;
+    }
+    value.truncate(boundary);
+    value
+}
+
 fn now_millis() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -6739,7 +6786,7 @@ mod tests {
         };
         let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
         let snapshot = store.status(job_id).unwrap();
-        assert_eq!(snapshot.outcome, Some(JobOutcome::Interrupted));
+        assert_eq!(snapshot.outcome, Some(JobOutcome::Failed));
         let (verdict, containment, lease): (String, String, String) = store
             .connection
             .query_row(
@@ -6753,7 +6800,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!(verdict, "interrupted");
+        assert_eq!(verdict, "start_failed");
         assert_eq!(containment, "uncertain");
         assert_eq!(lease, "granted");
     }
@@ -8902,6 +8949,8 @@ mod tests {
         let boot = store.startup_identity.boot_id.as_ref().unwrap().0.clone();
         let generation = store.daemon_generation.to_string();
         let claims = serde_json::to_string(&job_spec.resources).unwrap();
+        let oversized_code = "x".repeat(DOCTOR_CODE_MAX_BYTES + 1);
+        let oversized_detail = "é".repeat(DOCTOR_DETAIL_MAX_BYTES + 1);
         let transaction = store.connection.transaction().unwrap();
         for role_index in 1..257_u32 {
             let invocation = InvocationId::new(store.store_uuid);
@@ -8925,7 +8974,7 @@ mod tests {
                         version, incident_sequence, reason_code, detail, opened_ms,
                         retained_claims_json
                      ) VALUES (?1, ?2, 'uncertain', ?3, ?4, ?5, 'windows_job_object',
-                               1, ?6, 'bounded_fixture', 'bounded incident', ?7, ?8)",
+                               1, ?6, ?9, ?10, ?7, ?8)",
                     params![
                         containment.entity_uuid().to_string(),
                         invocation.entity_uuid().to_string(),
@@ -8935,15 +8984,50 @@ mod tests {
                         role_index + 1,
                         now_millis(),
                         claims,
+                        oversized_code,
+                        oversized_detail,
                     ],
                 )
                 .unwrap();
         }
         transaction.commit().unwrap();
+        let changes_before_observation = store.connection.total_changes();
+        let first_turn = store.reconciliation_candidates(0, u32::MAX).unwrap();
+        assert_eq!(first_turn.len(), 32);
+        let turn_cursor = first_turn.last().unwrap().incident_sequence;
+        let second_turn = store
+            .reconciliation_candidates(turn_cursor, u32::MAX)
+            .unwrap();
+        assert_eq!(second_turn.len(), 32);
+        assert!(
+            second_turn
+                .first()
+                .is_some_and(|candidate| candidate.incident_sequence > turn_cursor)
+        );
+        store.record_reconciliation_observation(
+            first_turn[0].containment_id,
+            ReconciliationResult::BoundaryNotEmpty,
+        );
+        assert_eq!(store.connection.total_changes(), changes_before_observation);
         let first = store.doctor("test", None, None).unwrap();
         assert_eq!(first.incidents.total_unresolved, 257);
         assert_eq!(first.incidents.incidents.len(), 256);
         assert!(first.incidents.truncated);
+        assert!(first.incidents.incidents.iter().all(|incident| {
+            incident.reason_code.len() <= DOCTOR_CODE_MAX_BYTES
+                && incident.reason_code.is_ascii()
+                && incident.detail.len() <= DOCTOR_DETAIL_MAX_BYTES
+                && incident.detail.is_char_boundary(incident.detail.len())
+        }));
+        assert!(first.checks.iter().all(|check| {
+            check.code.len() <= DOCTOR_CODE_MAX_BYTES
+                && check.code.is_ascii()
+                && check.summary.len() <= DOCTOR_SUMMARY_MAX_BYTES
+                && check
+                    .remediation
+                    .as_ref()
+                    .is_none_or(|text| text.len() <= DOCTOR_DETAIL_MAX_BYTES)
+        }));
         assert!(serde_json::to_vec(&first).unwrap().len() < 16 * 1024 * 1024);
         let tail = store
             .doctor("test", first.incidents.next_cursor, None)

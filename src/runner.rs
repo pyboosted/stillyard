@@ -45,6 +45,9 @@ pub(crate) fn clear_containment_registration(invocation_id: crate::InvocationId)
     }
 }
 
+#[cfg(not(windows))]
+pub(crate) fn clear_containment_registration(_invocation_id: crate::InvocationId) {}
+
 #[cfg(windows)]
 fn transfer_containment_to_reconciler(
     registration: ContainmentRegistration,
@@ -112,6 +115,13 @@ pub(crate) fn inspect_owned_containment(
     }))
 }
 
+#[cfg(not(windows))]
+pub(crate) fn inspect_owned_containment(
+    _invocation_id: crate::InvocationId,
+) -> std::io::Result<Option<crate::ReconciliationResult>> {
+    Ok(None)
+}
+
 #[cfg(windows)]
 fn register_containment(
     invocation_id: crate::InvocationId,
@@ -165,12 +175,27 @@ pub(crate) fn process_in_containment(
     Ok(Some(member != 0))
 }
 
-pub(crate) fn run(job: PreparedJob, store: Arc<Mutex<Store>>, endpoint: Arc<str>) {
+#[cfg(not(windows))]
+pub(crate) fn process_in_containment(
+    _invocation_id: crate::InvocationId,
+    _process_handle: usize,
+) -> std::io::Result<Option<bool>> {
+    Ok(None)
+}
+
+pub(crate) type ReconciliationWake = Arc<dyn Fn() + Send + Sync>;
+
+pub(crate) fn run(
+    job: PreparedJob,
+    store: Arc<Mutex<Store>>,
+    endpoint: Arc<str>,
+    reconciliation_wake: ReconciliationWake,
+) {
     #[cfg(windows)]
-    windows::run(&job, &store, &endpoint);
+    windows::run_with_wake(&job, &store, &endpoint, &reconciliation_wake);
 
     #[cfg(not(windows))]
-    let _ = (job, store, endpoint);
+    let _ = (job, store, endpoint, reconciliation_wake);
 }
 
 #[cfg(windows)]
@@ -199,11 +224,13 @@ mod windows {
         CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_REPARSE_POINT, FILE_SHARE_READ,
         FILE_SHARE_WRITE, GetFileAttributesW, INVALID_FILE_ATTRIBUTES, OPEN_EXISTING,
     };
+    use windows_sys::Win32::System::IO::{CreateIoCompletionPort, GetQueuedCompletionStatus};
     use windows_sys::Win32::System::JobObjects::{
-        CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOBOBJECT_ASSOCIATE_COMPLETION_PORT,
         JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-        JobObjectBasicAccountingInformation, JobObjectExtendedLimitInformation,
-        QueryInformationJobObject, SetInformationJobObject, TerminateJobObject,
+        JobObjectAssociateCompletionPortInformation, JobObjectBasicAccountingInformation,
+        JobObjectExtendedLimitInformation, QueryInformationJobObject, SetInformationJobObject,
+        TerminateJobObject,
     };
     use windows_sys::Win32::System::Pipes::CreatePipe;
     use windows_sys::Win32::System::Threading::{
@@ -224,6 +251,10 @@ mod windows {
     }
 
     struct OwnedHandle(HANDLE);
+
+    // SAFETY: OwnedHandle has exclusive ownership and Windows kernel handles may be transferred
+    // between threads. Drop still closes the value exactly once on the receiving thread.
+    unsafe impl Send for OwnedHandle {}
 
     impl OwnedHandle {
         fn new(handle: HANDLE) -> std::io::Result<Self> {
@@ -335,6 +366,7 @@ mod windows {
     struct RunProgress {
         user_code_released: bool,
         cleanup_proven: bool,
+        uncertainty_persisted: bool,
         exit_code: Option<i32>,
         timed_out: bool,
         canceled: bool,
@@ -342,12 +374,17 @@ mod windows {
 
     type RunResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-    pub(super) fn run(job: &PreparedJob, store: &Arc<Mutex<Store>>, endpoint: &str) {
+    pub(super) fn run_with_wake(
+        job: &PreparedJob,
+        store: &Arc<Mutex<Store>>,
+        endpoint: &str,
+        reconciliation_wake: &super::ReconciliationWake,
+    ) {
         let mut progress = RunProgress {
             cleanup_proven: true,
             ..RunProgress::default()
         };
-        let primary = match run_inner(job, store, endpoint, &mut progress) {
+        let primary = match run_inner(job, store, endpoint, &mut progress, reconciliation_wake) {
             Ok(result) => result,
             Err(error) => {
                 finish_failed_invocation(job, store, &progress, false);
@@ -408,7 +445,13 @@ mod windows {
                     cleanup_proven: true,
                     ..RunProgress::default()
                 };
-                let result = match run_inner(&postcondition, store, endpoint, &mut post_progress) {
+                let result = match run_inner(
+                    &postcondition,
+                    store,
+                    endpoint,
+                    &mut post_progress,
+                    reconciliation_wake,
+                ) {
                     Ok(result) => result,
                     Err(error) => {
                         finish_failed_invocation(&postcondition, store, &post_progress, true);
@@ -496,6 +539,12 @@ mod windows {
                 report_runner_error(job, &error);
             }
         }
+    }
+
+    #[cfg(test)]
+    fn run(job: &PreparedJob, store: &Arc<Mutex<Store>>, endpoint: &str) {
+        let wake: super::ReconciliationWake = Arc::new(|| {});
+        run_with_wake(job, store, endpoint, &wake);
     }
 
     fn pending_stop_verdict(
@@ -594,7 +643,13 @@ mod windows {
                 // The unproven path transfers its still-owned Job Object to the reconciler before
                 // returning. Never remove that authority merely because the outer settlement
                 // observes or retries the durable uncertain transition.
-                let _ = locked.mark_uncertain(job, progress.exit_code, "interrupted");
+                if !progress.uncertainty_persisted {
+                    if let Err(error) =
+                        locked.mark_uncertain(job, progress.exit_code, "interrupted")
+                    {
+                        report_runner_error(job, &error);
+                    }
+                }
             }
         }
     }
@@ -613,6 +668,7 @@ mod windows {
         store: &Arc<Mutex<Store>>,
         endpoint: &str,
         progress: &mut RunProgress,
+        reconciliation_wake: &super::ReconciliationWake,
     ) -> RunResult<(u32, bool)> {
         validate_paths(&job.spec.executable, &job.spec.working_directory)?;
         let mut executable_file = OpenOptions::new()
@@ -621,7 +677,7 @@ mod windows {
             .open(&job.spec.executable)
             .map_err(|error| io_context("locking executable for launch", error))?;
         let executable_hash = hash_reader(&mut executable_file)?;
-        let job_object = create_job_object()?;
+        let (job_object, completion_port) = create_job_object()?;
         let registration = super::register_containment(job.invocation_id, job_object.raw())?;
         progress.cleanup_proven = true;
         let (stdout_read, stdout_write) = create_inherited_pipe()?;
@@ -687,10 +743,17 @@ mod windows {
                         progress.cleanup_proven =
                             wait_job_empty(job_object.raw(), Duration::from_secs(30)).is_ok();
                         if !progress.cleanup_proven {
-                            if let Ok(mut locked) = store.lock() {
-                                let _ =
-                                    locked.mark_uncertain(job, progress.exit_code, "interrupted");
-                            }
+                            store
+                                .lock()
+                                .map_err(|_| {
+                                    StoreError::InvalidState("store mutex poisoned".into())
+                                })?
+                                .mark_uncertain(job, progress.exit_code, "interrupted")?;
+                            progress.uncertainty_persisted = true;
+                            spawn_boundary_empty_notification(
+                                completion_port,
+                                Arc::clone(reconciliation_wake),
+                            )?;
                             super::transfer_containment_to_reconciler(
                                 registration,
                                 job.invocation_id,
@@ -898,6 +961,8 @@ mod windows {
                 .lock()
                 .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
                 .mark_uncertain(job, progress.exit_code, "interrupted")?;
+            progress.uncertainty_persisted = true;
+            spawn_boundary_empty_notification(completion_port, Arc::clone(reconciliation_wake))?;
             super::transfer_containment_to_reconciler(
                 registration,
                 job.invocation_id,
@@ -920,7 +985,7 @@ mod windows {
         Ok(result)
     }
 
-    fn create_job_object() -> std::io::Result<OwnedHandle> {
+    fn create_job_object() -> std::io::Result<(OwnedHandle, OwnedHandle)> {
         // SAFETY: null attributes/name request a fresh unnamed Job Object as required by R-RUN-2.
         let handle = unsafe { CreateJobObjectW(null(), null()) };
         let handle = OwnedHandle::new(handle)?;
@@ -938,7 +1003,63 @@ mod windows {
         if set == 0 {
             return Err(std::io::Error::last_os_error());
         }
-        Ok(handle)
+        // SAFETY: INVALID_HANDLE_VALUE requests a fresh completion port.
+        let completion_port = OwnedHandle::new(unsafe {
+            CreateIoCompletionPort(INVALID_HANDLE_VALUE, null_mut(), 0, 1)
+        })?;
+        let association = JOBOBJECT_ASSOCIATE_COMPLETION_PORT {
+            CompletionKey: null_mut(),
+            CompletionPort: completion_port.raw(),
+        };
+        // SAFETY: both handles are valid and association has the matching information layout.
+        if unsafe {
+            SetInformationJobObject(
+                handle.raw(),
+                JobObjectAssociateCompletionPortInformation,
+                (&raw const association).cast::<c_void>(),
+                size_of::<JOBOBJECT_ASSOCIATE_COMPLETION_PORT>() as u32,
+            )
+        } == 0
+        {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok((handle, completion_port))
+    }
+
+    fn spawn_boundary_empty_notification(
+        completion_port: OwnedHandle,
+        wake: super::ReconciliationWake,
+    ) -> std::io::Result<()> {
+        std::thread::Builder::new()
+            .name("stillyard-containment-empty".into())
+            .spawn(move || {
+                const JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO: u32 = 4;
+                loop {
+                    let mut message = 0_u32;
+                    let mut completion_key = 0_usize;
+                    let mut overlapped = null_mut();
+                    // SAFETY: the completion port remains owned by this thread and all outputs are
+                    // writable. The wait is event-driven and ends when the boundary becomes empty.
+                    let received = unsafe {
+                        GetQueuedCompletionStatus(
+                            completion_port.raw(),
+                            &mut message,
+                            &mut completion_key,
+                            &mut overlapped,
+                            u32::MAX,
+                        )
+                    };
+                    if message == JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO {
+                        wake();
+                        break;
+                    }
+                    if received == 0 && overlapped.is_null() {
+                        wake();
+                        break;
+                    }
+                }
+            })
+            .map(|_| ())
     }
 
     fn io_context(context: &str, error: std::io::Error) -> std::io::Error {
@@ -1357,6 +1478,45 @@ mod windows {
                 process_in_containment(invocation_id, INVALID_HANDLE_VALUE as usize).unwrap(),
                 None
             );
+        }
+
+        #[test]
+        fn alpha8_empty_owned_boundary_is_proven_and_notifies_reconciliation() {
+            let (job_object, completion_port) = create_job_object().unwrap();
+            let invocation_id = InvocationId::new(Uuid::now_v7());
+            let registration = register_containment(invocation_id, job_object.raw()).unwrap();
+            assert_eq!(
+                crate::runner::inspect_owned_containment(invocation_id).unwrap(),
+                Some(crate::ReconciliationResult::ProvenEmpty)
+            );
+
+            // Queue the same completion message Windows emits when the Job's active-process count
+            // reaches zero, then prove the event-driven waiter wakes promptly.
+            // SAFETY: completion_port is valid and no OVERLAPPED payload is required for Job
+            // notification packets.
+            assert_ne!(
+                unsafe {
+                    windows_sys::Win32::System::IO::PostQueuedCompletionStatus(
+                        completion_port.raw(),
+                        4,
+                        0,
+                        std::ptr::null_mut(),
+                    )
+                },
+                0
+            );
+            let (sender, receiver) = std::sync::mpsc::channel();
+            spawn_boundary_empty_notification(
+                completion_port,
+                Arc::new(move || {
+                    let _ = sender.send(());
+                }),
+            )
+            .unwrap();
+            receiver.recv_timeout(Duration::from_secs(2)).unwrap();
+
+            drop(registration);
+            clear_containment_registration(invocation_id);
         }
 
         #[test]
@@ -1801,7 +1961,9 @@ mod windows {
                 cleanup_proven: true,
                 ..RunProgress::default()
             };
-            let result = run_inner(&postcondition, &store, TEST_ENDPOINT, &mut progress).unwrap();
+            let wake: crate::runner::ReconciliationWake = Arc::new(|| {});
+            let result =
+                run_inner(&postcondition, &store, TEST_ENDPOINT, &mut progress, &wake).unwrap();
             assert!(progress.canceled);
             assert!(
                 !progress.user_code_released,

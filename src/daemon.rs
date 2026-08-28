@@ -663,7 +663,17 @@ impl Scheduler {
                 let spawned = std::thread::Builder::new()
                     .name(format!("stillyard-job-{}", job.job_id.entity_uuid()))
                     .spawn(move || {
-                        crate::runner::run(thread_job, worker_store, worker_endpoint);
+                        let wake_scheduler = Arc::downgrade(&worker_scheduler);
+                        crate::runner::run(
+                            thread_job,
+                            worker_store,
+                            worker_endpoint,
+                            Arc::new(move || {
+                                if let Some(scheduler) = wake_scheduler.upgrade() {
+                                    scheduler.wake();
+                                }
+                            }),
+                        );
                         worker_scheduler.wake();
                     });
                 if let Err(error) = spawned {
@@ -994,10 +1004,14 @@ fn force_clear_containment(
             return Ok(result);
         }
         if attempt == 0 {
-            candidate = store
+            let guard = store
                 .lock()
-                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
-                .reconciliation_candidate(containment_id)?;
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+            if let Some(result) = guard.persisted_clearance(containment_id)? {
+                return Ok(result);
+            }
+            candidate = guard.reconciliation_candidate(containment_id)?;
+            drop(guard);
             if candidate.host_id.as_ref() != Some(&context.0) {
                 return Err(StoreError::OperationRejected {
                     code: "containment_host_mismatch".into(),
@@ -1363,6 +1377,11 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>, first_pipe: OwnedPipe) -
         u64::from(value.dwLowDateTime) | (u64::from(value.dwHighDateTime) << 32)
     }
 
+    let peer_identity_context = store.lock().ok().and_then(|guard| {
+        guard
+            .reconciliation_context()
+            .map(|(host_id, boot_id, _)| (host_id, boot_id))
+    });
     let mut pending_pipe = Some(first_pipe);
     loop {
         let pipe = match pending_pipe.take() {
@@ -1424,16 +1443,14 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>, first_pipe: OwnedPipe) -
         }
         let store = Arc::clone(&store);
         let scheduler = Arc::clone(&scheduler);
-        let peer_identity = store
-            .lock()
-            .ok()
-            .and_then(|guard| guard.reconciliation_context())
-            .and_then(|(host_id, boot_id, _)| {
+        let peer_identity = peer_identity_context
+            .as_ref()
+            .and_then(|(host_id, boot_id)| {
                 crate::identity::process_identity_from_handle(
                     peer_process,
                     peer_pid,
-                    &host_id,
-                    &boot_id,
+                    host_id,
+                    boot_id,
                 )
                 .ok()
             });
@@ -1812,6 +1829,73 @@ mod tests {
                 Some(crate::ContainmentResolution::Reboot),
                 crate::ReconciliationResult::PriorBoot
             )
+        );
+    }
+
+    #[test]
+    fn alpha8_prior_generation_requires_absent_daemon_and_exact_root_evidence() {
+        let startup = crate::identity::probe_startup_identity();
+        let host = startup.host_id.unwrap();
+        let boot = startup.boot_id.unwrap();
+        let current_process = startup.daemon_process.unwrap();
+        let absent_daemon = match current_process.clone() {
+            crate::ProcessIdentity::Windows {
+                host_id,
+                boot_id,
+                pid,
+                creation_filetime_100ns,
+            } => crate::ProcessIdentity::Windows {
+                host_id,
+                boot_id,
+                pid,
+                creation_filetime_100ns: creation_filetime_100ns.saturating_add(1),
+            },
+            _ => unreachable!("Windows test requires Windows process identity"),
+        };
+        let store_uuid = uuid::Uuid::now_v7();
+        let current_generation = uuid::Uuid::now_v7();
+        let current = (host.clone(), boot.clone(), current_generation);
+        let candidate = crate::store::ReconciliationCandidate {
+            containment_id: crate::ContainmentId::new(store_uuid),
+            invocation_id: crate::InvocationId::new(store_uuid),
+            attempt_id: crate::AttemptId::new(store_uuid),
+            version: 1,
+            host_id: Some(host.clone()),
+            boot_id: Some(boot),
+            daemon_generation: Some(uuid::Uuid::now_v7()),
+            root_pid_recorded: false,
+            root_identity: None,
+            prior_daemon_identity: Some(absent_daemon),
+            incident_sequence: 1,
+        };
+        assert_eq!(
+            probe_reconciliation_candidate(&candidate, &current),
+            (
+                Some(crate::ContainmentResolution::ProvenEmpty),
+                crate::ReconciliationResult::IdentityAbsent
+            )
+        );
+
+        let mut live_root = candidate.clone();
+        live_root.root_pid_recorded = true;
+        live_root.root_identity = Some(current_process);
+        assert_eq!(
+            probe_reconciliation_candidate(&live_root, &current),
+            (None, crate::ReconciliationResult::StillResolves)
+        );
+
+        let mut pid_only = candidate.clone();
+        pid_only.root_pid_recorded = true;
+        assert_eq!(
+            probe_reconciliation_candidate(&pid_only, &current),
+            (None, crate::ReconciliationResult::IdentityUnavailable)
+        );
+
+        let mut foreign_host = candidate;
+        foreign_host.host_id = Some(crate::HostId("foreign".into()));
+        assert_eq!(
+            probe_reconciliation_candidate(&foreign_host, &current),
+            (None, crate::ReconciliationResult::IdentityUnavailable)
         );
     }
 

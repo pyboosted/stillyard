@@ -139,8 +139,8 @@ fn probe_boot_id() -> Result<BootId> {
     let module = unsafe { GetModuleHandleW(module_name.as_ptr()) };
     if module.is_null() {
         return Err(Error::Unavailable(format!(
-            "cannot resolve ntdll for boot identity: {}",
-            std::io::Error::last_os_error()
+            "cannot resolve ntdll for boot identity: OS error {}",
+            std::io::Error::last_os_error().raw_os_error().unwrap_or(0)
         )));
     }
     // SAFETY: the export name is static and NUL-terminated.
@@ -214,8 +214,8 @@ pub(crate) fn process_identity_from_handle(
     // SAFETY: handle identifies a process and all FILETIME outputs are writable.
     if unsafe { GetProcessTimes(handle, &mut creation, &mut exit, &mut kernel, &mut user) } == 0 {
         return Err(Error::Unavailable(format!(
-            "cannot read process creation identity for PID {pid}: {}",
-            std::io::Error::last_os_error()
+            "cannot read process creation identity for PID {pid}: OS error {}",
+            std::io::Error::last_os_error().raw_os_error().unwrap_or(0)
         )));
     }
     Ok(ProcessIdentity::Windows {
@@ -276,20 +276,19 @@ pub(crate) fn probe_recorded_process(
     let terminated = unsafe { WaitForSingleObject(handle, 0) == WAIT_OBJECT_0 };
     // SAFETY: OpenProcess returned this owned handle.
     unsafe { CloseHandle(handle) };
-    if terminated {
-        return ReconciliationResult::IdentityAbsent;
-    }
     match observed {
         Ok(ProcessIdentity::Windows {
             creation_filetime_100ns: observed_creation,
             ..
-        }) if observed_creation == *creation_filetime_100ns => ReconciliationResult::StillResolves,
-        Ok(_) => ReconciliationResult::PidReused,
+        }) if observed_creation != *creation_filetime_100ns => ReconciliationResult::PidReused,
+        Ok(_) if terminated => ReconciliationResult::IdentityAbsent,
+        Ok(_) => ReconciliationResult::StillResolves,
         Err(_) => ReconciliationResult::IdentityUnavailable,
     }
 }
 
 #[cfg(not(windows))]
+#[allow(dead_code)]
 pub(crate) fn process_identity_from_handle(
     _handle: usize,
     _pid: u32,
