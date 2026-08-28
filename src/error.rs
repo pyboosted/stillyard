@@ -16,6 +16,9 @@ pub enum Error {
     #[error("managed wait rejected ({code}): {detail}")]
     ManagedWaitRejected { code: String, detail: String },
 
+    #[error("operation rejected ({code}): {detail}")]
+    Rejected { code: String, detail: String },
+
     #[error("I/O failed: {0}")]
     Io(#[from] std::io::Error),
 

@@ -6,6 +6,7 @@ mod client;
 pub(crate) mod daemon;
 mod error;
 mod filesystem;
+mod identity;
 mod model;
 #[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) mod protocol;
@@ -17,13 +18,18 @@ mod spec;
 pub(crate) mod store;
 
 pub use api::{
-    AttemptSnapshot, BatchJobReceipt, BatchReceipt, Blocker, CancellationToken,
-    ContainmentSnapshot, ContainmentState, DaemonSnapshot, Estimate, EstimateConfidence,
-    EventCursor, EventGap, ExitClassification, InvocationRole, InvocationSnapshot, InvocationState,
+    AttemptSnapshot, BatchJobReceipt, BatchReceipt, Blocker, BootId, CancellationToken,
+    ClearContainmentResult, ClearanceOrigin, ContainmentIncidentCursor,
+    ContainmentIncidentSnapshot, ContainmentResolution, ContainmentResolutionAudit,
+    ContainmentSnapshot, ContainmentState, DaemonSnapshot, DoctorBoundary, DoctorCheck,
+    DoctorCheckStatus, DoctorHostSnapshot, DoctorIncidentPage, DoctorOverallStatus, DoctorSnapshot,
+    DoctorStoreSnapshot, Estimate, EstimateConfidence, EventCursor, EventGap, ExitClassification,
+    ForcedClearanceAudit, HostId, InvocationRole, InvocationSnapshot, InvocationState,
     JobListCursor, JobListPage, JobReceipt, JobSelector, JobSnapshot, JobSummary, LogChunk,
     LogStream, MAX_OBSERVATION_PAGE, MAX_WAIT_STREAM_JOBS, ManagedParent,
-    ObservationCursorParseError, ObservationFrame, RecoveryResult, SchedulerEvent,
-    SchedulerEventKind, SubmissionContext, SubmitOptions, WaitStreamItem,
+    ObservationCursorParseError, ObservationFrame, ProcessIdentity, ReconciliationResult,
+    RecoveryResult, SchedulerEvent, SchedulerEventKind, SubmissionContext, SubmitOptions,
+    WaitStreamItem,
 };
 pub use client::{Client, ClientBuilder, LogFollower, ObservationStream, WaitStream};
 pub use error::{Error, Result};

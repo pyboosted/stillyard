@@ -5,8 +5,8 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 use stillyard::{
-    Client, DaemonSnapshot, EnvironmentSpec, Error, JobId, JobSpec, LogStream, ResourceClaims,
-    RetryPolicy, SPEC_VERSION, StdinSpec, SubmitOptions,
+    Client, DaemonSnapshot, DoctorSnapshot, EnvironmentSpec, Error, JobId, JobSpec, LogStream,
+    ResourceClaims, RetryPolicy, SPEC_VERSION, StdinSpec, SubmitOptions,
 };
 use uuid::Uuid;
 
@@ -229,6 +229,25 @@ fn pinned_isolated_daemons_coexist_and_own_both_coordinates() {
         std::fs::canonicalize(&store_b).unwrap()
     );
     assert_ne!(status_a.store_uuid, status_b.store_uuid);
+    let doctor = client_b
+        .doctor(None, None, Instant::now() + Duration::from_secs(2), None)
+        .unwrap();
+    assert_eq!(doctor.daemon, status_b);
+    assert!(doctor.daemon.process_identity.is_some());
+    assert!(doctor.host.host_id.is_some());
+    assert!(doctor.host.boot_id.is_some());
+    let cli_doctor = Command::new(&pinned)
+        .args(["--endpoint", &endpoint_b, "doctor", "--json"])
+        .output()
+        .unwrap();
+    assert!(
+        cli_doctor.status.success(),
+        "doctor CLI failed: {}",
+        String::from_utf8_lossy(&cli_doctor.stderr)
+    );
+    let cli_doctor: DoctorSnapshot = serde_json::from_slice(&cli_doctor.stdout).unwrap();
+    assert_eq!(cli_doctor.daemon, doctor.daemon);
+    assert_eq!(cli_doctor.store, doctor.store);
 
     let nested = JobSpec {
         spec_version: SPEC_VERSION,

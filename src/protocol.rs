@@ -5,12 +5,13 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    BatchReceipt, BatchSpec, DaemonSnapshot, EventCursor, JobId, JobListCursor, JobListPage,
-    JobReceipt, JobSelector, JobSnapshot, JobSpec, LogChunk, LogStream, ManagedParent,
-    ObservationFrame, SubmissionContext,
+    BatchReceipt, BatchSpec, ClearContainmentResult, ContainmentId, ContainmentIncidentCursor,
+    DaemonSnapshot, DoctorSnapshot, EventCursor, JobId, JobListCursor, JobListPage, JobReceipt,
+    JobSelector, JobSnapshot, JobSpec, LogChunk, LogStream, ManagedParent, ObservationFrame,
+    SubmissionContext,
 };
 
-pub(crate) const PROTOCOL_VERSION: u32 = 10;
+pub(crate) const PROTOCOL_VERSION: u32 = 11;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -23,7 +24,7 @@ pub(crate) struct StagedInputRef {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Request {
-    Ping,
+    Ping {},
     StageBegin {
         upload_id: Uuid,
         expected_sha256: String,
@@ -92,11 +93,18 @@ pub(crate) enum Request {
         offset: u64,
         limit: u32,
     },
-    DaemonStatus,
+    DaemonStatus {},
+    Doctor {
+        cursor: Option<ContainmentIncidentCursor>,
+        limit: Option<u32>,
+    },
+    ForceClearContainment {
+        containment_id: ContainmentId,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "result", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(tag = "result", rename_all = "snake_case")]
 pub(crate) enum Response {
     Pong {
         protocol_version: u32,
@@ -122,6 +130,8 @@ pub(crate) enum Response {
     },
     Logs(LogChunk),
     DaemonStatus(DaemonSnapshot),
+    Doctor(Box<DoctorSnapshot>),
+    ContainmentCleared(ClearContainmentResult),
     Error {
         code: String,
         message: String,
@@ -164,10 +174,28 @@ mod tests {
 
     #[test]
     fn frame_round_trip() {
-        let request = Request::Ping;
+        let request = Request::Ping {};
         let mut bytes = Vec::new();
         write_frame(&mut bytes, &request).unwrap();
         let decoded: Request = read_frame(bytes.as_slice()).unwrap();
-        assert!(matches!(decoded, Request::Ping));
+        assert!(matches!(decoded, Request::Ping {}));
+    }
+
+    #[test]
+    fn alpha8_responses_are_additive_but_requests_remain_strict() {
+        let response: Response = serde_json::from_value(serde_json::json!({
+            "result": "pong",
+            "protocol_version": PROTOCOL_VERSION,
+            "future_evidence": true
+        }))
+        .unwrap();
+        assert!(matches!(response, Response::Pong { .. }));
+        assert!(
+            serde_json::from_value::<Request>(serde_json::json!({
+                "operation": "ping",
+                "future_authority": true
+            }))
+            .is_err()
+        );
     }
 }

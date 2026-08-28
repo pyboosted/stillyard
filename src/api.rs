@@ -380,25 +380,438 @@ pub enum InvocationState {
     Resolved,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[non_exhaustive]
-#[serde(rename_all = "snake_case")]
 pub enum ContainmentState {
     Creating,
     Live,
     Empty,
     Uncertain,
+    Cleared,
+    Unknown(String),
+}
+
+macro_rules! string_enum {
+    ($name:ident { $($variant:ident => $value:literal),+ $(,)? }) => {
+        impl Serialize for $name {
+            fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                serializer.serialize_str(match self {
+                    $(Self::$variant => $value,)+
+                    Self::Unknown(value) => value,
+                })
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                let value = String::deserialize(deserializer)?;
+                Ok(match value.as_str() {
+                    $($value => Self::$variant,)+
+                    _ => Self::Unknown(value),
+                })
+            }
+        }
+    };
+}
+
+string_enum!(ContainmentState {
+    Creating => "creating",
+    Live => "live",
+    Empty => "empty",
+    Uncertain => "uncertain",
+    Cleared => "cleared",
+});
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema)]
+#[serde(transparent)]
+pub struct BootId(pub String);
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema)]
+#[serde(transparent)]
+pub struct HostId(pub String);
+
+#[derive(Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[non_exhaustive]
+pub enum ProcessIdentity {
+    Windows {
+        host_id: HostId,
+        boot_id: BootId,
+        pid: u32,
+        creation_filetime_100ns: u64,
+    },
+    Unknown {
+        unknown_platform: String,
+        evidence: serde_json::Value,
+    },
+}
+
+impl Serialize for ProcessIdentity {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeMap;
+
+        match self {
+            Self::Windows {
+                host_id,
+                boot_id,
+                pid,
+                creation_filetime_100ns,
+            } => {
+                let mut map = serializer.serialize_map(Some(5))?;
+                map.serialize_entry("platform", "windows")?;
+                map.serialize_entry("host_id", host_id)?;
+                map.serialize_entry("boot_id", boot_id)?;
+                map.serialize_entry("pid", pid)?;
+                map.serialize_entry("creation_filetime_100ns", creation_filetime_100ns)?;
+                map.end()
+            }
+            Self::Unknown {
+                unknown_platform,
+                evidence,
+            } => {
+                let object = evidence.as_object().ok_or_else(|| {
+                    serde::ser::Error::custom("unknown process identity evidence must be an object")
+                })?;
+                let mut map = serializer.serialize_map(Some(object.len() + 1))?;
+                map.serialize_entry("platform", unknown_platform)?;
+                for (key, value) in object {
+                    if key != "platform" {
+                        map.serialize_entry(key, value)?;
+                    }
+                }
+                map.end()
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ProcessIdentity {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct WindowsEvidence {
+            host_id: HostId,
+            boot_id: BootId,
+            pid: u32,
+            creation_filetime_100ns: u64,
+        }
+
+        struct IdentityVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for IdentityVisitor {
+            type Value = (String, serde_json::Map<String, serde_json::Value>);
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a process identity object with exactly one platform tag")
+            }
+
+            fn visit_map<A>(self, mut access: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut platform = None;
+                let mut evidence = serde_json::Map::new();
+                while let Some(key) = access.next_key::<String>()? {
+                    if key == "platform" {
+                        if platform.is_some() {
+                            return Err(serde::de::Error::duplicate_field("platform"));
+                        }
+                        platform = Some(access.next_value::<String>()?);
+                    } else {
+                        if evidence.contains_key(&key) {
+                            return Err(serde::de::Error::custom(format!(
+                                "duplicate process identity field {key}"
+                            )));
+                        }
+                        evidence.insert(key, access.next_value()?);
+                    }
+                }
+                Ok((
+                    platform.ok_or_else(|| serde::de::Error::missing_field("platform"))?,
+                    evidence,
+                ))
+            }
+        }
+
+        let (platform, object) = deserializer.deserialize_map(IdentityVisitor)?;
+        if platform == "windows" {
+            let evidence: WindowsEvidence =
+                serde_json::from_value(serde_json::Value::Object(object))
+                    .map_err(serde::de::Error::custom)?;
+            Ok(Self::Windows {
+                host_id: evidence.host_id,
+                boot_id: evidence.boot_id,
+                pid: evidence.pid,
+                creation_filetime_100ns: evidence.creation_filetime_100ns,
+            })
+        } else {
+            Ok(Self::Unknown {
+                unknown_platform: platform,
+                evidence: serde_json::Value::Object(object),
+            })
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[non_exhaustive]
+pub enum DoctorCheckStatus {
+    Pass,
+    Warning,
+    Fail,
+    Unknown(String),
+}
+string_enum!(DoctorCheckStatus {
+    Pass => "pass",
+    Warning => "warning",
+    Fail => "fail",
+});
+
+#[derive(Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[non_exhaustive]
+pub enum DoctorOverallStatus {
+    Healthy,
+    AttentionRequired,
+    Unsafe,
+    Unknown(String),
+}
+string_enum!(DoctorOverallStatus {
+    Healthy => "healthy",
+    AttentionRequired => "attention_required",
+    Unsafe => "unsafe",
+});
+
+#[derive(Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[non_exhaustive]
+pub enum ContainmentResolution {
+    ProvenEmpty,
+    Reboot,
+    ForcedRiskAcceptance,
+    Unknown(String),
+}
+string_enum!(ContainmentResolution {
+    ProvenEmpty => "proven_empty",
+    Reboot => "reboot",
+    ForcedRiskAcceptance => "forced_risk_acceptance",
+});
+
+#[derive(Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[non_exhaustive]
+pub enum ReconciliationResult {
+    StillResolves,
+    BoundaryNotEmpty,
+    BoundaryUninspectable,
+    IdentityUnavailable,
+    IdentityAbsent,
+    PidReused,
+    ProvenEmpty,
+    PriorBoot,
+    Unknown(String),
+}
+string_enum!(ReconciliationResult {
+    StillResolves => "still_resolves",
+    BoundaryNotEmpty => "boundary_not_empty",
+    BoundaryUninspectable => "boundary_uninspectable",
+    IdentityUnavailable => "identity_unavailable",
+    IdentityAbsent => "identity_absent",
+    PidReused => "pid_reused",
+    ProvenEmpty => "proven_empty",
+    PriorBoot => "prior_boot",
+});
+
+#[derive(Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[non_exhaustive]
+pub enum ClearanceOrigin {
+    Automatic,
+    Forced,
+    Unknown(String),
+}
+string_enum!(ClearanceOrigin {
+    Automatic => "automatic",
+    Forced => "forced",
+});
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct ForcedClearanceAudit {
+    pub requested_unix_millis: i64,
+    pub requester: ProcessIdentity,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
-#[serde(deny_unknown_fields)]
+pub struct ContainmentResolutionAudit {
+    pub resolved_unix_millis: i64,
+    pub daemon_generation: Uuid,
+    pub resolution: ContainmentResolution,
+    pub last_reconciliation: ReconciliationResult,
+    pub origin: ClearanceOrigin,
+    pub forced: Option<ForcedClearanceAudit>,
+    pub lease_released: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct ContainmentIncidentSnapshot {
+    pub incident_id: ContainmentId,
+    pub incident_sequence: u64,
+    pub containment_id: ContainmentId,
+    pub job_id: JobId,
+    pub attempt_id: AttemptId,
+    pub invocation_id: InvocationId,
+    pub state: ContainmentState,
+    pub reason_code: String,
+    pub detail: String,
+    pub opened_unix_millis: i64,
+    pub last_reconciled_unix_millis: Option<i64>,
+    pub last_reconciliation: Option<ReconciliationResult>,
+    pub root_identity: Option<ProcessIdentity>,
+    pub retained_claims: ResourceClaims,
+    pub resolution: Option<ContainmentResolution>,
+    pub resolved_unix_millis: Option<i64>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ContainmentIncidentCursor {
+    pub store_uuid: Uuid,
+    pub incident_sequence: u64,
+    pub containment_id: ContainmentId,
+}
+
+impl fmt::Display for ContainmentIncidentCursor {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "{}:{}:{}",
+            self.store_uuid,
+            self.incident_sequence,
+            self.containment_id.entity_uuid()
+        )
+    }
+}
+
+impl FromStr for ContainmentIncidentCursor {
+    type Err = ObservationCursorParseError;
+
+    fn from_str(value: &str) -> std::result::Result<Self, Self::Err> {
+        let mut parts = value.split(':');
+        let store_uuid = Uuid::parse_str(parts.next().ok_or(ObservationCursorParseError)?)
+            .map_err(|_| ObservationCursorParseError)?;
+        let incident_sequence = parts
+            .next()
+            .ok_or(ObservationCursorParseError)?
+            .parse()
+            .map_err(|_| ObservationCursorParseError)?;
+        let entity = Uuid::parse_str(parts.next().ok_or(ObservationCursorParseError)?)
+            .map_err(|_| ObservationCursorParseError)?;
+        if parts.next().is_some() {
+            return Err(ObservationCursorParseError);
+        }
+        Ok(Self {
+            store_uuid,
+            incident_sequence,
+            containment_id: ContainmentId::from_parts(store_uuid, entity),
+        })
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct DoctorIncidentPage {
+    pub total_unresolved: u64,
+    pub incidents: Vec<ContainmentIncidentSnapshot>,
+    pub truncated: bool,
+    pub next_cursor: Option<ContainmentIncidentCursor>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct DoctorCheck {
+    pub code: String,
+    pub status: DoctorCheckStatus,
+    pub summary: String,
+    pub remediation: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct DoctorBoundary {
+    pub code: String,
+    pub statement: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct DoctorHostSnapshot {
+    pub platform: String,
+    pub host_name: Option<String>,
+    pub host_id: Option<HostId>,
+    pub boot_id: Option<BootId>,
+    pub containment_strength: String,
+    pub session_survival: DoctorCheckStatus,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct DoctorStoreSnapshot {
+    pub store_uuid: Uuid,
+    pub schema_epoch: String,
+    pub bound_host_id: Option<HostId>,
+    pub filesystem: String,
+    pub sqlite_journal_mode: String,
+    pub sqlite_synchronous: String,
+    pub foreign_keys_enabled: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct DoctorSnapshot {
+    pub schema_version: u32,
+    pub observed_unix_millis: i64,
+    pub overall: DoctorOverallStatus,
+    pub daemon: DaemonSnapshot,
+    pub host: DoctorHostSnapshot,
+    pub store: DoctorStoreSnapshot,
+    pub checks: Vec<DoctorCheck>,
+    pub incidents: DoctorIncidentPage,
+    pub boundaries: Vec<DoctorBoundary>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct ClearContainmentResult {
+    pub schema_version: u32,
+    pub containment_id: ContainmentId,
+    pub prior_state: ContainmentState,
+    pub state: ContainmentState,
+    pub audit: ContainmentResolutionAudit,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 pub struct ContainmentSnapshot {
     pub containment_id: ContainmentId,
     pub state: ContainmentState,
     /// `windows_job_object` in v0.1; kept explicit for Linux v0.2 provenance.
     pub strength: String,
     pub incident_id: Option<ContainmentId>,
+    #[serde(default)]
+    pub incident: Option<ContainmentIncidentSnapshot>,
+    #[serde(default)]
+    pub resolution: Option<ContainmentResolution>,
+    #[serde(default)]
+    pub resolution_audit: Option<ContainmentResolutionAudit>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -412,13 +825,14 @@ pub enum ExitClassification {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
-#[serde(deny_unknown_fields)]
 pub struct InvocationSnapshot {
     pub invocation_id: InvocationId,
     pub role: InvocationRole,
     pub role_index: u32,
     pub state: InvocationState,
     pub root_pid: Option<u32>,
+    #[serde(default)]
+    pub root_identity: Option<ProcessIdentity>,
     pub root_exit_code: Option<i32>,
     pub exit_classification: Option<ExitClassification>,
     pub executable_hash: Option<String>,
@@ -432,7 +846,6 @@ pub struct InvocationSnapshot {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
-#[serde(deny_unknown_fields)]
 pub struct AttemptSnapshot {
     pub attempt_id: AttemptId,
     pub attempt_index: u32,
@@ -445,7 +858,6 @@ pub struct AttemptSnapshot {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
-#[serde(deny_unknown_fields)]
 pub struct JobSnapshot {
     pub job_id: JobId,
     pub submission_id: SubmissionId,
@@ -514,12 +926,13 @@ pub struct LogChunk {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
-#[serde(deny_unknown_fields)]
 pub struct DaemonSnapshot {
     pub store_uuid: Uuid,
     pub daemon_generation: Uuid,
     pub version: String,
     pub pid: u32,
+    #[serde(default)]
+    pub process_identity: Option<ProcessIdentity>,
     pub endpoint: String,
     pub store_path: PathBuf,
     pub config_path: PathBuf,
@@ -554,5 +967,61 @@ mod tests {
             serde_json::from_str::<SchedulerEventKind>("\"future_kind\"").unwrap(),
             SchedulerEventKind::Unknown
         );
+    }
+
+    #[test]
+    fn alpha8_unknown_safety_values_round_trip_without_authority() {
+        let state: ContainmentState = serde_json::from_str("\"future_state\"").unwrap();
+        assert_eq!(state, ContainmentState::Unknown("future_state".into()));
+        assert_eq!(serde_json::to_string(&state).unwrap(), "\"future_state\"");
+
+        let identity: ProcessIdentity = serde_json::from_value(serde_json::json!({
+            "platform": "linux_pidfd",
+            "pid": 17,
+            "start_ticks": 99
+        }))
+        .unwrap();
+        assert_eq!(
+            identity,
+            ProcessIdentity::Unknown {
+                unknown_platform: "linux_pidfd".into(),
+                evidence: serde_json::json!({"pid": 17, "start_ticks": 99}),
+            }
+        );
+        let encoded = serde_json::to_value(identity).unwrap();
+        assert_eq!(encoded["platform"], "linux_pidfd");
+        assert_eq!(
+            encoded
+                .as_object()
+                .unwrap()
+                .keys()
+                .filter(|key| *key == "platform")
+                .count(),
+            1
+        );
+        assert!(
+            serde_json::from_str::<ProcessIdentity>(
+                r#"{"platform":"future","platform":"windows","pid":1}"#
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn alpha8_incident_cursor_is_store_scoped_and_stable() {
+        let store_uuid = Uuid::now_v7();
+        let cursor = ContainmentIncidentCursor {
+            store_uuid,
+            incident_sequence: 37,
+            containment_id: ContainmentId::from_parts(store_uuid, Uuid::now_v7()),
+        };
+        assert_eq!(
+            cursor
+                .to_string()
+                .parse::<ContainmentIncidentCursor>()
+                .unwrap(),
+            cursor
+        );
+        assert!("bad:cursor".parse::<ContainmentIncidentCursor>().is_err());
     }
 }

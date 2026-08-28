@@ -20,8 +20,8 @@ The motivating agent-orchestration consumer and its boundary are documented in [
 
 ## Current status
 
-`0.1.0-alpha.7` contains seven bounded Windows vertical slices and its Stillyard-side live
-observation implementation has passed focused external review:
+`0.1.0-alpha.8` contains the delivered Windows slices through operational diagnostics and
+containment recovery:
 
 - a runtime-neutral blocking Rust client with deadlines and cancellation;
 - a framed, owner-only local named-pipe protocol and detached singleton daemon;
@@ -65,21 +65,27 @@ observation implementation has passed focused external review:
   deadlines, cancellation, bounded membership, and no async-runtime requirement;
 - read-only `list`, `events`, and `logs --follow` CLI surfaces plus an event-driven disposable
   `watch` TUI built only on the public crate.
+- a bounded public `DoctorSnapshot` reports exact daemon, host/boot, store, loaded configuration,
+  containment capability, and unresolved-incident evidence without exposing configuration values
+  or child output;
+- every resumed Windows root and daemon generation carries exact host + boot + PID + creation-time
+  identity, while missing capability blocks before Lease grant;
+- uncertain containments reconcile in bounded 32-item turns without idle polling or unchanged
+  SQLite writes, and every clearance uses one Attempt-wide durable Lease predicate;
+- `doctor clear-containment ID --force` is audited, idempotent risk acceptance: it rejects managed
+  callers and live/uninspectable roots or boundaries, never kills work, and remains visible through
+  ordinary status snapshots.
 
 This slice deliberately accepts EOF or staged-file stdin, impacts, bounded retries, and executable postconditions without Conditions, quiet policies, secrets, or artifacts. The Windows clean base is limited to `SystemRoot`, `WINDIR`, `TEMP`, and `TMP`; PATH and every application/account variable must come from a profile or Job. Priority, aging, finite-held reservations, and a host-wide default concurrency cap are also later scheduler work; callers should declare a scalar, fence, or configured impact for every bounded kind of work rather than submit an unbounded fleet of zero-claim jobs. General wait graphs, cascade cancellation, drain/force, and configurable Job/log/input retention are still baseline work. Specs declaring an unimplemented policy reject rather than run unenforced. Linux remains the v0.2 target.
 
 The tests cover the increment-2a portions of acceptance rows A-03, A-04, and A-06; the increment-2b staged-input, profile, result-file, and process-handle controls; the bounded managed-submission recovery and safe-wait slices of A-11/A-18; and the alpha.6 consumer lifecycle slice of A-04, A-08, A-11, A-14, and A-18. The full baseline rows are not claimed complete until cascade cancellation, drain/force, observed RAM/VRAM freshness, and external Conditions arrive.
 
-The current delivered increment is [alpha.7 live observation](docs/phase-7-live-observation.md).
-It deliberately leaves scheduling semantics unchanged. The public-crate consumer gate is green;
-the `moot` adapter rollout remains the consumer repository's planned batch 04 and is recorded as
-an explicit cross-repository acceptance item rather than silently claimed here.
-
-The next frozen implementation baseline is
+The current delivered increment is
 [alpha.8 operational diagnostics and containment recovery](docs/phase-8-operational-diagnostics.md).
-Its public doctor snapshot, durable reconciliation evidence, and audited force-clear transaction
-have passed focused Opus, Fable, and Grok design review; they are designed but not yet claimed as
-delivered code.
+Its public doctor snapshot, durable reconciliation evidence, audited force-clear transaction, and
+greenfield host-bound schema build on [alpha.7 live observation](docs/phase-7-live-observation.md).
+The external `moot` config-drift adapter remains a cross-repository acceptance item and is not
+silently claimed here.
 
 The isolated-instance foundation for that implementation is documented in
 [Phase 8a](docs/phase-8a-isolated-daemon-instances.md). It lets Stillyard and external consumers run
@@ -87,7 +93,9 @@ a pinned foreground daemon on a temporary store and unique pipe without contacti
 per-user daemon. The CLI's global `--endpoint` and the public `ClientBuilder` select that instance;
 custom endpoints remain connect-only.
 
-An uncertain Containment deliberately retains its real Lease after restart. Until the audited `doctor clear-containment` flow ships, that capacity remains unavailable; moving or editing individual store files is not a supported recovery path.
+An uncertain Containment deliberately retains its real Lease until automatic proof or an explicit,
+audited `doctor clear-containment ID --force` succeeds. Moving or editing individual store files is
+not a supported recovery path.
 
 Stillyard is still greenfield. Before the first stable release it has one current SQLite schema epoch and no database migrations: when that epoch or the required schema does not match, daemon startup silently replaces the database and creates a new store identity. The reset is deliberately all-or-nothing and does not delete `config.json` or canonical log files. Old job IDs, cursors, result files, and idempotency history are not recoverable across it.
 
@@ -134,6 +142,8 @@ cargo test
 cargo run -- schema spec
 cargo run -- schema config
 cargo run -- daemon-status
+cargo run -- doctor --json
+cargo run -- doctor clear-containment CONTAINMENT_ID --force --json
 cargo run -- --endpoint \\.\pipe\stillyard-test daemon --store C:\temp\stillyard-test
 cargo run -- --endpoint \\.\pipe\stillyard-test daemon-status
 cargo run -- submit --spec job.json --wait --passthrough --silent --result-file operation.json

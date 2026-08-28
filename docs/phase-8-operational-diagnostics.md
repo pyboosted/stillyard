@@ -1,6 +1,6 @@
 # Phase 8 — Operational diagnostics and containment recovery
 
-Status: alpha.8 reviewed implementation baseline, frozen 2026-08-28
+Status: alpha.8 implemented against the reviewed frozen baseline, 2026-08-28
 
 This increment turns the daemon's existing safety facts into one bounded public diagnostic
 snapshot and completes the `uncertain -> cleared` Containment lifecycle. It does not add a second

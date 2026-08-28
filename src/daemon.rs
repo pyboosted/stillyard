@@ -20,6 +20,7 @@ type SharedStore = Arc<Mutex<Store>>;
 struct PeerProcess {
     handle: usize,
     pid: u32,
+    identity: Option<crate::ProcessIdentity>,
 }
 
 #[cfg(windows)]
@@ -532,7 +533,99 @@ impl Scheduler {
     }
 
     fn run(self: Arc<Self>, store: SharedStore) {
+        const RECONCILIATION_BACKOFF_SECONDS: [u64; 9] = [1, 2, 4, 8, 16, 30, 60, 120, 300];
+        let mut reconciliation_cursor = 0_u64;
+        let mut reconciliation_known_latest = 0_u64;
+        let mut reconciliation_backoff = 0_usize;
+        let mut reconciliation_deadline: Option<Instant> = None;
         loop {
+            let newest_incident = store
+                .lock()
+                .ok()
+                .and_then(|guard| guard.latest_unresolved_incident_sequence().ok())
+                .flatten();
+            let new_incident =
+                newest_incident.is_some_and(|sequence| sequence > reconciliation_known_latest);
+            if new_incident {
+                reconciliation_known_latest =
+                    newest_incident.unwrap_or(reconciliation_known_latest);
+                reconciliation_backoff = 0;
+            }
+            let reconciliation_due = new_incident
+                || reconciliation_deadline.is_none()
+                || reconciliation_deadline.is_some_and(|deadline| Instant::now() >= deadline);
+            if reconciliation_due {
+                let snapshot = store.lock().ok().and_then(|guard| {
+                    let context = guard.reconciliation_context()?;
+                    let candidates = guard
+                        .reconciliation_candidates(reconciliation_cursor, 32)
+                        .ok()?;
+                    Some((context, candidates))
+                });
+                if let Some((context, candidates)) = snapshot {
+                    if candidates.is_empty() {
+                        reconciliation_deadline = None;
+                        reconciliation_backoff = 0;
+                    } else {
+                        for candidate in &candidates {
+                            let (resolution, evidence) =
+                                probe_reconciliation_candidate(candidate, &context);
+                            if let Ok(mut guard) = store.lock() {
+                                guard.record_reconciliation_observation(
+                                    candidate.containment_id,
+                                    evidence.clone(),
+                                );
+                            }
+                            if let Some(resolution) = resolution {
+                                let committed = store.lock().ok().and_then(|mut guard| {
+                                    guard
+                                        .commit_containment_resolution(
+                                            candidate,
+                                            resolution,
+                                            evidence,
+                                            crate::ClearanceOrigin::Automatic,
+                                            None,
+                                            None,
+                                        )
+                                        .ok()
+                                        .flatten()
+                                });
+                                if let Some(committed) = committed {
+                                    crate::runner::clear_containment_registration(
+                                        candidate.invocation_id,
+                                    );
+                                    if committed.audit.lease_released {
+                                        if let Ok(mut pending) = self.signal.0.lock() {
+                                            *pending = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        reconciliation_cursor = candidates
+                            .last()
+                            .map_or(reconciliation_cursor, |candidate| {
+                                candidate.incident_sequence
+                            });
+                        let unresolved = store
+                            .lock()
+                            .ok()
+                            .and_then(|guard| guard.latest_unresolved_incident_sequence().ok())
+                            .flatten()
+                            .is_some();
+                        if unresolved {
+                            let delay = RECONCILIATION_BACKOFF_SECONDS[reconciliation_backoff
+                                .min(RECONCILIATION_BACKOFF_SECONDS.len() - 1)];
+                            reconciliation_backoff = reconciliation_backoff.saturating_add(1);
+                            reconciliation_deadline =
+                                Instant::now().checked_add(Duration::from_secs(delay));
+                        } else {
+                            reconciliation_deadline = None;
+                            reconciliation_backoff = 0;
+                        }
+                    }
+                }
+            }
             let retry_scan_started = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
@@ -601,13 +694,18 @@ impl Scheduler {
                 .and_then(|guard| guard.next_retry_delay(retry_scan_started).ok())
                 .flatten();
             let retry_deadline = retry_delay.and_then(|delay| Instant::now().checked_add(delay));
+            let wake_deadline = match (retry_deadline, reconciliation_deadline) {
+                (Some(left), Some(right)) => Some(left.min(right)),
+                (Some(deadline), None) | (None, Some(deadline)) => Some(deadline),
+                (None, None) => None,
+            };
             let (lock, condition) = &*self.signal;
             let mut pending = match lock.lock() {
                 Ok(pending) => pending,
                 Err(_) => return,
             };
             while !*pending {
-                if let Some(deadline) = retry_deadline {
+                if let Some(deadline) = wake_deadline {
                     let remaining = deadline.saturating_duration_since(Instant::now());
                     if remaining.is_zero() {
                         break;
@@ -632,6 +730,316 @@ impl Scheduler {
     }
 }
 
+fn probe_reconciliation_candidate(
+    candidate: &crate::store::ReconciliationCandidate,
+    context: &(crate::HostId, crate::BootId, uuid::Uuid),
+) -> (
+    Option<crate::ContainmentResolution>,
+    crate::ReconciliationResult,
+) {
+    let (current_host, current_boot, current_generation) = context;
+    if candidate.host_id.as_ref() != Some(current_host) {
+        return (None, crate::ReconciliationResult::IdentityUnavailable);
+    }
+    let Some(recorded_boot) = candidate.boot_id.as_ref() else {
+        return (None, crate::ReconciliationResult::IdentityUnavailable);
+    };
+    if recorded_boot != current_boot {
+        return if candidate.daemon_generation != Some(*current_generation) {
+            (
+                Some(crate::ContainmentResolution::Reboot),
+                crate::ReconciliationResult::PriorBoot,
+            )
+        } else {
+            (None, crate::ReconciliationResult::IdentityUnavailable)
+        };
+    }
+    if candidate.daemon_generation == Some(*current_generation) {
+        return match crate::runner::inspect_owned_containment(candidate.invocation_id) {
+            Ok(Some(crate::ReconciliationResult::ProvenEmpty)) => (
+                Some(crate::ContainmentResolution::ProvenEmpty),
+                crate::ReconciliationResult::ProvenEmpty,
+            ),
+            Ok(Some(evidence)) => (None, evidence),
+            Ok(None) => (None, crate::ReconciliationResult::BoundaryUninspectable),
+            Err(_) => (None, crate::ReconciliationResult::BoundaryUninspectable),
+        };
+    }
+    let Some(prior_daemon) = candidate.prior_daemon_identity.as_ref() else {
+        return (None, crate::ReconciliationResult::IdentityUnavailable);
+    };
+    let prior_daemon =
+        crate::identity::probe_recorded_process(prior_daemon, current_host, current_boot);
+    if !matches!(
+        prior_daemon,
+        crate::ReconciliationResult::IdentityAbsent | crate::ReconciliationResult::PidReused
+    ) {
+        return (None, prior_daemon);
+    }
+    let Some(root_identity) = candidate.root_identity.as_ref() else {
+        if candidate.root_pid_recorded {
+            return (None, crate::ReconciliationResult::IdentityUnavailable);
+        }
+        return (
+            Some(crate::ContainmentResolution::ProvenEmpty),
+            crate::ReconciliationResult::IdentityAbsent,
+        );
+    };
+    let root = crate::identity::probe_recorded_process(root_identity, current_host, current_boot);
+    if matches!(
+        root,
+        crate::ReconciliationResult::IdentityAbsent | crate::ReconciliationResult::PidReused
+    ) {
+        (Some(crate::ContainmentResolution::ProvenEmpty), root)
+    } else {
+        (None, root)
+    }
+}
+
+fn authorize_force_peer(
+    peer: &PeerProcess,
+    requester: &crate::ProcessIdentity,
+    authorization_invocations: &[crate::InvocationId],
+    unresolved_roots: &[crate::ProcessIdentity],
+) -> std::result::Result<(), StoreError> {
+    for &invocation_id in authorization_invocations {
+        match crate::runner::process_in_containment(invocation_id, peer.handle) {
+            Ok(Some(true)) => {
+                return Err(StoreError::OperationRejected {
+                    code: "containment_caller_managed".into(),
+                    detail: "a managed process cannot accept containment risk".into(),
+                });
+            }
+            Ok(Some(false)) => {}
+            Ok(None) | Err(_) => {
+                return Err(StoreError::OperationRejected {
+                    code: "containment_authorization_unavailable".into(),
+                    detail: "a current-generation containment boundary cannot be inspected".into(),
+                });
+            }
+        }
+    }
+    if unresolved_roots
+        .iter()
+        .any(|identity| identity == requester)
+    {
+        return Err(StoreError::OperationRejected {
+            code: "containment_caller_managed".into(),
+            detail: "the requester is an unresolved recorded containment root".into(),
+        });
+    }
+    Ok(())
+}
+
+fn force_clear_containment(
+    store: &SharedStore,
+    scheduler: &Scheduler,
+    peer: Option<&PeerProcess>,
+    containment_id: crate::ContainmentId,
+) -> std::result::Result<crate::ClearContainmentResult, StoreError> {
+    let peer = peer.ok_or_else(|| StoreError::OperationRejected {
+        code: "containment_requester_unidentifiable".into(),
+        detail: "force-clear requires a connected peer process".into(),
+    })?;
+    let requester = peer
+        .identity
+        .clone()
+        .ok_or_else(|| StoreError::OperationRejected {
+            code: "containment_requester_unidentifiable".into(),
+            detail: "the connection-time requester identity is unavailable".into(),
+        })?;
+    let (context, mut authorization_invocations, mut unresolved_roots) = {
+        let guard = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+        let context =
+            guard
+                .reconciliation_context()
+                .ok_or_else(|| StoreError::OperationRejected {
+                    code: "containment_requester_unidentifiable".into(),
+                    detail: "the daemon host/boot identity is unavailable".into(),
+                })?;
+        let (authorization_invocations, unresolved_roots) =
+            guard.clearance_authorization_evidence()?;
+        (context, authorization_invocations, unresolved_roots)
+    };
+
+    authorize_force_peer(
+        peer,
+        &requester,
+        &authorization_invocations,
+        &unresolved_roots,
+    )?;
+    let mut candidate = {
+        let guard = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+        if let Some(result) = guard.persisted_clearance(containment_id)? {
+            return Ok(result);
+        }
+        guard.reconciliation_candidate(containment_id)?
+    };
+
+    let (automatic_resolution, automatic_evidence) =
+        probe_reconciliation_candidate(&candidate, &context);
+    if let Ok(mut guard) = store.lock() {
+        guard.record_reconciliation_observation(
+            candidate.containment_id,
+            automatic_evidence.clone(),
+        );
+    }
+    if let Some(resolution) = automatic_resolution {
+        if let Some(result) = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+            .commit_containment_resolution(
+                &candidate,
+                resolution,
+                automatic_evidence.clone(),
+                crate::ClearanceOrigin::Automatic,
+                None,
+                None,
+            )?
+        {
+            crate::runner::clear_containment_registration(candidate.invocation_id);
+            if result.audit.lease_released {
+                scheduler.wake();
+            }
+            return Ok(result);
+        }
+    }
+    match automatic_evidence {
+        crate::ReconciliationResult::BoundaryNotEmpty => {
+            return Err(StoreError::OperationRejected {
+                code: "containment_boundary_not_empty".into(),
+                detail: "the daemon-owned containment boundary is known nonempty".into(),
+            });
+        }
+        crate::ReconciliationResult::BoundaryUninspectable
+            if candidate.daemon_generation == Some(context.2) =>
+        {
+            return Err(StoreError::OperationRejected {
+                code: "containment_owned_boundary_uninspectable".into(),
+                detail: "restart the daemon to close the owned boundary before risk acceptance"
+                    .into(),
+            });
+        }
+        _ => {}
+    }
+    if candidate.host_id.as_ref() != Some(&context.0) {
+        return Err(StoreError::OperationRejected {
+            code: "containment_host_mismatch".into(),
+            detail: "containment host identity does not match the daemon".into(),
+        });
+    }
+    let mut target_evidence = match candidate.root_identity.as_ref() {
+        Some(identity) => crate::identity::probe_recorded_process(identity, &context.0, &context.1),
+        None if !candidate.root_pid_recorded => crate::ReconciliationResult::IdentityAbsent,
+        None => crate::ReconciliationResult::IdentityUnavailable,
+    };
+    match target_evidence {
+        crate::ReconciliationResult::StillResolves => {
+            return Err(StoreError::OperationRejected {
+                code: "containment_identity_still_resolves".into(),
+                detail: "the exact recorded root process is still running".into(),
+            });
+        }
+        crate::ReconciliationResult::IdentityUnavailable => {
+            return Err(StoreError::OperationRejected {
+                code: "containment_identity_unavailable".into(),
+                detail: "the exact recorded root identity cannot be inspected".into(),
+            });
+        }
+        crate::ReconciliationResult::IdentityAbsent | crate::ReconciliationResult::PidReused => {}
+        _ => {
+            return Err(StoreError::OperationRejected {
+                code: "containment_identity_unavailable".into(),
+                detail: "the target identity has no affirmative absence evidence".into(),
+            });
+        }
+    }
+    let requested_unix_millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(i64::MAX);
+    let forced = crate::ForcedClearanceAudit {
+        requested_unix_millis,
+        requester,
+    };
+    for attempt in 0..2 {
+        if let Some(result) = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+            .commit_containment_resolution(
+                &candidate,
+                crate::ContainmentResolution::ForcedRiskAcceptance,
+                target_evidence.clone(),
+                crate::ClearanceOrigin::Forced,
+                Some(forced.clone()),
+                Some(&authorization_invocations),
+            )?
+        {
+            if result.audit.lease_released {
+                scheduler.wake();
+            }
+            return Ok(result);
+        }
+        if let Some(result) = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+            .persisted_clearance(containment_id)?
+        {
+            return Ok(result);
+        }
+        if attempt == 0 {
+            candidate = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                .reconciliation_candidate(containment_id)?;
+            if candidate.host_id.as_ref() != Some(&context.0) {
+                return Err(StoreError::OperationRejected {
+                    code: "containment_host_mismatch".into(),
+                    detail: "containment host identity changed during force-clear".into(),
+                });
+            }
+            target_evidence = match candidate.root_identity.as_ref() {
+                Some(identity) => {
+                    crate::identity::probe_recorded_process(identity, &context.0, &context.1)
+                }
+                None if !candidate.root_pid_recorded => crate::ReconciliationResult::IdentityAbsent,
+                None => crate::ReconciliationResult::IdentityUnavailable,
+            };
+            if !matches!(
+                target_evidence,
+                crate::ReconciliationResult::IdentityAbsent
+                    | crate::ReconciliationResult::PidReused
+            ) {
+                return Err(StoreError::OperationRejected {
+                    code: "containment_identity_unavailable".into(),
+                    detail: "containment evidence changed during force-clear".into(),
+                });
+            }
+            (authorization_invocations, unresolved_roots) = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                .clearance_authorization_evidence()?;
+            authorize_force_peer(
+                peer,
+                &forced.requester,
+                &authorization_invocations,
+                &unresolved_roots,
+            )?;
+            continue;
+        }
+    }
+    Err(StoreError::OperationRejected {
+        code: "containment_authorization_unavailable".into(),
+        detail: "containment evidence changed during force-clear".into(),
+    })
+}
+
 fn handle_request(
     store: &SharedStore,
     scheduler: &Scheduler,
@@ -639,7 +1047,7 @@ fn handle_request(
     request: Request,
 ) -> Response {
     let result = match request {
-        Request::Ping => {
+        Request::Ping {} => {
             return Response::Pong {
                 protocol_version: PROTOCOL_VERSION,
             };
@@ -886,11 +1294,20 @@ fn handle_request(
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
             .and_then(|store| store.logs(job_id, stream, offset, limit))
             .map(Response::Logs),
-        Request::DaemonStatus => store
+        Request::DaemonStatus {} => store
             .lock()
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
             .and_then(|store| store.daemon_status(&scheduler.endpoint))
             .map(Response::DaemonStatus),
+        Request::Doctor { cursor, limit } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.doctor(&scheduler.endpoint, cursor, limit))
+            .map(|snapshot| Response::Doctor(Box::new(snapshot))),
+        Request::ForceClearContainment { containment_id } => {
+            force_clear_containment(store, scheduler, peer, containment_id)
+                .map(Response::ContainmentCleared)
+        }
     };
     result.unwrap_or_else(|error| match error {
         StoreError::NotFound(_) => Response::Error {
@@ -904,6 +1321,10 @@ fn handle_request(
         StoreError::Rejected(_) => Response::Error {
             code: "rejected".into(),
             message: error.to_string(),
+        },
+        StoreError::OperationRejected { code, detail } => Response::Error {
+            code,
+            message: detail,
         },
         StoreError::BlockedByAncestor(detail) => Response::Error {
             code: "blocked_by_ancestor".into(),
@@ -1003,6 +1424,19 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>, first_pipe: OwnedPipe) -
         }
         let store = Arc::clone(&store);
         let scheduler = Arc::clone(&scheduler);
+        let peer_identity = store
+            .lock()
+            .ok()
+            .and_then(|guard| guard.reconciliation_context())
+            .and_then(|(host_id, boot_id, _)| {
+                crate::identity::process_identity_from_handle(
+                    peer_process,
+                    peer_pid,
+                    &host_id,
+                    &boot_id,
+                )
+                .ok()
+            });
         // Raw Windows handles are pointer-typed and therefore not `Send`; their integer value is
         // safe to transfer because this thread owns the handle after a successful connection.
         let handle_value = pipe.into_raw() as usize;
@@ -1016,6 +1450,7 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>, first_pipe: OwnedPipe) -
                 let peer = PeerProcess {
                     handle: peer_process_value,
                     pid: peer_pid,
+                    identity: peer_identity,
                 };
                 let response = match read_frame::<Request>(&mut pipe) {
                     Ok(request) => handle_request(&store, &scheduler, Some(&peer), request),
@@ -1343,6 +1778,66 @@ mod tests {
             invalidation,
             crate::ObservationFrame::Events { ref events, cursor }
                 if events.is_empty() && cursor.sequence > invalidation_cursor.sequence
+        ));
+    }
+
+    #[test]
+    fn alpha8_boot_change_is_proof_only_for_a_prior_generation() {
+        let store_uuid = uuid::Uuid::now_v7();
+        let generation = uuid::Uuid::now_v7();
+        let host = crate::HostId("host".into());
+        let candidate = crate::store::ReconciliationCandidate {
+            containment_id: crate::ContainmentId::new(store_uuid),
+            invocation_id: crate::InvocationId::new(store_uuid),
+            attempt_id: crate::AttemptId::new(store_uuid),
+            version: 1,
+            host_id: Some(host.clone()),
+            boot_id: Some(crate::BootId("prior-boot".into())),
+            daemon_generation: Some(generation),
+            root_pid_recorded: false,
+            root_identity: None,
+            prior_daemon_identity: None,
+            incident_sequence: 1,
+        };
+        let current = (host, crate::BootId("current-boot".into()), generation);
+        assert_eq!(
+            probe_reconciliation_candidate(&candidate, &current),
+            (None, crate::ReconciliationResult::IdentityUnavailable)
+        );
+        let mut prior = candidate;
+        prior.daemon_generation = Some(uuid::Uuid::now_v7());
+        assert_eq!(
+            probe_reconciliation_candidate(&prior, &current),
+            (
+                Some(crate::ContainmentResolution::Reboot),
+                crate::ReconciliationResult::PriorBoot
+            )
+        );
+    }
+
+    #[test]
+    fn alpha8_force_authorization_fails_closed_for_roots_and_missing_handles() {
+        let startup = crate::identity::probe_startup_identity();
+        let requester = startup.daemon_process.unwrap();
+        let peer = PeerProcess {
+            handle: 0,
+            pid: std::process::id(),
+            identity: Some(requester.clone()),
+        };
+        assert!(matches!(
+            authorize_force_peer(&peer, &requester, &[], std::slice::from_ref(&requester)),
+            Err(StoreError::OperationRejected { code, .. })
+                if code == "containment_caller_managed"
+        ));
+        assert!(matches!(
+            authorize_force_peer(
+                &peer,
+                &requester,
+                &[crate::InvocationId::new(uuid::Uuid::now_v7())],
+                &[],
+            ),
+            Err(StoreError::OperationRejected { code, .. })
+                if code == "containment_authorization_unavailable"
         ));
     }
 }

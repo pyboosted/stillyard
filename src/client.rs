@@ -15,7 +15,8 @@ use crate::protocol::{PROTOCOL_VERSION, Request, Response, StagedInputRef};
 #[cfg(windows)]
 use crate::protocol::{read_frame, write_frame};
 use crate::{
-    BatchReceipt, BatchSpec, CancellationToken, DaemonSnapshot, Error, EventCursor, JobId,
+    BatchReceipt, BatchSpec, CancellationToken, ClearContainmentResult, ContainmentId,
+    ContainmentIncidentCursor, DaemonSnapshot, DoctorSnapshot, Error, EventCursor, JobId,
     JobListCursor, JobListPage, JobReceipt, JobSelector, JobSnapshot, JobSpec, LogChunk, LogStream,
     MAX_OBSERVATION_PAGE, ManagedParent, ObservationFrame, RecoveryResult, Result,
     SubmissionContext, SubmitOptions, WaitStreamItem,
@@ -884,14 +885,43 @@ impl Client {
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<DaemonSnapshot> {
-        match self.request(Request::DaemonStatus, deadline, cancellation)? {
+        match self.request(Request::DaemonStatus {}, deadline, cancellation)? {
             Response::DaemonStatus(status) => Ok(status),
             response => response_error(response),
         }
     }
 
+    pub fn doctor(
+        &self,
+        cursor: Option<ContainmentIncidentCursor>,
+        limit: Option<u32>,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<DoctorSnapshot> {
+        match self.request(Request::Doctor { cursor, limit }, deadline, cancellation)? {
+            Response::Doctor(snapshot) => Ok(*snapshot),
+            response => response_error(response),
+        }
+    }
+
+    pub fn force_clear_containment(
+        &self,
+        containment_id: ContainmentId,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<ClearContainmentResult> {
+        match self.request(
+            Request::ForceClearContainment { containment_id },
+            deadline,
+            cancellation,
+        )? {
+            Response::ContainmentCleared(result) => Ok(result),
+            response => response_error(response),
+        }
+    }
+
     fn ping(&self, deadline: Instant, cancellation: Option<&CancellationToken>) -> Result<()> {
-        match self.request(Request::Ping, deadline, cancellation)? {
+        match self.request(Request::Ping {}, deadline, cancellation)? {
             Response::Pong { protocol_version } if protocol_version == PROTOCOL_VERSION => Ok(()),
             Response::Pong { protocol_version } => Err(Error::Protocol(format!(
                 "daemon protocol {protocol_version}, client protocol {PROTOCOL_VERSION}"
@@ -1198,6 +1228,12 @@ fn response_error<T>(response: Response) -> Result<T> {
             if code == "blocked_by_ancestor" || code == "resource_capacity" =>
         {
             Err(Error::ManagedWaitRejected {
+                code,
+                detail: message,
+            })
+        }
+        Response::Error { code, message } if code.starts_with("containment_") => {
+            Err(Error::Rejected {
                 code,
                 detail: message,
             })

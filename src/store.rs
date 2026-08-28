@@ -3,25 +3,31 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use crate::identity::{StartupIdentity, probe_startup_identity};
 use crate::protocol::StagedInputRef;
 use crate::resources::ResolvedClaims;
 use crate::{
     AttemptId, AttemptSnapshot, AttemptVerdict, BatchId, BatchJobReceipt, BatchReceipt, BatchSpec,
-    Blocker, ContainmentId, ContainmentSnapshot, ContainmentState, DaemonSnapshot, Estimate,
-    EventCursor, EventGap, ExitClassification, HostConfig, InvocationId, InvocationRole,
+    Blocker, BootId, ClearContainmentResult, ClearanceOrigin, ContainmentId,
+    ContainmentIncidentCursor, ContainmentIncidentSnapshot, ContainmentResolution,
+    ContainmentResolutionAudit, ContainmentSnapshot, ContainmentState, DaemonSnapshot,
+    DoctorBoundary, DoctorCheck, DoctorCheckStatus, DoctorHostSnapshot, DoctorIncidentPage,
+    DoctorOverallStatus, DoctorSnapshot, DoctorStoreSnapshot, Estimate, EventCursor, EventGap,
+    ExitClassification, ForcedClearanceAudit, HostConfig, HostId, InvocationId, InvocationRole,
     InvocationSnapshot, InvocationState, JobId, JobListCursor, JobListPage, JobOutcome, JobReceipt,
     JobSelector, JobSnapshot, JobSpec, JobState, JobSummary, LogChunk, LogStream,
-    MAX_OBSERVATION_PAGE, ManagedParent, ObservationFrame, RecoveryResult, ResourceCapacities,
-    SchedulerEvent, SchedulerEventKind, StdinSpec, SubmissionId, SubmissionState,
+    MAX_OBSERVATION_PAGE, ManagedParent, ObservationFrame, ProcessIdentity, ReconciliationResult,
+    RecoveryResult, ResourceCapacities, SchedulerEvent, SchedulerEventKind, StdinSpec,
+    SubmissionId, SubmissionState,
 };
 
 // Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
 // the current schema changes; daemon startup will replace the whole SQLite database.
-const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-live-observation-r2-2026-08-28";
+const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha8-operational-diagnostics-r1-2026-08-28";
 const MAX_EVENT_ROWS: u64 = 16_384;
 const MAX_CANCEL_JOBS: usize = 16;
 const SNAPSHOT_DIAGNOSTIC_BUDGET_BYTES: usize = 64 * 1024;
@@ -101,6 +107,8 @@ pub(crate) enum StoreError {
     IdempotencyConflict,
     #[error("submission rejected: {0}")]
     Rejected(String),
+    #[error("operation rejected ({code}): {detail}")]
+    OperationRejected { code: String, detail: String },
     #[error("managed wait blocked by an ancestor: {0}")]
     BlockedByAncestor(String),
     #[error("managed wait rejected ({code}): {detail}")]
@@ -170,6 +178,23 @@ pub(crate) struct PreparedJob {
     pub(crate) stdin_path: Option<PathBuf>,
     pub(crate) role: InvocationRole,
     pub(crate) attempt_deadline_unix_millis: Option<i64>,
+    pub(crate) host_id: Option<HostId>,
+    pub(crate) boot_id: Option<BootId>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ReconciliationCandidate {
+    pub(crate) containment_id: ContainmentId,
+    pub(crate) invocation_id: InvocationId,
+    pub(crate) attempt_id: AttemptId,
+    pub(crate) version: u64,
+    pub(crate) host_id: Option<HostId>,
+    pub(crate) boot_id: Option<BootId>,
+    pub(crate) daemon_generation: Option<Uuid>,
+    pub(crate) root_pid_recorded: bool,
+    pub(crate) root_identity: Option<ProcessIdentity>,
+    pub(crate) prior_daemon_identity: Option<ProcessIdentity>,
+    pub(crate) incident_sequence: u64,
 }
 
 pub(crate) struct PrepareNext {
@@ -192,6 +217,10 @@ pub(crate) struct Store {
     profiles: std::collections::BTreeMap<String, crate::EnvironmentProfile>,
     impact_incompatibilities: std::collections::BTreeMap<String, Vec<String>>,
     config_sha256: String,
+    startup_identity: StartupIdentity,
+    bound_host_id: Option<HostId>,
+    reconciliation_observations:
+        std::collections::BTreeMap<ContainmentId, (i64, ReconciliationResult)>,
 }
 
 impl Store {
@@ -295,7 +324,7 @@ impl Store {
 
     pub(crate) fn open(paths: StorePaths) -> StoreResult<Self> {
         let config = load_host_config(&paths.config)?;
-        Self::open_with_config(paths, config)
+        Self::open_with_config(paths, config, probe_startup_identity())
     }
 
     #[cfg(test)]
@@ -310,23 +339,28 @@ impl Store {
                 profiles: Default::default(),
                 impact_incompatibilities: Default::default(),
             },
+            probe_startup_identity(),
         )
     }
 
-    fn open_with_config(paths: StorePaths, config: HostConfig) -> StoreResult<Self> {
+    fn open_with_config(
+        paths: StorePaths,
+        config: HostConfig,
+        startup_identity: StartupIdentity,
+    ) -> StoreResult<Self> {
         paths.ensure()?;
         let database_existed = paths.database.try_exists()?;
         if !database_existed {
             // A crash may have left sidecars without a main database file.
             reset_database_files(&paths)?;
-            return Self::open_fresh(paths, config);
+            return Self::open_fresh(paths, config, startup_identity);
         }
 
         let connection = match Connection::open(&paths.database) {
             Ok(connection) => connection,
             Err(error) if is_database_corruption(&error) => {
                 reset_database_files(&paths)?;
-                return Self::open_fresh(paths, config);
+                return Self::open_fresh(paths, config, startup_identity);
             }
             Err(error) => return Err(error.into()),
         };
@@ -334,43 +368,80 @@ impl Store {
         if !schema_is_current(&connection)? {
             drop(connection);
             reset_database_files(&paths)?;
-            return Self::open_fresh(paths, config);
+            return Self::open_fresh(paths, config, startup_identity);
         }
 
-        match Self::finish_open(connection, paths.clone(), config.clone()) {
+        if !host_binding_is_acceptable(&connection, startup_identity.host_id.as_ref())? {
+            drop(connection);
+            reset_database_files(&paths)?;
+            return Self::open_fresh(paths, config, startup_identity);
+        }
+        bind_unbound_store(&connection, startup_identity.host_id.as_ref())?;
+
+        match Self::finish_open(
+            connection,
+            paths.clone(),
+            config.clone(),
+            startup_identity.clone(),
+        ) {
             Ok(store) => Ok(store),
             Err(StoreError::Sqlite(error)) if is_database_corruption(&error) => {
                 reset_database_files(&paths)?;
-                Self::open_fresh(paths, config)
+                Self::open_fresh(paths, config, startup_identity)
             }
             Err(error) => Err(error),
         }
     }
 
-    fn open_fresh(paths: StorePaths, config: HostConfig) -> StoreResult<Self> {
+    fn open_fresh(
+        paths: StorePaths,
+        config: HostConfig,
+        startup_identity: StartupIdentity,
+    ) -> StoreResult<Self> {
         let connection = Connection::open(&paths.database)?;
         configure_database(&connection)?;
-        create_current_schema(&connection, Uuid::now_v7())?;
-        Self::finish_open(connection, paths, config)
+        create_current_schema(
+            &connection,
+            Uuid::now_v7(),
+            startup_identity.host_id.as_ref(),
+        )?;
+        Self::finish_open(connection, paths, config, startup_identity)
     }
 
     fn finish_open(
         connection: Connection,
         paths: StorePaths,
         config: HostConfig,
+        startup_identity: StartupIdentity,
     ) -> StoreResult<Self> {
         configure_database(&connection)?;
         let store_uuid = current_store_uuid(&connection)?;
         let config_sha256 = format!("{:x}", Sha256::digest(serde_json::to_vec(&config)?));
+        let bound_host_id = meta_value(&connection, "bound_host_id")?.map(HostId);
+        let daemon_generation = Uuid::now_v7();
+        if let Some(process_identity) = &startup_identity.daemon_process {
+            connection.execute(
+                "INSERT INTO daemon_generations(generation, process_identity_json, started_ms)
+                 VALUES (?1, ?2, ?3)",
+                params![
+                    daemon_generation.to_string(),
+                    serde_json::to_string(process_identity)?,
+                    now_millis(),
+                ],
+            )?;
+        }
         let mut store = Self {
             connection,
             paths,
             store_uuid,
-            daemon_generation: Uuid::now_v7(),
+            daemon_generation,
             capacities: config.resources,
             profiles: config.profiles,
             impact_incompatibilities: config.impact_incompatibilities,
             config_sha256,
+            startup_identity,
+            bound_host_id,
+            reconciliation_observations: std::collections::BTreeMap::new(),
         };
         store.recover_interrupted()?;
         store.resume_received()?;
@@ -384,6 +455,16 @@ impl Store {
                 "foreign durable ID from store {}",
                 id.store_uuid()
             )));
+        }
+        Ok(id.entity_uuid().to_string())
+    }
+
+    fn local_containment_id(&self, id: ContainmentId) -> StoreResult<String> {
+        if id.store_uuid() != self.store_uuid {
+            return Err(StoreError::OperationRejected {
+                code: "containment_foreign".into(),
+                detail: format!("containment belongs to store {}", id.store_uuid()),
+            });
         }
         Ok(id.entity_uuid().to_string())
     }
@@ -1470,6 +1551,12 @@ impl Store {
     fn blockers_for_job(&self, job_id: JobId) -> StoreResult<Vec<Blocker>> {
         let job_key = self.local_id(job_id)?;
         let mut blockers = self.dependency_blockers(&job_key)?.0;
+        if !self.startup_identity.capable() {
+            blockers.push(Blocker {
+                code: "host_capability_unavailable".into(),
+                detail: self.startup_identity.failures.join("; "),
+            });
+        }
         let retry_not_before: Option<i64> = self.connection.query_row(
             "SELECT retry_not_before_ms FROM jobs WHERE id = ?1",
             [&job_key],
@@ -1730,6 +1817,9 @@ impl Store {
 
     fn prepare_job_inner(&mut self, job_id: JobId) -> StoreResult<PrepareJob> {
         let job_key = self.local_id(job_id)?;
+        if !self.startup_identity.capable() {
+            return Ok(PrepareJob::Blocked);
+        }
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
         let attempt_id = AttemptId::new(self.store_uuid);
@@ -1834,11 +1924,15 @@ impl Store {
             ],
         )?;
         transaction.execute(
-            "INSERT INTO containments(id, invocation_id, state)
-             VALUES (?1, ?2, 'creating')",
+            "INSERT INTO containments(
+                id, invocation_id, state, host_id, boot_id, daemon_generation, strength, version
+             ) VALUES (?1, ?2, 'creating', ?3, ?4, ?5, 'windows_job_object', 1)",
             params![
                 containment_id.entity_uuid().to_string(),
-                invocation_id.entity_uuid().to_string()
+                invocation_id.entity_uuid().to_string(),
+                self.startup_identity.host_id.as_ref().map(|value| &value.0),
+                self.startup_identity.boot_id.as_ref().map(|value| &value.0),
+                self.daemon_generation.to_string(),
             ],
         )?;
         transaction.execute(
@@ -1865,6 +1959,8 @@ impl Store {
             stdin,
             role: InvocationRole::Primary,
             attempt_deadline_unix_millis: attempt_deadline,
+            host_id: self.startup_identity.host_id.clone(),
+            boot_id: self.startup_identity.boot_id.clone(),
         })))
     }
 
@@ -1902,10 +1998,15 @@ impl Store {
             ],
         )?;
         transaction.execute(
-            "INSERT INTO containments(id, invocation_id, state) VALUES (?1, ?2, 'creating')",
+            "INSERT INTO containments(
+                id, invocation_id, state, host_id, boot_id, daemon_generation, strength, version
+             ) VALUES (?1, ?2, 'creating', ?3, ?4, ?5, 'windows_job_object', 1)",
             params![
                 containment_id.entity_uuid().to_string(),
                 invocation_id.entity_uuid().to_string(),
+                self.startup_identity.host_id.as_ref().map(|value| &value.0),
+                self.startup_identity.boot_id.as_ref().map(|value| &value.0),
+                self.daemon_generation.to_string(),
             ],
         )?;
         transaction.execute(
@@ -1942,15 +2043,55 @@ impl Store {
             stdin_path: None,
             role: InvocationRole::Postcondition,
             attempt_deadline_unix_millis: current.2,
+            host_id: self.startup_identity.host_id.clone(),
+            boot_id: self.startup_identity.boot_id.clone(),
         })
     }
 
+    #[cfg(test)]
     pub(crate) fn mark_started(
         &mut self,
         job: &PreparedJob,
         root_pid: u32,
         executable_hash: &str,
     ) -> StoreResult<()> {
+        self.mark_started_with_identity(job, root_pid, executable_hash, None)
+    }
+
+    pub(crate) fn mark_started_with_identity(
+        &mut self,
+        job: &PreparedJob,
+        root_pid: u32,
+        executable_hash: &str,
+        root_identity: Option<&ProcessIdentity>,
+    ) -> StoreResult<()> {
+        let (root_host_id, root_boot_id, root_creation_filetime_100ns) = match root_identity {
+            Some(ProcessIdentity::Windows {
+                host_id,
+                boot_id,
+                pid,
+                creation_filetime_100ns,
+            }) if *pid == root_pid => (
+                Some(host_id.0.as_str()),
+                Some(boot_id.0.as_str()),
+                Some(i64::try_from(*creation_filetime_100ns).map_err(|_| {
+                    StoreError::InvalidState(
+                        "process creation identity exceeds SQLite range".into(),
+                    )
+                })?),
+            ),
+            Some(ProcessIdentity::Windows { pid, .. }) => {
+                return Err(StoreError::InvalidState(format!(
+                    "process identity PID {pid} does not match created PID {root_pid}"
+                )));
+            }
+            Some(ProcessIdentity::Unknown { .. }) => {
+                return Err(StoreError::InvalidState(
+                    "unknown process identity cannot authorize native containment".into(),
+                ));
+            }
+            None => (None, None, None),
+        };
         let started = now_millis();
         let transaction = self.connection.transaction()?;
         let state: String = transaction.query_row(
@@ -1966,13 +2107,18 @@ impl Store {
         }
         transaction.execute(
             "UPDATE invocations SET state = 'started', root_pid = ?2,
-                executable_hash = ?3, started_ms = ?4, daemon_generation = ?5 WHERE id = ?1",
+                executable_hash = ?3, started_ms = ?4, daemon_generation = ?5,
+                root_host_id = ?6, root_boot_id = ?7,
+                root_creation_filetime_100ns = ?8 WHERE id = ?1",
             params![
                 job.invocation_id.entity_uuid().to_string(),
                 root_pid,
                 executable_hash,
                 started,
                 self.daemon_generation.to_string(),
+                root_host_id,
+                root_boot_id,
+                root_creation_filetime_100ns,
             ],
         )?;
         transaction.execute(
@@ -2079,7 +2225,9 @@ impl Store {
         job: &PreparedJob,
         verdict: AttemptVerdict,
     ) -> StoreResult<bool> {
-        let transaction = self.connection.transaction()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let (state, spec_json, attempt_index, cancel_requested): (String, String, u32, bool) =
             transaction.query_row(
                 "SELECT jobs.state, jobs.spec_json, attempts.attempt_index,
@@ -2115,10 +2263,7 @@ impl Store {
                 now_millis()
             ],
         )?;
-        transaction.execute(
-            "UPDATE leases SET state = 'released' WHERE attempt_id = ?1",
-            [job.attempt_id.entity_uuid().to_string()],
-        )?;
+        release_attempt_lease_if_safe(&transaction, &job.attempt_id.entity_uuid().to_string())?;
         if retry {
             let not_before = now_millis().saturating_add(
                 i64::try_from(spec.retry.backoff_seconds.saturating_mul(1000)).unwrap_or(i64::MAX),
@@ -2226,7 +2371,9 @@ impl Store {
         outcome: JobOutcome,
         verdict: &str,
     ) -> StoreResult<()> {
-        let transaction = self.connection.transaction()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let state: String = transaction.query_row(
             "SELECT state FROM jobs WHERE id = ?1",
             [job.job_id.entity_uuid().to_string()],
@@ -2259,10 +2406,7 @@ impl Store {
                 now_millis()
             ],
         )?;
-        transaction.execute(
-            "UPDATE leases SET state = 'released' WHERE attempt_id = ?1",
-            [job.attempt_id.entity_uuid().to_string()],
-        )?;
+        release_attempt_lease_if_safe(&transaction, &job.attempt_id.entity_uuid().to_string())?;
         transaction.execute(
             "UPDATE jobs SET state = 'final', outcome = ?2, root_exit_code = ?3,
                 finished_ms = ?4 WHERE id = ?1",
@@ -2295,6 +2439,22 @@ impl Store {
                 job.job_id
             )));
         }
+        let incident_sequence: u64 = transaction.query_row(
+            "SELECT COALESCE(MAX(incident_sequence), 0) + 1 FROM containments",
+            [],
+            |row| row.get(0),
+        )?;
+        let spec_json: String = transaction.query_row(
+            "SELECT jobs.spec_json FROM jobs
+             JOIN attempts ON attempts.job_id = jobs.id
+             JOIN invocations ON invocations.attempt_id = attempts.id
+             WHERE invocations.id = ?1",
+            [job.invocation_id.entity_uuid().to_string()],
+            |row| row.get(0),
+        )?;
+        let retained_claims_json =
+            serde_json::to_string(&serde_json::from_str::<JobSpec>(&spec_json)?.resources)?;
+        let opened = now_millis();
         transaction.execute(
             "UPDATE invocations SET state = 'resolved', root_exit_code = COALESCE(?2, root_exit_code),
                 finished_ms = ?3 WHERE id = ?1 AND state IN ('prepared', 'started', 'exited')",
@@ -2305,9 +2465,20 @@ impl Store {
             ],
         )?;
         transaction.execute(
-            "UPDATE containments SET state = 'uncertain'
+            "UPDATE containments SET state = 'uncertain', version = version + 1,
+                incident_sequence = COALESCE(incident_sequence, ?2),
+                reason_code = COALESCE(reason_code, ?3),
+                detail = COALESCE(detail, ?4), opened_ms = COALESCE(opened_ms, ?5),
+                retained_claims_json = COALESCE(retained_claims_json, ?6)
              WHERE id = ?1 AND state IN ('creating', 'live')",
-            [job.containment_id.entity_uuid().to_string()],
+            params![
+                job.containment_id.entity_uuid().to_string(),
+                incident_sequence,
+                verdict,
+                "cleanup could not be proven within the bounded runner wait",
+                opened,
+                retained_claims_json,
+            ],
         )?;
         transaction.execute(
             "UPDATE attempts SET state = 'settled', verdict = ?2, finished_ms = ?3
@@ -2914,11 +3085,16 @@ impl Store {
             "SELECT attempts.id, attempts.attempt_index, attempts.verdict,
                     attempts.started_ms, attempts.deadline_ms, attempts.finished_ms,
                     invocations.id, invocations.role, invocations.role_index, invocations.state,
-                    invocations.root_pid, invocations.root_exit_code,
+                    invocations.root_pid, invocations.root_host_id, invocations.root_boot_id,
+                    invocations.root_creation_filetime_100ns, invocations.root_exit_code,
                     invocations.exit_classification, invocations.executable_hash,
                     invocations.daemon_generation, invocations.started_ms,
                     invocations.finished_ms, invocations.stdout_tail, invocations.stderr_tail,
-                    containments.id, containments.state
+                    containments.id, containments.state, containments.strength,
+                    containments.incident_sequence, containments.reason_code, containments.detail,
+                    containments.opened_ms, containments.retained_claims_json,
+                    containments.resolution, containments.resolved_ms,
+                    containments.last_reconciliation, containments.resolution_audit_json
              FROM attempts
              LEFT JOIN invocations ON invocations.attempt_id = attempts.id
              LEFT JOIN containments ON containments.invocation_id = invocations.id
@@ -2938,16 +3114,29 @@ impl Store {
                 row.get::<_, Option<u32>>(8)?,
                 row.get::<_, Option<String>>(9)?,
                 row.get::<_, Option<u32>>(10)?,
-                row.get::<_, Option<i32>>(11)?,
+                row.get::<_, Option<String>>(11)?,
                 row.get::<_, Option<String>>(12)?,
-                row.get::<_, Option<String>>(13)?,
-                row.get::<_, Option<String>>(14)?,
-                row.get::<_, Option<i64>>(15)?,
-                row.get::<_, Option<i64>>(16)?,
+                row.get::<_, Option<i64>>(13)?,
+                row.get::<_, Option<i32>>(14)?,
+                row.get::<_, Option<String>>(15)?,
+                row.get::<_, Option<String>>(16)?,
                 row.get::<_, Option<String>>(17)?,
-                row.get::<_, Option<String>>(18)?,
-                row.get::<_, Option<String>>(19)?,
+                row.get::<_, Option<i64>>(18)?,
+                row.get::<_, Option<i64>>(19)?,
                 row.get::<_, Option<String>>(20)?,
+                row.get::<_, Option<String>>(21)?,
+                row.get::<_, Option<String>>(22)?,
+                row.get::<_, Option<String>>(23)?,
+                row.get::<_, Option<String>>(24)?,
+                row.get::<_, Option<u64>>(25)?,
+                row.get::<_, Option<String>>(26)?,
+                row.get::<_, Option<String>>(27)?,
+                row.get::<_, Option<i64>>(28)?,
+                row.get::<_, Option<String>>(29)?,
+                row.get::<_, Option<String>>(30)?,
+                row.get::<_, Option<i64>>(31)?,
+                row.get::<_, Option<String>>(32)?,
+                row.get::<_, Option<String>>(33)?,
             ))
         })?;
         let mut attempts = Vec::<AttemptSnapshot>::new();
@@ -2964,6 +3153,9 @@ impl Store {
                 role_index,
                 invocation_state,
                 root_pid,
+                root_host_id,
+                root_boot_id,
+                root_creation,
                 root_exit_code,
                 exit_classification,
                 executable_hash,
@@ -2974,6 +3166,16 @@ impl Store {
                 stderr_tail,
                 containment,
                 containment_state,
+                containment_strength,
+                incident_sequence,
+                incident_reason,
+                incident_detail,
+                incident_opened,
+                retained_claims,
+                resolution,
+                resolved,
+                last_reconciliation,
+                resolution_audit,
             ) = row?;
             if attempts
                 .last()
@@ -3010,6 +3212,10 @@ impl Store {
             let containment_id =
                 ContainmentId::from_parts(self.store_uuid, Uuid::parse_str(&containment)?);
             let containment_state = parse_containment_state(&containment_state)?;
+            let observed_reconciliation = self
+                .reconciliation_observations
+                .get(&containment_id)
+                .cloned();
             attempts
                 .last_mut()
                 .expect("attempt inserted above")
@@ -3023,6 +3229,12 @@ impl Store {
                     role_index,
                     state: parse_invocation_state(&invocation_state)?,
                     root_pid,
+                    root_identity: process_identity_from_columns(
+                        root_pid,
+                        root_host_id.clone(),
+                        root_boot_id.clone(),
+                        root_creation,
+                    )?,
                     root_exit_code,
                     exit_classification: exit_classification
                         .as_deref()
@@ -3036,14 +3248,67 @@ impl Store {
                     finished_unix_millis: finished,
                     containment: ContainmentSnapshot {
                         containment_id,
-                        state: containment_state,
-                        strength: if cfg!(windows) {
-                            "windows_job_object".into()
-                        } else {
-                            "unsupported".into()
-                        },
-                        incident_id: (containment_state == ContainmentState::Uncertain)
-                            .then_some(containment_id),
+                        state: containment_state.clone(),
+                        strength: containment_strength.unwrap_or_else(|| "unknown".into()),
+                        incident_id: incident_sequence.map(|_| containment_id),
+                        incident: incident_sequence
+                            .map(|incident_sequence| {
+                                Ok::<_, StoreError>(ContainmentIncidentSnapshot {
+                                    incident_id: containment_id,
+                                    incident_sequence,
+                                    containment_id,
+                                    job_id,
+                                    attempt_id: AttemptId::from_parts(
+                                        self.store_uuid,
+                                        Uuid::parse_str(&attempt)?,
+                                    ),
+                                    invocation_id: InvocationId::from_parts(
+                                        self.store_uuid,
+                                        Uuid::parse_str(&invocation)?,
+                                    ),
+                                    state: containment_state.clone(),
+                                    reason_code: incident_reason
+                                        .clone()
+                                        .unwrap_or_else(|| "unknown".into()),
+                                    detail: incident_detail.clone().unwrap_or_default(),
+                                    opened_unix_millis: incident_opened.unwrap_or(0),
+                                    last_reconciled_unix_millis: observed_reconciliation
+                                        .as_ref()
+                                        .map(|(observed, _)| *observed),
+                                    last_reconciliation: match &observed_reconciliation {
+                                        Some((_, result)) => Some(result.clone()),
+                                        None => last_reconciliation
+                                            .as_deref()
+                                            .map(parse_reconciliation_result)
+                                            .transpose()?,
+                                    },
+                                    root_identity: process_identity_from_columns(
+                                        root_pid,
+                                        root_host_id.clone(),
+                                        root_boot_id.clone(),
+                                        root_creation,
+                                    )?,
+                                    retained_claims: retained_claims
+                                        .as_deref()
+                                        .map(serde_json::from_str)
+                                        .transpose()?
+                                        .unwrap_or_default(),
+                                    resolution: resolution
+                                        .as_deref()
+                                        .map(parse_containment_resolution)
+                                        .transpose()?,
+                                    resolved_unix_millis: resolved,
+                                })
+                            })
+                            .transpose()?,
+                        resolution: resolution
+                            .as_deref()
+                            .map(parse_containment_resolution)
+                            .transpose()?,
+                        resolution_audit: resolution_audit
+                            .as_deref()
+                            .map(serde_json::from_str)
+                            .transpose()?,
                     },
                     stdout_tail: stdout_tail.unwrap_or_default(),
                     stderr_tail: stderr_tail.unwrap_or_default(),
@@ -3160,6 +3425,7 @@ impl Store {
             daemon_generation: self.daemon_generation,
             version: env!("CARGO_PKG_VERSION").to_owned(),
             pid: std::process::id(),
+            process_identity: self.startup_identity.daemon_process.clone(),
             endpoint: endpoint.to_owned(),
             store_path: self.paths.root.clone(),
             config_path: self.paths.config.clone(),
@@ -3169,6 +3435,747 @@ impl Store {
             queued_jobs,
             running_jobs,
         })
+    }
+
+    pub(crate) fn doctor(
+        &self,
+        endpoint: &str,
+        cursor: Option<ContainmentIncidentCursor>,
+        limit: Option<u32>,
+    ) -> StoreResult<DoctorSnapshot> {
+        if let Some(cursor) = cursor {
+            if cursor.store_uuid != self.store_uuid
+                || cursor.containment_id.store_uuid() != self.store_uuid
+            {
+                return Err(StoreError::InvalidSpec(
+                    "containment incident cursor belongs to a foreign store".into(),
+                ));
+            }
+            let exists: bool = self.connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM containments
+                  WHERE id = ?1 AND incident_sequence = ?2)",
+                params![
+                    cursor.containment_id.entity_uuid().to_string(),
+                    cursor.incident_sequence,
+                ],
+                |row| row.get(0),
+            )?;
+            if !exists {
+                return Err(StoreError::InvalidSpec(
+                    "containment incident cursor is missing or malformed".into(),
+                ));
+            }
+        }
+        let page_limit = limit.unwrap_or(256).clamp(1, 256) as usize;
+        let total_unresolved: u64 = self.connection.query_row(
+            "SELECT COUNT(*) FROM containments WHERE state = 'uncertain'",
+            [],
+            |row| row.get(0),
+        )?;
+        let after_sequence = cursor.map_or(0, |cursor| cursor.incident_sequence);
+        let after_id = cursor
+            .map(|cursor| cursor.containment_id.entity_uuid().to_string())
+            .unwrap_or_default();
+        let mut statement = self.connection.prepare(
+            "SELECT containments.id, containments.incident_sequence, jobs.id, attempts.id,
+                    invocations.id, containments.state, containments.reason_code,
+                    containments.detail, containments.opened_ms,
+                    containments.last_reconciliation, invocations.root_pid,
+                    invocations.root_host_id, invocations.root_boot_id,
+                    invocations.root_creation_filetime_100ns,
+                    containments.retained_claims_json, containments.resolution,
+                    containments.resolved_ms
+             FROM containments
+             JOIN invocations ON invocations.id = containments.invocation_id
+             JOIN attempts ON attempts.id = invocations.attempt_id
+             JOIN jobs ON jobs.id = attempts.job_id
+             WHERE containments.state = 'uncertain'
+               AND (containments.incident_sequence > ?1
+                    OR (containments.incident_sequence = ?1 AND containments.id > ?2))
+             ORDER BY containments.incident_sequence, containments.id
+             LIMIT ?3",
+        )?;
+        let rows = statement.query_map(
+            params![after_sequence, after_id, (page_limit + 1) as u32],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, u64>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<i64>>(8)?,
+                    row.get::<_, Option<String>>(9)?,
+                    row.get::<_, Option<u32>>(10)?,
+                    row.get::<_, Option<String>>(11)?,
+                    row.get::<_, Option<String>>(12)?,
+                    row.get::<_, Option<i64>>(13)?,
+                    row.get::<_, Option<String>>(14)?,
+                    row.get::<_, Option<String>>(15)?,
+                    row.get::<_, Option<i64>>(16)?,
+                ))
+            },
+        )?;
+        let mut incidents = Vec::with_capacity(page_limit + 1);
+        for row in rows {
+            let (
+                containment,
+                sequence,
+                job,
+                attempt,
+                invocation,
+                state,
+                reason,
+                detail,
+                opened,
+                last_reconciliation,
+                root_pid,
+                root_host,
+                root_boot,
+                root_creation,
+                retained_claims,
+                resolution,
+                resolved,
+            ) = row?;
+            let containment_id =
+                ContainmentId::from_parts(self.store_uuid, Uuid::parse_str(&containment)?);
+            let observed_reconciliation = self
+                .reconciliation_observations
+                .get(&containment_id)
+                .cloned();
+            incidents.push(ContainmentIncidentSnapshot {
+                incident_id: containment_id,
+                incident_sequence: sequence,
+                containment_id,
+                job_id: JobId::from_parts(self.store_uuid, Uuid::parse_str(&job)?),
+                attempt_id: AttemptId::from_parts(self.store_uuid, Uuid::parse_str(&attempt)?),
+                invocation_id: InvocationId::from_parts(
+                    self.store_uuid,
+                    Uuid::parse_str(&invocation)?,
+                ),
+                state: parse_containment_state(&state)?,
+                reason_code: reason.unwrap_or_else(|| "unknown".into()),
+                detail: detail.unwrap_or_default(),
+                opened_unix_millis: opened.unwrap_or(0),
+                last_reconciled_unix_millis: observed_reconciliation
+                    .as_ref()
+                    .map(|(observed, _)| *observed),
+                last_reconciliation: match observed_reconciliation {
+                    Some((_, result)) => Some(result),
+                    None => last_reconciliation
+                        .as_deref()
+                        .map(parse_reconciliation_result)
+                        .transpose()?,
+                },
+                root_identity: process_identity_from_columns(
+                    root_pid,
+                    root_host,
+                    root_boot,
+                    root_creation,
+                )?,
+                retained_claims: retained_claims
+                    .as_deref()
+                    .map(serde_json::from_str)
+                    .transpose()?
+                    .unwrap_or_default(),
+                resolution: resolution
+                    .as_deref()
+                    .map(parse_containment_resolution)
+                    .transpose()?,
+                resolved_unix_millis: resolved,
+            });
+        }
+        let has_more = incidents.len() > page_limit;
+        incidents.truncate(page_limit);
+        let next_cursor = has_more && !incidents.is_empty();
+        let next_cursor = next_cursor.then(|| {
+            let incident = incidents.last().expect("nonempty incident page");
+            ContainmentIncidentCursor {
+                store_uuid: self.store_uuid,
+                incident_sequence: incident.incident_sequence,
+                containment_id: incident.containment_id,
+            }
+        });
+
+        let journal_mode: String = self
+            .connection
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))?;
+        let synchronous: i64 = self
+            .connection
+            .query_row("PRAGMA synchronous", [], |row| row.get(0))?;
+        let foreign_keys_enabled: bool =
+            self.connection
+                .query_row("PRAGMA foreign_keys", [], |row| row.get(0))?;
+        let sqlite_ok =
+            journal_mode.eq_ignore_ascii_case("wal") && synchronous == 2 && foreign_keys_enabled;
+        let host_matches = self.startup_identity.host_id.is_some()
+            && self.startup_identity.host_id == self.bound_host_id;
+        let mut checks = vec![
+            DoctorCheck {
+                code: "configuration.loaded".into(),
+                status: DoctorCheckStatus::Pass,
+                summary: "loaded configuration evidence is available".into(),
+                remediation: None,
+            },
+            DoctorCheck {
+                code: "containment.unresolved".into(),
+                status: if total_unresolved == 0 {
+                    DoctorCheckStatus::Pass
+                } else {
+                    DoctorCheckStatus::Warning
+                },
+                summary: format!("{total_unresolved} unresolved containment incident(s)"),
+                remediation: (total_unresolved > 0).then(|| {
+                    "allow reconciliation to finish or explicitly review force-clear risk".into()
+                }),
+            },
+            DoctorCheck {
+                code: "containment.windows_job_object".into(),
+                status: if self.startup_identity.capable() {
+                    DoctorCheckStatus::Pass
+                } else {
+                    DoctorCheckStatus::Fail
+                },
+                summary: "born-contained Windows Job Object capability".into(),
+                remediation: (!self.startup_identity.capable())
+                    .then(|| self.startup_identity.failures.join("; ")),
+            },
+            DoctorCheck {
+                code: "host.boot_identity".into(),
+                status: if self.startup_identity.boot_id.is_some() {
+                    DoctorCheckStatus::Pass
+                } else {
+                    DoctorCheckStatus::Fail
+                },
+                summary: "startup-latched boot identity".into(),
+                remediation: None,
+            },
+            DoctorCheck {
+                code: "host.machine_identity".into(),
+                status: if host_matches {
+                    DoctorCheckStatus::Pass
+                } else {
+                    DoctorCheckStatus::Fail
+                },
+                summary: "current host matches the durable store binding".into(),
+                remediation: None,
+            },
+            DoctorCheck {
+                code: "host.session_survival".into(),
+                status: DoctorCheckStatus::Pass,
+                summary: "detached per-user daemon session is active".into(),
+                remediation: None,
+            },
+            DoctorCheck {
+                code: "ipc.owner_only".into(),
+                status: DoctorCheckStatus::Pass,
+                summary: "named pipe is owner-only and rejects remote clients".into(),
+                remediation: None,
+            },
+            DoctorCheck {
+                code: "store.filesystem".into(),
+                status: DoctorCheckStatus::Pass,
+                summary: "store path was validated as local fixed NTFS".into(),
+                remediation: None,
+            },
+            DoctorCheck {
+                code: "store.schema".into(),
+                status: DoctorCheckStatus::Pass,
+                summary: format!("validated schema epoch {STORE_SCHEMA_EPOCH}"),
+                remediation: None,
+            },
+            DoctorCheck {
+                code: "store.sqlite_durability".into(),
+                status: if sqlite_ok {
+                    DoctorCheckStatus::Pass
+                } else {
+                    DoctorCheckStatus::Fail
+                },
+                summary: format!(
+                    "journal={journal_mode}, synchronous={synchronous}, foreign_keys={foreign_keys_enabled}"
+                ),
+                remediation: None,
+            },
+        ];
+        checks.sort_by(|left, right| left.code.cmp(&right.code));
+        let overall = if checks
+            .iter()
+            .any(|check| check.status == DoctorCheckStatus::Fail)
+        {
+            DoctorOverallStatus::Unsafe
+        } else if checks.iter().any(|check| {
+            matches!(
+                check.status,
+                DoctorCheckStatus::Warning | DoctorCheckStatus::Unknown(_)
+            )
+        }) {
+            DoctorOverallStatus::AttentionRequired
+        } else {
+            DoctorOverallStatus::Healthy
+        };
+        Ok(DoctorSnapshot {
+            schema_version: 1,
+            observed_unix_millis: now_millis(),
+            overall,
+            daemon: self.daemon_status(endpoint)?,
+            host: DoctorHostSnapshot {
+                platform: std::env::consts::OS.into(),
+                host_name: std::env::var("COMPUTERNAME").ok(),
+                host_id: self.startup_identity.host_id.clone(),
+                boot_id: self.startup_identity.boot_id.clone(),
+                containment_strength: "windows_job_object".into(),
+                session_survival: DoctorCheckStatus::Pass,
+            },
+            store: DoctorStoreSnapshot {
+                store_uuid: self.store_uuid,
+                schema_epoch: STORE_SCHEMA_EPOCH.into(),
+                bound_host_id: self.bound_host_id.clone(),
+                filesystem: "local_fixed_ntfs".into(),
+                sqlite_journal_mode: journal_mode,
+                sqlite_synchronous: if synchronous == 2 {
+                    "full".into()
+                } else {
+                    synchronous.to_string()
+                },
+                foreign_keys_enabled,
+            },
+            checks,
+            incidents: DoctorIncidentPage {
+                total_unresolved,
+                incidents,
+                truncated: has_more,
+                next_cursor,
+            },
+            boundaries: vec![
+                DoctorBoundary {
+                    code: "cloned_host_identity".into(),
+                    statement: "simultaneous machine clones with the same MachineGuid cannot be distinguished".into(),
+                },
+                DoctorBoundary {
+                    code: "no_hard_resource_partition".into(),
+                    statement: "resource admission is not CPU, GPU, or RAM hard enforcement".into(),
+                },
+                DoctorBoundary {
+                    code: "physical_power_loss_after_ack".into(),
+                    statement: "physical power loss may exceed the acknowledged storage boundary".into(),
+                },
+                DoctorBoundary {
+                    code: "same_owner_out_of_boundary_process".into(),
+                    statement: "deliberate same-owner out-of-boundary process creation is outside the cooperative guarantee".into(),
+                },
+            ],
+        })
+    }
+
+    pub(crate) fn reconciliation_context(&self) -> Option<(HostId, BootId, Uuid)> {
+        Some((
+            self.startup_identity.host_id.clone()?,
+            self.startup_identity.boot_id.clone()?,
+            self.daemon_generation,
+        ))
+    }
+
+    pub(crate) fn record_reconciliation_observation(
+        &mut self,
+        containment_id: ContainmentId,
+        result: ReconciliationResult,
+    ) {
+        const MAX_OBSERVATIONS: usize = 256;
+        if !self
+            .reconciliation_observations
+            .contains_key(&containment_id)
+            && self.reconciliation_observations.len() >= MAX_OBSERVATIONS
+        {
+            if let Some(oldest) = self.reconciliation_observations.keys().next().copied() {
+                self.reconciliation_observations.remove(&oldest);
+            }
+        }
+        self.reconciliation_observations
+            .insert(containment_id, (now_millis(), result));
+    }
+
+    pub(crate) fn reconciliation_candidates(
+        &self,
+        after_sequence: u64,
+        limit: u32,
+    ) -> StoreResult<Vec<ReconciliationCandidate>> {
+        let mut statement = self.connection.prepare(
+            "SELECT containments.id, containments.invocation_id, invocations.attempt_id,
+                    containments.version, containments.host_id, containments.boot_id,
+                    containments.daemon_generation, invocations.root_pid,
+                    invocations.root_host_id, invocations.root_boot_id,
+                    invocations.root_creation_filetime_100ns,
+                    daemon_generations.process_identity_json, containments.incident_sequence
+             FROM containments
+             JOIN invocations ON invocations.id = containments.invocation_id
+             LEFT JOIN daemon_generations
+               ON daemon_generations.generation = containments.daemon_generation
+             WHERE containments.state = 'uncertain'
+             ORDER BY (containments.incident_sequence > ?1) DESC,
+                      containments.incident_sequence, containments.id
+             LIMIT ?2",
+        )?;
+        let rows = statement.query_map(params![after_sequence, limit.min(32)], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, u64>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, Option<String>>(5)?,
+                row.get::<_, Option<String>>(6)?,
+                row.get::<_, Option<u32>>(7)?,
+                row.get::<_, Option<String>>(8)?,
+                row.get::<_, Option<String>>(9)?,
+                row.get::<_, Option<i64>>(10)?,
+                row.get::<_, Option<String>>(11)?,
+                row.get::<_, u64>(12)?,
+            ))
+        })?;
+        let mut candidates = Vec::new();
+        for row in rows {
+            let (
+                containment,
+                invocation,
+                attempt,
+                version,
+                host,
+                boot,
+                generation,
+                root_pid,
+                root_host,
+                root_boot,
+                root_creation,
+                prior_daemon,
+                incident_sequence,
+            ) = row?;
+            candidates.push(ReconciliationCandidate {
+                containment_id: ContainmentId::from_parts(
+                    self.store_uuid,
+                    Uuid::parse_str(&containment)?,
+                ),
+                invocation_id: InvocationId::from_parts(
+                    self.store_uuid,
+                    Uuid::parse_str(&invocation)?,
+                ),
+                attempt_id: AttemptId::from_parts(self.store_uuid, Uuid::parse_str(&attempt)?),
+                version,
+                host_id: host.map(HostId),
+                boot_id: boot.map(BootId),
+                daemon_generation: generation
+                    .map(|value| Uuid::parse_str(&value))
+                    .transpose()?,
+                root_pid_recorded: root_pid.is_some(),
+                root_identity: process_identity_from_columns(
+                    root_pid,
+                    root_host,
+                    root_boot,
+                    root_creation,
+                )?,
+                prior_daemon_identity: prior_daemon
+                    .as_deref()
+                    .map(serde_json::from_str)
+                    .transpose()?,
+                incident_sequence,
+            });
+        }
+        Ok(candidates)
+    }
+
+    pub(crate) fn reconciliation_candidate(
+        &self,
+        containment_id: ContainmentId,
+    ) -> StoreResult<ReconciliationCandidate> {
+        let local_id = self.local_containment_id(containment_id)?;
+        let row = self
+            .connection
+            .query_row(
+                "SELECT containments.invocation_id, invocations.attempt_id,
+                        containments.version, containments.host_id, containments.boot_id,
+                        containments.daemon_generation, invocations.root_pid,
+                        invocations.root_host_id, invocations.root_boot_id,
+                        invocations.root_creation_filetime_100ns,
+                        daemon_generations.process_identity_json,
+                        containments.incident_sequence, containments.state
+                 FROM containments
+                 JOIN invocations ON invocations.id = containments.invocation_id
+                 LEFT JOIN daemon_generations
+                   ON daemon_generations.generation = containments.daemon_generation
+                 WHERE containments.id = ?1",
+                [&local_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, u64>(2)?,
+                        row.get::<_, Option<String>>(3)?,
+                        row.get::<_, Option<String>>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                        row.get::<_, Option<u32>>(6)?,
+                        row.get::<_, Option<String>>(7)?,
+                        row.get::<_, Option<String>>(8)?,
+                        row.get::<_, Option<i64>>(9)?,
+                        row.get::<_, Option<String>>(10)?,
+                        row.get::<_, Option<u64>>(11)?,
+                        row.get::<_, String>(12)?,
+                    ))
+                },
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::OperationRejected {
+                code: "containment_not_uncertain".into(),
+                detail: "containment does not exist in the current store".into(),
+            })?;
+        let (
+            invocation,
+            attempt,
+            version,
+            host,
+            boot,
+            generation,
+            root_pid,
+            root_host,
+            root_boot,
+            root_creation,
+            prior_daemon,
+            incident_sequence,
+            state,
+        ) = row;
+        if state == "cleared" {
+            return Err(StoreError::OperationRejected {
+                code: "containment_already_cleared".into(),
+                detail: "containment is already cleared".into(),
+            });
+        }
+        if state != "uncertain" {
+            return Err(StoreError::OperationRejected {
+                code: "containment_not_uncertain".into(),
+                detail: format!("containment state is {state}, not uncertain"),
+            });
+        }
+        Ok(ReconciliationCandidate {
+            containment_id,
+            invocation_id: InvocationId::from_parts(self.store_uuid, Uuid::parse_str(&invocation)?),
+            attempt_id: AttemptId::from_parts(self.store_uuid, Uuid::parse_str(&attempt)?),
+            version,
+            host_id: host.map(HostId),
+            boot_id: boot.map(BootId),
+            daemon_generation: generation
+                .map(|value| Uuid::parse_str(&value))
+                .transpose()?,
+            root_pid_recorded: root_pid.is_some(),
+            root_identity: process_identity_from_columns(
+                root_pid,
+                root_host,
+                root_boot,
+                root_creation,
+            )?,
+            prior_daemon_identity: prior_daemon
+                .as_deref()
+                .map(serde_json::from_str)
+                .transpose()?,
+            incident_sequence: incident_sequence.unwrap_or(0),
+        })
+    }
+
+    pub(crate) fn clearance_authorization_evidence(
+        &self,
+    ) -> StoreResult<(Vec<InvocationId>, Vec<ProcessIdentity>)> {
+        let generation = self.daemon_generation.to_string();
+        let mut handles = self.connection.prepare(
+            "SELECT invocations.id FROM containments
+             JOIN invocations ON invocations.id = containments.invocation_id
+             WHERE containments.daemon_generation = ?1
+               AND containments.state IN ('creating', 'live', 'uncertain')
+             ORDER BY invocations.id",
+        )?;
+        let invocation_rows = handles.query_map([generation], |row| row.get::<_, String>(0))?;
+        let invocations = invocation_rows
+            .map(|row| {
+                Ok(InvocationId::from_parts(
+                    self.store_uuid,
+                    Uuid::parse_str(&row?)?,
+                ))
+            })
+            .collect::<StoreResult<Vec<_>>>()?;
+        let mut roots = self.connection.prepare(
+            "SELECT invocations.root_pid, invocations.root_host_id,
+                    invocations.root_boot_id, invocations.root_creation_filetime_100ns
+             FROM containments
+             JOIN invocations ON invocations.id = containments.invocation_id
+             WHERE containments.state = 'uncertain'",
+        )?;
+        let root_rows = roots.query_map([], |row| {
+            Ok((
+                row.get::<_, Option<u32>>(0)?,
+                row.get::<_, Option<String>>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<i64>>(3)?,
+            ))
+        })?;
+        let mut identities = Vec::new();
+        for row in root_rows {
+            let (pid, host, boot, creation) = row?;
+            if let Some(identity) = process_identity_from_columns(pid, host, boot, creation)? {
+                identities.push(identity);
+            }
+        }
+        Ok((invocations, identities))
+    }
+
+    pub(crate) fn latest_unresolved_incident_sequence(&self) -> StoreResult<Option<u64>> {
+        self.connection
+            .query_row(
+                "SELECT MAX(incident_sequence) FROM containments WHERE state = 'uncertain'",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(Into::into)
+    }
+
+    pub(crate) fn commit_containment_resolution(
+        &mut self,
+        candidate: &ReconciliationCandidate,
+        resolution: ContainmentResolution,
+        last_reconciliation: ReconciliationResult,
+        origin: ClearanceOrigin,
+        forced: Option<ForcedClearanceAudit>,
+        expected_authorization_invocations: Option<&[InvocationId]>,
+    ) -> StoreResult<Option<ClearContainmentResult>> {
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        type ContainmentVersionRow = (String, u64, Option<String>, Option<String>, Option<String>);
+        let current: Option<ContainmentVersionRow> = transaction
+            .query_row(
+                "SELECT state, version, host_id, boot_id, daemon_generation
+                     FROM containments WHERE id = ?1",
+                [candidate.containment_id.entity_uuid().to_string()],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .optional()?;
+        let Some((state, version, host, boot, generation)) = current else {
+            return Ok(None);
+        };
+        if state != "uncertain"
+            || version != candidate.version
+            || host.as_deref() != candidate.host_id.as_ref().map(|value| value.0.as_str())
+            || boot.as_deref() != candidate.boot_id.as_ref().map(|value| value.0.as_str())
+            || generation.as_deref()
+                != candidate
+                    .daemon_generation
+                    .as_ref()
+                    .map(|value| value.to_string())
+                    .as_deref()
+        {
+            return Ok(None);
+        }
+        if let Some(expected) = expected_authorization_invocations {
+            let mut statement = transaction.prepare(
+                "SELECT invocations.id FROM containments
+                 JOIN invocations ON invocations.id = containments.invocation_id
+                 WHERE containments.daemon_generation = ?1
+                   AND containments.state IN ('creating', 'live', 'uncertain')
+                 ORDER BY invocations.id",
+            )?;
+            let observed = statement
+                .query_map([self.daemon_generation.to_string()], |row| {
+                    row.get::<_, String>(0)
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            drop(statement);
+            let expected = expected
+                .iter()
+                .map(|invocation| invocation.entity_uuid().to_string())
+                .collect::<Vec<_>>();
+            if observed != expected {
+                return Ok(None);
+            }
+        }
+        let attempt_id = candidate.attempt_id.entity_uuid().to_string();
+        let target_id = candidate.containment_id.entity_uuid().to_string();
+        let lease_released =
+            attempt_lease_release_eligible_after_target(&transaction, &attempt_id, &target_id)?;
+        let audit = ContainmentResolutionAudit {
+            resolved_unix_millis: now_millis(),
+            daemon_generation: self.daemon_generation,
+            resolution: resolution.clone(),
+            last_reconciliation: last_reconciliation.clone(),
+            origin,
+            forced,
+            lease_released,
+        };
+        transaction.execute(
+            "UPDATE containments SET state = 'cleared', version = version + 1,
+                resolution = ?2, resolved_ms = ?3, last_reconciliation = ?4,
+                resolution_audit_json = ?5
+             WHERE id = ?1 AND state = 'uncertain' AND version = ?6",
+            params![
+                target_id,
+                containment_resolution_string(&resolution)?,
+                audit.resolved_unix_millis,
+                reconciliation_result_string(&last_reconciliation)?,
+                serde_json::to_string(&audit)?,
+                candidate.version,
+            ],
+        )?;
+        if lease_released {
+            transaction.execute(
+                "UPDATE leases SET state = 'released'
+                 WHERE attempt_id = ?1 AND state = 'granted'",
+                [&attempt_id],
+            )?;
+        }
+        transaction.commit()?;
+        Ok(Some(ClearContainmentResult {
+            schema_version: 1,
+            containment_id: candidate.containment_id,
+            prior_state: ContainmentState::Uncertain,
+            state: ContainmentState::Cleared,
+            audit,
+        }))
+    }
+
+    pub(crate) fn persisted_clearance(
+        &self,
+        containment_id: ContainmentId,
+    ) -> StoreResult<Option<ClearContainmentResult>> {
+        let local_id = self.local_containment_id(containment_id)?;
+        self.connection
+            .query_row(
+                "SELECT state, resolution_audit_json FROM containments WHERE id = ?1",
+                [local_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
+            )
+            .optional()?
+            .map(|(state, audit)| {
+                if state != "cleared" {
+                    return Ok(None);
+                }
+                let audit = audit.ok_or_else(|| {
+                    StoreError::InvalidState("cleared containment has no resolution audit".into())
+                })?;
+                Ok(Some(ClearContainmentResult {
+                    schema_version: 1,
+                    containment_id,
+                    prior_state: ContainmentState::Uncertain,
+                    state: ContainmentState::Cleared,
+                    audit: serde_json::from_str(&audit)?,
+                }))
+            })
+            .transpose()
+            .map(Option::flatten)
     }
 
     pub(crate) fn pending_jobs(&self) -> StoreResult<Vec<JobId>> {
@@ -3202,58 +4209,69 @@ impl Store {
     }
 
     fn recover_interrupted(&mut self) -> StoreResult<()> {
-        let live_roots = {
+        let interrupted = {
             let mut statement = self.connection.prepare(
-                "SELECT containments.id, attempts.id, invocations.root_pid
+                "SELECT containments.id, containments.state, jobs.spec_json
                  FROM containments
                  JOIN invocations ON invocations.id = containments.invocation_id
                  JOIN attempts ON attempts.id = invocations.attempt_id
-                 WHERE containments.state = 'live'",
+                 JOIN jobs ON jobs.id = attempts.job_id
+                 WHERE containments.state IN ('creating', 'live')
+                 ORDER BY containments.rowid",
             )?;
             let rows = statement.query_map([], |row| {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
-                    row.get::<_, Option<u32>>(2)?,
+                    row.get::<_, String>(2)?,
                 ))
             })?;
             rows.collect::<std::result::Result<Vec<_>, _>>()?
         };
-        let proven_empty: Vec<_> = live_roots
-            .into_iter()
-            .filter(|(_, _, root_pid)| root_pid.is_some_and(root_disappeared_bounded))
-            .collect();
         let finished = now_millis();
-        let transaction = self.connection.transaction()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
         transaction.execute(
             "UPDATE invocations SET state = 'resolved', finished_ms = ?1
-             WHERE state = 'prepared'",
+             WHERE state IN ('prepared', 'started', 'exited')",
             [finished],
         )?;
-        transaction.execute(
-            "UPDATE containments SET state = 'empty' WHERE state = 'creating'",
+        let mut incident_sequence: u64 = transaction.query_row(
+            "SELECT COALESCE(MAX(incident_sequence), 0) FROM containments",
             [],
+            |row| row.get(0),
         )?;
-        transaction.execute(
-            "UPDATE attempts SET state = 'settled', verdict = 'start_failed', finished_ms = ?1
-             WHERE state = 'starting'",
-            [finished],
-        )?;
-        transaction.execute(
-            "UPDATE leases SET state = 'released' WHERE state = 'granted' AND attempt_id IN (
-                SELECT id FROM attempts WHERE verdict = 'start_failed'
-             )",
-            [],
-        )?;
-        transaction.execute(
-            "UPDATE invocations SET state = 'resolved', finished_ms = ?1
-             WHERE state IN ('started', 'exited')",
-            [finished],
-        )?;
-        transaction.execute(
-            "UPDATE containments SET state = 'uncertain' WHERE state = 'live'",
-            [],
-        )?;
+        for (containment_id, prior_state, spec_json) in interrupted {
+            incident_sequence = incident_sequence.saturating_add(1);
+            let retained_claims =
+                serde_json::to_string(&serde_json::from_str::<JobSpec>(&spec_json)?.resources)?;
+            let (reason, detail) = if prior_state == "creating" {
+                (
+                    "daemon_restart_before_resume",
+                    "daemon restarted before process release; boundary closure awaits proof",
+                )
+            } else {
+                (
+                    "daemon_restart_cleanup_unproven",
+                    "daemon restarted while containment cleanup was not durably proven",
+                )
+            };
+            transaction.execute(
+                "UPDATE containments SET state = 'uncertain', version = version + 1,
+                    incident_sequence = ?2, reason_code = ?3, detail = ?4,
+                    opened_ms = ?5, retained_claims_json = ?6
+                 WHERE id = ?1 AND state IN ('creating', 'live')",
+                params![
+                    containment_id,
+                    incident_sequence,
+                    reason,
+                    detail,
+                    finished,
+                    retained_claims,
+                ],
+            )?;
+        }
         transaction.execute(
             "UPDATE attempts SET state = 'settled', verdict = 'interrupted', finished_ms = ?1
              WHERE state != 'settled'",
@@ -3261,36 +4279,23 @@ impl Store {
         )?;
         transaction.execute(
             "UPDATE jobs SET state = 'final',
-                outcome = CASE
-                    WHEN attempt_id IN (
-                        SELECT id FROM attempts WHERE verdict = 'start_failed'
-                    ) THEN 'failed'
-                    ELSE 'interrupted'
-                END,
+                outcome = 'interrupted',
                 finished_ms = ?1
              WHERE state = 'active'",
             [finished],
         )?;
-        for (containment_id, attempt_id, _) in proven_empty {
-            transaction.execute(
-                "UPDATE containments SET state = 'empty'
-                 WHERE id = ?1 AND state = 'uncertain'",
-                [containment_id],
-            )?;
-            transaction.execute(
-                "UPDATE leases SET state = 'released'
-                 WHERE attempt_id = ?1 AND state = 'granted'",
-                [attempt_id],
-            )?;
-        }
         transaction.execute(
             "UPDATE leases SET state = 'released'
-             WHERE state = 'granted' AND attempt_id NOT IN (
-                SELECT DISTINCT invocations.attempt_id
-                FROM invocations
-                JOIN containments ON containments.invocation_id = invocations.id
-                WHERE containments.state IN ('creating', 'live', 'uncertain')
-             )",
+             WHERE state = 'granted'
+               AND EXISTS(SELECT 1 FROM attempts
+                          WHERE attempts.id = leases.attempt_id
+                            AND attempts.state = 'settled')
+               AND NOT EXISTS(
+                    SELECT 1 FROM containments
+                    JOIN invocations ON invocations.id = containments.invocation_id
+                    WHERE invocations.attempt_id = leases.attempt_id
+                      AND containments.state NOT IN ('empty', 'cleared')
+               )",
             [],
         )?;
         transaction.commit()?;
@@ -3910,31 +4915,6 @@ fn load_host_config(path: &Path) -> StoreResult<HostConfig> {
     }
 }
 
-#[cfg(windows)]
-fn root_disappeared_bounded(pid: u32) -> bool {
-    use windows_sys::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0};
-    use windows_sys::Win32::Storage::FileSystem::SYNCHRONIZE;
-    use windows_sys::Win32::System::Threading::{
-        OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, WaitForSingleObject,
-    };
-
-    // SAFETY: the access is observational and pid came from the durable root record.
-    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, 0, pid) };
-    if process.is_null() {
-        return std::io::Error::last_os_error().raw_os_error() == Some(87);
-    }
-    // SAFETY: process is a live waitable handle. Five seconds is the bounded recovery proof.
-    let gone = unsafe { WaitForSingleObject(process, 5_000) } == WAIT_OBJECT_0;
-    // SAFETY: this function owns the process handle.
-    unsafe { CloseHandle(process) };
-    gone
-}
-
-#[cfg(not(windows))]
-fn root_disappeared_bounded(_pid: u32) -> bool {
-    false
-}
-
 pub(crate) fn open_lock(path: &Path) -> StoreResult<File> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -4050,6 +5030,78 @@ fn current_store_uuid(connection: &Connection) -> StoreResult<Uuid> {
         .map_err(|_| StoreError::InvalidState("current store has an invalid store_uuid".into()))
 }
 
+fn meta_value(connection: &Connection, key: &str) -> StoreResult<Option<String>> {
+    connection
+        .query_row("SELECT value FROM meta WHERE key = ?1", [key], |row| {
+            row.get(0)
+        })
+        .optional()
+        .map_err(Into::into)
+}
+
+fn host_binding_is_acceptable(
+    connection: &Connection,
+    current_host_id: Option<&HostId>,
+) -> StoreResult<bool> {
+    let bound_host_id = meta_value(connection, "bound_host_id")?;
+    match (bound_host_id.as_deref(), current_host_id) {
+        (Some(bound), Some(current)) => Ok(bound == current.0),
+        // An unavailable identity is a capability failure, not evidence that the
+        // durable store moved. Keep diagnostics available and block admission.
+        (Some(_), None) => Ok(true),
+        (None, _) => {
+            let durable_state_exists: bool = connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM containments)
+                    OR EXISTS(SELECT 1 FROM leases WHERE state = 'granted')",
+                [],
+                |row| row.get(0),
+            )?;
+            Ok(!durable_state_exists)
+        }
+    }
+}
+
+fn bind_unbound_store(
+    connection: &Connection,
+    current_host_id: Option<&HostId>,
+) -> StoreResult<()> {
+    let Some(current_host_id) = current_host_id else {
+        return Ok(());
+    };
+    if meta_value(connection, "bound_host_id")?.is_some() {
+        return Ok(());
+    }
+    connection.execute_batch("BEGIN IMMEDIATE")?;
+    let result = (|| -> StoreResult<()> {
+        let durable_state_exists: bool = connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM containments)
+                OR EXISTS(SELECT 1 FROM leases WHERE state = 'granted')",
+            [],
+            |row| row.get(0),
+        )?;
+        if durable_state_exists {
+            return Err(StoreError::InvalidState(
+                "unbound store gained durable containment state while binding".into(),
+            ));
+        }
+        connection.execute(
+            "INSERT INTO meta(key, value) VALUES ('bound_host_id', ?1)",
+            [&current_host_id.0],
+        )?;
+        Ok(())
+    })();
+    match result {
+        Ok(()) => {
+            connection.execute_batch("COMMIT")?;
+            Ok(())
+        }
+        Err(error) => {
+            let _ = connection.execute_batch("ROLLBACK");
+            Err(error)
+        }
+    }
+}
+
 fn reset_database_files(paths: &StorePaths) -> StoreResult<()> {
     for path in [
         sqlite_sidecar_path(&paths.database, "-wal"),
@@ -4071,7 +5123,17 @@ fn sqlite_sidecar_path(database: &Path, suffix: &str) -> PathBuf {
     PathBuf::from(path)
 }
 
-fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResult<()> {
+fn create_current_schema(
+    connection: &Connection,
+    store_uuid: Uuid,
+    bound_host_id: Option<&HostId>,
+) -> StoreResult<()> {
+    let bound_host_meta = bound_host_id.map_or_else(String::new, |host_id| {
+        format!(
+            "INSERT INTO meta(key, value) VALUES ('bound_host_id', '{}');",
+            host_id.0.replace('\'', "''")
+        )
+    });
     connection.execute_batch(&format!(
         "BEGIN IMMEDIATE;
          CREATE TABLE meta(
@@ -4149,6 +5211,11 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
              finished_ms INTEGER,
              UNIQUE(job_id, attempt_index)
          );
+         CREATE TABLE daemon_generations(
+             generation TEXT PRIMARY KEY,
+             process_identity_json TEXT NOT NULL,
+             started_ms INTEGER NOT NULL
+         );
          CREATE TABLE invocations(
              id TEXT PRIMARY KEY,
              attempt_id TEXT NOT NULL REFERENCES attempts(id),
@@ -4156,6 +5223,9 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
              role_index INTEGER NOT NULL DEFAULT 0,
              state TEXT NOT NULL,
              root_pid INTEGER,
+             root_host_id TEXT,
+             root_boot_id TEXT,
+             root_creation_filetime_100ns INTEGER,
              root_exit_code INTEGER,
              executable_hash TEXT,
              daemon_generation TEXT,
@@ -4169,7 +5239,21 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
          CREATE TABLE containments(
              id TEXT PRIMARY KEY,
              invocation_id TEXT NOT NULL REFERENCES invocations(id),
-             state TEXT NOT NULL
+             state TEXT NOT NULL,
+             host_id TEXT,
+             boot_id TEXT,
+             daemon_generation TEXT,
+             strength TEXT,
+             version INTEGER NOT NULL DEFAULT 1,
+             incident_sequence INTEGER,
+             reason_code TEXT,
+             detail TEXT,
+             opened_ms INTEGER,
+             retained_claims_json TEXT,
+             resolution TEXT,
+             resolved_ms INTEGER,
+             last_reconciliation TEXT,
+             resolution_audit_json TEXT
          );
          CREATE TABLE conditions(
              id TEXT PRIMARY KEY,
@@ -4284,6 +5368,7 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
          END;
          INSERT INTO meta(key, value) VALUES ('store_uuid', '{store_uuid}');
          INSERT INTO meta(key, value) VALUES ('schema_epoch', '{STORE_SCHEMA_EPOCH}');
+         {bound_host_meta}
          COMMIT;"
     ))?;
     validate_schema(connection)
@@ -4296,6 +5381,7 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
         "batches",
         "jobs",
         "attempts",
+        "daemon_generations",
         "invocations",
         "containments",
         "conditions",
@@ -4357,13 +5443,39 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
             &["attempt_index", "started_ms", "deadline_ms", "finished_ms"] as &[_],
         ),
         (
+            "daemon_generations",
+            &["generation", "process_identity_json", "started_ms"] as &[_],
+        ),
+        (
             "invocations",
             &[
                 "role_index",
                 "daemon_generation",
+                "root_host_id",
+                "root_boot_id",
+                "root_creation_filetime_100ns",
                 "exit_classification",
                 "stdout_tail",
                 "stderr_tail",
+            ] as &[_],
+        ),
+        (
+            "containments",
+            &[
+                "host_id",
+                "boot_id",
+                "daemon_generation",
+                "strength",
+                "version",
+                "incident_sequence",
+                "reason_code",
+                "detail",
+                "opened_ms",
+                "retained_claims_json",
+                "resolution",
+                "resolved_ms",
+                "last_reconciliation",
+                "resolution_audit_json",
             ] as &[_],
         ),
         (
@@ -4478,10 +5590,136 @@ fn parse_containment_state(state: &str) -> StoreResult<ContainmentState> {
         "live" => Ok(ContainmentState::Live),
         "empty" => Ok(ContainmentState::Empty),
         "uncertain" => Ok(ContainmentState::Uncertain),
+        "cleared" => Ok(ContainmentState::Cleared),
         other => Err(StoreError::InvalidState(format!(
             "unknown Containment state {other}"
         ))),
     }
+}
+
+fn parse_reconciliation_result(value: &str) -> StoreResult<ReconciliationResult> {
+    match value {
+        "still_resolves" => Ok(ReconciliationResult::StillResolves),
+        "boundary_not_empty" => Ok(ReconciliationResult::BoundaryNotEmpty),
+        "boundary_uninspectable" => Ok(ReconciliationResult::BoundaryUninspectable),
+        "identity_unavailable" => Ok(ReconciliationResult::IdentityUnavailable),
+        "identity_absent" => Ok(ReconciliationResult::IdentityAbsent),
+        "pid_reused" => Ok(ReconciliationResult::PidReused),
+        "proven_empty" => Ok(ReconciliationResult::ProvenEmpty),
+        "prior_boot" => Ok(ReconciliationResult::PriorBoot),
+        other => Err(StoreError::InvalidState(format!(
+            "unknown reconciliation result {other}"
+        ))),
+    }
+}
+
+fn reconciliation_result_string(value: &ReconciliationResult) -> StoreResult<&str> {
+    match value {
+        ReconciliationResult::StillResolves => Ok("still_resolves"),
+        ReconciliationResult::BoundaryNotEmpty => Ok("boundary_not_empty"),
+        ReconciliationResult::BoundaryUninspectable => Ok("boundary_uninspectable"),
+        ReconciliationResult::IdentityUnavailable => Ok("identity_unavailable"),
+        ReconciliationResult::IdentityAbsent => Ok("identity_absent"),
+        ReconciliationResult::PidReused => Ok("pid_reused"),
+        ReconciliationResult::ProvenEmpty => Ok("proven_empty"),
+        ReconciliationResult::PriorBoot => Ok("prior_boot"),
+        ReconciliationResult::Unknown(other) => Err(StoreError::InvalidState(format!(
+            "unknown reconciliation result cannot enter durable state: {other}"
+        ))),
+    }
+}
+
+fn parse_containment_resolution(value: &str) -> StoreResult<ContainmentResolution> {
+    match value {
+        "proven_empty" => Ok(ContainmentResolution::ProvenEmpty),
+        "reboot" => Ok(ContainmentResolution::Reboot),
+        "forced_risk_acceptance" => Ok(ContainmentResolution::ForcedRiskAcceptance),
+        other => Err(StoreError::InvalidState(format!(
+            "unknown containment resolution {other}"
+        ))),
+    }
+}
+
+fn containment_resolution_string(value: &ContainmentResolution) -> StoreResult<&str> {
+    match value {
+        ContainmentResolution::ProvenEmpty => Ok("proven_empty"),
+        ContainmentResolution::Reboot => Ok("reboot"),
+        ContainmentResolution::ForcedRiskAcceptance => Ok("forced_risk_acceptance"),
+        ContainmentResolution::Unknown(other) => Err(StoreError::InvalidState(format!(
+            "unknown containment resolution cannot enter durable state: {other}"
+        ))),
+    }
+}
+
+fn process_identity_from_columns(
+    pid: Option<u32>,
+    host_id: Option<String>,
+    boot_id: Option<String>,
+    creation_filetime_100ns: Option<i64>,
+) -> StoreResult<Option<ProcessIdentity>> {
+    match (pid, host_id, boot_id, creation_filetime_100ns) {
+        (Some(pid), Some(host_id), Some(boot_id), Some(creation)) => {
+            Ok(Some(ProcessIdentity::Windows {
+                host_id: HostId(host_id),
+                boot_id: BootId(boot_id),
+                pid,
+                creation_filetime_100ns: u64::try_from(creation).map_err(|_| {
+                    StoreError::InvalidState("negative process creation identity".into())
+                })?,
+            }))
+        }
+        // Tests and records that never released user code may legitimately have no exact root.
+        _ => Ok(None),
+    }
+}
+
+fn release_attempt_lease_if_safe(
+    transaction: &Transaction<'_>,
+    attempt_id: &str,
+) -> StoreResult<bool> {
+    let eligible: bool = transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM attempts WHERE id = ?1 AND state = 'settled')
+            AND NOT EXISTS(
+                SELECT 1 FROM containments
+                JOIN invocations ON invocations.id = containments.invocation_id
+                WHERE invocations.attempt_id = ?1
+                  AND containments.state NOT IN ('empty', 'cleared')
+            )",
+        [attempt_id],
+        |row| row.get(0),
+    )?;
+    if !eligible {
+        return Ok(false);
+    }
+    let released = transaction.execute(
+        "UPDATE leases SET state = 'released'
+         WHERE attempt_id = ?1 AND state = 'granted'",
+        [attempt_id],
+    )? > 0;
+    Ok(released)
+}
+
+fn attempt_lease_release_eligible_after_target(
+    transaction: &Transaction<'_>,
+    attempt_id: &str,
+    target_containment_id: &str,
+) -> StoreResult<bool> {
+    transaction
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM attempts WHERE id = ?1 AND state = 'settled')
+                AND EXISTS(SELECT 1 FROM leases
+                           WHERE attempt_id = ?1 AND state = 'granted')
+                AND NOT EXISTS(
+                    SELECT 1 FROM containments
+                    JOIN invocations ON invocations.id = containments.invocation_id
+                    WHERE invocations.attempt_id = ?1
+                      AND containments.id != ?2
+                      AND containments.state NOT IN ('empty', 'cleared')
+                )",
+            params![attempt_id, target_containment_id],
+            |row| row.get(0),
+        )
+        .map_err(Into::into)
 }
 
 fn parse_exit_classification(value: &str) -> StoreResult<ExitClassification> {
@@ -5446,7 +6684,7 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
-    fn restart_releases_lease_after_recorded_root_is_gone() {
+    fn alpha8_restart_never_uses_pid_only_root_disappearance_as_proof() {
         let temp = tempfile::tempdir().unwrap();
         let paths = StorePaths::new(temp.path().to_path_buf());
         let job_id = {
@@ -5476,8 +6714,8 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .unwrap();
-        assert_eq!(containment, "empty");
-        assert_eq!(lease, "released");
+        assert_eq!(containment, "uncertain");
+        assert_eq!(lease, "granted");
         assert_eq!(
             store.status(job_id).unwrap().attempts[0].invocations[0].state,
             InvocationState::Resolved
@@ -5485,7 +6723,7 @@ mod tests {
     }
 
     #[test]
-    fn restart_before_root_settles_start_failed_and_releases_lease() {
+    fn alpha8_restart_before_root_retains_boundary_until_reconciled() {
         let temp = tempfile::tempdir().unwrap();
         let paths = StorePaths::new(temp.path().to_path_buf());
         let job_id = {
@@ -5501,7 +6739,7 @@ mod tests {
         };
         let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
         let snapshot = store.status(job_id).unwrap();
-        assert_eq!(snapshot.outcome, Some(JobOutcome::Failed));
+        assert_eq!(snapshot.outcome, Some(JobOutcome::Interrupted));
         let (verdict, containment, lease): (String, String, String) = store
             .connection
             .query_row(
@@ -5515,13 +6753,13 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!(verdict, "start_failed");
-        assert_eq!(containment, "empty");
-        assert_eq!(lease, "released");
+        assert_eq!(verdict, "interrupted");
+        assert_eq!(containment, "uncertain");
+        assert_eq!(lease, "granted");
     }
 
     #[test]
-    fn restart_during_prepared_postcondition_interrupts_consistently_and_releases_lease() {
+    fn alpha8_restart_during_prepared_postcondition_retains_attempt_lease() {
         let temp = tempfile::tempdir().unwrap();
         let paths = StorePaths::new(temp.path().to_path_buf());
         let job_id = {
@@ -5568,7 +6806,7 @@ mod tests {
         );
         assert_eq!(
             snapshot.attempts[0].invocations[1].containment.state,
-            ContainmentState::Empty
+            ContainmentState::Uncertain
         );
         let lease: String = store
             .connection
@@ -5579,7 +6817,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(lease, "released");
+        assert_eq!(lease, "granted");
     }
 
     #[test]
@@ -6826,8 +8064,12 @@ mod tests {
             )]
             .into(),
         };
-        let mut store =
-            Store::open_with_config(StorePaths::new(temp.path().to_path_buf()), config).unwrap();
+        let mut store = Store::open_with_config(
+            StorePaths::new(temp.path().to_path_buf()),
+            config,
+            probe_startup_identity(),
+        )
+        .unwrap();
         let mut cpu = spec(temp.path());
         cpu.resources.impacts = vec!["cpu_heavy".into()];
         let hash = normalized_payload_hash(&cpu).unwrap();
@@ -7202,5 +8444,511 @@ mod tests {
             store.list_jobs(&JobSelector::All, Some(foreign), 1),
             Err(StoreError::Rejected(_))
         ));
+    }
+
+    #[test]
+    fn alpha8_creating_and_started_records_capture_exact_identity() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        let receipt = store
+            .submit(Uuid::now_v7(), &hash, &job_spec)
+            .unwrap()
+            .receipt;
+        let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        let creating: (String, String, String, String) = store
+            .connection
+            .query_row(
+                "SELECT host_id, boot_id, daemon_generation, strength
+                 FROM containments WHERE id = ?1",
+                [prepared.containment_id.entity_uuid().to_string()],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            creating.0,
+            store.startup_identity.host_id.as_ref().unwrap().0
+        );
+        assert_eq!(
+            creating.1,
+            store.startup_identity.boot_id.as_ref().unwrap().0
+        );
+        assert_eq!(creating.2, store.daemon_generation.to_string());
+        assert_eq!(creating.3, "windows_job_object");
+
+        let root = ProcessIdentity::Windows {
+            host_id: store.startup_identity.host_id.clone().unwrap(),
+            boot_id: store.startup_identity.boot_id.clone().unwrap(),
+            pid: 4242,
+            creation_filetime_100ns: 123_456_789,
+        };
+        store
+            .mark_started_with_identity(&prepared, 4242, "alpha8-hash", Some(&root))
+            .unwrap();
+        let snapshot = store.status(receipt.job_id).unwrap();
+        assert_eq!(
+            snapshot.attempts[0].invocations[0].root_identity,
+            Some(root)
+        );
+        assert_eq!(
+            store.daemon_status("test").unwrap().process_identity,
+            store.startup_identity.daemon_process
+        );
+    }
+
+    #[test]
+    fn alpha8_clearance_is_idempotent_and_audited_through_status() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        let receipt = store
+            .submit(Uuid::now_v7(), &hash, &job_spec)
+            .unwrap()
+            .receipt;
+        let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        store
+            .mark_uncertain(&prepared, None, "interrupted")
+            .unwrap();
+        let before = store.doctor("test", None, None).unwrap();
+        assert_eq!(before.incidents.total_unresolved, 1);
+        assert_eq!(
+            before.incidents.incidents[0].containment_id,
+            prepared.containment_id
+        );
+        let candidate = store
+            .reconciliation_candidate(prepared.containment_id)
+            .unwrap();
+        assert!(matches!(
+            store.commit_containment_resolution(
+                &candidate,
+                ContainmentResolution::ProvenEmpty,
+                ReconciliationResult::Unknown("future_proof".into()),
+                ClearanceOrigin::Automatic,
+                None,
+                None,
+            ),
+            Err(StoreError::InvalidState(_))
+        ));
+        let requester = store.startup_identity.daemon_process.clone().unwrap();
+        let forced = ForcedClearanceAudit {
+            requested_unix_millis: now_millis(),
+            requester,
+        };
+        let result = store
+            .commit_containment_resolution(
+                &candidate,
+                ContainmentResolution::ForcedRiskAcceptance,
+                ReconciliationResult::IdentityAbsent,
+                ClearanceOrigin::Forced,
+                Some(forced),
+                None,
+            )
+            .unwrap()
+            .unwrap();
+        assert!(result.audit.lease_released);
+        assert_eq!(
+            store.persisted_clearance(prepared.containment_id).unwrap(),
+            Some(result.clone())
+        );
+        assert!(
+            store
+                .doctor("test", None, None)
+                .unwrap()
+                .incidents
+                .incidents
+                .is_empty()
+        );
+        let status = store.status(receipt.job_id).unwrap();
+        let containment = &status.attempts[0].invocations[0].containment;
+        assert_eq!(containment.state, ContainmentState::Cleared);
+        assert_eq!(containment.resolution_audit, Some(result.audit));
+    }
+
+    #[test]
+    fn alpha8_attempt_wide_predicate_waits_for_every_containment() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        let receipt = store
+            .submit(Uuid::now_v7(), &hash, &job_spec)
+            .unwrap()
+            .receipt;
+        let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        store
+            .mark_uncertain(&prepared, None, "interrupted")
+            .unwrap();
+        let sibling_invocation = InvocationId::new(store.store_uuid);
+        let sibling_containment = ContainmentId::new(store.store_uuid);
+        store
+            .connection
+            .execute(
+                "INSERT INTO invocations(id, attempt_id, role, role_index, state, finished_ms)
+                 VALUES (?1, ?2, 'postcondition', 1, 'resolved', ?3)",
+                params![
+                    sibling_invocation.entity_uuid().to_string(),
+                    prepared.attempt_id.entity_uuid().to_string(),
+                    now_millis(),
+                ],
+            )
+            .unwrap();
+        store
+            .connection
+            .execute(
+                "INSERT INTO containments(
+                    id, invocation_id, state, host_id, boot_id, daemon_generation, strength,
+                    version, incident_sequence, reason_code, detail, opened_ms,
+                    retained_claims_json
+                 ) VALUES (?1, ?2, 'uncertain', ?3, ?4, ?5, 'windows_job_object',
+                           1, 2, 'fixture', 'sibling blocker', ?6, ?7)",
+                params![
+                    sibling_containment.entity_uuid().to_string(),
+                    sibling_invocation.entity_uuid().to_string(),
+                    store.startup_identity.host_id.as_ref().unwrap().0,
+                    store.startup_identity.boot_id.as_ref().unwrap().0,
+                    Uuid::now_v7().to_string(),
+                    now_millis(),
+                    serde_json::to_string(&job_spec.resources).unwrap(),
+                ],
+            )
+            .unwrap();
+        let first = store
+            .reconciliation_candidate(prepared.containment_id)
+            .unwrap();
+        let first = store
+            .commit_containment_resolution(
+                &first,
+                ContainmentResolution::ProvenEmpty,
+                ReconciliationResult::ProvenEmpty,
+                ClearanceOrigin::Automatic,
+                None,
+                None,
+            )
+            .unwrap()
+            .unwrap();
+        assert!(!first.audit.lease_released);
+        let second = store.reconciliation_candidate(sibling_containment).unwrap();
+        let second = store
+            .commit_containment_resolution(
+                &second,
+                ContainmentResolution::ProvenEmpty,
+                ReconciliationResult::IdentityAbsent,
+                ClearanceOrigin::Automatic,
+                None,
+                None,
+            )
+            .unwrap()
+            .unwrap();
+        assert!(second.audit.lease_released);
+    }
+
+    #[test]
+    fn alpha8_force_commit_rejects_a_changed_authorization_set() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        let first_receipt = store
+            .submit(Uuid::now_v7(), &hash, &job_spec)
+            .unwrap()
+            .receipt;
+        let first = store.prepare_job(first_receipt.job_id).unwrap().unwrap();
+        store.mark_uncertain(&first, None, "fixture").unwrap();
+        let candidate = store
+            .reconciliation_candidate(first.containment_id)
+            .unwrap();
+        let (authorized, _) = store.clearance_authorization_evidence().unwrap();
+
+        let second_receipt = store
+            .submit(Uuid::now_v7(), &hash, &job_spec)
+            .unwrap()
+            .receipt;
+        store.prepare_job(second_receipt.job_id).unwrap().unwrap();
+        let requester = store.startup_identity.daemon_process.clone().unwrap();
+        let result = store
+            .commit_containment_resolution(
+                &candidate,
+                ContainmentResolution::ForcedRiskAcceptance,
+                ReconciliationResult::IdentityAbsent,
+                ClearanceOrigin::Forced,
+                Some(ForcedClearanceAudit {
+                    requested_unix_millis: now_millis(),
+                    requester,
+                }),
+                Some(&authorized),
+            )
+            .unwrap();
+        assert!(result.is_none());
+        let lease: String = store
+            .connection
+            .query_row(
+                "SELECT state FROM leases WHERE attempt_id = ?1",
+                [first.attempt_id.entity_uuid().to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(lease, "granted");
+    }
+
+    #[test]
+    fn alpha8_missing_host_capability_blocks_before_lease_grant() {
+        let temp = tempfile::tempdir().unwrap();
+        let config = HostConfig {
+            resources: capacities(),
+            profiles: Default::default(),
+            impact_incompatibilities: Default::default(),
+        };
+        let unavailable = StartupIdentity {
+            host_id: None,
+            boot_id: None,
+            daemon_process: None,
+            failures: vec!["fixture identity failure".into()],
+        };
+        let mut store = Store::open_with_config(
+            StorePaths::new(temp.path().to_path_buf()),
+            config,
+            unavailable,
+        )
+        .unwrap();
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        let receipt = store
+            .submit(Uuid::now_v7(), &hash, &job_spec)
+            .unwrap()
+            .receipt;
+        assert!(store.prepare_job(receipt.job_id).unwrap().is_none());
+        let snapshot = store.status(receipt.job_id).unwrap();
+        assert_eq!(snapshot.blockers[0].code, "host_capability_unavailable");
+        let granted: bool = store
+            .connection
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM leases WHERE state = 'granted')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(!granted);
+    }
+
+    #[test]
+    fn alpha8_doctor_reports_loaded_config_evidence_without_profile_values() {
+        let temp = tempfile::tempdir().unwrap();
+        let sentinel = "ALPHA8_SECRET_PROFILE_SENTINEL";
+        let config = HostConfig {
+            resources: capacities(),
+            profiles: [(
+                "reviewer".into(),
+                EnvironmentProfile {
+                    set: [("PRIVATE_VALUE".into(), sentinel.into())].into(),
+                    ..EnvironmentProfile::default()
+                },
+            )]
+            .into(),
+            impact_incompatibilities: Default::default(),
+        };
+        let expected_hash = format!("{:x}", Sha256::digest(serde_json::to_vec(&config).unwrap()));
+        let store = Store::open_with_config(
+            StorePaths::new(temp.path().to_path_buf()),
+            config,
+            probe_startup_identity(),
+        )
+        .unwrap();
+        let doctor = store.doctor("test", None, None).unwrap();
+        assert_eq!(doctor.daemon.profile_names, vec!["reviewer"]);
+        assert_eq!(doctor.daemon.capacities, capacities());
+        assert_eq!(doctor.daemon.config_sha256, expected_hash);
+        assert!(!serde_json::to_string(&doctor).unwrap().contains(sentinel));
+    }
+
+    #[test]
+    fn alpha8_unbound_pending_store_binds_without_reset() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let (store_uuid, job_id) = {
+            let mut store = Store::open(paths).unwrap();
+            let job_spec = spec(temp.path());
+            let hash = normalized_payload_hash(&job_spec).unwrap();
+            let job_id = store
+                .submit(Uuid::now_v7(), &hash, &job_spec)
+                .unwrap()
+                .receipt
+                .job_id;
+            store
+                .connection
+                .execute("DELETE FROM meta WHERE key = 'bound_host_id'", [])
+                .unwrap();
+            (store.store_uuid, job_id)
+        };
+        let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        assert_eq!(store.store_uuid, store_uuid);
+        assert_eq!(store.status(job_id).unwrap().state, JobState::Pending);
+        assert_eq!(store.bound_host_id, store.startup_identity.host_id);
+    }
+
+    #[test]
+    fn alpha8_unbound_store_with_containment_is_replaced() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let original_uuid = {
+            let mut store = Store::open(paths).unwrap();
+            let job_spec = spec(temp.path());
+            let hash = normalized_payload_hash(&job_spec).unwrap();
+            let receipt = store
+                .submit(Uuid::now_v7(), &hash, &job_spec)
+                .unwrap()
+                .receipt;
+            store.prepare_job(receipt.job_id).unwrap().unwrap();
+            store
+                .connection
+                .execute("DELETE FROM meta WHERE key = 'bound_host_id'", [])
+                .unwrap();
+            store.store_uuid
+        };
+        let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        assert_ne!(store.store_uuid, original_uuid);
+        let containments: u64 = store
+            .connection
+            .query_row("SELECT COUNT(*) FROM containments", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(containments, 0);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn alpha8_foreign_host_binding_resets_the_whole_store() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let original_uuid = Store::open(paths.clone()).unwrap().store_uuid;
+        let observed = probe_startup_identity();
+        let boot_id = observed.boot_id.unwrap();
+        let (pid, creation_filetime_100ns) = match observed.daemon_process.unwrap() {
+            ProcessIdentity::Windows {
+                pid,
+                creation_filetime_100ns,
+                ..
+            } => (pid, creation_filetime_100ns),
+            ProcessIdentity::Unknown { .. } => panic!("Windows test requires Windows identity"),
+        };
+        let foreign_host = HostId("sha256:fixture-foreign-host".into());
+        let startup = StartupIdentity {
+            host_id: Some(foreign_host.clone()),
+            boot_id: Some(boot_id.clone()),
+            daemon_process: Some(ProcessIdentity::Windows {
+                host_id: foreign_host.clone(),
+                boot_id,
+                pid,
+                creation_filetime_100ns,
+            }),
+            failures: Vec::new(),
+        };
+        let store = Store::open_with_config(
+            paths,
+            HostConfig {
+                resources: capacities(),
+                profiles: Default::default(),
+                impact_incompatibilities: Default::default(),
+            },
+            startup,
+        )
+        .unwrap();
+        assert_ne!(store.store_uuid, original_uuid);
+        assert_eq!(store.bound_host_id, Some(foreign_host));
+    }
+
+    #[test]
+    fn alpha8_doctor_incidents_page_by_durable_sequence() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        for _ in 0..3 {
+            let job_spec = spec(temp.path());
+            let hash = normalized_payload_hash(&job_spec).unwrap();
+            let receipt = store
+                .submit(Uuid::now_v7(), &hash, &job_spec)
+                .unwrap()
+                .receipt;
+            let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+            store.mark_uncertain(&prepared, None, "fixture").unwrap();
+        }
+        let first = store.doctor("test", None, Some(2)).unwrap();
+        assert_eq!(first.incidents.total_unresolved, 3);
+        assert_eq!(first.incidents.incidents.len(), 2);
+        assert!(first.incidents.truncated);
+        let second = store
+            .doctor("test", first.incidents.next_cursor, Some(2))
+            .unwrap();
+        assert_eq!(second.incidents.incidents.len(), 1);
+        assert!(!second.incidents.truncated);
+        assert!(
+            first.incidents.incidents[1].incident_sequence
+                < second.incidents.incidents[0].incident_sequence
+        );
+    }
+
+    #[test]
+    fn alpha8_doctor_default_page_is_bounded_below_protocol_limit() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        let receipt = store
+            .submit(Uuid::now_v7(), &hash, &job_spec)
+            .unwrap()
+            .receipt;
+        let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        store.mark_uncertain(&prepared, None, "fixture").unwrap();
+        let host = store.startup_identity.host_id.as_ref().unwrap().0.clone();
+        let boot = store.startup_identity.boot_id.as_ref().unwrap().0.clone();
+        let generation = store.daemon_generation.to_string();
+        let claims = serde_json::to_string(&job_spec.resources).unwrap();
+        let transaction = store.connection.transaction().unwrap();
+        for role_index in 1..257_u32 {
+            let invocation = InvocationId::new(store.store_uuid);
+            let containment = ContainmentId::new(store.store_uuid);
+            transaction
+                .execute(
+                    "INSERT INTO invocations(id, attempt_id, role, role_index, state, finished_ms)
+                     VALUES (?1, ?2, 'postcondition', ?3, 'resolved', ?4)",
+                    params![
+                        invocation.entity_uuid().to_string(),
+                        prepared.attempt_id.entity_uuid().to_string(),
+                        role_index,
+                        now_millis(),
+                    ],
+                )
+                .unwrap();
+            transaction
+                .execute(
+                    "INSERT INTO containments(
+                        id, invocation_id, state, host_id, boot_id, daemon_generation, strength,
+                        version, incident_sequence, reason_code, detail, opened_ms,
+                        retained_claims_json
+                     ) VALUES (?1, ?2, 'uncertain', ?3, ?4, ?5, 'windows_job_object',
+                               1, ?6, 'bounded_fixture', 'bounded incident', ?7, ?8)",
+                    params![
+                        containment.entity_uuid().to_string(),
+                        invocation.entity_uuid().to_string(),
+                        host,
+                        boot,
+                        generation,
+                        role_index + 1,
+                        now_millis(),
+                        claims,
+                    ],
+                )
+                .unwrap();
+        }
+        transaction.commit().unwrap();
+        let first = store.doctor("test", None, None).unwrap();
+        assert_eq!(first.incidents.total_unresolved, 257);
+        assert_eq!(first.incidents.incidents.len(), 256);
+        assert!(first.incidents.truncated);
+        assert!(serde_json::to_vec(&first).unwrap().len() < 16 * 1024 * 1024);
+        let tail = store
+            .doctor("test", first.incidents.next_cursor, None)
+            .unwrap();
+        assert_eq!(tail.incidents.incidents.len(), 1);
+        assert!(!tail.incidents.truncated);
     }
 }

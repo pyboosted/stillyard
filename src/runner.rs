@@ -13,6 +13,7 @@ struct ContainmentRegistration(crate::InvocationId);
 #[cfg(windows)]
 enum RegisteredContainment {
     Live(usize),
+    Reconciler(usize),
     /// The OS handle is gone only after cleanup was proved. Keep a negative tombstone until the
     /// durable Containment transition commits so unrelated pipe peers never observe a missing
     /// authority for a row that is still transiently `live` in SQLite.
@@ -31,10 +32,84 @@ impl Drop for ContainmentRegistration {
 }
 
 #[cfg(windows)]
-fn clear_containment_registration(invocation_id: crate::InvocationId) {
+pub(crate) fn clear_containment_registration(invocation_id: crate::InvocationId) {
     if let Ok(mut registry) = LIVE_CONTAINMENTS.get_or_init(Default::default).lock() {
-        registry.remove(&invocation_id);
+        if let Some(RegisteredContainment::Reconciler(handle)) = registry.remove(&invocation_id) {
+            // SAFETY: a reconciler entry exclusively owns the transferred Job Object handle.
+            unsafe {
+                windows_sys::Win32::Foundation::CloseHandle(
+                    handle as windows_sys::Win32::Foundation::HANDLE,
+                )
+            };
+        }
     }
+}
+
+#[cfg(windows)]
+fn transfer_containment_to_reconciler(
+    registration: ContainmentRegistration,
+    invocation_id: crate::InvocationId,
+    handle: windows_sys::Win32::Foundation::HANDLE,
+) -> std::io::Result<()> {
+    let mut registry = LIVE_CONTAINMENTS
+        .get_or_init(Default::default)
+        .lock()
+        .map_err(|_| std::io::Error::other("containment registry mutex poisoned"))?;
+    match registry.get_mut(&invocation_id) {
+        Some(registered @ RegisteredContainment::Live(_)) => {
+            *registered = RegisteredContainment::Reconciler(handle as usize);
+        }
+        _ => {
+            return Err(std::io::Error::other(
+                "live containment disappeared before reconciler transfer",
+            ));
+        }
+    }
+    std::mem::forget(registration);
+    Ok(())
+}
+
+#[cfg(windows)]
+pub(crate) fn inspect_owned_containment(
+    invocation_id: crate::InvocationId,
+) -> std::io::Result<Option<crate::ReconciliationResult>> {
+    use windows_sys::Win32::System::JobObjects::{
+        JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JobObjectBasicAccountingInformation,
+        QueryInformationJobObject,
+    };
+
+    let registry = LIVE_CONTAINMENTS
+        .get_or_init(Default::default)
+        .lock()
+        .map_err(|_| std::io::Error::other("containment registry mutex poisoned"))?;
+    let Some(containment) = registry.get(&invocation_id) else {
+        return Ok(None);
+    };
+    let handle = match containment {
+        RegisteredContainment::Live(handle) | RegisteredContainment::Reconciler(handle) => *handle,
+        RegisteredContainment::Retired => {
+            return Ok(Some(crate::ReconciliationResult::ProvenEmpty));
+        }
+    };
+    let mut accounting: JOBOBJECT_BASIC_ACCOUNTING_INFORMATION = unsafe { std::mem::zeroed() };
+    // SAFETY: the registry lock keeps the owned handle live and accounting is writable.
+    if unsafe {
+        QueryInformationJobObject(
+            handle as windows_sys::Win32::Foundation::HANDLE,
+            JobObjectBasicAccountingInformation,
+            (&raw mut accounting).cast(),
+            std::mem::size_of::<JOBOBJECT_BASIC_ACCOUNTING_INFORMATION>() as u32,
+            std::ptr::null_mut(),
+        )
+    } == 0
+    {
+        return Ok(Some(crate::ReconciliationResult::BoundaryUninspectable));
+    }
+    Ok(Some(if accounting.ActiveProcesses == 0 {
+        crate::ReconciliationResult::ProvenEmpty
+    } else {
+        crate::ReconciliationResult::BoundaryNotEmpty
+    }))
 }
 
 #[cfg(windows)]
@@ -71,7 +146,7 @@ pub(crate) fn process_in_containment(
         return Ok(None);
     };
     let job_handle = match containment {
-        RegisteredContainment::Live(handle) => *handle,
+        RegisteredContainment::Live(handle) | RegisteredContainment::Reconciler(handle) => *handle,
         RegisteredContainment::Retired => return Ok(Some(false)),
     };
     let mut member = 0;
@@ -516,12 +591,10 @@ mod windows {
                     }
                 }
             } else {
-                if locked
-                    .mark_uncertain(job, progress.exit_code, "interrupted")
-                    .is_ok()
-                {
-                    clear_containment_registration(job.invocation_id);
-                }
+                // The unproven path transfers its still-owned Job Object to the reconciler before
+                // returning. Never remove that authority merely because the outer settlement
+                // observes or retries the durable uncertain transition.
+                let _ = locked.mark_uncertain(job, progress.exit_code, "interrupted");
             }
         }
     }
@@ -613,6 +686,18 @@ mod windows {
                         unsafe { TerminateJobObject(job_object.raw(), 70) };
                         progress.cleanup_proven =
                             wait_job_empty(job_object.raw(), Duration::from_secs(30)).is_ok();
+                        if !progress.cleanup_proven {
+                            if let Ok(mut locked) = store.lock() {
+                                let _ =
+                                    locked.mark_uncertain(job, progress.exit_code, "interrupted");
+                            }
+                            super::transfer_containment_to_reconciler(
+                                registration,
+                                job.invocation_id,
+                                job_object.raw(),
+                            )?;
+                            let _owned_by_reconciler = job_object.into_raw();
+                        }
                         return Err(error.into());
                     }
                 }
@@ -648,13 +733,29 @@ mod windows {
             return Err(error.into());
         }
         drop(executable_file);
+        let root_identity = prestart_try!(match (&job.host_id, &job.boot_id) {
+            (Some(host_id), Some(boot_id)) => crate::identity::process_identity_from_handle(
+                process_handle.raw(),
+                process.dwProcessId,
+                host_id,
+                boot_id,
+            ),
+            _ => Err(crate::Error::Unavailable(
+                "containment process identity is unavailable".into(),
+            )),
+        });
         {
             let mut store = prestart_try!(
                 store
                     .lock()
                     .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
             );
-            prestart_try!(store.mark_started(job, process.dwProcessId, &executable_hash));
+            prestart_try!(store.mark_started_with_identity(
+                job,
+                process.dwProcessId,
+                &executable_hash,
+                Some(&root_identity),
+            ));
         }
 
         let stdout_file = unsafe { File::from_raw_handle(stdout_read.into_raw() as RawHandle) };
@@ -791,15 +892,18 @@ mod windows {
         if !progress.cleanup_proven {
             // The pipes may remain open while an unproven process tree is terminating. Do not
             // block the scheduler indefinitely; the uncertain Containment keeps EOF unclaimed.
-            // Leave the live authority set before unpublishing its handle. Closing the Job Object
-            // afterwards applies KILL_ON_JOB_CLOSE to any process that escaped the bounded wait.
+            // Persist uncertainty before transferring the still-live Job Object authority. The
+            // reconciler keeps kill-on-close coverage instead of turning a timeout into cleanup.
             store
                 .lock()
                 .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
                 .mark_uncertain(job, progress.exit_code, "interrupted")?;
-            drop(registration);
-            clear_containment_registration(job.invocation_id);
-            drop(job_object);
+            super::transfer_containment_to_reconciler(
+                registration,
+                job.invocation_id,
+                job_object.raw(),
+            )?;
+            let _owned_by_reconciler = job_object.into_raw();
             return execution;
         }
 

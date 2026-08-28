@@ -157,6 +157,19 @@ enum Command {
         #[arg(long, default_value_t = 10)]
         deadline_seconds: u64,
     },
+    /// Inspect daemon, host, store, configuration, and unresolved containment evidence.
+    Doctor {
+        #[command(subcommand)]
+        command: Option<DoctorCommand>,
+        #[arg(long)]
+        incident_cursor: Option<stillyard::ContainmentIncidentCursor>,
+        #[arg(long)]
+        incident_limit: Option<u32>,
+        #[arg(long)]
+        json: bool,
+        #[arg(long, default_value_t = 10)]
+        deadline_seconds: u64,
+    },
     /// Cancel explicitly named Jobs without selecting children or dependency successors.
     Cancel {
         #[arg(required = true)]
@@ -192,6 +205,20 @@ enum SchemaCommand {
     Spec,
     /// Print the versioned host resource-capacity schema.
     Config,
+}
+
+#[derive(Debug, Subcommand)]
+enum DoctorCommand {
+    /// Explicitly accept the risk of an uncertain containment whose root is proven absent.
+    ClearContainment {
+        containment_id: stillyard::ContainmentId,
+        #[arg(long)]
+        force: bool,
+        #[arg(long)]
+        json: bool,
+        #[arg(long, default_value_t = 10)]
+        deadline_seconds: u64,
+    },
 }
 
 fn main() {
@@ -513,6 +540,52 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             let client = connect_client(endpoint.as_deref(), deadline)?;
             print_json(&client.daemon_status(deadline, None)?)?;
         }
+        Command::Doctor {
+            command,
+            incident_cursor,
+            incident_limit,
+            json,
+            deadline_seconds,
+        } => match command {
+            None => {
+                let deadline = deadline(deadline_seconds);
+                let client = connect_client(endpoint.as_deref(), deadline)?;
+                let snapshot = client.doctor(incident_cursor, incident_limit, deadline, None)?;
+                if json {
+                    print_json(&snapshot)?;
+                } else {
+                    print_doctor(&snapshot);
+                }
+            }
+            Some(DoctorCommand::ClearContainment {
+                containment_id,
+                force,
+                json,
+                deadline_seconds,
+            }) => {
+                if !force {
+                    return Err(stillyard::Error::InvalidSpec(
+                        "doctor clear-containment requires explicit --force".into(),
+                    )
+                    .into());
+                }
+                let deadline = deadline(deadline_seconds);
+                let client = connect_client(endpoint.as_deref(), deadline)?;
+                let result = client.force_clear_containment(containment_id, deadline, None)?;
+                if json {
+                    print_json(&result)?;
+                } else {
+                    println!(
+                        "{}: {:?} -> {:?} ({:?}, lease_released={})",
+                        result.containment_id,
+                        result.prior_state,
+                        result.state,
+                        result.audit.resolution,
+                        result.audit.lease_released,
+                    );
+                }
+            }
+        },
         Command::Cancel {
             jobs,
             deadline_seconds,
@@ -539,6 +612,43 @@ fn connect_client(endpoint: Option<&str>, deadline: Instant) -> Result<Client, s
 
 fn deadline(seconds: u64) -> Instant {
     Instant::now() + Duration::from_secs(seconds)
+}
+
+fn print_doctor(snapshot: &stillyard::DoctorSnapshot) {
+    let heading = match &snapshot.overall {
+        stillyard::DoctorOverallStatus::Healthy => "healthy",
+        stillyard::DoctorOverallStatus::AttentionRequired => "attention required",
+        stillyard::DoctorOverallStatus::Unsafe => "unsafe",
+        _ => "unknown",
+    };
+    println!("{heading}");
+    println!(
+        "daemon {} pid={} generation={} store={}",
+        snapshot.daemon.version,
+        snapshot.daemon.pid,
+        snapshot.daemon.daemon_generation,
+        snapshot.store.store_uuid,
+    );
+    println!(
+        "config sha256={} profiles={} unresolved={}",
+        snapshot.daemon.config_sha256,
+        snapshot.daemon.profile_names.join(","),
+        snapshot.incidents.total_unresolved,
+    );
+    for check in &snapshot.checks {
+        if check.status != stillyard::DoctorCheckStatus::Pass {
+            println!("{:?} {}: {}", check.status, check.code, check.summary);
+        }
+    }
+    for incident in &snapshot.incidents.incidents {
+        println!(
+            "incident {} {}: {}",
+            incident.containment_id, incident.reason_code, incident.detail
+        );
+    }
+    for boundary in &snapshot.boundaries {
+        println!("boundary {}: {}", boundary.code, boundary.statement);
+    }
 }
 
 fn logs_deadline_seconds(follow: bool, configured: Option<u64>) -> u64 {
@@ -671,7 +781,7 @@ fn error_exit_code(error: &(dyn std::error::Error + 'static)) -> i32 {
             stillyard::Error::InvalidSpec(_) => 64,
             stillyard::Error::Unavailable(_) | stillyard::Error::UnsupportedPlatform(_) => 69,
             stillyard::Error::DeadlineElapsed | stillyard::Error::Canceled => 25,
-            stillyard::Error::ManagedWaitRejected { .. } => 27,
+            stillyard::Error::ManagedWaitRejected { .. } | stillyard::Error::Rejected { .. } => 27,
             stillyard::Error::Protocol(message)
                 if message.starts_with("idempotency_conflict:")
                     || message.starts_with("rejected:") =>
@@ -752,6 +862,57 @@ mod tests {
         assert_eq!(logs_deadline_seconds(true, None), 86_400);
         assert_eq!(logs_deadline_seconds(false, None), 10);
         assert_eq!(logs_deadline_seconds(true, Some(7)), 7);
+    }
+
+    #[test]
+    fn alpha8_doctor_cli_exposes_json_paging_and_explicit_force() {
+        let store_uuid = Uuid::now_v7();
+        let containment = format!("{}~{}", store_uuid, Uuid::now_v7());
+        let cursor = format!("{}:7:{}", store_uuid, Uuid::now_v7());
+        let doctor = Cli::try_parse_from([
+            "stillyard",
+            "doctor",
+            "--json",
+            "--incident-limit",
+            "32",
+            "--incident-cursor",
+            &cursor,
+        ])
+        .unwrap();
+        assert!(matches!(
+            doctor.command,
+            Command::Doctor {
+                command: None,
+                incident_limit: Some(32),
+                json: true,
+                ..
+            }
+        ));
+        let clear = Cli::try_parse_from([
+            "stillyard",
+            "doctor",
+            "clear-containment",
+            &containment,
+            "--force",
+            "--json",
+        ])
+        .unwrap();
+        assert!(matches!(
+            clear.command,
+            Command::Doctor {
+                command: Some(DoctorCommand::ClearContainment {
+                    force: true,
+                    json: true,
+                    ..
+                }),
+                ..
+            }
+        ));
+        let missing_force =
+            Cli::try_parse_from(["stillyard", "doctor", "clear-containment", &containment])
+                .unwrap();
+        let error = execute(missing_force).unwrap_err();
+        assert_eq!(error_exit_code(error.as_ref()), 64);
     }
 
     #[test]
