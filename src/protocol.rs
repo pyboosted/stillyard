@@ -182,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn alpha8_responses_are_additive_but_requests_remain_strict() {
+    fn responses_are_additive_but_requests_remain_strict() {
         let response: Response = serde_json::from_value(serde_json::json!({
             "result": "pong",
             "protocol_version": PROTOCOL_VERSION,

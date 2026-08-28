@@ -1637,7 +1637,7 @@ mod tests {
         connection
             .execute_batch(
                 "CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-                 INSERT INTO meta(key, value) VALUES ('schema_epoch', 'obsolete-alpha-schema');",
+                 INSERT INTO meta(key, value) VALUES ('schema_epoch', 'obsolete-schema');",
             )
             .unwrap();
         drop(connection);
@@ -1657,11 +1657,11 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(epoch, "obsolete-alpha-schema");
+        assert_eq!(epoch, "obsolete-schema");
     }
 
     #[test]
-    fn alpha7_commit_at_wait_boundary_wakes_from_durable_event() {
+    fn commit_at_wait_boundary_wakes_from_durable_event() {
         let temp = tempfile::tempdir().unwrap();
         let paths = StorePaths::new(temp.path().to_path_buf());
         let mut store = Store::open_with_capacities(
@@ -1799,7 +1799,7 @@ mod tests {
     }
 
     #[test]
-    fn alpha8_boot_change_is_proof_only_for_a_prior_generation() {
+    fn boot_change_is_proof_only_for_a_prior_generation() {
         let store_uuid = uuid::Uuid::now_v7();
         let generation = uuid::Uuid::now_v7();
         let host = crate::HostId("host".into());
@@ -1833,7 +1833,7 @@ mod tests {
     }
 
     #[test]
-    fn alpha8_prior_generation_requires_absent_daemon_and_exact_root_evidence() {
+    fn prior_generation_requires_absent_daemon_and_exact_root_evidence() {
         let startup = crate::identity::probe_startup_identity();
         let host = startup.host_id.unwrap();
         let boot = startup.boot_id.unwrap();
@@ -1900,7 +1900,7 @@ mod tests {
     }
 
     #[test]
-    fn alpha8_force_authorization_fails_closed_for_roots_and_missing_handles() {
+    fn force_authorization_fails_closed_for_roots_and_missing_handles() {
         let startup = crate::identity::probe_startup_identity();
         let requester = startup.daemon_process.unwrap();
         let peer = PeerProcess {

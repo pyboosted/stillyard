@@ -927,7 +927,7 @@ mod tests {
     }
 
     #[test]
-    fn alpha7_observation_cli_keeps_the_public_spellings() {
+    fn observation_cli_keeps_the_public_spellings() {
         let job_id = format!("{}~{}", Uuid::now_v7(), Uuid::now_v7());
         let logs = Cli::try_parse_from([
             "stillyard",
@@ -957,7 +957,7 @@ mod tests {
     }
 
     #[test]
-    fn alpha8_doctor_cli_exposes_json_paging_and_explicit_force() {
+    fn doctor_cli_exposes_json_paging_and_explicit_force() {
         let store_uuid = Uuid::now_v7();
         let containment = format!("{}~{}", store_uuid, Uuid::now_v7());
         let cursor = format!("{}:7:{}", store_uuid, Uuid::now_v7());

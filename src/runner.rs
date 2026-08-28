@@ -1481,7 +1481,7 @@ mod windows {
         }
 
         #[test]
-        fn alpha8_empty_owned_boundary_is_proven_and_notifies_reconciliation() {
+        fn empty_owned_boundary_is_proven_and_notifies_reconciliation() {
             let (job_object, completion_port) = create_job_object().unwrap();
             let invocation_id = InvocationId::new(Uuid::now_v7());
             let registration = register_containment(invocation_id, job_object.raw()).unwrap();

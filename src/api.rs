@@ -971,7 +971,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn alpha7_cursors_have_stable_cli_round_trips() {
+    fn cursors_have_stable_cli_round_trips() {
         let store_uuid = Uuid::now_v7();
         let event = EventCursor {
             store_uuid,
@@ -993,7 +993,7 @@ mod tests {
     }
 
     #[test]
-    fn alpha8_unknown_safety_values_round_trip_without_authority() {
+    fn unknown_safety_values_round_trip_without_authority() {
         let state: ContainmentState = serde_json::from_str("\"future_state\"").unwrap();
         assert_eq!(state, ContainmentState::Unknown("future_state".into()));
         assert_eq!(serde_json::to_string(&state).unwrap(), "\"future_state\"");
@@ -1031,7 +1031,7 @@ mod tests {
     }
 
     #[test]
-    fn alpha8_incident_cursor_is_store_scoped_and_stable() {
+    fn incident_cursor_is_store_scoped_and_stable() {
         let store_uuid = Uuid::now_v7();
         let cursor = ContainmentIncidentCursor {
             store_uuid,

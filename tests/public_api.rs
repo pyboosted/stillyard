@@ -19,7 +19,7 @@ fn external_consumer_compiles(
 }
 
 #[test]
-fn alpha8_public_methods_are_callable_from_an_external_crate() {
+fn public_methods_are_callable_from_an_external_crate() {
     let _: fn(
         &Client,
         Option<ContainmentIncidentCursor>,

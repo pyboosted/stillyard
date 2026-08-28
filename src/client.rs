@@ -1198,7 +1198,7 @@ fn inspect_stdin(stdin: &crate::StdinSpec) -> Result<Option<(StagedInputRef, Pat
     let length = file.metadata()?.len();
     if length > MAX_STDIN_BYTES {
         return Err(Error::InvalidSpec(format!(
-            "stdin file exceeds the {MAX_STDIN_BYTES}-byte alpha limit"
+            "stdin file exceeds the {MAX_STDIN_BYTES}-byte input limit"
         )));
     }
     let mut hash = Sha256::new();

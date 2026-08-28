@@ -314,7 +314,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn alpha8_exact_process_probe_distinguishes_match_reuse_and_exit() {
+    fn exact_process_probe_distinguishes_match_reuse_and_exit() {
         let startup = probe_startup_identity();
         let host = startup.host_id.unwrap();
         let boot = startup.boot_id.unwrap();

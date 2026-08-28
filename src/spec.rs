@@ -107,7 +107,7 @@ impl JobSpec {
         }
         if !self.conditions.is_empty() || self.quiet.is_some() || !self.artifacts.is_empty() {
             return Err(Error::InvalidSpec(
-                "this alpha implements staged/EOF stdin, environment profiles, resource admission, retries, and postconditions without Conditions/quiet/artifacts only".into(),
+                "staged/EOF stdin, environment profiles, resource admission, retries, and postconditions do not support Conditions/quiet/artifacts".into(),
             ));
         }
         Ok(())
