@@ -1,0 +1,260 @@
+#![cfg(windows)]
+
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, ExitStatus, Stdio};
+use std::time::{Duration, Instant};
+
+use stillyard::{
+    Client, DaemonSnapshot, EnvironmentSpec, Error, JobId, JobSpec, LogStream, ResourceClaims,
+    RetryPolicy, SPEC_VERSION, StdinSpec, SubmitOptions,
+};
+use uuid::Uuid;
+
+struct ChildGuard(Option<Child>);
+
+impl ChildGuard {
+    fn new(child: Child) -> Self {
+        Self(Some(child))
+    }
+
+    fn child_mut(&mut self) -> &mut Child {
+        self.0.as_mut().expect("child guard is populated")
+    }
+
+    fn kill_and_wait(&mut self) {
+        if let Some(mut child) = self.0.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        self.kill_and_wait();
+    }
+}
+
+fn spawn_daemon(executable: &Path, store: &Path, endpoint: &str) -> ChildGuard {
+    ChildGuard::new(
+        Command::new(executable)
+            .args(["--endpoint", endpoint, "daemon", "--store"])
+            .arg(store)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+    )
+}
+
+fn connect(executable: &Path, endpoint: &str) -> Client {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        match Client::builder()
+            .endpoint(endpoint)
+            .daemon_executable(executable)
+            .auto_start(false)
+            .connect(Instant::now() + Duration::from_millis(250), None)
+        {
+            Ok(client) => return client,
+            Err(Error::Unavailable(_)) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            Err(error) => panic!("isolated daemon did not become ready: {error}"),
+        }
+    }
+}
+
+fn wait_for_exit(child: &mut Child, timeout: Duration) -> ExitStatus {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            return status;
+        }
+        assert!(Instant::now() < deadline, "contending daemon did not exit");
+        std::thread::sleep(Duration::from_millis(25));
+    }
+}
+
+fn copied_daemon(root: &Path) -> PathBuf {
+    let source = PathBuf::from(env!("CARGO_BIN_EXE_stillyard"));
+    let pinned_dir = root.join("pinned-revision");
+    std::fs::create_dir_all(&pinned_dir).unwrap();
+    let pinned = pinned_dir.join("stillyard.exe");
+    std::fs::copy(source, &pinned).unwrap();
+    pinned
+}
+
+fn durable_id<T: std::str::FromStr>(store: Uuid) -> T
+where
+    T::Err: std::fmt::Debug,
+{
+    format!("{store}~{}", Uuid::now_v7()).parse().unwrap()
+}
+
+#[test]
+fn pinned_isolated_daemons_coexist_and_own_both_coordinates() {
+    let temp = tempfile::tempdir().unwrap();
+    let pinned = copied_daemon(temp.path());
+    let source = PathBuf::from(env!("CARGO_BIN_EXE_stillyard"));
+    let store_a = temp.path().join("store-a");
+    let store_b = temp.path().join("store-b");
+    let store_c = temp.path().join("store-c");
+    let endpoint_a = format!(r"\\.\pipe\stillyard-isolated-a-{}", Uuid::now_v7());
+    let endpoint_b = format!(r"\\.\pipe\stillyard-isolated-b-{}", Uuid::now_v7());
+    let endpoint_c = format!(r"\\.\pipe\stillyard-isolated-c-{}", Uuid::now_v7());
+
+    let mut daemon_a = spawn_daemon(&pinned, &store_a, &endpoint_a);
+    let _daemon_b = spawn_daemon(&pinned, &store_b, &endpoint_b);
+    let client_a = connect(&pinned, &endpoint_a);
+    let client_b = connect(&pinned, &endpoint_b);
+    let status_a = client_a
+        .daemon_status(Instant::now() + Duration::from_secs(2), None)
+        .unwrap();
+    let status_b = client_b
+        .daemon_status(Instant::now() + Duration::from_secs(2), None)
+        .unwrap();
+    assert_eq!(status_a.endpoint, endpoint_a);
+    assert_eq!(status_b.endpoint, endpoint_b);
+    assert_eq!(
+        status_a.store_path,
+        std::fs::canonicalize(&store_a).unwrap()
+    );
+    assert_eq!(
+        status_b.store_path,
+        std::fs::canonicalize(&store_b).unwrap()
+    );
+    assert_ne!(status_a.store_uuid, status_b.store_uuid);
+
+    let nested = JobSpec {
+        spec_version: SPEC_VERSION,
+        executable: pinned.clone(),
+        args: vec!["daemon-status".into()],
+        working_directory: temp.path().to_path_buf(),
+        stdin: StdinSpec::Eof,
+        environment: EnvironmentSpec::default(),
+        resources: ResourceClaims::default(),
+        conditions: Vec::new(),
+        retry: RetryPolicy::default(),
+        postconditions: Vec::new(),
+        labels: Vec::new(),
+        expected_duration_seconds: Some(1),
+        timeout_seconds: Some(10),
+        quiet: None,
+        artifacts: Vec::new(),
+        allow_child_submissions: false,
+    };
+    let receipt = client_b
+        .submit(
+            nested,
+            &SubmitOptions::new(Uuid::now_v7()),
+            Instant::now() + Duration::from_secs(5),
+            None,
+        )
+        .unwrap();
+    let nested_snapshot = client_b
+        .wait(
+            receipt.job_id,
+            Instant::now() + Duration::from_secs(10),
+            None,
+        )
+        .unwrap();
+    let output = client_b
+        .logs(
+            receipt.job_id,
+            LogStream::Stdout,
+            0,
+            64 * 1024,
+            Instant::now() + Duration::from_secs(2),
+            None,
+        )
+        .unwrap();
+    let nested_stderr = client_b
+        .logs(
+            receipt.job_id,
+            LogStream::Stderr,
+            0,
+            64 * 1024,
+            Instant::now() + Duration::from_secs(2),
+            None,
+        )
+        .unwrap();
+    assert_eq!(
+        nested_snapshot.outcome,
+        Some(stillyard::JobOutcome::Succeeded),
+        "nested CLI failed: {}",
+        String::from_utf8_lossy(&nested_stderr.bytes)
+    );
+    let nested_status: DaemonSnapshot = serde_json::from_slice(&output.bytes).unwrap();
+    assert_eq!(nested_status.endpoint, endpoint_b);
+    assert_eq!(nested_status.store_uuid, status_b.store_uuid);
+
+    let foreign: JobId = durable_id(status_a.store_uuid);
+    assert!(
+        client_b
+            .status(foreign, Instant::now() + Duration::from_secs(2), None)
+            .is_err()
+    );
+    assert!(
+        Client::builder()
+            .endpoint(&endpoint_a)
+            .daemon_executable(&source)
+            .auto_start(false)
+            .connect(Instant::now() + Duration::from_secs(2), None)
+            .is_err()
+    );
+
+    let mut same_endpoint = spawn_daemon(&pinned, &store_c, &endpoint_a);
+    assert!(!wait_for_exit(same_endpoint.child_mut(), Duration::from_secs(3)).success());
+    let mut same_store = spawn_daemon(&pinned, &store_a, &endpoint_c);
+    assert!(!wait_for_exit(same_store.child_mut(), Duration::from_secs(3)).success());
+
+    let helper = std::env::current_exe().unwrap();
+    let outer_store = Uuid::now_v7();
+    let parent_job: JobId = durable_id(outer_store);
+    let parent_attempt: stillyard::AttemptId = durable_id(outer_store);
+    let parent_invocation: stillyard::InvocationId = durable_id(outer_store);
+    let helper_status = Command::new(&helper)
+        .args(["--ignored", "--exact", "isolated_client_helper"])
+        .env("ISOLATED_TARGET_ENDPOINT", &endpoint_b)
+        .env("ISOLATED_DAEMON_EXECUTABLE", &pinned)
+        .env("STILLYARD_ENDPOINT", &endpoint_a)
+        .env("STILLYARD_JOB_ID", parent_job.to_string())
+        .env("STILLYARD_ATTEMPT", parent_attempt.to_string())
+        .env("STILLYARD_INVOCATION_ID", parent_invocation.to_string())
+        .status()
+        .unwrap();
+    assert!(helper_status.success());
+
+    daemon_a.kill_and_wait();
+    let _replacement = spawn_daemon(&pinned, &store_a, &endpoint_a);
+    let reopened = connect(&pinned, &endpoint_a)
+        .daemon_status(Instant::now() + Duration::from_secs(2), None)
+        .unwrap();
+    assert_eq!(reopened.store_uuid, status_a.store_uuid);
+}
+
+#[test]
+#[ignore = "launched as a scoped managed-environment client helper"]
+fn isolated_client_helper() {
+    let endpoint = std::env::var("ISOLATED_TARGET_ENDPOINT").unwrap();
+    let daemon = PathBuf::from(std::env::var_os("ISOLATED_DAEMON_EXECUTABLE").unwrap());
+    let client = Client::builder()
+        .endpoint(&endpoint)
+        .daemon_executable(daemon)
+        .auto_start(false)
+        .connect(Instant::now() + Duration::from_secs(2), None)
+        .unwrap();
+    let context = client
+        .submission_context(Instant::now() + Duration::from_secs(2), None)
+        .unwrap();
+    assert_eq!(context.parent, None);
+    assert_eq!(
+        client
+            .daemon_status(Instant::now() + Duration::from_secs(2), None)
+            .unwrap()
+            .endpoint,
+        endpoint
+    );
+}

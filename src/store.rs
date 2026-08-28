@@ -3144,7 +3144,7 @@ impl Store {
         })
     }
 
-    pub(crate) fn daemon_status(&self) -> StoreResult<DaemonSnapshot> {
+    pub(crate) fn daemon_status(&self, endpoint: &str) -> StoreResult<DaemonSnapshot> {
         let queued_jobs = self.connection.query_row(
             "SELECT COUNT(*) FROM jobs WHERE state = 'pending'",
             [],
@@ -3160,6 +3160,7 @@ impl Store {
             daemon_generation: self.daemon_generation,
             version: env!("CARGO_PKG_VERSION").to_owned(),
             pid: std::process::id(),
+            endpoint: endpoint.to_owned(),
             store_path: self.paths.root.clone(),
             config_path: self.paths.config.clone(),
             capacities: self.capacities.clone(),
@@ -6846,7 +6847,9 @@ mod tests {
                 .iter()
                 .any(|blocker| blocker.code == "impact_busy")
         );
-        let daemon = store.daemon_status().unwrap();
+        let daemon = store
+            .daemon_status(r"\\.\pipe\stillyard-store-test")
+            .unwrap();
         assert_eq!(daemon.daemon_generation, cpu.daemon_generation);
         assert!(!daemon.config_sha256.is_empty());
     }

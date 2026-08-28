@@ -10,6 +10,7 @@ The implementation is in active development against the frozen [v0.12 requiremen
 
 - host-local scheduling; SSH remains an external transport;
 - one per-user daemon and one SQLite lifecycle store;
+- explicit pinned daemon instances may use an isolated store and owner-only endpoint for tests;
 - ordinary processes rather than containers or a proprietary worker runtime;
 - resource admission and honest observation, not hard CPU/GPU partitioning;
 - one public `stillyard` crate used by both CLI and TUI;
@@ -80,6 +81,12 @@ Its public doctor snapshot, durable reconciliation evidence, and audited force-c
 have passed focused Opus, Fable, and Grok design review; they are designed but not yet claimed as
 delivered code.
 
+The isolated-instance foundation for that implementation is documented in
+[Phase 8a](docs/phase-8a-isolated-daemon-instances.md). It lets Stillyard and external consumers run
+a pinned foreground daemon on a temporary store and unique pipe without contacting the default
+per-user daemon. The CLI's global `--endpoint` and the public `ClientBuilder` select that instance;
+custom endpoints remain connect-only.
+
 An uncertain Containment deliberately retains its real Lease after restart. Until the audited `doctor clear-containment` flow ships, that capacity remains unavailable; moving or editing individual store files is not a supported recovery path.
 
 Stillyard is still greenfield. Before the first stable release it has one current SQLite schema epoch and no database migrations: when that epoch or the required schema does not match, daemon startup silently replaces the database and creates a new store identity. The reset is deliberately all-or-nothing and does not delete `config.json` or canonical log files. Old job IDs, cursors, result files, and idempotency history are not recoverable across it.
@@ -127,6 +134,8 @@ cargo test
 cargo run -- schema spec
 cargo run -- schema config
 cargo run -- daemon-status
+cargo run -- --endpoint \\.\pipe\stillyard-test daemon --store C:\temp\stillyard-test
+cargo run -- --endpoint \\.\pipe\stillyard-test daemon-status
 cargo run -- submit --spec job.json --wait --passthrough --silent --result-file operation.json
 cargo run -- recover --result-file operation.json --wait --passthrough --silent
 cargo run -- wait JOB_ID --passthrough

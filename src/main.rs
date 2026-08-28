@@ -15,6 +15,9 @@ mod tui;
 #[derive(Debug, Parser)]
 #[command(name = "stillyard", version, about)]
 struct Cli {
+    /// Select a daemon instance. Explicit endpoints are connect-only and never auto-start.
+    #[arg(long, global = true)]
+    endpoint: Option<String>,
     #[command(subcommand)]
     command: Command,
 }
@@ -26,6 +29,9 @@ enum Command {
         /// Internal marker used by client auto-start.
         #[arg(long, hide = true)]
         background_child: bool,
+        /// Use an isolated canonical store root instead of the per-user default.
+        #[arg(long)]
+        store: Option<PathBuf>,
     },
     /// Submit a JobSpec JSON document and print its receipt immediately.
     Submit {
@@ -207,10 +213,14 @@ fn main() {
 }
 
 fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
-    match cli.command {
-        Command::Daemon { background_child } => {
+    let Cli { endpoint, command } = cli;
+    match command {
+        Command::Daemon {
+            background_child,
+            store,
+        } => {
             let _ = background_child;
-            stillyard::run_daemon()?;
+            stillyard::run_daemon_instance(store, endpoint)?;
         }
         Command::Submit {
             spec,
@@ -223,7 +233,7 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             deadline_seconds,
         } => {
             let deadline = deadline(deadline_seconds);
-            let client = Client::connect(deadline, None)?;
+            let client = connect_client(endpoint.as_deref(), deadline)?;
             let mut options = SubmitOptions::new(idempotency_key.unwrap_or_else(Uuid::now_v7));
             if let Some(result_file) = result_file {
                 options = options.with_result_file(result_file);
@@ -300,7 +310,7 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             deadline_seconds,
         } => {
             let deadline = deadline(deadline_seconds);
-            let client = Client::connect(deadline, None)?;
+            let client = connect_client(endpoint.as_deref(), deadline)?;
             let mut recovery = client.recover_result_file(&result_file, deadline, None)?;
             while wait && matches!(recovery, RecoveryResult::Received { .. }) {
                 std::thread::sleep(Duration::from_millis(100));
@@ -367,7 +377,7 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             deadline_seconds,
         } => {
             let deadline = deadline(deadline_seconds);
-            let client = Client::connect(deadline, None)?;
+            let client = connect_client(endpoint.as_deref(), deadline)?;
             print_json(&client.status(job_id, deadline, None)?)?;
         }
         Command::List {
@@ -378,7 +388,7 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             deadline_seconds,
         } => {
             let deadline = deadline(deadline_seconds);
-            let client = Client::connect(deadline, None)?;
+            let client = connect_client(endpoint.as_deref(), deadline)?;
             let selector = labels_selector(&labels)?;
             let page = client.list(selector, cursor, limit, deadline, None)?;
             if json {
@@ -395,7 +405,7 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             deadline_seconds,
         } => {
             let deadline = deadline(deadline_seconds);
-            let client = Client::connect(deadline, None)?;
+            let client = connect_client(endpoint.as_deref(), deadline)?;
             let frame = client.observe(
                 labels_selector(&labels)?,
                 since,
@@ -413,7 +423,7 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             deadline_seconds,
         } => {
             let deadline = deadline(deadline_seconds);
-            let client = Client::connect(deadline, None)?;
+            let client = connect_client(endpoint.as_deref(), deadline)?;
             let snapshot = if passthrough {
                 client.wait_with_passthrough(
                     job_id,
@@ -446,7 +456,7 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             deadline_seconds,
         } => {
             let deadline = deadline(logs_deadline_seconds(follow, deadline_seconds));
-            let client = Client::connect(deadline, None)?;
+            let client = connect_client(endpoint.as_deref(), deadline)?;
             let stream = if stderr {
                 LogStream::Stderr
             } else {
@@ -486,7 +496,7 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             deadline_seconds,
         } => {
             let deadline = deadline(deadline_seconds);
-            let client = Client::connect(deadline, None)?;
+            let client = connect_client(endpoint.as_deref(), deadline)?;
             let selector = if let Some(job_id) = job {
                 stillyard::JobSelector::Jobs {
                     job_ids: vec![job_id],
@@ -500,7 +510,7 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         }
         Command::DaemonStatus { deadline_seconds } => {
             let deadline = deadline(deadline_seconds);
-            let client = Client::connect(deadline, None)?;
+            let client = connect_client(endpoint.as_deref(), deadline)?;
             print_json(&client.daemon_status(deadline, None)?)?;
         }
         Command::Cancel {
@@ -508,7 +518,7 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             deadline_seconds,
         } => {
             let deadline = deadline(deadline_seconds);
-            let client = Client::connect(deadline, None)?;
+            let client = connect_client(endpoint.as_deref(), deadline)?;
             print_json(&client.cancel(&jobs, deadline, None)?)?;
         }
         Command::Schema { command } => match command {
@@ -517,6 +527,14 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         },
     }
     Ok(())
+}
+
+fn connect_client(endpoint: Option<&str>, deadline: Instant) -> Result<Client, stillyard::Error> {
+    let mut builder = Client::builder();
+    if let Some(endpoint) = endpoint {
+        builder = builder.endpoint(endpoint);
+    }
+    builder.connect(deadline, None)
 }
 
 fn deadline(seconds: u64) -> Instant {
@@ -734,6 +752,30 @@ mod tests {
         assert_eq!(logs_deadline_seconds(true, None), 86_400);
         assert_eq!(logs_deadline_seconds(false, None), 10);
         assert_eq!(logs_deadline_seconds(true, Some(7)), 7);
+    }
+
+    #[test]
+    fn isolated_instance_coordinates_are_global_and_daemon_store_is_explicit() {
+        let endpoint = r"\\.\pipe\moot-test-123";
+        let before =
+            Cli::try_parse_from(["stillyard", "--endpoint", endpoint, "daemon-status"]).unwrap();
+        assert_eq!(before.endpoint.as_deref(), Some(endpoint));
+        assert!(matches!(before.command, Command::DaemonStatus { .. }));
+
+        let after = Cli::try_parse_from([
+            "stillyard",
+            "daemon",
+            "--store",
+            r"C:\temp\moot-store",
+            "--endpoint",
+            endpoint,
+        ])
+        .unwrap();
+        assert_eq!(after.endpoint.as_deref(), Some(endpoint));
+        assert!(matches!(
+            after.command,
+            Command::Daemon { store: Some(_), .. }
+        ));
     }
 
     #[test]

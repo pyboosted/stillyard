@@ -10,7 +10,7 @@ use crate::{
     ObservationFrame, SubmissionContext,
 };
 
-pub(crate) const PROTOCOL_VERSION: u32 = 9;
+pub(crate) const PROTOCOL_VERSION: u32 = 10;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

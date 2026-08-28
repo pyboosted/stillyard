@@ -43,5 +43,17 @@ pub use spec::{
 /// This entry point exists for the bundled CLI. Embedders normally use [`Client`].
 #[doc(hidden)]
 pub fn run_daemon() -> Result<()> {
-    daemon::run()
+    daemon::run(None, None)
+}
+
+/// Runs a selected daemon instance in the foreground.
+///
+/// This entry point exists for the bundled CLI. Consumer harnesses should spawn the pinned
+/// `stillyard daemon` executable and connect through [`ClientBuilder`].
+#[doc(hidden)]
+pub fn run_daemon_instance(
+    store_root: Option<std::path::PathBuf>,
+    endpoint: Option<String>,
+) -> Result<()> {
+    daemon::run(store_root, endpoint)
 }

@@ -90,12 +90,12 @@ pub(crate) fn process_in_containment(
     Ok(Some(member != 0))
 }
 
-pub(crate) fn run(job: PreparedJob, store: Arc<Mutex<Store>>) {
+pub(crate) fn run(job: PreparedJob, store: Arc<Mutex<Store>>, endpoint: Arc<str>) {
     #[cfg(windows)]
-    windows::run(&job, &store);
+    windows::run(&job, &store, &endpoint);
 
     #[cfg(not(windows))]
-    let _ = (job, store);
+    let _ = (job, store, endpoint);
 }
 
 #[cfg(windows)]
@@ -267,12 +267,12 @@ mod windows {
 
     type RunResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-    pub(super) fn run(job: &PreparedJob, store: &Arc<Mutex<Store>>) {
+    pub(super) fn run(job: &PreparedJob, store: &Arc<Mutex<Store>>, endpoint: &str) {
         let mut progress = RunProgress {
             cleanup_proven: true,
             ..RunProgress::default()
         };
-        let primary = match run_inner(job, store, &mut progress) {
+        let primary = match run_inner(job, store, endpoint, &mut progress) {
             Ok(result) => result,
             Err(error) => {
                 finish_failed_invocation(job, store, &progress, false);
@@ -333,7 +333,7 @@ mod windows {
                     cleanup_proven: true,
                     ..RunProgress::default()
                 };
-                let result = match run_inner(&postcondition, store, &mut post_progress) {
+                let result = match run_inner(&postcondition, store, endpoint, &mut post_progress) {
                     Ok(result) => result,
                     Err(error) => {
                         finish_failed_invocation(&postcondition, store, &post_progress, true);
@@ -538,6 +538,7 @@ mod windows {
     fn run_inner(
         job: &PreparedJob,
         store: &Arc<Mutex<Store>>,
+        endpoint: &str,
         progress: &mut RunProgress,
     ) -> RunResult<(u32, bool)> {
         validate_paths(&job.spec.executable, &job.spec.working_directory)?;
@@ -566,7 +567,7 @@ mod windows {
         let application = wide_null(job.spec.executable.as_os_str());
         let mut command_line = command_line(&job.spec.executable, &job.spec.args);
         let working_directory = wide_null(job.spec.working_directory.as_os_str());
-        let mut environment = environment_block(job)?;
+        let mut environment = environment_block(job, endpoint)?;
         let mut startup: STARTUPINFOEXW = unsafe { zeroed() };
         startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
         startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
@@ -1066,7 +1067,7 @@ mod windows {
             .eq_ignore_ascii_case(&right.as_os_str().to_string_lossy()))
     }
 
-    fn environment_block(job: &PreparedJob) -> std::io::Result<Vec<u16>> {
+    fn environment_block(job: &PreparedJob, endpoint: &str) -> std::io::Result<Vec<u16>> {
         let mut environment = BTreeMap::<String, String>::new();
         for name in ["SystemRoot", "WINDIR", "TEMP", "TMP"] {
             if let Ok(value) = std::env::var(name) {
@@ -1093,10 +1094,7 @@ mod windows {
             }
             .into(),
         );
-        environment.insert(
-            "STILLYARD_ENDPOINT".into(),
-            crate::client::default_endpoint().map_err(std::io::Error::other)?,
-        );
+        environment.insert("STILLYARD_ENDPOINT".into(), endpoint.into());
         environment.insert(
             "STILLYARD_DAEMON_ID".into(),
             job.job_id.store_uuid().to_string(),
@@ -1166,6 +1164,8 @@ mod windows {
             SPEC_VERSION, StdinSpec,
         };
         use uuid::Uuid;
+
+        const TEST_ENDPOINT: &str = r"\\.\pipe\stillyard-runner-test";
 
         fn job_spec(root: &Path, executable: PathBuf, args: Vec<String>) -> JobSpec {
             JobSpec {
@@ -1283,7 +1283,7 @@ mod windows {
                 ],
             );
             let (job, store) = prepared(&spec, temp.path());
-            run(&job, &store);
+            run(&job, &store, TEST_ENDPOINT);
             let store = store.lock().unwrap();
             let snapshot = store.status(job.job_id).unwrap();
             assert_eq!(snapshot.state, JobState::Final);
@@ -1337,7 +1337,7 @@ mod windows {
                 retryable_exit_codes: vec![10],
             });
             let (first, store) = prepared(&spec, temp.path());
-            run(&first, &store);
+            run(&first, &store, TEST_ENDPOINT);
             let second = {
                 let mut locked = store.lock().unwrap();
                 let snapshot = locked.status(first.job_id).unwrap();
@@ -1360,7 +1360,7 @@ mod windows {
                 );
                 locked.prepare_job(first.job_id).unwrap().unwrap()
             };
-            run(&second, &store);
+            run(&second, &store, TEST_ENDPOINT);
             let snapshot = store.lock().unwrap().status(first.job_id).unwrap();
             assert_eq!(
                 snapshot.outcome,
@@ -1397,7 +1397,7 @@ mod windows {
                 path: temp.path().join("client-prompt.bin"),
             };
             let (job, store) = prepared_with_stdin(&spec, temp.path(), payload);
-            run(&job, &store);
+            run(&job, &store, TEST_ENDPOINT);
             let store = store.lock().unwrap();
             let snapshot = store.status(job.job_id).unwrap();
             assert_eq!(snapshot.outcome, Some(JobOutcome::Succeeded));
@@ -1437,7 +1437,7 @@ mod windows {
             std::fs::set_permissions(blob, permissions).unwrap();
             std::fs::write(blob, b"altered stdin").unwrap();
 
-            run(&job, &store);
+            run(&job, &store, TEST_ENDPOINT);
             let store = store.lock().unwrap();
             let snapshot = store.status(job.job_id).unwrap();
             assert_eq!(snapshot.outcome, Some(JobOutcome::Failed));
@@ -1463,7 +1463,7 @@ mod windows {
                 .set
                 .insert("PATH".into(), r"C:\Exact\Tools".into());
             let (job, _store) = prepared(&spec, temp.path());
-            let block = environment_block(&job).unwrap();
+            let block = environment_block(&job, TEST_ENDPOINT).unwrap();
             let decoded = String::from_utf16(&block[..block.len() - 2]).unwrap();
             let values: BTreeMap<_, _> = decoded
                 .split('\0')
@@ -1482,6 +1482,8 @@ mod windows {
                 values.get("STILLYARD_DAEMON_ID").unwrap(),
                 &job.job_id.store_uuid().to_string()
             );
+            assert_eq!(values.get("STILLYARD_ENDPOINT").unwrap(), TEST_ENDPOINT);
+            assert!(!values.contains_key("STILLYARD_STORE"));
         }
 
         #[test]
@@ -1506,7 +1508,7 @@ mod windows {
             spec.timeout_seconds = Some(1);
             let (job, store) = prepared(&spec, temp.path());
             let started = Instant::now();
-            run(&job, &store);
+            run(&job, &store, TEST_ENDPOINT);
             assert!(started.elapsed() < Duration::from_secs(10));
             let snapshot = store.lock().unwrap().status(job.job_id).unwrap();
             assert_eq!(snapshot.state, JobState::Final);
@@ -1541,7 +1543,7 @@ mod windows {
             let (job, store) = prepared(&spec, temp.path());
             let worker_store = Arc::clone(&store);
             let worker_job = job.clone();
-            let worker = std::thread::spawn(move || run(&worker_job, &worker_store));
+            let worker = std::thread::spawn(move || run(&worker_job, &worker_store, TEST_ENDPOINT));
             let deadline = Instant::now() + Duration::from_secs(5);
             loop {
                 let started = store
@@ -1606,7 +1608,7 @@ mod windows {
             let (job, store) = prepared(&spec, temp.path());
             let worker_store = Arc::clone(&store);
             let worker_job = job.clone();
-            let worker = std::thread::spawn(move || run(&worker_job, &worker_store));
+            let worker = std::thread::spawn(move || run(&worker_job, &worker_store, TEST_ENDPOINT));
             let deadline = Instant::now() + Duration::from_secs(5);
             loop {
                 let postcondition_started = store
@@ -1695,7 +1697,7 @@ mod windows {
                 cleanup_proven: true,
                 ..RunProgress::default()
             };
-            let result = run_inner(&postcondition, &store, &mut progress).unwrap();
+            let result = run_inner(&postcondition, &store, TEST_ENDPOINT, &mut progress).unwrap();
             assert!(progress.canceled);
             assert!(
                 !progress.user_code_released,
@@ -1743,7 +1745,7 @@ mod windows {
             });
             let (job, store) = prepared(&spec, temp.path());
             let started = Instant::now();
-            run(&job, &store);
+            run(&job, &store, TEST_ENDPOINT);
 
             assert!(started.elapsed() < Duration::from_secs(10));
             let snapshot = store.lock().unwrap().status(job.job_id).unwrap();
@@ -1784,7 +1786,7 @@ mod windows {
             );
             spec.timeout_seconds = Some(5);
             let (job, store) = prepared(&spec, temp.path());
-            run(&job, &store);
+            run(&job, &store, TEST_ENDPOINT);
             let pid: u32 = std::fs::read_to_string(pid_file)
                 .unwrap()
                 .trim()
@@ -1843,7 +1845,7 @@ mod windows {
             );
             let (job, store) = prepared(&spec, temp.path());
             FORCE_PRESTART_FAILURE.set(true);
-            run(&job, &store);
+            run(&job, &store, TEST_ENDPOINT);
             let store = store.lock().unwrap();
             let snapshot = store.status(job.job_id).unwrap();
             assert_eq!(snapshot.state, JobState::Final);

@@ -520,6 +520,7 @@ pub struct DaemonSnapshot {
     pub daemon_generation: Uuid,
     pub version: String,
     pub pid: u32,
+    pub endpoint: String,
     pub store_path: PathBuf,
     pub config_path: PathBuf,
     pub capacities: crate::ResourceCapacities,

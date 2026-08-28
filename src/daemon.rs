@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -5,9 +6,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use fs2::FileExt;
 
 #[cfg(windows)]
-use crate::client::default_store_root;
-#[cfg(windows)]
-use crate::client::{current_user_sid_string, default_endpoint};
+use crate::client::{current_user_sid_string, resolve_endpoint, resolve_store_root};
 use crate::protocol::{PROTOCOL_VERSION, Request, Response};
 #[cfg(windows)]
 use crate::protocol::{read_frame, write_frame};
@@ -36,10 +35,13 @@ impl Drop for PeerProcess {
 }
 
 #[cfg(windows)]
-pub(crate) fn run() -> Result<()> {
-    let (_lock, store) = open_store_under_lock(StorePaths::new(default_store_root()?))?;
+pub(crate) fn run(store_root: Option<PathBuf>, endpoint: Option<String>) -> Result<()> {
+    let store_root = resolve_store_root(store_root)?;
+    let endpoint = resolve_endpoint(endpoint)?;
+    let _endpoint_lease = acquire_endpoint_lease(&endpoint)?;
+    let (_lock, store) = open_store_under_lock(StorePaths::new(store_root))?;
     let store = Arc::new(Mutex::new(store));
-    let scheduler = Scheduler::start(Arc::clone(&store));
+    let scheduler = Scheduler::start(Arc::clone(&store), endpoint);
     let notifier = Arc::downgrade(&scheduler);
     store
         .lock()
@@ -66,13 +68,104 @@ fn open_store_under_lock(paths: StorePaths) -> Result<(std::fs::File, Store)> {
 }
 
 #[cfg(not(windows))]
-pub(crate) fn run() -> Result<()> {
+pub(crate) fn run(_store_root: Option<PathBuf>, _endpoint: Option<String>) -> Result<()> {
     Err(Error::UnsupportedPlatform(std::env::consts::OS))
+}
+
+#[cfg(windows)]
+struct EndpointLease(windows_sys::Win32::Foundation::HANDLE);
+
+#[cfg(windows)]
+impl Drop for EndpointLease {
+    fn drop(&mut self) {
+        // SAFETY: the lease owns the mutex handle returned by CreateMutexW.
+        unsafe { windows_sys::Win32::Foundation::CloseHandle(self.0) };
+    }
+}
+
+#[cfg(windows)]
+fn acquire_endpoint_lease(endpoint: &str) -> Result<EndpointLease> {
+    use std::ffi::c_void;
+    use std::mem::size_of;
+    use std::os::windows::ffi::OsStrExt;
+
+    use sha2::{Digest, Sha256};
+    use windows_sys::Win32::Foundation::{
+        CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, LocalFree,
+    };
+    use windows_sys::Win32::Security::Authorization::{
+        ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
+    };
+    use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
+    use windows_sys::Win32::System::Threading::CreateMutexW;
+
+    let sid = current_user_sid_string()?;
+    let identity = format!("{sid}\0{}", endpoint.to_ascii_lowercase());
+    let digest = format!("{:x}", Sha256::digest(identity.as_bytes()));
+    let name: Vec<u16> =
+        std::ffi::OsStr::new(&format!("Global\\StillyardEndpoint-{}", &digest[..32]))
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+    let sddl: Vec<u16> = std::ffi::OsStr::new(&format!("D:P(A;;GA;;;{sid})"))
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut descriptor: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
+    // SAFETY: SDDL is NUL-terminated and descriptor is writable.
+    if unsafe {
+        ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            sddl.as_ptr(),
+            SDDL_REVISION_1,
+            &mut descriptor,
+            std::ptr::null_mut(),
+        )
+    } == 0
+    {
+        return Err(Error::Unavailable(format!(
+            "cannot secure daemon endpoint lease: {}",
+            std::io::Error::last_os_error()
+        )));
+    }
+    struct Descriptor(*mut c_void);
+    impl Drop for Descriptor {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                // SAFETY: the descriptor was allocated by the SDDL conversion API.
+                unsafe { LocalFree(self.0) };
+            }
+        }
+    }
+    let descriptor = Descriptor(descriptor);
+    let attributes = SECURITY_ATTRIBUTES {
+        nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
+        lpSecurityDescriptor: descriptor.0,
+        bInheritHandle: 0,
+    };
+    // SAFETY: name is NUL-terminated; attributes points to a live owner-only descriptor and the
+    // returned non-inheritable handle is retained for the complete daemon lifetime.
+    let handle = unsafe { CreateMutexW(&attributes, 0, name.as_ptr()) };
+    if handle.is_null() {
+        return Err(Error::Unavailable(format!(
+            "cannot claim daemon endpoint {endpoint:?}: {}",
+            std::io::Error::last_os_error()
+        )));
+    }
+    // SAFETY: GetLastError must be read immediately after CreateMutexW.
+    if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+        // SAFETY: this branch still owns the returned reference to the existing mutex.
+        unsafe { CloseHandle(handle) };
+        return Err(Error::Unavailable(format!(
+            "daemon endpoint is already owned: {endpoint}"
+        )));
+    }
+    Ok(EndpointLease(handle))
 }
 
 struct Scheduler {
     signal: Arc<(Mutex<bool>, Condvar)>,
     events: Arc<(Mutex<u64>, Condvar)>,
+    endpoint: Arc<str>,
 }
 
 fn submission_context(
@@ -189,10 +282,11 @@ fn authenticate_managed_peer(
 }
 
 impl Scheduler {
-    fn start(store: SharedStore) -> Arc<Self> {
+    fn start(store: SharedStore, endpoint: String) -> Arc<Self> {
         let scheduler = Arc::new(Self {
             signal: Arc::new((Mutex::new(false), Condvar::new())),
             events: Arc::new((Mutex::new(0), Condvar::new())),
+            endpoint: Arc::from(endpoint),
         });
         let worker = Arc::clone(&scheduler);
         std::thread::Builder::new()
@@ -344,11 +438,12 @@ impl Scheduler {
                 self.notify_change();
                 let worker_store = Arc::clone(&store);
                 let worker_scheduler = Arc::clone(&self);
+                let worker_endpoint = Arc::clone(&self.endpoint);
                 let thread_job = job.clone();
                 let spawned = std::thread::Builder::new()
                     .name(format!("stillyard-job-{}", job.job_id.entity_uuid()))
                     .spawn(move || {
-                        crate::runner::run(thread_job, worker_store);
+                        crate::runner::run(thread_job, worker_store, worker_endpoint);
                         worker_scheduler.wake();
                     });
                 if let Err(error) = spawned {
@@ -667,7 +762,7 @@ fn handle_request(
         Request::DaemonStatus => store
             .lock()
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-            .and_then(|store| store.daemon_status())
+            .and_then(|store| store.daemon_status(&scheduler.endpoint))
             .map(Response::DaemonStatus),
     };
     result.unwrap_or_else(|error| match error {
@@ -717,6 +812,7 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
         ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
     };
     use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
+    use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_FIRST_PIPE_INSTANCE;
     use windows_sys::Win32::Storage::FileSystem::PIPE_ACCESS_DUPLEX;
     use windows_sys::Win32::System::Pipes::{
         ConnectNamedPipe, CreateNamedPipeW, GetNamedPipeClientProcessId,
@@ -780,11 +876,11 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
         }
     }
 
-    let endpoint = default_endpoint()?;
-    let pipe_name: Vec<u16> = std::ffi::OsStr::new(&endpoint)
+    let pipe_name: Vec<u16> = std::ffi::OsStr::new(scheduler.endpoint.as_ref())
         .encode_wide()
         .chain(std::iter::once(0))
         .collect();
+    let mut first_instance = true;
     loop {
         let mut security = PipeSecurity::owner_only()?;
         let attributes = security.attributes();
@@ -793,7 +889,12 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
         let handle = unsafe {
             CreateNamedPipeW(
                 pipe_name.as_ptr(),
-                PIPE_ACCESS_DUPLEX,
+                PIPE_ACCESS_DUPLEX
+                    | if first_instance {
+                        FILE_FLAG_FIRST_PIPE_INSTANCE
+                    } else {
+                        0
+                    },
                 PIPE_TYPE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
                 255,
                 64 * 1024,
@@ -803,9 +904,17 @@ fn serve(store: SharedStore, scheduler: Arc<Scheduler>) -> Result<()> {
             )
         };
         if handle == INVALID_HANDLE_VALUE {
+            if first_instance {
+                return Err(Error::Unavailable(format!(
+                    "cannot create exclusive daemon endpoint {}: {}",
+                    scheduler.endpoint,
+                    std::io::Error::last_os_error()
+                )));
+            }
             std::thread::sleep(Duration::from_millis(25));
             continue;
         }
+        first_instance = false;
         // SAFETY: handle is a fresh named-pipe server handle.
         let connected = unsafe { ConnectNamedPipe(handle, std::ptr::null_mut()) };
         if connected == 0 {
@@ -910,7 +1019,20 @@ mod tests {
         Arc::new(Scheduler {
             signal: Arc::new((Mutex::new(false), Condvar::new())),
             events: Arc::new((Mutex::new(0), Condvar::new())),
+            endpoint: Arc::from(r"\\.\pipe\stillyard-daemon-test"),
         })
+    }
+
+    #[test]
+    fn endpoint_lease_is_exclusive_and_released_with_its_handle() {
+        let endpoint = format!(r"\\.\pipe\stillyard-lease-test-{}", uuid::Uuid::now_v7());
+        let first = acquire_endpoint_lease(&endpoint).unwrap();
+        assert!(matches!(
+            acquire_endpoint_lease(&endpoint),
+            Err(Error::Unavailable(_))
+        ));
+        drop(first);
+        acquire_endpoint_lease(&endpoint).unwrap();
     }
 
     fn candidate(store: uuid::Uuid, enabled: bool) -> ManagedCandidate {

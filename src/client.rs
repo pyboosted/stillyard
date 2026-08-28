@@ -72,6 +72,12 @@ impl ClientBuilder {
             .endpoint
             .or_else(|| managed_endpoint.clone())
             .unwrap_or(default_endpoint()?);
+        validate_endpoint(&endpoint)?;
+        let claimed_parent = claimed_managed_parent_for_endpoint(
+            &endpoint,
+            managed_endpoint.as_deref(),
+            managed_environment_coordinates(),
+        )?;
         let daemon_executable = self
             .daemon_executable
             .map(Ok)
@@ -79,6 +85,7 @@ impl ClientBuilder {
         let client = Client {
             endpoint,
             daemon_executable,
+            claimed_parent,
         };
         match client.ping(deadline, cancellation) {
             Ok(()) => Ok(client),
@@ -95,7 +102,11 @@ impl ClientBuilder {
                         "auto-start is unavailable for an explicit endpoint".into(),
                     ));
                 }
-                let mut daemon = start_daemon(&client.daemon_executable)?;
+                let mut daemon = start_daemon(
+                    &client.daemon_executable,
+                    &default_store_root()?,
+                    &client.endpoint,
+                )?;
                 let startup_deadline = deadline.min(Instant::now() + Duration::from_secs(10));
                 let mut child_exit = None;
                 loop {
@@ -129,6 +140,7 @@ impl ClientBuilder {
 pub struct Client {
     endpoint: String,
     daemon_executable: PathBuf,
+    claimed_parent: Option<ManagedParent>,
 }
 
 pub struct ObservationStream {
@@ -503,9 +515,10 @@ impl Client {
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<SubmissionContext> {
-        let claimed_parent = claimed_managed_parent()?;
         match self.request(
-            Request::SubmissionContext { claimed_parent },
+            Request::SubmissionContext {
+                claimed_parent: self.claimed_parent,
+            },
             deadline,
             cancellation,
         )? {
@@ -737,7 +750,7 @@ impl Client {
                 Request::Wait {
                     job_id,
                     max_wait_millis: 1_000,
-                    claimed_parent: claimed_managed_parent()?,
+                    claimed_parent: self.claimed_parent,
                 },
                 deadline,
                 cancellation,
@@ -766,7 +779,7 @@ impl Client {
                 Request::Wait {
                     job_id,
                     max_wait_millis: 250,
-                    claimed_parent: claimed_managed_parent()?,
+                    claimed_parent: self.claimed_parent,
                 },
                 deadline,
                 cancellation,
@@ -1308,7 +1321,11 @@ fn transport_request(
 }
 
 #[cfg(windows)]
-fn start_daemon(executable: &Path) -> Result<std::process::Child> {
+fn start_daemon(
+    executable: &Path,
+    store_root: &Path,
+    endpoint: &str,
+) -> Result<std::process::Child> {
     use std::os::windows::process::CommandExt;
     use std::process::{Command, Stdio};
 
@@ -1317,10 +1334,13 @@ fn start_daemon(executable: &Path) -> Result<std::process::Child> {
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
 
-    let store_root = default_store_root()?;
-    std::fs::create_dir_all(&store_root)?;
+    std::fs::create_dir_all(store_root)?;
     Command::new(executable)
-        .args(["daemon", "--background-child"])
+        .args(["daemon", "--background-child", "--store"])
+        .arg(store_root)
+        .args(["--endpoint", endpoint])
+        .env_remove("STILLYARD_STORE")
+        .env_remove("STILLYARD_ENDPOINT")
         .current_dir(store_root)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -1336,7 +1356,11 @@ fn start_daemon(executable: &Path) -> Result<std::process::Child> {
 }
 
 #[cfg(not(windows))]
-fn start_daemon(_executable: &Path) -> Result<std::process::Child> {
+fn start_daemon(
+    _executable: &Path,
+    _store_root: &Path,
+    _endpoint: &str,
+) -> Result<std::process::Child> {
     Err(Error::UnsupportedPlatform(std::env::consts::OS))
 }
 
@@ -1359,18 +1383,35 @@ fn default_daemon_executable() -> Result<PathBuf> {
         .ok_or_else(|| Error::Unavailable("cannot resolve sibling stillyard daemon".into()))
 }
 
-fn claimed_managed_parent() -> Result<Option<ManagedParent>> {
-    let job = std::env::var("STILLYARD_JOB_ID").ok();
-    let attempt = std::env::var("STILLYARD_ATTEMPT").ok();
-    let invocation = std::env::var("STILLYARD_INVOCATION_ID").ok();
+fn managed_environment_coordinates() -> (Option<String>, Option<String>, Option<String>) {
+    (
+        std::env::var("STILLYARD_JOB_ID").ok(),
+        std::env::var("STILLYARD_ATTEMPT").ok(),
+        std::env::var("STILLYARD_INVOCATION_ID").ok(),
+    )
+}
+
+fn claimed_managed_parent_for_endpoint(
+    selected_endpoint: &str,
+    inherited_endpoint: Option<&str>,
+    coordinates: (Option<String>, Option<String>, Option<String>),
+) -> Result<Option<ManagedParent>> {
+    let (job, attempt, invocation) = coordinates;
     if job.is_none() && attempt.is_none() && invocation.is_none() {
         return Ok(None);
     }
+    let inherited_endpoint = inherited_endpoint.ok_or_else(|| {
+        Error::Protocol("managed environment has no STILLYARD_ENDPOINT coordinate".into())
+    })?;
+    validate_endpoint(inherited_endpoint)?;
     let (Some(job), Some(attempt), Some(invocation)) = (job, attempt, invocation) else {
         return Err(Error::Protocol(
             "managed environment has incomplete Job/Attempt/Invocation coordinates".into(),
         ));
     };
+    if !endpoints_equal(selected_endpoint, inherited_endpoint) {
+        return Ok(None);
+    }
     let parent = ManagedParent {
         job_id: job
             .parse()
@@ -1762,6 +1803,69 @@ pub(crate) fn default_endpoint() -> Result<String> {
         .into_owned());
 }
 
+pub(crate) fn resolve_store_root(explicit: Option<PathBuf>) -> Result<PathBuf> {
+    let selected = explicit
+        .or_else(|| std::env::var_os("STILLYARD_STORE").map(PathBuf::from))
+        .map(Ok)
+        .unwrap_or_else(default_store_root)?;
+    if !selected.is_absolute() {
+        return Err(Error::Unavailable(format!(
+            "daemon store path must be absolute: {}",
+            selected.display()
+        )));
+    }
+    std::fs::create_dir_all(&selected)?;
+    crate::filesystem::require_fixed_local_ntfs(&selected)?;
+    Ok(std::fs::canonicalize(selected)?)
+}
+
+pub(crate) fn resolve_endpoint(explicit: Option<String>) -> Result<String> {
+    let endpoint = explicit
+        .or_else(|| std::env::var("STILLYARD_ENDPOINT").ok())
+        .map(Ok)
+        .unwrap_or_else(default_endpoint)?;
+    validate_endpoint(&endpoint)?;
+    Ok(endpoint)
+}
+
+pub(crate) fn validate_endpoint(endpoint: &str) -> Result<()> {
+    if endpoint.is_empty() || endpoint.contains('\0') {
+        return Err(Error::Unavailable(
+            "daemon endpoint is empty or contains NUL".into(),
+        ));
+    }
+    #[cfg(windows)]
+    {
+        if endpoint.encode_utf16().count() > 256 {
+            return Err(Error::Unavailable(
+                "Windows named-pipe endpoint exceeds 256 UTF-16 code units".into(),
+            ));
+        }
+        let Some(name) = endpoint.get(9..) else {
+            return Err(Error::Unavailable(format!(
+                "Windows endpoint must be a local \\\\.\\pipe\\NAME path: {endpoint:?}"
+            )));
+        };
+        if !endpoint[..9].eq_ignore_ascii_case(r"\\.\pipe\")
+            || name.is_empty()
+            || name.contains('\\')
+            || name.contains('/')
+        {
+            return Err(Error::Unavailable(format!(
+                "Windows endpoint must be a local \\\\.\\pipe\\NAME path: {endpoint:?}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn endpoints_equal(left: &str, right: &str) -> bool {
+    #[cfg(windows)]
+    return left.eq_ignore_ascii_case(right);
+    #[cfg(not(windows))]
+    return left == right;
+}
+
 #[cfg(windows)]
 pub(crate) fn current_user_sid_string() -> Result<String> {
     use std::ffi::c_void;
@@ -1859,6 +1963,71 @@ mod tests {
             attempt_id: crate::AttemptId::from_parts(store, uuid::Uuid::now_v7()),
             invocation_id: crate::InvocationId::from_parts(store, uuid::Uuid::now_v7()),
         }
+    }
+
+    fn coordinates(parent: ManagedParent) -> (Option<String>, Option<String>, Option<String>) {
+        (
+            Some(parent.job_id.to_string()),
+            Some(parent.attempt_id.to_string()),
+            Some(parent.invocation_id.to_string()),
+        )
+    }
+
+    #[test]
+    fn managed_coordinates_are_scoped_to_the_inherited_endpoint() {
+        let parent = managed_parent(uuid::Uuid::now_v7());
+        let inherited = if cfg!(windows) {
+            r"\\.\pipe\stillyard-parent"
+        } else {
+            "/tmp/stillyard-parent.sock"
+        };
+        let isolated = if cfg!(windows) {
+            r"\\.\pipe\stillyard-isolated"
+        } else {
+            "/tmp/stillyard-isolated.sock"
+        };
+        assert_eq!(
+            claimed_managed_parent_for_endpoint(inherited, Some(inherited), coordinates(parent),)
+                .unwrap(),
+            Some(parent)
+        );
+        assert_eq!(
+            claimed_managed_parent_for_endpoint(isolated, Some(inherited), coordinates(parent),)
+                .unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn incomplete_managed_environment_fails_even_for_another_endpoint() {
+        let inherited = if cfg!(windows) {
+            r"\\.\pipe\stillyard-parent"
+        } else {
+            "/tmp/stillyard-parent.sock"
+        };
+        let isolated = if cfg!(windows) {
+            r"\\.\pipe\stillyard-isolated"
+        } else {
+            "/tmp/stillyard-isolated.sock"
+        };
+        assert!(matches!(
+            claimed_managed_parent_for_endpoint(
+                isolated,
+                Some(inherited),
+                (Some("job".into()), None, None),
+            ),
+            Err(Error::Protocol(_))
+        ));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn explicit_windows_endpoints_are_local_single_component_pipe_names() {
+        assert!(validate_endpoint(r"\\.\pipe\moot-test-123").is_ok());
+        assert!(validate_endpoint(r"\\server\pipe\moot-test-123").is_err());
+        assert!(validate_endpoint(r"\\.\pipe\nested\name").is_err());
+        assert!(validate_endpoint(r"\\.\pipe\").is_err());
+        assert!(validate_endpoint(&format!(r"\\.\pipe\{}", "x".repeat(248))).is_err());
     }
 
     #[test]
@@ -2271,6 +2440,7 @@ mod tests {
         let client = Client {
             endpoint: "pipe-b".into(),
             daemon_executable: temp.path().join("unused.exe"),
+            claimed_parent: None,
         };
         assert!(matches!(
             client.recover_result_file(&path, Instant::now() + Duration::from_secs(1), None,),
@@ -2286,6 +2456,7 @@ mod tests {
         let client = Client {
             endpoint: "unused".into(),
             daemon_executable: temp.path().join("unused.exe"),
+            claimed_parent: None,
         };
         assert!(
             client

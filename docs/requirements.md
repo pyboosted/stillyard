@@ -24,7 +24,7 @@ R-PKG-2 The public crate is a runtime-neutral client facade. It MUST expose owne
 
 R-PKG-3 CLI and TUI MUST use only the public crate and local protocol. They MUST NOT read SQLite or private files directly. The daemon is the store's only writer and the only process that launches or contains user work.
 
-R-PKG-4 The binary auto-starts one per-user daemon when an unmanaged local client requests it and no daemon exists. The daemon is detached from the invoking terminal/SSH channel and owns all child pipes; closing that client does not stop accepted work. A managed child never auto-starts a daemon. Local IPC is an owner-only named pipe on Windows and an owner-only Unix-domain socket on Linux v0.2.
+R-PKG-4 The binary auto-starts one per-user daemon only when an unmanaged local client selects the complete default store/endpoint and no daemon exists. The daemon is detached from the invoking terminal/SSH channel and owns all child pipes; closing that client does not stop accepted work. A managed child and every explicit or environment-selected endpoint are connect-only and never auto-start a daemon. `daemon --store <absolute-dir> --endpoint <local-endpoint>` may run a foreground isolated instance; one lifetime lock protects its canonical store and a second owner-scoped lifetime lease protects its endpoint. Local IPC is an owner-only named pipe on Windows and an owner-only Unix-domain socket on Linux v0.2.
 
 R-PKG-5 JobSpec and BatchSpec use one versioned JSON Schema generated from the same public Rust types used by client and daemon. Unknown fields reject. The crate ships the schema and `stillyard schema spec` prints it byte-for-byte.
 
@@ -184,11 +184,11 @@ R-OBS-5 List and label watch are dynamic views over retained Jobs. Explicit Job 
 
 R-ENV-1 Every Invocation starts from a small documented clean environment plus one named host profile and explicit Job additions. A profile is an ordered set/unset/locked-set/locked-unset map expanded immutably into the accepted Job. Explicit configuration may set PATH; the daemon's ambient PATH, SSH variables, billing credentials, display variables, and unrelated environment are never inherited implicitly.
 
-R-ENV-2 The daemon injects non-secret `STILLYARD_JOB_ID`, `STILLYARD_ATTEMPT`, `STILLYARD_INVOCATION_ID`, `STILLYARD_ROLE`, `STILLYARD_ENDPOINT`, and daemon identity. These coordinates are server-reauthenticated and are not bearer authority.
+R-ENV-2 The daemon injects non-secret `STILLYARD_JOB_ID`, `STILLYARD_ATTEMPT`, `STILLYARD_INVOCATION_ID`, `STILLYARD_ROLE`, its effective `STILLYARD_ENDPOINT`, and daemon identity. These coordinates are server-reauthenticated and are not bearer authority. Managed coordinates are scoped to the endpoint that injected them: an explicit different endpoint does not present foreign-instance coordinates, while same-endpoint membership is always derived again by the selected daemon from the pipe peer's OS containment.
 
 R-ENV-3 Secrets are referenced by name, stored with the platform owner-protection facility, materialized only for permitted primary/postcondition launch, and never returned in scheduler logs, snapshots, events, or diagnostics. User program output remains an explicit confidentiality boundary.
 
-R-ENV-4 Local clients authenticate as the daemon owner and bind both peer and daemon PID to process-start identity and installed executable identity. Lower-integrity, other-user, remote-pipe/socket, stale-PID, and wrong-binary peers reject.
+R-ENV-4 Local clients authenticate as the daemon owner and bind both peer and daemon PID to process-start identity and the client-selected expected executable identity. The expected daemon may be a pinned `stillyard` binary at an arbitrary canonical path; this rule does not require the default installation directory. Lower-integrity, other-user, remote-pipe/socket, stale-PID, and wrong-binary peers reject.
 
 R-ENV-5 The Linux v0.2 clean base is exactly account-derived HOME, USER, LOGNAME, SHELL, TMPDIR, and LANG plus explicit profile/job changes; runtime socket coordinates are injected separately. SSH, display, Wayland, WSL, and daemon ambient variables are absent unless explicit. Linux accepts anything `execve` accepts, including a valid shebang script, without implicit shell parsing.
 
@@ -238,7 +238,7 @@ Acceptance uses the shipped public crate and CLI path. Each row includes a negat
 
 | ID | Required scenario and negative control |
 |---|---|
-| A-01 | Concurrent first clients produce one daemon and one SQLite writer. A split-lock mutant fails. |
+| A-01 | Concurrent default clients produce one daemon and one SQLite writer. Distinct explicit store/endpoint pairs coexist without touching the default instance; same-store/different-endpoint and same-endpoint/different-store contenders fail promptly. A split-store-lock, store-lock-only, or foreign-pipe-family mutant fails. |
 | A-02 | Kill client/daemon at every staging and Submission boundary: no Submission or one resumable received/terminal decision exists, and the same key never creates two Jobs. A check-then-insert idempotency mutant fails. |
 | A-03 | Atomic Batch fan-out/fan-in is wholly visible or absent, dependencies fire only from the stable R-JOB-4 final-outcome mapping, and impossible edges skip. Partial-batch and retry-exhausted-outcome mutants fail. |
 | A-04 | CPU build, sidecar GPU Job, VRAM-limited Job, fences, and custom scalars overlap only when the complete Lease fits. A partial-grant and stale-memory mutant fail. |

@@ -1,6 +1,6 @@
 # Phase 8a — Isolated daemon instances
 
-Status: implementation candidate (2026-08-28)
+Status: implemented review candidate (2026-08-28)
 
 This bounded foundation makes a Stillyard daemon instance explicitly addressable without changing
 scheduling semantics. It exists so Stillyard's own live tests and external consumers such as `moot`
@@ -133,3 +133,14 @@ store may be discarded only after the daemon process is gone.
 Targeted review attacks endpoint collision, auto-start leakage, executable authentication,
 cross-instance managed authority, effective child injection, and whether the harness can accidentally
 touch the owner's default instance.
+
+## Implementation evidence
+
+The shipped-path Windows integration test copies the built binary to a pinned arbitrary directory,
+starts two foreground daemons with distinct temporary stores/endpoints, connects through the public
+crate, and runs the pinned CLI itself as a scheduled child. The child uses only its injected endpoint
+to read its daemon status, proving nested routing through the selected instance. The same test checks
+foreign durable IDs, wrong expected image, both singleton collision axes, endpoint/store claim release
+after exact process death, and a helper process carrying complete managed coordinates for another
+instance. Unit tests cover endpoint validation, incomplete managed environment, endpoint lease
+lifetime, CLI parsing, and exact child-environment injection.
