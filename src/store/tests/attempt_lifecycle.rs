@@ -254,7 +254,6 @@ fn impact_rules_block_admission_and_ancestor_waits_symmetrically() {
     let temp = tempfile::tempdir().unwrap();
     let config = HostConfig {
         resources: capacities(),
-        profiles: Default::default(),
         impact_incompatibilities: [(
             "measurement".into(),
             vec!["cpu_heavy".into(), "gpu_heavy".into()],

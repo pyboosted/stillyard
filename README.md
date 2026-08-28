@@ -33,7 +33,7 @@ containment recovery:
 - one non-preemptive Lease scheduler for CPU, RAM, cargo/GPU slots, custom scalars, and stable shared/exclusive path fences;
 - immediate blockers, deterministic queue rank, and honest estimated-or-unknown start estimates.
 - immutable staged file stdin for Jobs and atomic Batches, uploaded before `received` in bounded chunks;
-- named clean-environment profiles with set/unset/locked operations and an exact explicit PATH;
+- a small clean Windows environment with explicit per-Job set/unset operations and an exact PATH;
 - fresh atomic result files, recovery by retained operation identity, and canonical-log passthrough.
 - authenticated managed child submission from an explicitly enabled primary Invocation;
 - server-derived parent Job/Attempt/Invocation identity from named-pipe PID membership in the
@@ -58,7 +58,7 @@ containment recovery:
 - host-configured impact incompatibilities are enforced symmetrically by ordinary admission and
   managed-wait deadlock checks;
 - receipts preserve the accepting daemon generation, while daemon status exposes its current
-  generation, active profile names, capacities, and a canonical configuration fingerprint.
+  generation, capacities, and a canonical configuration fingerprint.
 - one durable bounded invalidation stream with store-scoped cursors, explicit `Gap`
   resynchronization, exact Job/Batch/label selectors, and stable paged Job summaries;
 - owned blocking observation, settlement, and canonical-log streams in the public crate, with
@@ -76,9 +76,9 @@ containment recovery:
   callers and live/uninspectable roots or boundaries, never kills work, and remains visible through
   ordinary status snapshots.
 
-This slice deliberately accepts EOF or staged-file stdin, impacts, bounded retries, and executable postconditions without Conditions, quiet policies, secrets, or artifacts. The Windows clean base is limited to `SystemRoot`, `WINDIR`, `TEMP`, and `TMP`; PATH and every application/account variable must come from a profile or Job. Priority, aging, finite-held reservations, and a host-wide default concurrency cap are also later scheduler work; callers should declare a scalar, fence, or configured impact for every bounded kind of work rather than submit an unbounded fleet of zero-claim jobs. General wait graphs, cascade cancellation, drain/force, and configurable Job/log/input retention are still baseline work. Specs declaring an unimplemented policy reject rather than run unenforced. Linux remains the v0.2 target.
+This slice deliberately accepts EOF or staged-file stdin, impacts, bounded retries, and executable postconditions without Conditions, quiet policies, secrets, or artifacts. The Windows clean base is limited to `SystemRoot`, `WINDIR`, `TEMP`, and `TMP`; PATH and every application/account variable must be explicit in the Job. Priority, aging, finite-held reservations, and a host-wide default concurrency cap are also later scheduler work; callers should declare a scalar, fence, or configured impact for every bounded kind of work rather than submit an unbounded fleet of zero-claim jobs. General wait graphs, cascade cancellation, drain/force, and configurable Job/log/input retention are still baseline work. Specs declaring an unimplemented policy reject rather than run unenforced. Linux remains the v0.2 target.
 
-The tests cover the increment-2a portions of acceptance rows A-03, A-04, and A-06; the increment-2b staged-input, profile, result-file, and process-handle controls; the bounded managed-submission recovery and safe-wait slices of A-11/A-18; and the alpha.6 consumer lifecycle slice of A-04, A-08, A-11, A-14, and A-18. The full baseline rows are not claimed complete until cascade cancellation, drain/force, observed RAM/VRAM freshness, and external Conditions arrive.
+The tests cover the increment-2a portions of acceptance rows A-03, A-04, and A-06; the increment-2b staged-input, explicit-environment, result-file, and process-handle controls; the bounded managed-submission recovery and safe-wait slices of A-11/A-18; and the alpha.6 consumer lifecycle slice of A-04, A-08, A-11, A-14, and A-18. The full baseline rows are not claimed complete until cascade cancellation, drain/force, observed RAM/VRAM freshness, and external Conditions arrive.
 
 The current delivered increment is
 [alpha.8 operational diagnostics and containment recovery](docs/phase-8-operational-diagnostics.md).
@@ -113,17 +113,6 @@ The daemon reads `config.json` from the fixed store directory reported by `still
     "custom": {
       "review_slots": 4,
       "vram_mb:gpu-uuid": 16384
-    }
-  },
-  "profiles": {
-    "codex-account-2": {
-      "set": {
-        "PATH": "C:\\Tools;C:\\Users\\me\\.cargo\\bin",
-        "CODEX_HOME": "C:\\Users\\me\\.codex-account-2"
-      },
-      "unset": ["ANTHROPIC_API_KEY"],
-      "locked_set": {},
-      "locked_unset": ["OPENAI_API_KEY"]
     }
   },
   "impact_incompatibilities": {

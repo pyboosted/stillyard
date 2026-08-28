@@ -49,8 +49,8 @@ does not add a workflow engine, durable Wait entity, or a second scheduler.
   `impact_busy`; a managed wait whose child conflicts with an ancestor-held impact fails as
   `blocked_by_ancestor`. An impact remains self-compatible unless explicitly configured otherwise.
 - Job and Batch receipts preserve the daemon generation that accepted the Submission across daemon
-  restart. `DaemonSnapshot` reports the current generation, active profile names, capacities, and
-  a canonical SHA-256 of the loaded non-secret `HostConfig` representation.
+  restart. `DaemonSnapshot` reports the current generation, capacities, and a canonical SHA-256 of
+  the loaded non-secret `HostConfig` representation.
 - The durable result-file format is version 4 because accepted receipts now include their accepting
   daemon generation.
 

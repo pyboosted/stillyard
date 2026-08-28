@@ -978,7 +978,6 @@ impl Store {
             store_path: self.paths.root.clone(),
             config_path: self.paths.config.clone(),
             capacities: self.capacities.clone(),
-            profile_names: self.profiles.keys().cloned().collect(),
             config_sha256: self.config_sha256.clone(),
             queued_jobs,
             running_jobs,

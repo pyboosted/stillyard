@@ -115,7 +115,7 @@ display-only elapsed durations but may not issue daemon requests.
 This increment does not add Conditions or probes, quiet/load/RAM/VRAM providers, priority/aging,
 general configurable retention, secrets, artifacts, cascade cancellation, drain/force, distributed
 placement, Linux containment, or a durable Wait entity/edge. It does not add `doctor --json`; the
-existing daemon status already exposes active profile names, scalar capacities, generation, and
+existing daemon status already exposes scalar capacities, generation, and
 configuration hash, while the broader capability/containment doctor belongs with alpha.8.
 
 Existing single-Job `wait`, status, submit, recover, cancel, and scheduling meanings remain

@@ -251,7 +251,6 @@ fn missing_host_capability_blocks_before_lease_grant() {
     let temp = tempfile::tempdir().unwrap();
     let config = HostConfig {
         resources: capacities(),
-        profiles: Default::default(),
         impact_incompatibilities: Default::default(),
     };
     let unavailable = StartupIdentity {
@@ -287,20 +286,11 @@ fn missing_host_capability_blocks_before_lease_grant() {
 }
 
 #[test]
-fn doctor_reports_loaded_config_evidence_without_profile_values() {
+fn doctor_reports_loaded_config_evidence() {
     let temp = tempfile::tempdir().unwrap();
-    let sentinel = "SECRET_PROFILE_SENTINEL";
     let config = HostConfig {
         resources: capacities(),
-        profiles: [(
-            "reviewer".into(),
-            EnvironmentProfile {
-                set: [("PRIVATE_VALUE".into(), sentinel.into())].into(),
-                ..EnvironmentProfile::default()
-            },
-        )]
-        .into(),
-        impact_incompatibilities: Default::default(),
+        impact_incompatibilities: [("measurement".into(), vec!["cpu_heavy".into()])].into(),
     };
     let expected_hash = format!("{:x}", Sha256::digest(serde_json::to_vec(&config).unwrap()));
     let store = Store::open_with_config(
@@ -310,10 +300,8 @@ fn doctor_reports_loaded_config_evidence_without_profile_values() {
     )
     .unwrap();
     let doctor = store.doctor("test", None, None).unwrap();
-    assert_eq!(doctor.daemon.profile_names, vec!["reviewer"]);
     assert_eq!(doctor.daemon.capacities, capacities());
     assert_eq!(doctor.daemon.config_sha256, expected_hash);
-    assert!(!serde_json::to_string(&doctor).unwrap().contains(sentinel));
 }
 
 #[test]
@@ -401,7 +389,6 @@ fn foreign_host_binding_resets_the_whole_store() {
         paths,
         HostConfig {
             resources: capacities(),
-            profiles: Default::default(),
             impact_incompatibilities: Default::default(),
         },
         startup,

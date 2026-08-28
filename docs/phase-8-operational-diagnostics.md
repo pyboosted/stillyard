@@ -12,7 +12,7 @@ the CLI and external consumers.
 
 After alpha.8 an owner can run `stillyard doctor --json` and learn which daemon, store, boot,
 configuration, containment capability, and unresolved cleanup incidents are actually in force. A
-consumer such as `moot` can compare the loaded profile names, scalar capacities, and canonical
+consumer such as `moot` can compare the loaded scalar capacities and canonical
 configuration hash without reading Stillyard files. An owner can explicitly clear an uncertain
 Containment when automatic proof remains unavailable, without editing SQLite or silently releasing
 a Lease.
@@ -311,7 +311,7 @@ branch only on typed status and documented codes. Alpha.8 defines at least:
 | `store.schema` | the opened store has the current validated epoch and identity |
 | `store.filesystem` | store and SQLite sidecars are on supported local fixed NTFS |
 | `store.sqlite_durability` | WAL, synchronous, and foreign-key settings match the contract |
-| `configuration.loaded` | the reported profile/capacity/hash view is the loaded configuration |
+| `configuration.loaded` | the reported capacity/hash view is the loaded configuration |
 | `containment.windows_job_object` | born-contained, no-breakaway, kill-on-close support is active |
 | `containment.unresolved` | count and retained-capacity impact of uncertain Containments |
 
@@ -321,9 +321,9 @@ not Fail, because its Lease remains safely unavailable. A missing mandatory plat
 Fail. Documented cooperative-threat and physical-power-loss limits live in `boundaries`, not as
 permanent warnings that would make every healthy host yellow.
 
-The response repeats no profile operations, environment values, secret names or values, command
-lines, child output, or raw configuration. `daemon.profile_names`, `daemon.capacities`, and
-`daemon.config_sha256` are the complete consumer-facing configuration evidence. The canonical hash
+The response repeats no environment values, secret names or values, command lines, child output,
+or raw configuration. `daemon.capacities` and `daemon.config_sha256` are the complete
+consumer-facing configuration evidence. The canonical hash
 continues to cover the loaded non-secret `HostConfig` representation.
 
 The incident page contains at most 256 unresolved incidents and reports the full count,
@@ -494,7 +494,7 @@ Alpha.8 is implementation-ready only with explicit tests for all rows below. Shi
 the public crate and CLI; store tests may construct fault states but cannot be the only evidence.
 
 1. **Public path and consumer evidence.** `Client::doctor` and `doctor --json` deserialize to the
-   same public type and expose the daemon's actually loaded profiles, capacities, and configuration
+   same public type and expose the daemon's actually loaded capacities and configuration
    hash. Changing configured evidence without restarting does not change the loaded snapshot;
    restarting does. `moot`'s config-drift adapter test consumes only this response. A
    separate external crate compiles calls to `doctor` and `force_clear_containment`; additive unknown
@@ -503,8 +503,8 @@ the public crate and CLI; store tests may construct fault states but cannot be t
    round-trip, become `Unknown`, and cannot authorize a transition. Unconstructable-request,
    reject-additive-response, unknown-enum-rejected, unknown-platform-duplicated, and
    read-config-file-in-the-consumer mutants fail.
-2. **Redaction and boundedness.** A configuration containing sentinel environment/profile values
-   leaks neither those values nor child output through human or JSON doctor output. More than 256
+2. **Redaction and boundedness.** Neither child output nor raw configuration leaks through human or
+   JSON doctor output. More than 256
    incidents reports the exact total, stable pages/cursors through the final incident, and
    `truncated`, below 16 MiB even with maximum legal strings. Secret-value, first-page-starves-tail,
    and unbounded-incident mutants fail.

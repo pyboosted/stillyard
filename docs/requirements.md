@@ -82,7 +82,7 @@ R-SUB-1 A submit request contains a caller-selected or CLI-generated cryptograph
 
 R-SUB-2 File inputs are completely streamed, hashed, and staged before the `received` Submission transaction. Disconnect before that point leaves only bounded collectable temporary data and no Submission. After `received`, the daemon owns progress independently of the client and eventually commits `accepted` or `rejected`. Startup resumes every `received` Submission.
 
-R-SUB-3 Acceptance of one Job or an entire Batch is one SQLite transaction. A Batch may refer to members by local name and contain an acyclic dependency DAG. It commits every Job, expanded profile, immutable label, dependency, parent relationship, staged-input reference, Batch mapping, and receipt, or none. For a managed child, that transaction revalidates that the authenticating parent Invocation is still started with a live root in the current daemon generation and that its parent Job and Attempt have no terminal selection; otherwise the Submission rejects.
+R-SUB-3 Acceptance of one Job or an entire Batch is one SQLite transaction. A Batch may refer to members by local name and contain an acyclic dependency DAG. It commits every Job, immutable label, dependency, parent relationship, staged-input reference, Batch mapping, and receipt, or none. For a managed child, that transaction revalidates that the authenticating parent Invocation is still started with a live root in the current daemon generation and that its parent Job and Attempt have no terminal selection; otherwise the Submission rejects.
 
 R-SUB-4 Acceptance means durable ownership, not immediate process start. The receipt MUST immediately report Submission/Job/Batch IDs, current lifecycle, blockers, queue position or rank, and a start estimate with confidence and the assumptions used.
 
@@ -96,7 +96,7 @@ R-SUB-8 A set target for wait, status, or cancel is a bounded immutable snapshot
 
 ## 7. Job specification and dependencies
 
-R-JOB-1 JobSpec contains an executable, exact argument vector, working directory, stdin policy, environment profile, resource claims, impact tags, optional observed-resource thresholds, optional quiet policy, expected duration, Conditions, timeout, retry policy, postconditions, labels, and declared artifact paths. It may contain at most 32 bounded nonempty `key=value` labels without NUL; labels are immutable and included in the normalized payload hash. Shell parsing occurs only in an explicit shell mode.
+R-JOB-1 JobSpec contains an executable, exact argument vector, working directory, stdin policy, explicit environment changes, resource claims, impact tags, optional observed-resource thresholds, optional quiet policy, expected duration, Conditions, timeout, retry policy, postconditions, labels, and declared artifact paths. It may contain at most 32 bounded nonempty `key=value` labels without NUL; labels are immutable and included in the normalized payload hash. Shell parsing occurs only in an explicit shell mode.
 
 R-JOB-2 Stdin is immediate EOF or a staged immutable file snapshot. The daemon never inherits client stdin. Working directory and executable are checked again immediately before launch; unsafe replacement or disappearance yields `start_failed` without running user code. A successful predecessor may replace directory contents under the same exclusive path fence without triggering this failure, provided the fenced working-directory object's stable identity is preserved; deleting and recreating that root is still unsafe replacement. On Windows v0.1 an executable is unsafe when it is missing or the prelaunch/created-image check resolves it as a directory, reparse point, or unsupported file type. Replacing an ordinary file at the same canonical path is allowed; R-RUN-2 records the stable identity and hash of the image actually created before release.
 
@@ -182,7 +182,7 @@ R-OBS-5 List and label watch are dynamic views over retained Jobs. Explicit Job 
 
 ## 13. Environment, identity, and secrets
 
-R-ENV-1 Every Invocation starts from a small documented clean environment plus one named host profile and explicit Job additions. A profile is an ordered set/unset/locked-set/locked-unset map expanded immutably into the accepted Job. Explicit configuration may set PATH; the daemon's ambient PATH, SSH variables, billing credentials, display variables, and unrelated environment are never inherited implicitly.
+R-ENV-1 Every Invocation starts from a small documented clean environment plus explicit per-Job set/unset changes persisted in the accepted Job. A Job may set PATH; the daemon's ambient PATH, SSH variables, billing credentials, display variables, and unrelated environment are never inherited implicitly. Account and toolchain selection belong to the submitting consumer rather than host-local daemon presets.
 
 R-ENV-2 The daemon injects non-secret `STILLYARD_JOB_ID`, `STILLYARD_ATTEMPT`, `STILLYARD_INVOCATION_ID`, `STILLYARD_ROLE`, its effective `STILLYARD_ENDPOINT`, and daemon identity. These coordinates are server-reauthenticated and are not bearer authority. Managed coordinates are scoped to the endpoint that injected them: an explicit different endpoint does not present foreign-instance coordinates, while same-endpoint membership is always derived again by the selected daemon from the pipe peer's OS containment.
 
@@ -190,7 +190,7 @@ R-ENV-3 Secrets are referenced by name, stored with the platform owner-protectio
 
 R-ENV-4 Local clients authenticate as the daemon owner and bind both peer and daemon PID to process-start identity and the client-selected expected executable identity. The expected daemon may be a pinned `stillyard` binary at an arbitrary canonical path; this rule does not require the default installation directory. Lower-integrity, other-user, remote-pipe/socket, stale-PID, and wrong-binary peers reject.
 
-R-ENV-5 The Linux v0.2 clean base is exactly account-derived HOME, USER, LOGNAME, SHELL, TMPDIR, and LANG plus explicit profile/job changes; runtime socket coordinates are injected separately. SSH, display, Wayland, WSL, and daemon ambient variables are absent unless explicit. Linux accepts anything `execve` accepts, including a valid shebang script, without implicit shell parsing.
+R-ENV-5 The Linux v0.2 clean base is exactly account-derived HOME, USER, LOGNAME, SHELL, TMPDIR, and LANG plus explicit Job changes; runtime socket coordinates are injected separately. SSH, display, Wayland, WSL, and daemon ambient variables are absent unless explicit. Linux accepts anything `execve` accepts, including a valid shebang script, without implicit shell parsing.
 
 ## 14. CLI and TUI
 
@@ -252,7 +252,7 @@ Acceptance uses the shipped public crate and CLI path. Each row includes a negat
 | A-12 | Canonical stdout/stderr survive client loss, resume by offset, report corrupt/missing Gap, and never claim terminal exactly-once. An external-handle-exactly-once claim fails. |
 | A-13 | Closing a local terminal or SSH session leaves accepted/running work and daemon containment intact; a later client inspects by Job/Batch/key. A client-owned-process mutant fails. |
 | A-14 | Drain starts no independent work after its cutoff, permits already-accepted work needed by an active managed wait to finish, rejects later managed children, and preserves the remaining queue; force interrupts only live work; plain cancel leaves independent children while cascade reaches selected children/successors; restart resumes queue. Drain-blocks-required-child and force-cancels-independent-queue mutants fail. |
-| A-15 | Clean profiles, locked variables, staged stdin, named secrets, injected IDs, executable identity, same-path ordinary-file self-update, artifacts, and redaction work through public APIs. Ambient-environment-inheritance, same-path-update-rejected, and reparse-image-accepted mutants fail. |
+| A-15 | Clean explicit environments, staged stdin, named secrets, injected IDs, executable identity, same-path ordinary-file self-update, artifacts, and redaction work through public APIs. Ambient-environment-inheritance, same-path-update-rejected, and reparse-image-accepted mutants fail. |
 | A-16 | CLI/TUI import only the public crate, detach safely, recover from event Gap, show logs and Containment, and use bounded memory. A private-store-read mutant fails. |
 | A-17 | SQLite/file fault injection at every commit/log publication boundary produces a valid prior/new state or explicit diagnosis/Gap. The report states the physical-power-loss boundary. An epoch mismatch, missing required schema, invalid store identity, or corrupt database atomically selects whole-database reset on the next singleton-daemon start, creates a new store UUID, preserves config/logs, and never imports old rows. Partial-preservation, migration, stale-ID-reuse, and reset-without-singleton-lock mutants fail. |
 | A-18 | Consumer fleet submits parallel reviewers as a Batch, gates later rounds on results/reset Jobs, runs nested cargo/GPU spikes without ancestor conflicts, replays the same managed operation after authenticated `not_received` but never after `unknown`, and collects logs/artifacts. Reset replaces slot contents while preserving the fenced root identity; the later reviewer depends on reset success and takes the same fence. Duplicate-spike, resubmit-after-evicted-history, recreated-reset-root, and reset-before-containment-clear mutants fail. |
@@ -264,7 +264,7 @@ Acceptance uses the shipped public crate and CLI path. Each row includes a negat
 Product v0.1 — Windows:
 
 1. Public crate types, schema, local protocol, singleton daemon, current SQLite schema epoch/reset, Submission idempotency, and lifecycle tests.
-2. Job/Batch DAG, Conditions, Lease scheduler, estimates, environment profiles, staged input, logs, and events.
+2. Job/Batch DAG, Conditions, Lease scheduler, estimates, explicit clean environments, staged input, logs, and events.
 3. Windows Containment, timeout/cancel/drain/force, recovery, uncertain cleanup, nested children, and quiet admission.
 4. CLI/TUI parity, consumer-fleet acceptance, security review, fault injection, performance evidence, and packaging.
 

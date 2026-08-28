@@ -107,7 +107,7 @@ impl JobSpec {
         }
         if !self.conditions.is_empty() || self.quiet.is_some() || !self.artifacts.is_empty() {
             return Err(Error::InvalidSpec(
-                "staged/EOF stdin, environment profiles, resource admission, retries, and postconditions do not support Conditions/quiet/artifacts".into(),
+                "staged/EOF stdin, explicit environment, resource admission, retries, and postconditions do not support Conditions/quiet/artifacts".into(),
             ));
         }
         Ok(())
@@ -240,7 +240,6 @@ pub enum StdinSpec {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EnvironmentSpec {
-    pub profile: Option<String>,
     #[serde(default)]
     pub set: BTreeMap<String, String>,
     #[serde(default)]
@@ -249,15 +248,6 @@ pub struct EnvironmentSpec {
 
 impl EnvironmentSpec {
     fn validate(&self) -> Result<()> {
-        if self
-            .profile
-            .as_ref()
-            .is_some_and(|name| name.is_empty() || name.len() > 128 || name.contains('\0'))
-        {
-            return Err(Error::InvalidSpec(
-                "invalid environment profile name".into(),
-            ));
-        }
         let mut names = BTreeSet::new();
         for (name, value) in &self.set {
             validate_environment_entry(name, Some(value))?;
@@ -275,77 +265,6 @@ impl EnvironmentSpec {
         }
         Ok(())
     }
-}
-
-pub(crate) fn expand_environment(
-    requested: &EnvironmentSpec,
-    profiles: &BTreeMap<String, EnvironmentProfile>,
-) -> Result<EnvironmentSpec> {
-    requested.validate()?;
-    let mut values = BTreeMap::<String, String>::new();
-    let mut removed = BTreeSet::<String>::new();
-    let mut locked = BTreeSet::<String>::new();
-    let mut profile_unset = BTreeSet::<String>::new();
-
-    if let Some(profile_name) = &requested.profile {
-        let profile = profiles.get(profile_name).ok_or_else(|| {
-            Error::InvalidSpec(format!("unknown environment profile {profile_name:?}"))
-        })?;
-        profile.validate()?;
-        for (name, value) in &profile.set {
-            let name = canonical_environment_name(name);
-            values.insert(name.clone(), value.clone());
-            removed.remove(&name);
-        }
-        for name in &profile.unset {
-            let name = canonical_environment_name(name);
-            values.remove(&name);
-            removed.insert(name.clone());
-            profile_unset.insert(name);
-        }
-        for (name, value) in &profile.locked_set {
-            let name = canonical_environment_name(name);
-            values.insert(name.clone(), value.clone());
-            removed.remove(&name);
-            locked.insert(name);
-        }
-        for name in &profile.locked_unset {
-            let name = canonical_environment_name(name);
-            values.remove(&name);
-            removed.insert(name.clone());
-            locked.insert(name);
-        }
-    }
-
-    for (name, value) in &requested.set {
-        let name = canonical_environment_name(name);
-        if locked.contains(&name) {
-            return Err(Error::InvalidSpec(format!(
-                "job overrides locked environment name {name:?}"
-            )));
-        }
-        if profile_unset.contains(&name) {
-            continue;
-        }
-        values.insert(name.clone(), value.clone());
-        removed.remove(&name);
-    }
-    for name in &requested.unset {
-        let name = canonical_environment_name(name);
-        if locked.contains(&name) {
-            return Err(Error::InvalidSpec(format!(
-                "job overrides locked environment name {name:?}"
-            )));
-        }
-        values.remove(&name);
-        removed.insert(name);
-    }
-
-    Ok(EnvironmentSpec {
-        profile: requested.profile.clone(),
-        set: values,
-        unset: removed.into_iter().collect(),
-    })
 }
 
 fn validate_environment_entry(name: &str, value: Option<&String>) -> Result<()> {
@@ -367,15 +286,6 @@ fn canonical_environment_name(name: &str) -> String {
     } else {
         name.to_owned()
     }
-}
-
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(default, deny_unknown_fields)]
-pub struct EnvironmentProfile {
-    pub set: BTreeMap<String, String>,
-    pub unset: Vec<String>,
-    pub locked_set: BTreeMap<String, String>,
-    pub locked_unset: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -462,7 +372,6 @@ pub struct ResourceCapacities {
 #[serde(default, deny_unknown_fields)]
 pub struct HostConfig {
     pub resources: ResourceCapacities,
-    pub profiles: BTreeMap<String, EnvironmentProfile>,
     /// Directed declarations interpreted symmetrically by admission.
     #[serde(default)]
     pub impact_incompatibilities: BTreeMap<String, Vec<String>>,
@@ -471,14 +380,6 @@ pub struct HostConfig {
 impl HostConfig {
     pub fn validate(&self) -> Result<()> {
         self.resources.validate()?;
-        for (name, profile) in &self.profiles {
-            if name.is_empty() || name.len() > 128 || name.contains('\0') {
-                return Err(Error::InvalidSpec(
-                    "invalid environment profile name".into(),
-                ));
-            }
-            profile.validate()?;
-        }
         for (impact, incompatible) in &self.impact_incompatibilities {
             validate_policy_name("impact", impact)?;
             let mut seen = BTreeSet::new();
@@ -489,29 +390,6 @@ impl HostConfig {
                         "duplicate incompatibility for impact {impact}"
                     )));
                 }
-            }
-        }
-        Ok(())
-    }
-}
-
-impl EnvironmentProfile {
-    fn validate(&self) -> Result<()> {
-        let mut names = BTreeSet::new();
-        for (name, value) in self.set.iter().chain(&self.locked_set) {
-            validate_environment_entry(name, Some(value))?;
-            if !names.insert(canonical_environment_name(name)) {
-                return Err(Error::InvalidSpec(format!(
-                    "environment profile repeats {name:?}"
-                )));
-            }
-        }
-        for name in self.unset.iter().chain(&self.locked_unset) {
-            validate_environment_entry(name, None)?;
-            if !names.insert(canonical_environment_name(name)) {
-                return Err(Error::InvalidSpec(format!(
-                    "environment profile repeats {name:?}"
-                )));
             }
         }
         Ok(())
@@ -757,6 +635,23 @@ mod tests {
             "surprise": true
         }"#;
         assert!(serde_json::from_str::<JobSpec>(json).is_err());
+    }
+
+    #[test]
+    fn daemon_environment_presets_are_not_accepted() {
+        let job = r#"{
+            "spec_version": 1,
+            "executable": "tool.exe",
+            "working_directory": ".",
+            "environment": { "profile": "reviewer" }
+        }"#;
+        assert!(serde_json::from_str::<JobSpec>(job).is_err());
+
+        let config = r#"{
+            "resources": {},
+            "profiles": { "reviewer": { "set": { "PATH": "tools" } } }
+        }"#;
+        assert!(serde_json::from_str::<HostConfig>(config).is_err());
     }
 
     #[test]

@@ -526,7 +526,6 @@ fn schema_epoch_mismatch_resets_database_and_preserves_other_files() {
     std::fs::write(&log_marker, b"preserve me").unwrap();
     let config = HostConfig {
         resources: capacities(),
-        profiles: Default::default(),
         impact_incompatibilities: Default::default(),
     };
     std::fs::write(&paths.config, serde_json::to_vec(&config).unwrap()).unwrap();

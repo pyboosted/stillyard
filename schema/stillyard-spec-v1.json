@@ -138,12 +138,6 @@
     "EnvironmentSpec": {
       "type": "object",
       "properties": {
-        "profile": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "set": {
           "type": "object",
           "additionalProperties": {
@@ -193,7 +187,6 @@
         "environment": {
           "$ref": "#/$defs/EnvironmentSpec",
           "default": {
-            "profile": null,
             "set": {},
             "unset": []
           }

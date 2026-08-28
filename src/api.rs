@@ -963,7 +963,6 @@ pub struct DaemonSnapshot {
     pub store_path: PathBuf,
     pub config_path: PathBuf,
     pub capacities: crate::ResourceCapacities,
-    pub profile_names: Vec<String>,
     pub config_sha256: String,
     pub queued_jobs: u64,
     pub running_jobs: u64,

@@ -1570,7 +1570,7 @@ mod tests {
     }
 
     #[test]
-    fn environment_block_has_exact_path_and_no_daemon_ambient_user_profile() {
+    fn environment_block_has_exact_path_and_no_daemon_ambient_user_environment() {
         let temp = tempfile::tempdir().unwrap();
         let command = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
             .join("System32")

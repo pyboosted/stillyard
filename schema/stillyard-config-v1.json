@@ -14,13 +14,6 @@
       },
       "default": {}
     },
-    "profiles": {
-      "type": "object",
-      "additionalProperties": {
-        "$ref": "#/$defs/EnvironmentProfile"
-      },
-      "default": {}
-    },
     "resources": {
       "$ref": "#/$defs/ResourceCapacities",
       "default": {
@@ -34,40 +27,6 @@
   },
   "additionalProperties": false,
   "$defs": {
-    "EnvironmentProfile": {
-      "type": "object",
-      "properties": {
-        "locked_set": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "default": {}
-        },
-        "locked_unset": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "string"
-          }
-        },
-        "set": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "default": {}
-        },
-        "unset": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "additionalProperties": false
-    },
     "ResourceCapacities": {
       "description": "Scalar capacities configured by the owner for one host-local daemon.",
       "type": "object",

@@ -30,7 +30,7 @@ Today all of this is ~1 600 lines of PowerShell/bash/Python wrappers behind six 
 5. **Validation is prose.** "Read the `-Out` file, not stdout", "empty file with exit 0 is not a verdict", "verify `modelUsage` resolves to `claude-fable-5`" — every skill restates it; none of it is a machine-checked postcondition.
 6. **Windows ↔ WSL drift.** Skill copies have already diverged (`codex-audit/SKILL.md` by 71 lines, `codex-exec.sh` by 28); one script exists only in WSL.
 
-Stillyard's simplified v0.12 removes items 1, 2, 4, and most of 5 by construction. Item 3 disappears because a Job's clean environment profile **is** the account selection. Item 6 disappears when Linux arrives as the independently gated v0.2 platform.
+Stillyard's simplified v0.12 removes items 1, 2, 4, and most of 5 by construction. Account selection remains explicit consumer-owned Job data instead of becoming hidden host-daemon configuration. Item 6 disappears when Linux arrives as the independently gated v0.2 platform.
 
 ---
 
@@ -54,8 +54,8 @@ Repository `C:\Development\the-debrix` (Windows) or `/home/pythonic/the-debrix` 
                "-o", "D:\\dev-ci\\stage-37-review\\r1\\sol.json", "--color", "never", "-"],
       "stdin": { "file": "D:\\dev-ci\\stage-37-review\\r1\\prompts\\sol.full.md" },
       "workdir": "D:\\dev-ci\\wt\\slot-0",
-      "env": { "profile": "codex-account-1",
-               "set": { "CARGO_TARGET_DIR": "D:\\dev-ci\\target\\the-debrix" } },
+      "env": { "set": { "CODEX_HOME": "C:\\Users\\User\\.codex-account-1",
+                          "CARGO_TARGET_DIR": "D:\\dev-ci\\target\\the-debrix" } },
       "timeout": "90m",
       "expected_duration": "35m",
       "resources": { "cpu_units": 2, "ram_mb": 2048, "codex_account_1_slots": 1 },
@@ -69,8 +69,8 @@ Repository `C:\Development\the-debrix` (Windows) or `/home/pythonic/the-debrix` 
       ],
       "retry": { "max_attempts": 3, "backoff": "20m", "on": ["process_failed", "postcondition_retryable"] }
     },
-    { "name": "grok",   "...": "grok.exe --prompt-file …, env.profile = grok-oauth, resources.grok_slots = 1" },
-    { "name": "opus-perf", "...": "claude.exe -p --model opus …, env.profile = claude-account-2, resources.claude_slots = 1" },
+    { "name": "grok",   "...": "grok.exe --prompt-file …, explicit account env, resources.grok_slots = 1" },
+    { "name": "opus-perf", "...": "claude.exe -p --model opus …, explicit CLAUDE_CONFIG_DIR, resources.claude_slots = 1" },
     { "name": "opus-contract", "...": "same" },
     {
       "name": "collect",
@@ -110,13 +110,13 @@ Numbering is provisional (`C-*` = consumer requirement). Historical **covered/ga
 **C-ENV-1 (R-ENV-1)** Explicit environment additions MUST include the ability to set `PATH` (Windows and Linux). The daemon's own PATH is never inherited; the job's PATH is exactly the persisted value.
 *Why (steps 1, 3):* reviewers with tools need `git`, `rg`, `cargo`, `python`, and the agent CLI's own helper binaries. Copy-from-client is the wrong mechanism — the client's PATH is the nondeterminism we are removing.
 
-**C-ENV-2 (R-ENV-1)** Host configuration MUST support named **environment profiles**: a reusable set of `set`, `unset`, `locked-set`, and `locked-unset` operations applied inside the clean environment, referenced by name from a JobSpec and expanded immutably at submission.
-*Why (§1 item 3):* an LLM account is nothing but an environment: `CODEX_HOME=%USERPROFILE%\.codex-account-2`, `CLAUDE_CONFIG_DIR=~/.claude2`, and the guarantee that `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_USE_{BEDROCK,VERTEX,FOUNDRY}`, `XAI_API_KEY` are **absent** (their presence silently switches billing from subscription to API). Today this is five hand-synchronized shims. With profiles, `fleet` passes `env.profile = codex-account-2` and there is nothing to keep in sync. `unset` inside a clean environment is redundant in principle but MUST be honored so a profile can override a job-level `set`.
+**C-ENV-2 (R-ENV-1)** Account and toolchain selection MUST be explicit, self-contained Job environment data. Host configuration does not contain named environment presets or precedence rules. Reusable launchers/templates may generate the same explicit Job data for multiple submissions.
+*Why (§1 item 3):* an LLM account is represented by values such as `CODEX_HOME=%USERPROFILE%\.codex-account-2` or `CLAUDE_CONFIG_DIR=~/.claude2`. Keeping those values in the Job makes the accepted payload and provenance sufficient to explain which account was selected. The clean base already excludes ambient `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_USE_{BEDROCK,VERTEX,FOUNDRY}`, and `XAI_API_KEY`; the submitting consumer owns any explicit additions.
 
 **C-ENV-3 (gap)** The daemon MUST inject into every Invocation's environment: `STILLYARD_JOB_ID`, `STILLYARD_ATTEMPT`, `STILLYARD_INVOCATION_ID`, `STILLYARD_ROLE` (`primary|probe|postcondition`), and `STILLYARD_ENDPOINT` (the pipe/socket the same-user client should use). Injected names are reserved and rejected in user-supplied `set`.
 *Why (steps 3, 4):* the validator postcondition writes per-attempt reports; the nested submission in step 3 needs the endpoint without guessing paths; provenance in verdict files should carry the job id.
 
-**C-ENV-4 (R-ENV-5)** The Linux clean environment is the account-derived `HOME`, `USER`, `LOGNAME`, `SHELL`, `TMPDIR`, and `LANG`, plus explicit additions/profile. `STILLYARD_ENDPOINT` is injected directly; `XDG_RUNTIME_DIR`, DBUS, `SSH_*`, `DISPLAY`, `WAYLAND_DISPLAY`, and `WSL_*` are absent unless a profile explicitly needs them.
+**C-ENV-4 (R-ENV-5)** The Linux clean environment is the account-derived `HOME`, `USER`, `LOGNAME`, `SHELL`, `TMPDIR`, and `LANG`, plus explicit Job additions. `STILLYARD_ENDPOINT` is injected directly; `XDG_RUNTIME_DIR`, DBUS, `SSH_*`, `DISPLAY`, `WAYLAND_DISPLAY`, and `WSL_*` are absent unless the Job explicitly supplies them.
 
 ### 3.2 Submission, grouping, and waiting
 
@@ -199,7 +199,7 @@ Numbering is provisional (`C-*` = consumer requirement). Historical **covered/ga
 
 ### 3.7 Provenance
 
-**C-OBS-1 (R-OBS-4)** Attempt provenance MUST record the effective **non-secret environment** (names and values, after profile expansion, secrets redacted) and the resolved `env.profile` name.
+**C-OBS-1 (R-OBS-4)** Attempt provenance MUST record the effective **non-secret environment** names and values with secrets redacted.
 *Why:* "which Codex account produced this verdict" is a question the operator asks when a limit is exhausted or when two accounts diverge in plan/model access. The executable hash alone does not answer it — both accounts run the same `codex.exe`.
 
 **C-OBS-2 (R-JOB-2, R-JOB-7, R-RUN-2, R-OBS-4)** Executable identity/hash per Invocation is provenance; agent CLIs may self-update while queued or between Attempts. Replacing an ordinary executable at the same canonical path is expected and launches the newly verified image, while disappearance or a Windows file-to-directory/reparse/type change fails before release.

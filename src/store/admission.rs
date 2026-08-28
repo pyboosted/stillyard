@@ -375,15 +375,11 @@ impl Store {
             .jobs
             .iter()
             .map(|member| {
-                let mut accepted_spec = member.spec.clone();
-                accepted_spec.environment =
-                    crate::spec::expand_environment(&member.spec.environment, &self.profiles)
-                        .map_err(|error| StoreError::InvalidSpec(error.to_string()))?;
                 Ok((
                     JobId::new(self.store_uuid),
                     ResolvedClaims::resolve(&member.spec.resources)
                         .map_err(|error| StoreError::InvalidSpec(error.to_string()))?,
-                    accepted_spec,
+                    member.spec.clone(),
                     stdins.get(&member.name).cloned(),
                 ))
             })
@@ -709,19 +705,7 @@ impl Store {
             self.reject_received_with(submission_id, error_code::REJECTED, &error.to_string())?;
             return Err(StoreError::Rejected(error.to_string()));
         }
-        let mut accepted_spec = spec.clone();
-        accepted_spec.environment =
-            match crate::spec::expand_environment(&spec.environment, &self.profiles) {
-                Ok(environment) => environment,
-                Err(error) => {
-                    self.reject_received_with(
-                        submission_id,
-                        error_code::REJECTED,
-                        &error.to_string(),
-                    )?;
-                    return Err(StoreError::Rejected(error.to_string()));
-                }
-            };
+        let accepted_spec = spec.clone();
         let job_id = JobId::new(self.store_uuid);
         let claims = match ResolvedClaims::resolve(&spec.resources) {
             Ok(claims) => claims,

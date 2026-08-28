@@ -21,17 +21,13 @@ submission, cancellation, retention, or the TUI.
 - The runner opens the staged blob, verifies length/hash, rewinds it, and passes that exact handle as
   stdin. EOF jobs continue to receive a real null/EOF handle.
 
-## Environment profiles
+## Explicit clean environment
 
-- `config.json` contains `resources` and named `profiles`.
-- A profile has `set`, `unset`, `locked_set`, and `locked_unset` operations. Names are compared with
-  Windows environment semantics in v0.1. Conflicting operations reject configuration.
-- Profile `unset` guarantees absence even when a Job tries to set that name; `locked_unset` makes
-  the same Job override reject instead of being silently removed. Job additions otherwise override
-  unlocked profile `set` values, while either change to a `locked_set` name rejects.
-- At acceptance the daemon expands the selected profile plus Job additions into an immutable
-  effective `EnvironmentSpec`. Job changes targeting a locked name reject the whole Submission.
-- The runner starts with only the documented Windows base, applies the expanded environment, then
+- `EnvironmentSpec` contains only explicit per-Job `set` and `unset` operations. Names are compared
+  with Windows environment semantics in v0.1, and conflicting operations reject the Job.
+- Acceptance persists the exact validated environment with the Job; there is no daemon-local
+  preset, merge, or precedence layer.
+- The runner starts with only the documented Windows base, applies the Job environment, then
   injects Stillyard coordinates. The daemon ambient PATH and unrelated variables are absent.
 
 ## Recovery and passthrough
@@ -59,8 +55,8 @@ submission, cancellation, retention, or the TUI.
 The deterministic `staged_stdin_handle_reaches_the_contained_process` test exercises the same
 shipped path as an agent prompt: a prompt-sized byte sequence is staged, accepted, opened by the
 runner, inherited as the managed root's stdin, and observed again in the committed canonical log.
-`environment_block_has_exact_path_and_no_daemon_ambient_user_profile` pairs it with the account
-profile boundary required by Codex/Claude launchers. A CLI consumer uses that path as follows:
+`environment_block_has_exact_path_and_no_daemon_ambient_user_environment` pairs it with the clean
+environment boundary required by Codex/Claude launchers. A CLI consumer uses that path as follows:
 
 ```text
 stillyard submit --spec reviewer.json --idempotency-key UUID \

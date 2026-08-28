@@ -722,10 +722,8 @@ fn print_doctor(snapshot: &stillyard::DoctorSnapshot) {
         snapshot.store.store_uuid,
     );
     println!(
-        "config sha256={} profiles={} unresolved={}",
-        snapshot.daemon.config_sha256,
-        snapshot.daemon.profile_names.join(","),
-        snapshot.incidents.total_unresolved,
+        "config sha256={} unresolved={}",
+        snapshot.daemon.config_sha256, snapshot.incidents.total_unresolved,
     );
     for check in &snapshot.checks {
         if check.status != stillyard::DoctorCheckStatus::Pass {

@@ -213,7 +213,6 @@ pub(crate) struct Store {
     store_uuid: Uuid,
     daemon_generation: Uuid,
     capacities: ResourceCapacities,
-    profiles: std::collections::BTreeMap<String, crate::EnvironmentProfile>,
     impact_incompatibilities: std::collections::BTreeMap<String, Vec<String>>,
     config_sha256: String,
     startup_identity: StartupIdentity,
@@ -252,7 +251,6 @@ impl Store {
             paths,
             HostConfig {
                 resources: capacities,
-                profiles: Default::default(),
                 impact_incompatibilities: Default::default(),
             },
             probe_startup_identity(),
@@ -352,7 +350,6 @@ impl Store {
             store_uuid,
             daemon_generation,
             capacities: config.resources,
-            profiles: config.profiles,
             impact_incompatibilities: config.impact_incompatibilities,
             config_sha256,
             startup_identity,

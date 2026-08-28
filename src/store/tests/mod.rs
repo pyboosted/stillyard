@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
-    BatchMember, DependencyKind, DependencySpec, EnvironmentProfile, EnvironmentSpec,
-    EstimateConfidence, PostconditionSpec, ResourceClaims, RetryPolicy, SPEC_VERSION, StdinSpec,
+    BatchMember, DependencyKind, DependencySpec, EnvironmentSpec, EstimateConfidence,
+    PostconditionSpec, ResourceClaims, RetryPolicy, SPEC_VERSION, StdinSpec,
 };
 
 fn spec(root: &Path) -> JobSpec {

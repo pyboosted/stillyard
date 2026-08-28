@@ -212,31 +212,15 @@ fn received_batch_revalidates_staged_inputs_before_acceptance() {
 }
 
 #[test]
-fn profile_expands_at_acceptance_and_enforces_precedence() {
+fn explicit_environment_is_preserved_at_acceptance() {
     let temp = tempfile::tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let config = HostConfig {
-        resources: capacities(),
-        impact_incompatibilities: Default::default(),
-        profiles: [(
-            "codex".to_owned(),
-            EnvironmentProfile {
-                set: [("PATH".to_owned(), r"C:\Tools".to_owned())].into(),
-                unset: vec!["ANTHROPIC_API_KEY".into()],
-                locked_set: [("CODEX_HOME".to_owned(), r"C:\Accounts\codex2".to_owned())].into(),
-                locked_unset: vec!["XAI_API_KEY".into()],
-            },
-        )]
-        .into(),
-    };
-    std::fs::write(&paths.config, serde_json::to_vec(&config).unwrap()).unwrap();
-    let mut store = Store::open(paths).unwrap();
+    let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
     let mut job = spec(temp.path());
-    job.environment.profile = Some("codex".into());
     job.environment
         .set
-        .insert("ANTHROPIC_API_KEY".into(), "must-not-leak".into());
-    job.environment.set.insert("ROUND".into(), "2".into());
+        .insert("PATH".into(), r"C:\Exact\Tools".into());
+    job.environment.unset.push("ANTHROPIC_API_KEY".into());
     let hash = normalized_payload_hash(&job).unwrap();
     let accepted = store.submit(Uuid::now_v7(), &hash, &job).unwrap();
     let effective = store
@@ -244,37 +228,7 @@ fn profile_expands_at_acceptance_and_enforces_precedence() {
         .unwrap()
         .spec
         .environment;
-    assert_eq!(effective.profile.as_deref(), Some("codex"));
-    assert_eq!(effective.set.get("PATH").unwrap(), r"C:\Tools");
-    assert_eq!(
-        effective.set.get("CODEX_HOME").unwrap(),
-        r"C:\Accounts\codex2"
-    );
-    assert_eq!(effective.set.get("ROUND").unwrap(), "2");
-    assert!(!effective.set.contains_key("ANTHROPIC_API_KEY"));
-    assert!(
-        effective
-            .unset
-            .iter()
-            .any(|name| name == "ANTHROPIC_API_KEY")
-    );
-    assert!(effective.unset.iter().any(|name| name == "XAI_API_KEY"));
-
-    let mut override_locked = job;
-    override_locked
-        .environment
-        .set
-        .insert("CODEX_HOME".into(), "wrong".into());
-    let hash = normalized_payload_hash(&override_locked).unwrap();
-    assert!(matches!(
-        store.submit(Uuid::now_v7(), &hash, &override_locked),
-        Err(StoreError::Rejected(_))
-    ));
-    let jobs: u64 = store
-        .connection
-        .query_row("SELECT COUNT(*) FROM jobs", [], |row| row.get(0))
-        .unwrap();
-    assert_eq!(jobs, 1, "locked override must never create a Job");
+    assert_eq!(effective, job.environment);
 }
 
 #[test]
