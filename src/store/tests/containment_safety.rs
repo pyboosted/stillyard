@@ -511,12 +511,15 @@ fn doctor_default_page_is_bounded_below_protocol_limit() {
             .first()
             .is_some_and(|candidate| candidate.incident_sequence > turn_cursor)
     );
-    store.record_reconciliation_observation(
+    let mut observations = ReconciliationObservations::default();
+    observations.record(
         first_turn[0].containment_id,
         ReconciliationResult::BoundaryNotEmpty,
     );
     assert_eq!(store.connection.total_changes(), changes_before_observation);
-    let first = store.doctor("test", None, None).unwrap();
+    let first = store
+        .doctor_with_reconciliation("test", None, None, &observations)
+        .unwrap();
     assert_eq!(first.incidents.total_unresolved, 257);
     assert_eq!(first.incidents.incidents.len(), 256);
     assert!(first.incidents.truncated);
@@ -537,7 +540,7 @@ fn doctor_default_page_is_bounded_below_protocol_limit() {
     }));
     assert!(serde_json::to_vec(&first).unwrap().len() < 16 * 1024 * 1024);
     let tail = store
-        .doctor("test", first.incidents.next_cursor, None)
+        .doctor_with_reconciliation("test", first.incidents.next_cursor, None, &observations)
         .unwrap();
     assert_eq!(tail.incidents.incidents.len(), 1);
     assert!(!tail.incidents.truncated);

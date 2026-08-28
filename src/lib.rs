@@ -7,7 +7,9 @@ pub(crate) mod daemon;
 mod error;
 mod filesystem;
 mod identity;
+mod instance;
 mod model;
+mod payload;
 #[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) mod protocol;
 mod resources;

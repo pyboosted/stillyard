@@ -1,5 +1,34 @@
 use super::*;
 
+#[derive(Default)]
+pub(crate) struct ReconciliationObservations {
+    entries: std::collections::BTreeMap<ContainmentId, (i64, ReconciliationResult)>,
+}
+
+impl ReconciliationObservations {
+    pub(crate) fn record(&mut self, containment_id: ContainmentId, result: ReconciliationResult) {
+        const MAX_OBSERVATIONS: usize = 256;
+        if !self.entries.contains_key(&containment_id) && self.entries.len() >= MAX_OBSERVATIONS {
+            if let Some(oldest) = self
+                .entries
+                .iter()
+                .min_by_key(|(_, (observed, _))| *observed)
+                .map(|(containment_id, _)| *containment_id)
+            {
+                self.entries.remove(&oldest);
+            }
+        }
+        self.entries.insert(containment_id, (now_millis(), result));
+    }
+
+    pub(super) fn get(
+        &self,
+        containment_id: &ContainmentId,
+    ) -> Option<&(i64, ReconciliationResult)> {
+        self.entries.get(containment_id)
+    }
+}
+
 impl Store {
     pub(crate) fn reconciliation_context(&self) -> Option<(HostId, BootId, Uuid)> {
         Some((
@@ -7,30 +36,6 @@ impl Store {
             self.startup_identity.boot_id.clone()?,
             self.daemon_generation,
         ))
-    }
-
-    pub(crate) fn record_reconciliation_observation(
-        &mut self,
-        containment_id: ContainmentId,
-        result: ReconciliationResult,
-    ) {
-        const MAX_OBSERVATIONS: usize = 256;
-        if !self
-            .reconciliation_observations
-            .contains_key(&containment_id)
-            && self.reconciliation_observations.len() >= MAX_OBSERVATIONS
-        {
-            if let Some(oldest) = self
-                .reconciliation_observations
-                .iter()
-                .min_by_key(|(_, (observed, _))| *observed)
-                .map(|(containment_id, _)| *containment_id)
-            {
-                self.reconciliation_observations.remove(&oldest);
-            }
-        }
-        self.reconciliation_observations
-            .insert(containment_id, (now_millis(), result));
     }
 
     pub(crate) fn reconciliation_candidates(
@@ -412,35 +417,5 @@ impl Store {
             })
             .transpose()
             .map(Option::flatten)
-    }
-
-    pub(crate) fn pending_jobs(&self) -> StoreResult<Vec<JobId>> {
-        let mut statement = self
-            .connection
-            .prepare("SELECT id FROM jobs WHERE state = 'pending' ORDER BY accepted_ms, rowid")?;
-        let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
-        let mut jobs = Vec::new();
-        for row in rows {
-            jobs.push(JobId::from_parts(self.store_uuid, Uuid::parse_str(&row?)?));
-        }
-        Ok(jobs)
-    }
-
-    pub(crate) fn next_retry_delay(
-        &self,
-        scheduling_pass_started: i64,
-    ) -> StoreResult<Option<std::time::Duration>> {
-        let now = now_millis();
-        let next: Option<i64> = self.connection.query_row(
-            "SELECT MIN(retry_not_before_ms) FROM jobs
-             WHERE state = 'pending' AND retry_not_before_ms > ?1",
-            [scheduling_pass_started],
-            |row| row.get(0),
-        )?;
-        Ok(next.map(|instant| {
-            std::time::Duration::from_millis(
-                u64::try_from(instant.saturating_sub(now)).unwrap_or(0),
-            )
-        }))
     }
 }

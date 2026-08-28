@@ -2,6 +2,14 @@ use super::*;
 
 impl Store {
     pub(crate) fn status(&self, job_id: JobId) -> StoreResult<JobSnapshot> {
+        self.status_with_reconciliation(job_id, &ReconciliationObservations::default())
+    }
+
+    pub(crate) fn status_with_reconciliation(
+        &self,
+        job_id: JobId,
+        observations: &ReconciliationObservations,
+    ) -> StoreResult<JobSnapshot> {
         self.connection
             .query_row(
                 "SELECT submission_id, state, outcome, attempt_id, invocation_id,
@@ -111,7 +119,7 @@ impl Store {
                         } else {
                             Vec::new()
                         },
-                        attempts: self.attempt_snapshots(job_id)?,
+                        attempts: self.attempt_snapshots(job_id, observations)?,
                         daemon_generation: self.daemon_generation,
                     })
                 },
@@ -575,7 +583,11 @@ impl Store {
         })
     }
 
-    fn attempt_snapshots(&self, job_id: JobId) -> StoreResult<Vec<AttemptSnapshot>> {
+    fn attempt_snapshots(
+        &self,
+        job_id: JobId,
+        observations: &ReconciliationObservations,
+    ) -> StoreResult<Vec<AttemptSnapshot>> {
         let mut statement = self.connection.prepare(
             "SELECT attempts.id, attempts.attempt_index, attempts.verdict,
                     attempts.started_ms, attempts.deadline_ms, attempts.finished_ms,
@@ -707,10 +719,7 @@ impl Store {
             let containment_id =
                 ContainmentId::from_parts(self.store_uuid, Uuid::parse_str(&containment)?);
             let containment_state = parse_containment_state(&containment_state)?;
-            let observed_reconciliation = self
-                .reconciliation_observations
-                .get(&containment_id)
-                .cloned();
+            let observed_reconciliation = observations.get(&containment_id).cloned();
             attempts
                 .last_mut()
                 .expect("attempt inserted above")
@@ -932,11 +941,27 @@ impl Store {
         })
     }
 
+    #[cfg(test)]
     pub(crate) fn doctor(
         &self,
         endpoint: &str,
         cursor: Option<ContainmentIncidentCursor>,
         limit: Option<u32>,
+    ) -> StoreResult<DoctorSnapshot> {
+        self.doctor_with_reconciliation(
+            endpoint,
+            cursor,
+            limit,
+            &ReconciliationObservations::default(),
+        )
+    }
+
+    pub(crate) fn doctor_with_reconciliation(
+        &self,
+        endpoint: &str,
+        cursor: Option<ContainmentIncidentCursor>,
+        limit: Option<u32>,
+        observations: &ReconciliationObservations,
     ) -> StoreResult<DoctorSnapshot> {
         if let Some(cursor) = cursor {
             if cursor.store_uuid != self.store_uuid
@@ -1037,10 +1062,7 @@ impl Store {
             ) = row?;
             let containment_id =
                 ContainmentId::from_parts(self.store_uuid, Uuid::parse_str(&containment)?);
-            let observed_reconciliation = self
-                .reconciliation_observations
-                .get(&containment_id)
-                .cloned();
+            let observed_reconciliation = observations.get(&containment_id).cloned();
             incidents.push(ContainmentIncidentSnapshot {
                 incident_id: containment_id,
                 incident_sequence: sequence,
