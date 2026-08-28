@@ -750,16 +750,16 @@ mod windows {
                                 })?
                                 .mark_uncertain(job, progress.exit_code, "interrupted")?;
                             progress.uncertainty_persisted = true;
-                            spawn_boundary_empty_notification(
-                                completion_port,
-                                Arc::clone(reconciliation_wake),
-                            )?;
                             super::transfer_containment_to_reconciler(
                                 registration,
                                 job.invocation_id,
                                 job_object.raw(),
                             )?;
                             let _owned_by_reconciler = job_object.into_raw();
+                            spawn_boundary_empty_notification(
+                                completion_port,
+                                Arc::clone(reconciliation_wake),
+                            )?;
                         }
                         return Err(error.into());
                     }
@@ -962,13 +962,13 @@ mod windows {
                 .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
                 .mark_uncertain(job, progress.exit_code, "interrupted")?;
             progress.uncertainty_persisted = true;
-            spawn_boundary_empty_notification(completion_port, Arc::clone(reconciliation_wake))?;
             super::transfer_containment_to_reconciler(
                 registration,
                 job.invocation_id,
                 job_object.raw(),
             )?;
             let _owned_by_reconciler = job_object.into_raw();
+            spawn_boundary_empty_notification(completion_port, Arc::clone(reconciliation_wake))?;
             return execution;
         }
 
@@ -1053,7 +1053,7 @@ mod windows {
                         wake();
                         break;
                     }
-                    if received == 0 && overlapped.is_null() {
+                    if received == 0 {
                         wake();
                         break;
                     }

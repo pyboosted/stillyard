@@ -4299,7 +4299,8 @@ impl Store {
             "UPDATE jobs SET state = 'final',
                 outcome = CASE
                     WHEN attempt_id IN (
-                        SELECT id FROM attempts WHERE verdict = 'start_failed'
+                        SELECT id FROM attempts
+                        WHERE verdict = 'start_failed' AND finished_ms = ?1
                     ) THEN 'failed'
                     ELSE 'interrupted'
                 END,
