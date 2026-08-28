@@ -1,6 +1,7 @@
 # Phase 7 — Live observation
 
-Status: alpha.7 implementation candidate; focused review pending (2026-08-28)
+Status: Stillyard-side alpha.7 delivered and reviewed (2026-08-28); cross-repository `moot`
+adapter rollout remains its planned batch 04
 
 This increment makes the already durable scheduler observable as a live system. It adds one
 event-driven public observation path and the first useful terminal monitor without changing
@@ -151,5 +152,28 @@ CLI, and TUI path:
 11. The `moot` adapter replaces its status-backoff workaround with the public wait stream and its
     workspace gate plus one live review Job complete without degraded behavior.
 
-Focused external review is required for cursor/Gap semantics, transaction boundaries, bounded
-memory, terminal detachment, and the consumer adapter before alpha.7 is declared delivered.
+## Delivery evidence
+
+The Stillyard-side implementation passed the following gates on the Windows reference host:
+
+- `cargo fmt --check`, warning-denying all-target/all-feature Clippy, rustdoc, offline packaging,
+  and all executable tests: 102 library tests plus 5 binary tests passed; 3 opt-in live helpers were
+  ignored by the ordinary suite;
+- an independent path-dependent consumer compiled using only the public crate and completed a live
+  `WaitStream` settlement and aggregate through the shipped named-pipe daemon;
+- public log reads preserved the exercised non-UTF-8 stdout and stderr bytes exactly, while the TUI
+  renderer replaced terminal controls only in its disposable display;
+- a detached `watch` respected its overall deadline and started no helper process; a five-minute
+  idle daemon-plus-watch sample used event waits, accumulated approximately 0.016 daemon CPU seconds
+  and no measurable watch CPU, and kept both processes' private memory stable; and
+- the final review fleet comprised two independent Opus lenses, Fable xhigh, and Grok 4.6 high.
+  Confirmed High findings in managed-wait admission, foreign-store cursor recovery, bounded TUI
+  delivery, idle liveness, deadline exit, private-read audit strength, and retry log resynchronization
+  were fixed and re-reviewed. Fable's closure verdict was PASS, the final Grok closure had no
+  findings, and the remaining dissenting Opus hypotheses were falsified against the lowercased source
+  audit and the store's exact `requested > committed` retry-gap contract.
+
+Acceptance item 11 is intentionally still open at its cross-repository boundary. The public
+consumer seam is green, but `moot` is pinned to alpha.6 while its batch 03 worktree is active; its
+own plan assigns the crate adapter and real review Job to batch 04. This repository does not edit or
+claim that consumer-owned delivery early.

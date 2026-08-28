@@ -19,8 +19,8 @@ The motivating agent-orchestration consumer and its boundary are documented in [
 
 ## Current status
 
-`0.1.0-alpha.7` is an implementation candidate containing seven bounded Windows vertical slices
-(focused external review is still pending):
+`0.1.0-alpha.7` contains seven bounded Windows vertical slices and its Stillyard-side live
+observation implementation has passed focused external review:
 
 - a runtime-neutral blocking Rust client with deadlines and cancellation;
 - a framed, owner-only local named-pipe protocol and detached singleton daemon;
@@ -69,9 +69,10 @@ This slice deliberately accepts EOF or staged-file stdin, impacts, bounded retri
 
 The tests cover the increment-2a portions of acceptance rows A-03, A-04, and A-06; the increment-2b staged-input, profile, result-file, and process-handle controls; the bounded managed-submission recovery and safe-wait slices of A-11/A-18; and the alpha.6 consumer lifecycle slice of A-04, A-08, A-11, A-14, and A-18. The full baseline rows are not claimed complete until cascade cancellation, drain/force, observed RAM/VRAM freshness, and external Conditions arrive.
 
-The current candidate is [alpha.7 live observation](docs/phase-7-live-observation.md). It
-deliberately leaves scheduling semantics unchanged; the phase document records the remaining
-external-review and consumer-integration gates before delivery is declared.
+The current delivered increment is [alpha.7 live observation](docs/phase-7-live-observation.md).
+It deliberately leaves scheduling semantics unchanged. The public-crate consumer gate is green;
+the `moot` adapter rollout remains the consumer repository's planned batch 04 and is recorded as
+an explicit cross-repository acceptance item rather than silently claimed here.
 
 An uncertain Containment deliberately retains its real Lease after restart. Until the audited `doctor clear-containment` flow ships, that capacity remains unavailable; moving or editing individual store files is not a supported recovery path.
 
