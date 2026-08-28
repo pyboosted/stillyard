@@ -172,10 +172,15 @@ impl DaemonReactor {
                 .lock()
                 .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))
                 .map(|generation| *generation)?;
-            let snapshot = store
-                .lock()
-                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
-                .status(job_id)?;
+            let snapshot = {
+                let observations = self.reconciliation_observations.lock().map_err(|_| {
+                    StoreError::InvalidState("reconciliation mutex poisoned".into())
+                })?;
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .status_with_reconciliation(job_id, &observations)?
+            };
             if snapshot.is_final() || Instant::now() >= deadline {
                 return Ok(snapshot);
             }

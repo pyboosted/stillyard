@@ -303,6 +303,61 @@ fn commit_at_wait_boundary_wakes_from_durable_event() {
 }
 
 #[test]
+fn wait_snapshot_includes_daemon_reconciliation_evidence() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let spec = crate::JobSpec {
+        spec_version: crate::SPEC_VERSION,
+        executable: temp.path().join("tool.exe"),
+        args: Vec::new(),
+        working_directory: temp.path().to_path_buf(),
+        stdin: crate::StdinSpec::Eof,
+        environment: Default::default(),
+        resources: Default::default(),
+        conditions: Vec::new(),
+        retry: Default::default(),
+        postconditions: Vec::new(),
+        labels: Vec::new(),
+        expected_duration_seconds: None,
+        timeout_seconds: None,
+        quiet: None,
+        artifacts: Vec::new(),
+        allow_child_submissions: false,
+    };
+    let hash = crate::store::normalized_payload_hash(&spec).unwrap();
+    let receipt = store
+        .submit(uuid::Uuid::now_v7(), &hash, &spec)
+        .unwrap()
+        .receipt;
+    let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+    store
+        .mark_uncertain(&prepared, None, "interrupted")
+        .unwrap();
+
+    let scheduler = observation_scheduler();
+    scheduler
+        .reconciliation_observations
+        .lock()
+        .unwrap()
+        .record(
+            prepared.containment_id,
+            crate::ReconciliationResult::BoundaryNotEmpty,
+        );
+    let snapshot = scheduler
+        .wait_snapshot(&Arc::new(Mutex::new(store)), receipt.job_id, Duration::ZERO)
+        .unwrap();
+
+    assert_eq!(
+        snapshot.attempts[0].invocations[0]
+            .containment
+            .incident
+            .as_ref()
+            .and_then(|incident| incident.last_reconciliation.clone()),
+        Some(crate::ReconciliationResult::BoundaryNotEmpty)
+    );
+}
+
+#[test]
 fn boot_change_is_proof_only_for_a_prior_generation() {
     let live_containments = crate::runner::LiveContainments::default();
     let store_uuid = uuid::Uuid::now_v7();
