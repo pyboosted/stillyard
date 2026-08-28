@@ -14,6 +14,16 @@ use crate::{
 pub(crate) const PROTOCOL_VERSION: u32 = 11;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
+pub(crate) mod error_code {
+    pub(crate) const BLOCKED_BY_ANCESTOR: &str = "blocked_by_ancestor";
+    pub(crate) const IDEMPOTENCY_CONFLICT: &str = "idempotency_conflict";
+    pub(crate) const INVALID_SPEC: &str = "invalid_spec";
+    pub(crate) const NOT_FOUND: &str = "not_found";
+    pub(crate) const REJECTED: &str = "rejected";
+    pub(crate) const RESOURCE_CAPACITY: &str = "resource_capacity";
+    pub(crate) const STORE_ERROR: &str = "store_error";
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct StagedInputRef {

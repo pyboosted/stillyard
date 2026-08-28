@@ -874,12 +874,7 @@ fn error_exit_code(error: &(dyn std::error::Error + 'static)) -> i32 {
             stillyard::Error::Unavailable(_) | stillyard::Error::UnsupportedPlatform(_) => 69,
             stillyard::Error::DeadlineElapsed | stillyard::Error::Canceled => 25,
             stillyard::Error::ManagedWaitRejected { .. } | stillyard::Error::Rejected { .. } => 27,
-            stillyard::Error::Protocol(message)
-                if message.starts_with("idempotency_conflict:")
-                    || message.starts_with("rejected:") =>
-            {
-                27
-            }
+            stillyard::Error::NotFound { .. } => 70,
             _ => 70,
         };
     }
@@ -892,6 +887,28 @@ fn error_exit_code(error: &(dyn std::error::Error + 'static)) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn structured_rejections_have_the_rejection_exit_code() {
+        for error in [
+            stillyard::Error::Rejected {
+                code: "idempotency_conflict".into(),
+                detail: "conflict".into(),
+            },
+            stillyard::Error::ManagedWaitRejected {
+                code: "resource_capacity".into(),
+                detail: "capacity".into(),
+            },
+        ] {
+            assert_eq!(error_exit_code(&error), 27);
+        }
+        assert_eq!(
+            error_exit_code(&stillyard::Error::NotFound {
+                detail: "not found: missing".into(),
+            }),
+            70
+        );
+    }
 
     #[test]
     fn recover_wait_and_wait_passthrough_have_agent_sized_defaults() {

@@ -1,4 +1,5 @@
 use super::*;
+use crate::protocol::error_code;
 
 pub(super) fn handle_request(
     store: &SharedStore,
@@ -290,15 +291,15 @@ pub(super) fn handle_request(
     };
     result.unwrap_or_else(|error| match error {
         StoreError::NotFound(_) => Response::Error {
-            code: "not_found".into(),
+            code: error_code::NOT_FOUND.into(),
             message: error.to_string(),
         },
         StoreError::IdempotencyConflict => Response::Error {
-            code: "idempotency_conflict".into(),
+            code: error_code::IDEMPOTENCY_CONFLICT.into(),
             message: error.to_string(),
         },
         StoreError::Rejected(_) => Response::Error {
-            code: "rejected".into(),
+            code: error_code::REJECTED.into(),
             message: error.to_string(),
         },
         StoreError::OperationRejected { code, detail } => Response::Error {
@@ -306,7 +307,7 @@ pub(super) fn handle_request(
             message: detail,
         },
         StoreError::BlockedByAncestor(detail) => Response::Error {
-            code: "blocked_by_ancestor".into(),
+            code: error_code::BLOCKED_BY_ANCESTOR.into(),
             message: detail,
         },
         StoreError::ManagedWaitRejected { code, detail } => Response::Error {
@@ -314,11 +315,11 @@ pub(super) fn handle_request(
             message: detail,
         },
         StoreError::InvalidSpec(_) => Response::Error {
-            code: "invalid_spec".into(),
+            code: error_code::INVALID_SPEC.into(),
             message: error.to_string(),
         },
         _ => Response::Error {
-            code: "store_error".into(),
+            code: error_code::STORE_ERROR.into(),
             message: error.to_string(),
         },
     })

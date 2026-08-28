@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 
 use crate::instance::{default_endpoint, default_store_root, endpoints_equal, validate_endpoint};
 use crate::payload::{MAX_CANCEL_JOBS, MAX_STDIN_BYTES, batch_hash, job_hash};
-use crate::protocol::{PROTOCOL_VERSION, Request, Response, StagedInputRef};
+use crate::protocol::{PROTOCOL_VERSION, Request, Response, StagedInputRef, error_code};
 #[cfg(windows)]
 use crate::protocol::{read_frame, write_frame};
 use crate::{
@@ -1217,18 +1217,25 @@ fn inspect_stdin(stdin: &crate::StdinSpec) -> Result<Option<(StagedInputRef, Pat
 
 fn response_error<T>(response: Response) -> Result<T> {
     match response {
-        Response::Error { code, message } if code == "invalid_spec" => {
+        Response::Error { code, message } if code == error_code::INVALID_SPEC => {
             Err(Error::InvalidSpec(message))
         }
+        Response::Error { code, message } if code == error_code::NOT_FOUND => {
+            Err(Error::NotFound { detail: message })
+        }
         Response::Error { code, message }
-            if code == "blocked_by_ancestor" || code == "resource_capacity" =>
+            if code == error_code::BLOCKED_BY_ANCESTOR || code == error_code::RESOURCE_CAPACITY =>
         {
             Err(Error::ManagedWaitRejected {
                 code,
                 detail: message,
             })
         }
-        Response::Error { code, message } if code.starts_with("containment_") => {
+        Response::Error { code, message }
+            if code == error_code::IDEMPOTENCY_CONFLICT
+                || code == error_code::REJECTED
+                || code.starts_with("containment_") =>
+        {
             Err(Error::Rejected {
                 code,
                 detail: message,
@@ -1567,11 +1574,11 @@ fn persist_submit_decision(
     response: &Response,
 ) -> Result<()> {
     let decision = match response {
-        Response::Error { code, .. } if code == "idempotency_conflict" => {
+        Response::Error { code, .. } if code == error_code::IDEMPOTENCY_CONFLICT => {
             Some(RecoveryResult::Conflict)
         }
         Response::Error { code, message }
-            if code == "blocked_by_ancestor" || code == "resource_capacity" =>
+            if code == error_code::BLOCKED_BY_ANCESTOR || code == error_code::RESOURCE_CAPACITY =>
         {
             Some(RecoveryResult::Rejected {
                 code: code.clone(),
@@ -1833,6 +1840,40 @@ fn replace_file_atomically(source: &Path, destination: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn response_errors_preserve_known_wire_rejections() {
+        for code in [
+            error_code::IDEMPOTENCY_CONFLICT,
+            error_code::REJECTED,
+            "containment_identity_unavailable",
+        ] {
+            assert!(matches!(
+                response_error::<()>(Response::Error {
+                    code: code.into(),
+                    message: "detail".into(),
+                }),
+                Err(Error::Rejected {
+                    code: observed,
+                    detail,
+                }) if observed == code && detail == "detail"
+            ));
+        }
+        assert!(matches!(
+            response_error::<()>(Response::Error {
+                code: error_code::NOT_FOUND.into(),
+                message: "not found: missing".into(),
+            }),
+            Err(Error::NotFound { detail }) if detail == "not found: missing"
+        ));
+        assert!(matches!(
+            response_error::<()>(Response::Error {
+                code: "unknown_code".into(),
+                message: "detail".into(),
+            }),
+            Err(Error::Protocol(detail)) if detail == "unknown_code: detail"
+        ));
+    }
 
     #[test]
     fn wait_aggregate_uses_the_worst_terminal_outcome() {

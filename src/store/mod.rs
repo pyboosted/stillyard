@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::identity::{StartupIdentity, probe_startup_identity};
 use crate::payload::{MAX_CANCEL_JOBS, MAX_STDIN_BYTES};
-use crate::protocol::StagedInputRef;
+use crate::protocol::{StagedInputRef, error_code};
 use crate::resources::ResolvedClaims;
 use crate::{
     AttemptId, AttemptSnapshot, AttemptVerdict, BatchId, BatchJobReceipt, BatchReceipt, BatchSpec,
@@ -238,87 +238,6 @@ impl Store {
         ));
     }
 
-    pub(crate) fn managed_containment_candidates(&self) -> StoreResult<Vec<ManagedCandidate>> {
-        let current_generation = self.daemon_generation.to_string();
-        let mut statement = self.connection.prepare(
-            "SELECT jobs.id, attempts.id, invocations.id, jobs.spec_json, jobs.parent_job_id,
-                    jobs.state, jobs.attempt_id, jobs.invocation_id, attempts.state,
-                    invocations.state, invocations.root_pid, invocations.root_exit_code,
-                    invocations.daemon_generation, containments.state
-             FROM invocations
-             JOIN attempts ON attempts.id = invocations.attempt_id
-             JOIN jobs ON jobs.id = attempts.job_id
-             JOIN containments ON containments.invocation_id = invocations.id
-             WHERE invocations.role = 'primary'
-               AND invocations.daemon_generation = ?1
-               AND containments.state = 'live'",
-        )?;
-        let rows = statement.query_map([&current_generation], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-                row.get::<_, Option<String>>(4)?,
-                row.get::<_, String>(5)?,
-                row.get::<_, Option<String>>(6)?,
-                row.get::<_, Option<String>>(7)?,
-                row.get::<_, String>(8)?,
-                row.get::<_, String>(9)?,
-                row.get::<_, Option<u32>>(10)?,
-                row.get::<_, Option<i32>>(11)?,
-                row.get::<_, Option<String>>(12)?,
-                row.get::<_, String>(13)?,
-            ))
-        })?;
-        let mut candidates = Vec::new();
-        for row in rows {
-            let (
-                job,
-                attempt,
-                invocation,
-                spec_json,
-                parent_job,
-                job_state,
-                job_attempt,
-                job_invocation,
-                attempt_state,
-                invocation_state,
-                root_pid,
-                root_exit_code,
-                daemon_generation,
-                containment_state,
-            ) = row?;
-            let spec: JobSpec = serde_json::from_str(&spec_json)?;
-            let current = job_state == "active"
-                && job_attempt.as_deref() == Some(attempt.as_str())
-                && job_invocation.as_deref() == Some(invocation.as_str())
-                && attempt_state == "running"
-                && invocation_state == "started"
-                && root_pid.is_some()
-                && root_exit_code.is_none()
-                && daemon_generation.as_deref() == Some(current_generation.as_str())
-                && containment_state == "live";
-            candidates.push(ManagedCandidate {
-                parent: ManagedParent {
-                    job_id: JobId::from_parts(self.store_uuid, Uuid::parse_str(&job)?),
-                    attempt_id: AttemptId::from_parts(self.store_uuid, Uuid::parse_str(&attempt)?),
-                    invocation_id: InvocationId::from_parts(
-                        self.store_uuid,
-                        Uuid::parse_str(&invocation)?,
-                    ),
-                },
-                parent_job_id: parent_job
-                    .map(|job| Uuid::parse_str(&job))
-                    .transpose()?
-                    .map(|job| JobId::from_parts(self.store_uuid, job)),
-                submissions_enabled: spec.allow_child_submissions,
-                current,
-            });
-        }
-        Ok(candidates)
-    }
-
     pub(crate) fn open(paths: StorePaths) -> StoreResult<Self> {
         let config = load_host_config(&paths.config)?;
         Self::open_with_config(paths, config, probe_startup_identity())
@@ -469,6 +388,7 @@ impl Store {
 mod admission;
 mod database;
 mod input;
+mod lease;
 mod lifecycle;
 mod observation;
 mod reconciliation;
@@ -483,6 +403,7 @@ use database::{
     reset_database_files, schema_is_current,
 };
 use input::{validate_batch_input_shape, validate_input_shape};
+use lease::*;
 use values::*;
 
 #[cfg(windows)]

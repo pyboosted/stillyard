@@ -88,20 +88,7 @@ impl Store {
              WHERE state = 'active'",
             [finished],
         )?;
-        transaction.execute(
-            "UPDATE leases SET state = 'released'
-             WHERE state = 'granted'
-               AND EXISTS(SELECT 1 FROM attempts
-                          WHERE attempts.id = leases.attempt_id
-                            AND attempts.state = 'settled')
-               AND NOT EXISTS(
-                    SELECT 1 FROM containments
-                    JOIN invocations ON invocations.id = containments.invocation_id
-                    WHERE invocations.attempt_id = leases.attempt_id
-                      AND containments.state NOT IN ('empty', 'cleared')
-               )",
-            [],
-        )?;
+        release_all_safe_attempt_leases(&transaction)?;
         transaction.commit()?;
         Ok(())
     }

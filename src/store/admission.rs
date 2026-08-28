@@ -366,7 +366,7 @@ impl Store {
         wait_for_completion: bool,
     ) -> StoreResult<BatchSubmitResult> {
         if let Err(error) = self.verify_staged_batch_inputs(spec, stdins) {
-            self.reject_received_with(submission_id, "rejected", &error.to_string())?;
+            self.reject_received_with(submission_id, error_code::REJECTED, &error.to_string())?;
             return Err(StoreError::Rejected(error.to_string()));
         }
         let batch_id = BatchId::new(self.store_uuid);
@@ -568,7 +568,7 @@ impl Store {
     pub(super) fn reject_received(&mut self, submission_id: SubmissionId) -> StoreResult<()> {
         self.reject_received_with(
             submission_id,
-            "rejected",
+            error_code::REJECTED,
             "the retained submission decision is rejected",
         )
     }
@@ -688,7 +688,7 @@ impl Store {
                 }
             }
             "rejected" => Ok(RecoveryResult::Rejected {
-                code: reject_code.unwrap_or_else(|| "rejected".into()),
+                code: reject_code.unwrap_or_else(|| error_code::REJECTED.into()),
                 detail: reject_detail.unwrap_or_else(|| "submission was rejected".into()),
             }),
             other => Err(StoreError::InvalidState(format!(
@@ -706,7 +706,7 @@ impl Store {
         wait_for_completion: bool,
     ) -> StoreResult<SubmitResult> {
         if let Err(error) = self.verify_staged_input(spec, stdin) {
-            self.reject_received_with(submission_id, "rejected", &error.to_string())?;
+            self.reject_received_with(submission_id, error_code::REJECTED, &error.to_string())?;
             return Err(StoreError::Rejected(error.to_string()));
         }
         let mut accepted_spec = spec.clone();
@@ -714,7 +714,11 @@ impl Store {
             match crate::spec::expand_environment(&spec.environment, &self.profiles) {
                 Ok(environment) => environment,
                 Err(error) => {
-                    self.reject_received_with(submission_id, "rejected", &error.to_string())?;
+                    self.reject_received_with(
+                        submission_id,
+                        error_code::REJECTED,
+                        &error.to_string(),
+                    )?;
                     return Err(StoreError::Rejected(error.to_string()));
                 }
             };
@@ -722,7 +726,7 @@ impl Store {
         let claims = match ResolvedClaims::resolve(&spec.resources) {
             Ok(claims) => claims,
             Err(error) => {
-                self.reject_received_with(submission_id, "rejected", &error.to_string())?;
+                self.reject_received_with(submission_id, error_code::REJECTED, &error.to_string())?;
                 return Err(StoreError::Rejected(error.to_string()));
             }
         };
@@ -855,22 +859,105 @@ impl Store {
             daemon_generation: self.accepting_daemon_generation(submission_id)?,
         })
     }
+
+    pub(crate) fn managed_containment_candidates(&self) -> StoreResult<Vec<ManagedCandidate>> {
+        let current_generation = self.daemon_generation.to_string();
+        let mut statement = self.connection.prepare(
+            "SELECT jobs.id, attempts.id, invocations.id, jobs.spec_json, jobs.parent_job_id,
+                    jobs.state, jobs.attempt_id, jobs.invocation_id, attempts.state,
+                    invocations.state, invocations.root_pid, invocations.root_exit_code,
+                    invocations.daemon_generation, containments.state
+             FROM invocations
+             JOIN attempts ON attempts.id = invocations.attempt_id
+             JOIN jobs ON jobs.id = attempts.job_id
+             JOIN containments ON containments.invocation_id = invocations.id
+             WHERE invocations.role = 'primary'
+               AND invocations.daemon_generation = ?1
+               AND containments.state = 'live'",
+        )?;
+        let rows = statement.query_map([&current_generation], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, Option<String>>(6)?,
+                row.get::<_, Option<String>>(7)?,
+                row.get::<_, String>(8)?,
+                row.get::<_, String>(9)?,
+                row.get::<_, Option<u32>>(10)?,
+                row.get::<_, Option<i32>>(11)?,
+                row.get::<_, Option<String>>(12)?,
+                row.get::<_, String>(13)?,
+            ))
+        })?;
+        let mut candidates = Vec::new();
+        for row in rows {
+            let (
+                job,
+                attempt,
+                invocation,
+                spec_json,
+                parent_job,
+                job_state,
+                job_attempt,
+                job_invocation,
+                attempt_state,
+                invocation_state,
+                root_pid,
+                root_exit_code,
+                daemon_generation,
+                containment_state,
+            ) = row?;
+            let spec: JobSpec = serde_json::from_str(&spec_json)?;
+            let current = job_state == "active"
+                && job_attempt.as_deref() == Some(attempt.as_str())
+                && job_invocation.as_deref() == Some(invocation.as_str())
+                && attempt_state == "running"
+                && invocation_state == "started"
+                && root_pid.is_some()
+                && root_exit_code.is_none()
+                && daemon_generation.as_deref() == Some(current_generation.as_str())
+                && containment_state == "live";
+            candidates.push(ManagedCandidate {
+                parent: ManagedParent {
+                    job_id: JobId::from_parts(self.store_uuid, Uuid::parse_str(&job)?),
+                    attempt_id: AttemptId::from_parts(self.store_uuid, Uuid::parse_str(&attempt)?),
+                    invocation_id: InvocationId::from_parts(
+                        self.store_uuid,
+                        Uuid::parse_str(&invocation)?,
+                    ),
+                },
+                parent_job_id: parent_job
+                    .map(|job| Uuid::parse_str(&job))
+                    .transpose()?
+                    .map(|job| JobId::from_parts(self.store_uuid, job)),
+                submissions_enabled: spec.allow_child_submissions,
+                current,
+            });
+        }
+        Ok(candidates)
+    }
 }
 
 pub(super) fn rejection_decision(error: &StoreError) -> (String, String) {
     match error {
-        StoreError::BlockedByAncestor(detail) => ("blocked_by_ancestor".into(), detail.clone()),
+        StoreError::BlockedByAncestor(detail) => {
+            (error_code::BLOCKED_BY_ANCESTOR.into(), detail.clone())
+        }
         StoreError::ManagedWaitRejected { code, detail } => (code.clone(), detail.clone()),
-        _ => ("rejected".into(), error.to_string()),
+        _ => (error_code::REJECTED.into(), error.to_string()),
     }
 }
 
 pub(super) fn retained_rejection(code: Option<String>, detail: Option<String>) -> StoreError {
-    let code = code.unwrap_or_else(|| "rejected".into());
+    let code = code.unwrap_or_else(|| error_code::REJECTED.into());
     let detail = detail.unwrap_or_else(|| "the retained submission decision is rejected".into());
     match code.as_str() {
-        "blocked_by_ancestor" => StoreError::BlockedByAncestor(detail),
-        "resource_capacity" => StoreError::ManagedWaitRejected { code, detail },
+        error_code::BLOCKED_BY_ANCESTOR => StoreError::BlockedByAncestor(detail),
+        error_code::RESOURCE_CAPACITY => StoreError::ManagedWaitRejected { code, detail },
         _ => StoreError::Rejected(detail),
     }
 }
@@ -1026,10 +1113,10 @@ pub(super) fn validate_managed_wait_targets(
             );
             if blockers
                 .iter()
-                .any(|blocker| blocker.code == "resource_capacity")
+                .any(|blocker| blocker.code == error_code::RESOURCE_CAPACITY)
             {
                 return Err(StoreError::ManagedWaitRejected {
-                    code: "resource_capacity".into(),
+                    code: error_code::RESOURCE_CAPACITY.into(),
                     detail,
                 });
             }

@@ -19,6 +19,9 @@ pub enum Error {
     #[error("operation rejected ({code}): {detail}")]
     Rejected { code: String, detail: String },
 
+    #[error("{detail}")]
+    NotFound { detail: String },
+
     #[error("I/O failed: {0}")]
     Io(#[from] std::io::Error),
 

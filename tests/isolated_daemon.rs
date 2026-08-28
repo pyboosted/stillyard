@@ -315,8 +315,8 @@ fn pinned_isolated_daemons_coexist_and_own_both_coordinates() {
     let foreign: JobId = durable_id(status_a.store_uuid);
     assert!(matches!(
         client_b.status(foreign, Instant::now() + Duration::from_secs(2), None),
-        Err(Error::Protocol(detail))
-            if detail == format!("not_found: not found: foreign durable ID from store {}", status_a.store_uuid)
+        Err(Error::NotFound { detail })
+            if detail == format!("not found: foreign durable ID from store {}", status_a.store_uuid)
     ));
     let wrong_image = Client::builder()
         .endpoint(&endpoint_a)
@@ -401,8 +401,9 @@ fn isolated_client_helper() {
         .unwrap();
     assert!(matches!(
         inherited.submission_context(Instant::now() + Duration::from_secs(2), None),
-        Err(Error::Protocol(detail))
-            if detail == "rejected: submission rejected: claimed managed parent does not match daemon-held OS containment"
+        Err(Error::Rejected { code, detail })
+            if code == "rejected"
+                && detail == "submission rejected: claimed managed parent does not match daemon-held OS containment"
     ));
 }
 

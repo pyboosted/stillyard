@@ -154,55 +154,6 @@ pub(super) fn process_identity_from_columns(
     }
 }
 
-pub(super) fn release_attempt_lease_if_safe(
-    transaction: &Transaction<'_>,
-    attempt_id: &str,
-) -> StoreResult<bool> {
-    let eligible: bool = transaction.query_row(
-        "SELECT EXISTS(SELECT 1 FROM attempts WHERE id = ?1 AND state = 'settled')
-            AND NOT EXISTS(
-                SELECT 1 FROM containments
-                JOIN invocations ON invocations.id = containments.invocation_id
-                WHERE invocations.attempt_id = ?1
-                  AND containments.state NOT IN ('empty', 'cleared')
-            )",
-        [attempt_id],
-        |row| row.get(0),
-    )?;
-    if !eligible {
-        return Ok(false);
-    }
-    let released = transaction.execute(
-        "UPDATE leases SET state = 'released'
-         WHERE attempt_id = ?1 AND state = 'granted'",
-        [attempt_id],
-    )? > 0;
-    Ok(released)
-}
-
-pub(super) fn attempt_lease_release_eligible_after_target(
-    transaction: &Transaction<'_>,
-    attempt_id: &str,
-    target_containment_id: &str,
-) -> StoreResult<bool> {
-    transaction
-        .query_row(
-            "SELECT EXISTS(SELECT 1 FROM attempts WHERE id = ?1 AND state = 'settled')
-                AND EXISTS(SELECT 1 FROM leases
-                           WHERE attempt_id = ?1 AND state = 'granted')
-                AND NOT EXISTS(
-                    SELECT 1 FROM containments
-                    JOIN invocations ON invocations.id = containments.invocation_id
-                    WHERE invocations.attempt_id = ?1
-                      AND containments.id != ?2
-                      AND containments.state NOT IN ('empty', 'cleared')
-                )",
-            params![attempt_id, target_containment_id],
-            |row| row.get(0),
-        )
-        .map_err(Into::into)
-}
-
 pub(super) fn parse_exit_classification(value: &str) -> StoreResult<ExitClassification> {
     match value {
         "accepted" => Ok(ExitClassification::Accepted),
