@@ -54,6 +54,11 @@ impl CancellationToken {
 pub struct SubmitOptions {
     pub idempotency_key: Uuid,
     pub result_file: Option<PathBuf>,
+    /// Declares that the caller will synchronously wait for the accepted Job or Batch.
+    ///
+    /// Managed callers are admitted only when that wait cannot depend on resources retained by
+    /// the caller or its authenticated ancestors. Detached submissions leave this false.
+    pub wait_for_completion: bool,
 }
 
 impl Default for SubmitOptions {
@@ -61,6 +66,7 @@ impl Default for SubmitOptions {
         Self {
             idempotency_key: Uuid::now_v7(),
             result_file: None,
+            wait_for_completion: false,
         }
     }
 }
@@ -71,12 +77,20 @@ impl SubmitOptions {
         Self {
             idempotency_key,
             result_file: None,
+            wait_for_completion: false,
         }
     }
 
     #[must_use]
     pub fn with_result_file(mut self, path: impl Into<PathBuf>) -> Self {
         self.result_file = Some(path.into());
+        self
+    }
+
+    /// Declares a combined submit-and-wait operation for managed deadlock admission.
+    #[must_use]
+    pub fn with_wait_for_completion(mut self) -> Self {
+        self.wait_for_completion = true;
         self
     }
 }

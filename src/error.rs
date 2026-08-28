@@ -13,6 +13,9 @@ pub enum Error {
     #[error("local protocol error: {0}")]
     Protocol(String),
 
+    #[error("managed wait rejected ({code}): {detail}")]
+    ManagedWaitRejected { code: String, detail: String },
+
     #[error("I/O failed: {0}")]
     Io(#[from] std::io::Error),
 

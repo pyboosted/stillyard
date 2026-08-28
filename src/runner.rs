@@ -484,8 +484,12 @@ mod windows {
         if !progress.cleanup_proven {
             // The pipes may remain open while an unproven process tree is terminating. Do not
             // block the scheduler indefinitely; the uncertain Containment keeps EOF unclaimed.
-            // Unpublish the handle while it is still valid. Closing the Job Object afterwards
-            // applies KILL_ON_JOB_CLOSE to any process that escaped the bounded cleanup wait.
+            // Leave the live authority set before unpublishing its handle. Closing the Job Object
+            // afterwards applies KILL_ON_JOB_CLOSE to any process that escaped the bounded wait.
+            store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                .mark_uncertain(job, progress.exit_code, "interrupted")?;
             drop(registration);
             drop(job_object);
             return execution.map(|_| ());

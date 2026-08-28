@@ -9,7 +9,7 @@ use crate::{
     LogStream, ManagedParent, SubmissionContext,
 };
 
-pub(crate) const PROTOCOL_VERSION: u32 = 5;
+pub(crate) const PROTOCOL_VERSION: u32 = 6;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -46,6 +46,7 @@ pub(crate) enum Request {
         stdin: Option<StagedInputRef>,
         expected_store_uuid: Option<Uuid>,
         expected_parent: Option<ManagedParent>,
+        wait_for_completion: bool,
     },
     SubmitBatch {
         idempotency_key: Uuid,
@@ -54,6 +55,7 @@ pub(crate) enum Request {
         stdins: BTreeMap<String, StagedInputRef>,
         expected_store_uuid: Option<Uuid>,
         expected_parent: Option<ManagedParent>,
+        wait_for_completion: bool,
     },
     Recover {
         idempotency_key: Uuid,
@@ -66,6 +68,7 @@ pub(crate) enum Request {
     Wait {
         job_id: JobId,
         max_wait_millis: u32,
+        claimed_parent: Option<ManagedParent>,
     },
     Logs {
         job_id: JobId,

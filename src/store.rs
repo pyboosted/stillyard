@@ -18,7 +18,7 @@ use crate::{
 
 // Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
 // the current schema changes; daemon startup will replace the whole SQLite database.
-const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-managed-submit-2026-08-28";
+const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-managed-wait-2026-08-28";
 const MAX_STDIN_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_UPLOAD_CHUNK_BYTES: usize = 256 * 1024;
 
@@ -95,6 +95,10 @@ pub(crate) enum StoreError {
     IdempotencyConflict,
     #[error("submission rejected: {0}")]
     Rejected(String),
+    #[error("managed wait blocked by an ancestor: {0}")]
+    BlockedByAncestor(String),
+    #[error("managed wait rejected ({code}): {detail}")]
+    ManagedWaitRejected { code: String, detail: String },
     #[error("invalid specification: {0}")]
     InvalidSpec(String),
     #[error("invalid durable state: {0}")]
@@ -142,6 +146,7 @@ impl SubmissionScope {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ManagedCandidate {
     pub(crate) parent: ManagedParent,
+    pub(crate) parent_job_id: Option<JobId>,
     pub(crate) submissions_enabled: bool,
     pub(crate) current: bool,
 }
@@ -185,8 +190,9 @@ impl Store {
     }
 
     pub(crate) fn managed_containment_candidates(&self) -> StoreResult<Vec<ManagedCandidate>> {
+        let current_generation = self.daemon_generation.to_string();
         let mut statement = self.connection.prepare(
-            "SELECT jobs.id, attempts.id, invocations.id, jobs.spec_json,
+            "SELECT jobs.id, attempts.id, invocations.id, jobs.spec_json, jobs.parent_job_id,
                     jobs.state, jobs.attempt_id, jobs.invocation_id, attempts.state,
                     invocations.state, invocations.root_pid, invocations.root_exit_code,
                     invocations.daemon_generation, containments.state
@@ -195,33 +201,35 @@ impl Store {
              JOIN jobs ON jobs.id = attempts.job_id
              JOIN containments ON containments.invocation_id = invocations.id
              WHERE invocations.role = 'primary'
-               AND containments.state IN ('live', 'uncertain')",
+               AND invocations.daemon_generation = ?1
+               AND containments.state = 'live'",
         )?;
-        let rows = statement.query_map([], |row| {
+        let rows = statement.query_map([&current_generation], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
                 row.get::<_, String>(3)?,
-                row.get::<_, String>(4)?,
-                row.get::<_, Option<String>>(5)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, String>(5)?,
                 row.get::<_, Option<String>>(6)?,
-                row.get::<_, String>(7)?,
+                row.get::<_, Option<String>>(7)?,
                 row.get::<_, String>(8)?,
-                row.get::<_, Option<u32>>(9)?,
-                row.get::<_, Option<i32>>(10)?,
-                row.get::<_, Option<String>>(11)?,
-                row.get::<_, String>(12)?,
+                row.get::<_, String>(9)?,
+                row.get::<_, Option<u32>>(10)?,
+                row.get::<_, Option<i32>>(11)?,
+                row.get::<_, Option<String>>(12)?,
+                row.get::<_, String>(13)?,
             ))
         })?;
         let mut candidates = Vec::new();
-        let current_generation = self.daemon_generation.to_string();
         for row in rows {
             let (
                 job,
                 attempt,
                 invocation,
                 spec_json,
+                parent_job,
                 job_state,
                 job_attempt,
                 job_invocation,
@@ -251,6 +259,10 @@ impl Store {
                         Uuid::parse_str(&invocation)?,
                     ),
                 },
+                parent_job_id: parent_job
+                    .map(|job| Uuid::parse_str(&job))
+                    .transpose()?
+                    .map(|job| JobId::from_parts(self.store_uuid, job)),
                 submissions_enabled: spec.allow_child_submissions,
                 current,
             });
@@ -575,6 +587,7 @@ impl Store {
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn submit_with_stdin_scoped(
         &mut self,
         scope: SubmissionScope,
@@ -582,6 +595,25 @@ impl Store {
         claimed_payload_hash: &str,
         spec: &JobSpec,
         stdin: Option<&StagedInputRef>,
+    ) -> StoreResult<SubmitResult> {
+        self.submit_with_stdin_scoped_for_wait(
+            scope,
+            idempotency_key,
+            claimed_payload_hash,
+            spec,
+            stdin,
+            false,
+        )
+    }
+
+    pub(crate) fn submit_with_stdin_scoped_for_wait(
+        &mut self,
+        scope: SubmissionScope,
+        idempotency_key: Uuid,
+        claimed_payload_hash: &str,
+        spec: &JobSpec,
+        stdin: Option<&StagedInputRef>,
+        wait_for_completion: bool,
     ) -> StoreResult<SubmitResult> {
         spec.validate()
             .map_err(|error| StoreError::InvalidSpec(error.to_string()))?;
@@ -594,10 +626,22 @@ impl Store {
         }
         let key = idempotency_key.to_string();
         let scope_key = scope.key();
-        if let Some((submission_id, stored_hash, state, job_id, spec_json, stdin_json, kind)) = self
+        if let Some((
+            submission_id,
+            stored_hash,
+            state,
+            job_id,
+            spec_json,
+            stdin_json,
+            kind,
+            durable_wait,
+            reject_code,
+            reject_detail,
+        )) = self
             .connection
             .query_row(
-                "SELECT id, payload_hash, state, job_id, spec_json, stdin_json, kind
+                "SELECT id, payload_hash, state, job_id, spec_json, stdin_json, kind, wait_intent,
+                        reject_code, reject_detail
                  FROM submissions WHERE scope = ?1 AND idempotency_key = ?2",
                 params![scope_key, key],
                 |row| {
@@ -609,6 +653,9 @@ impl Store {
                         row.get::<_, String>(4)?,
                         row.get::<_, Option<String>>(5)?,
                         row.get::<_, String>(6)?,
+                        row.get::<_, bool>(7)?,
+                        row.get::<_, Option<String>>(8)?,
+                        row.get::<_, Option<String>>(9)?,
                     ))
                 },
             )
@@ -621,15 +668,23 @@ impl Store {
                 let job_id = job_id.ok_or_else(|| {
                     StoreError::InvalidState("accepted submission has no job".into())
                 })?;
-                return Ok(SubmitResult {
+                let result = SubmitResult {
                     receipt: self.receipt(
                         SubmissionId::from_parts(self.store_uuid, Uuid::parse_str(&submission_id)?),
                         JobId::from_parts(self.store_uuid, Uuid::parse_str(&job_id)?),
                     )?,
                     should_schedule: false,
-                });
+                };
+                return Ok(result);
             }
             if state == "received" {
+                let wait_for_completion = durable_wait || wait_for_completion;
+                if wait_for_completion && !durable_wait {
+                    self.connection.execute(
+                        "UPDATE submissions SET wait_intent = 1 WHERE id = ?1 AND state = 'received'",
+                        [&submission_id],
+                    )?;
+                }
                 let durable_spec = serde_json::from_str(&spec_json)?;
                 let durable_stdin = stdin_json
                     .as_deref()
@@ -640,12 +695,11 @@ impl Store {
                     &durable_spec,
                     durable_stdin.as_ref(),
                     scope,
+                    wait_for_completion,
                 );
             }
             if state == "rejected" {
-                return Err(StoreError::Rejected(
-                    "the retained submission decision is rejected".into(),
-                ));
+                return Err(retained_rejection(reject_code, reject_detail));
             }
             return Err(StoreError::InvalidState(format!(
                 "terminal submission state {state} cannot be replaced"
@@ -660,8 +714,8 @@ impl Store {
         received.execute(
             "INSERT INTO submissions(
                 id, scope, idempotency_key, payload_hash, state, spec_json, stdin_json, kind,
-                parent_job_id, parent_attempt_id, parent_invocation_id, created_ms
-             ) VALUES (?1, ?2, ?3, ?4, 'received', ?5, ?6, 'job', ?7, ?8, ?9, ?10)",
+                parent_job_id, parent_attempt_id, parent_invocation_id, wait_intent, created_ms
+             ) VALUES (?1, ?2, ?3, ?4, 'received', ?5, ?6, 'job', ?7, ?8, ?9, ?10, ?11)",
             params![
                 submission_id.entity_uuid().to_string(),
                 scope_key,
@@ -672,11 +726,12 @@ impl Store {
                 parent.map(|parent| parent.job_id.entity_uuid().to_string()),
                 parent.map(|parent| parent.attempt_id.entity_uuid().to_string()),
                 parent.map(|parent| parent.invocation_id.entity_uuid().to_string()),
+                wait_for_completion,
                 now_millis(),
             ],
         )?;
         received.commit()?;
-        self.accept_received(submission_id, spec, stdin, scope)
+        self.accept_received(submission_id, spec, stdin, scope, wait_for_completion)
     }
 
     #[cfg(test)]
@@ -711,6 +766,7 @@ impl Store {
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn submit_batch_with_stdins_scoped(
         &mut self,
         scope: SubmissionScope,
@@ -718,6 +774,25 @@ impl Store {
         claimed_payload_hash: &str,
         spec: &BatchSpec,
         stdins: &std::collections::BTreeMap<String, StagedInputRef>,
+    ) -> StoreResult<BatchSubmitResult> {
+        self.submit_batch_with_stdins_scoped_for_wait(
+            scope,
+            idempotency_key,
+            claimed_payload_hash,
+            spec,
+            stdins,
+            false,
+        )
+    }
+
+    pub(crate) fn submit_batch_with_stdins_scoped_for_wait(
+        &mut self,
+        scope: SubmissionScope,
+        idempotency_key: Uuid,
+        claimed_payload_hash: &str,
+        spec: &BatchSpec,
+        stdins: &std::collections::BTreeMap<String, StagedInputRef>,
+        wait_for_completion: bool,
     ) -> StoreResult<BatchSubmitResult> {
         spec.validate()
             .map_err(|error| StoreError::InvalidSpec(error.to_string()))?;
@@ -730,10 +805,22 @@ impl Store {
         }
         let key = idempotency_key.to_string();
         let scope_key = scope.key();
-        if let Some((submission, stored_hash, state, batch, spec_json, stdin_json, kind)) = self
+        if let Some((
+            submission,
+            stored_hash,
+            state,
+            batch,
+            spec_json,
+            stdin_json,
+            kind,
+            durable_wait,
+            reject_code,
+            reject_detail,
+        )) = self
             .connection
             .query_row(
-                "SELECT id, payload_hash, state, batch_id, spec_json, stdin_json, kind
+                "SELECT id, payload_hash, state, batch_id, spec_json, stdin_json, kind, wait_intent,
+                        reject_code, reject_detail
                  FROM submissions WHERE scope = ?1 AND idempotency_key = ?2",
                 params![scope_key, key],
                 |row| {
@@ -745,6 +832,9 @@ impl Store {
                         row.get::<_, String>(4)?,
                         row.get::<_, Option<String>>(5)?,
                         row.get::<_, String>(6)?,
+                        row.get::<_, bool>(7)?,
+                        row.get::<_, Option<String>>(8)?,
+                        row.get::<_, Option<String>>(9)?,
                     ))
                 },
             )
@@ -759,27 +849,39 @@ impl Store {
                 let batch_id = batch.ok_or_else(|| {
                     StoreError::InvalidState("accepted batch submission has no batch".into())
                 })?;
-                return Ok(BatchSubmitResult {
+                let result = BatchSubmitResult {
                     receipt: self.batch_receipt(
                         submission_id,
                         BatchId::from_parts(self.store_uuid, Uuid::parse_str(&batch_id)?),
                     )?,
                     should_schedule: false,
-                });
+                };
+                return Ok(result);
             }
             if state == "received" {
+                let wait_for_completion = durable_wait || wait_for_completion;
+                if wait_for_completion && !durable_wait {
+                    self.connection.execute(
+                        "UPDATE submissions SET wait_intent = 1 WHERE id = ?1 AND state = 'received'",
+                        [&submission],
+                    )?;
+                }
                 let durable: BatchSpec = serde_json::from_str(&spec_json)?;
                 let durable_stdins = stdin_json
                     .as_deref()
                     .map(serde_json::from_str)
                     .transpose()?
                     .unwrap_or_default();
-                return self.accept_received_batch(submission_id, &durable, &durable_stdins, scope);
+                return self.accept_received_batch(
+                    submission_id,
+                    &durable,
+                    &durable_stdins,
+                    scope,
+                    wait_for_completion,
+                );
             }
             if state == "rejected" {
-                return Err(StoreError::Rejected(
-                    "the retained submission decision is rejected".into(),
-                ));
+                return Err(retained_rejection(reject_code, reject_detail));
             }
             return Err(StoreError::InvalidState(format!(
                 "terminal submission state {state} cannot be replaced"
@@ -794,8 +896,8 @@ impl Store {
         received.execute(
             "INSERT INTO submissions(
                 id, scope, idempotency_key, payload_hash, state, spec_json, stdin_json, kind,
-                parent_job_id, parent_attempt_id, parent_invocation_id, created_ms
-             ) VALUES (?1, ?2, ?3, ?4, 'received', ?5, ?6, 'batch', ?7, ?8, ?9, ?10)",
+                parent_job_id, parent_attempt_id, parent_invocation_id, wait_intent, created_ms
+             ) VALUES (?1, ?2, ?3, ?4, 'received', ?5, ?6, 'batch', ?7, ?8, ?9, ?10, ?11)",
             params![
                 submission_id.entity_uuid().to_string(),
                 scope_key,
@@ -806,11 +908,12 @@ impl Store {
                 parent.map(|parent| parent.job_id.entity_uuid().to_string()),
                 parent.map(|parent| parent.attempt_id.entity_uuid().to_string()),
                 parent.map(|parent| parent.invocation_id.entity_uuid().to_string()),
+                wait_for_completion,
                 now_millis(),
             ],
         )?;
         received.commit()?;
-        self.accept_received_batch(submission_id, spec, stdins, scope)
+        self.accept_received_batch(submission_id, spec, stdins, scope, wait_for_completion)
     }
 
     fn accept_received_batch(
@@ -819,9 +922,10 @@ impl Store {
         spec: &BatchSpec,
         stdins: &std::collections::BTreeMap<String, StagedInputRef>,
         scope: SubmissionScope,
+        wait_for_completion: bool,
     ) -> StoreResult<BatchSubmitResult> {
         if let Err(error) = self.verify_staged_batch_inputs(spec, stdins) {
-            self.reject_received(submission_id)?;
+            self.reject_received_with(submission_id, "rejected", &error.to_string())?;
             return Err(StoreError::Rejected(error.to_string()));
         }
         let batch_id = BatchId::new(self.store_uuid);
@@ -846,7 +950,7 @@ impl Store {
         let jobs = match jobs {
             Ok(jobs) => jobs,
             Err(error) => {
-                self.reject_received(submission_id)?;
+                self.reject_received_for_error(submission_id, &error)?;
                 return Err(StoreError::Rejected(error.to_string()));
             }
         };
@@ -856,6 +960,9 @@ impl Store {
             .zip(&jobs)
             .map(|(member, (job_id, _, _, _))| (member.name.as_str(), *job_id))
             .collect();
+        let store_uuid = self.store_uuid;
+        let daemon_generation = self.daemon_generation;
+        let capacities = self.capacities.clone();
         let transaction = self.connection.transaction()?;
         let state: String = transaction.query_row(
             "SELECT state FROM submissions WHERE id = ?1",
@@ -886,7 +993,7 @@ impl Store {
             validate_current_parent(&transaction, self.store_uuid, self.daemon_generation, scope)
         {
             drop(transaction);
-            self.reject_received(submission_id)?;
+            self.reject_received_for_error(submission_id, &error)?;
             return Err(StoreError::Rejected(error.to_string()));
         }
         let parent = scope.parent();
@@ -944,6 +1051,24 @@ impl Store {
                 )?;
             }
         }
+        if wait_for_completion {
+            let targets = jobs
+                .iter()
+                .map(|(job_id, _, _, _)| *job_id)
+                .collect::<Vec<_>>();
+            if let Err(error) = validate_managed_wait_targets(
+                &transaction,
+                store_uuid,
+                daemon_generation,
+                &capacities,
+                scope,
+                &targets,
+            ) {
+                drop(transaction);
+                self.reject_received_for_error(submission_id, &error)?;
+                return Err(error);
+            }
+        }
         transaction.execute(
             "UPDATE submissions SET state = 'accepted', batch_id = ?2 WHERE id = ?1",
             params![
@@ -995,12 +1120,35 @@ impl Store {
     }
 
     fn reject_received(&mut self, submission_id: SubmissionId) -> StoreResult<()> {
+        self.reject_received_with(
+            submission_id,
+            "rejected",
+            "the retained submission decision is rejected",
+        )
+    }
+
+    fn reject_received_with(
+        &mut self,
+        submission_id: SubmissionId,
+        code: &str,
+        detail: &str,
+    ) -> StoreResult<()> {
         self.connection.execute(
-            "UPDATE submissions SET state = 'rejected'
+            "UPDATE submissions
+             SET state = 'rejected', reject_code = ?2, reject_detail = ?3
              WHERE id = ?1 AND state = 'received'",
-            [submission_id.entity_uuid().to_string()],
+            params![submission_id.entity_uuid().to_string(), code, detail],
         )?;
         Ok(())
+    }
+
+    fn reject_received_for_error(
+        &mut self,
+        submission_id: SubmissionId,
+        error: &StoreError,
+    ) -> StoreResult<()> {
+        let (code, detail) = rejection_decision(error);
+        self.reject_received_with(submission_id, &code, &detail)
     }
 
     #[cfg(test)]
@@ -1022,7 +1170,8 @@ impl Store {
         let row = self
             .connection
             .query_row(
-                "SELECT id, payload_hash, state, job_id, batch_id, kind
+                "SELECT id, payload_hash, state, job_id, batch_id, kind,
+                        reject_code, reject_detail
                  FROM submissions WHERE scope = ?1 AND idempotency_key = ?2",
                 params![scope_key, idempotency_key.to_string()],
                 |row| {
@@ -1033,11 +1182,23 @@ impl Store {
                         row.get::<_, Option<String>>(3)?,
                         row.get::<_, Option<String>>(4)?,
                         row.get::<_, String>(5)?,
+                        row.get::<_, Option<String>>(6)?,
+                        row.get::<_, Option<String>>(7)?,
                     ))
                 },
             )
             .optional()?;
-        let Some((submission_id, stored_hash, state, job_id, batch_id, kind)) = row else {
+        let Some((
+            submission_id,
+            stored_hash,
+            state,
+            job_id,
+            batch_id,
+            kind,
+            reject_code,
+            reject_detail,
+        )) = row
+        else {
             return match scope {
                 SubmissionScope::Unmanaged => Ok(RecoveryResult::Unknown),
                 SubmissionScope::Managed(_) => {
@@ -1081,8 +1242,8 @@ impl Store {
                 }
             }
             "rejected" => Ok(RecoveryResult::Rejected {
-                code: "rejected".into(),
-                detail: "submission was rejected".into(),
+                code: reject_code.unwrap_or_else(|| "rejected".into()),
+                detail: reject_detail.unwrap_or_else(|| "submission was rejected".into()),
             }),
             other => Err(StoreError::InvalidState(format!(
                 "unknown submission state {other}"
@@ -1096,9 +1257,10 @@ impl Store {
         spec: &JobSpec,
         stdin: Option<&StagedInputRef>,
         scope: SubmissionScope,
+        wait_for_completion: bool,
     ) -> StoreResult<SubmitResult> {
         if let Err(error) = self.verify_staged_input(spec, stdin) {
-            self.reject_received(submission_id)?;
+            self.reject_received_with(submission_id, "rejected", &error.to_string())?;
             return Err(StoreError::Rejected(error.to_string()));
         }
         let mut accepted_spec = spec.clone();
@@ -1106,7 +1268,7 @@ impl Store {
             match crate::spec::expand_environment(&spec.environment, &self.profiles) {
                 Ok(environment) => environment,
                 Err(error) => {
-                    self.reject_received(submission_id)?;
+                    self.reject_received_with(submission_id, "rejected", &error.to_string())?;
                     return Err(StoreError::Rejected(error.to_string()));
                 }
             };
@@ -1114,11 +1276,14 @@ impl Store {
         let claims = match ResolvedClaims::resolve(&spec.resources) {
             Ok(claims) => claims,
             Err(error) => {
-                self.reject_received(submission_id)?;
+                self.reject_received_with(submission_id, "rejected", &error.to_string())?;
                 return Err(StoreError::Rejected(error.to_string()));
             }
         };
         let accepted_ms = now_millis();
+        let store_uuid = self.store_uuid;
+        let daemon_generation = self.daemon_generation;
+        let capacities = self.capacities.clone();
         let transaction = self.connection.transaction()?;
         let state: String = transaction.query_row(
             "SELECT state FROM submissions WHERE id = ?1",
@@ -1149,7 +1314,7 @@ impl Store {
             validate_current_parent(&transaction, self.store_uuid, self.daemon_generation, scope)
         {
             drop(transaction);
-            self.reject_received(submission_id)?;
+            self.reject_received_for_error(submission_id, &error)?;
             return Err(StoreError::Rejected(error.to_string()));
         }
         let parent = scope.parent();
@@ -1171,6 +1336,20 @@ impl Store {
                 accepted_ms,
             ],
         )?;
+        if wait_for_completion {
+            if let Err(error) = validate_managed_wait_targets(
+                &transaction,
+                store_uuid,
+                daemon_generation,
+                &capacities,
+                scope,
+                &[job_id],
+            ) {
+                drop(transaction);
+                self.reject_received_for_error(submission_id, &error)?;
+                return Err(error);
+            }
+        }
         transaction.execute(
             "UPDATE submissions SET state = 'accepted', job_id = ?2 WHERE id = ?1",
             params![
@@ -1905,6 +2084,21 @@ impl Store {
             )
     }
 
+    pub(crate) fn validate_managed_wait(
+        &self,
+        scope: SubmissionScope,
+        targets: &[JobId],
+    ) -> StoreResult<()> {
+        validate_managed_wait_targets(
+            &self.connection,
+            self.store_uuid,
+            self.daemon_generation,
+            &self.capacities,
+            scope,
+            targets,
+        )
+    }
+
     pub(crate) fn logs(
         &self,
         job_id: JobId,
@@ -2105,7 +2299,7 @@ impl Store {
         let received = {
             let mut statement = self.connection.prepare(
                 "SELECT id, spec_json, stdin_json, kind,
-                        parent_job_id, parent_attempt_id, parent_invocation_id
+                        parent_job_id, parent_attempt_id, parent_invocation_id, wait_intent
                  FROM submissions
                  WHERE state = 'received' ORDER BY created_ms",
             )?;
@@ -2118,6 +2312,7 @@ impl Store {
                     row.get::<_, Option<String>>(4)?,
                     row.get::<_, Option<String>>(5)?,
                     row.get::<_, Option<String>>(6)?,
+                    row.get::<_, bool>(7)?,
                 ))
             })?;
             rows.collect::<std::result::Result<Vec<_>, _>>()?
@@ -2130,6 +2325,7 @@ impl Store {
             parent_job,
             parent_attempt,
             parent_invocation,
+            wait_for_completion,
         ) in received
         {
             let submission_id =
@@ -2150,6 +2346,7 @@ impl Store {
                             &spec,
                             &stdins.unwrap_or_default(),
                             scope,
+                            wait_for_completion,
                         )
                         .map(|_| ()),
                     (Err(error), _) | (_, Err(error)) => {
@@ -2165,7 +2362,13 @@ impl Store {
                     stdin_json.as_deref().map(serde_json::from_str).transpose(),
                 ) {
                     (Ok(spec), Ok(stdin)) => self
-                        .accept_received(submission_id, &spec, stdin.as_ref(), scope)
+                        .accept_received(
+                            submission_id,
+                            &spec,
+                            stdin.as_ref(),
+                            scope,
+                            wait_for_completion,
+                        )
                         .map(|_| ()),
                     (Err(error), _) | (_, Err(error)) => {
                         self.reject_received(submission_id)?;
@@ -2176,11 +2379,35 @@ impl Store {
                 }
             };
             match result {
-                Ok(()) | Err(StoreError::InvalidSpec(_) | StoreError::Rejected(_)) => {}
+                Ok(())
+                | Err(
+                    StoreError::InvalidSpec(_)
+                    | StoreError::Rejected(_)
+                    | StoreError::BlockedByAncestor(_)
+                    | StoreError::ManagedWaitRejected { .. },
+                ) => {}
                 Err(error) => return Err(error),
             }
         }
         Ok(())
+    }
+}
+
+fn rejection_decision(error: &StoreError) -> (String, String) {
+    match error {
+        StoreError::BlockedByAncestor(detail) => ("blocked_by_ancestor".into(), detail.clone()),
+        StoreError::ManagedWaitRejected { code, detail } => (code.clone(), detail.clone()),
+        _ => ("rejected".into(), error.to_string()),
+    }
+}
+
+fn retained_rejection(code: Option<String>, detail: Option<String>) -> StoreError {
+    let code = code.unwrap_or_else(|| "rejected".into());
+    let detail = detail.unwrap_or_else(|| "the retained submission decision is rejected".into());
+    match code.as_str() {
+        "blocked_by_ancestor" => StoreError::BlockedByAncestor(detail),
+        "resource_capacity" => StoreError::ManagedWaitRejected { code, detail },
+        _ => StoreError::Rejected(detail),
     }
 }
 
@@ -2240,6 +2467,211 @@ fn validate_current_parent(
         ));
     }
     Ok(())
+}
+
+fn validate_managed_wait_targets(
+    connection: &Connection,
+    store_uuid: Uuid,
+    daemon_generation: Uuid,
+    capacities: &ResourceCapacities,
+    scope: SubmissionScope,
+    targets: &[JobId],
+) -> StoreResult<()> {
+    let SubmissionScope::Managed(parent) = scope else {
+        return Ok(());
+    };
+    if targets.is_empty() {
+        return Err(StoreError::Rejected(
+            "managed wait requires at least one target".into(),
+        ));
+    }
+    validate_current_parent(connection, store_uuid, daemon_generation, scope)?;
+    let ancestor_claims = managed_ancestor_claims(connection, store_uuid, parent)?;
+    let mut pending = std::collections::VecDeque::from_iter(targets.iter().copied());
+    let mut visited = std::collections::HashSet::new();
+    let mut waited_claims = Vec::new();
+    while let Some(job_id) = pending.pop_front() {
+        if job_id.store_uuid() != store_uuid {
+            return Err(StoreError::Rejected(format!(
+                "managed wait target {job_id} belongs to a foreign store"
+            )));
+        }
+        let job_key = job_id.entity_uuid().to_string();
+        if !visited.insert(job_key.clone()) {
+            continue;
+        }
+        if job_id == parent.job_id {
+            return Err(StoreError::BlockedByAncestor(
+                "the dependency closure reaches the waiting Job itself".into(),
+            ));
+        }
+        if !job_descends_from(connection, store_uuid, job_id, parent.job_id)? {
+            return Err(StoreError::Rejected(format!(
+                "managed wait target {job_id} is not an authenticated descendant of {}",
+                parent.job_id
+            )));
+        }
+        let (state, claims_json, display_name) = connection
+            .query_row(
+                "SELECT state, claims_json, COALESCE(batch_member, id) FROM jobs WHERE id = ?1",
+                [&job_key],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::NotFound(job_id.to_string()))?;
+        if state == "final" {
+            continue;
+        }
+        let claims: ResolvedClaims = serde_json::from_str(&claims_json)?;
+        waited_claims.push((job_id, display_name, claims));
+        let mut statement = connection.prepare(
+            "SELECT dependencies.predecessor_id
+             FROM dependencies
+             JOIN jobs ON jobs.id = dependencies.predecessor_id
+             WHERE dependencies.successor_id = ?1 AND jobs.state != 'final'
+             ORDER BY jobs.accepted_ms, jobs.rowid",
+        )?;
+        let predecessors = statement
+            .query_map([&job_key], |row| row.get::<_, String>(0))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        for predecessor in predecessors {
+            pending.push_back(JobId::from_parts(
+                store_uuid,
+                Uuid::parse_str(&predecessor)?,
+            ));
+        }
+    }
+    for (job_id, display_name, claims) in waited_claims {
+        let blockers = claims.ancestor_blockers(capacities, &ancestor_claims);
+        if !blockers.is_empty() {
+            let detail = format!(
+                "target {display_name} ({job_id}): {}",
+                blockers
+                    .iter()
+                    .map(|blocker| blocker.detail.as_str())
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            );
+            if blockers
+                .iter()
+                .any(|blocker| blocker.code == "resource_capacity")
+            {
+                return Err(StoreError::ManagedWaitRejected {
+                    code: "resource_capacity".into(),
+                    detail,
+                });
+            }
+            return Err(StoreError::BlockedByAncestor(detail));
+        }
+    }
+    Ok(())
+}
+
+fn job_descends_from(
+    connection: &Connection,
+    store_uuid: Uuid,
+    job_id: JobId,
+    ancestor_id: JobId,
+) -> StoreResult<bool> {
+    let mut current = job_id;
+    let mut visited = std::collections::HashSet::new();
+    loop {
+        if !visited.insert(current.entity_uuid()) {
+            return Err(StoreError::InvalidState(
+                "managed parent graph contains a cycle".into(),
+            ));
+        }
+        let columns = connection
+            .query_row(
+                "SELECT parent_job_id, parent_attempt_id, parent_invocation_id
+                 FROM jobs WHERE id = ?1",
+                [current.entity_uuid().to_string()],
+                |row| {
+                    Ok((
+                        row.get::<_, Option<String>>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                    ))
+                },
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::NotFound(current.to_string()))?;
+        let Some(parent) = managed_parent_from_columns(store_uuid, columns)? else {
+            return Ok(false);
+        };
+        if parent.job_id == ancestor_id {
+            return Ok(true);
+        }
+        current = parent.job_id;
+    }
+}
+
+fn managed_ancestor_claims(
+    connection: &Connection,
+    store_uuid: Uuid,
+    parent: ManagedParent,
+) -> StoreResult<Vec<ResolvedClaims>> {
+    let mut current = Some(parent);
+    let mut visited = std::collections::HashSet::new();
+    let mut claims = Vec::new();
+    while let Some(ancestor) = current {
+        if !visited.insert((
+            ancestor.job_id.entity_uuid(),
+            ancestor.attempt_id.entity_uuid(),
+        )) {
+            return Err(StoreError::InvalidState(
+                "managed ancestor graph contains a cycle".into(),
+            ));
+        }
+        let lease = connection
+            .query_row(
+                "SELECT leases.state, leases.claims_json
+                 FROM leases
+                 JOIN attempts ON attempts.id = leases.attempt_id
+                 WHERE attempts.id = ?1 AND attempts.job_id = ?2",
+                params![
+                    ancestor.attempt_id.entity_uuid().to_string(),
+                    ancestor.job_id.entity_uuid().to_string(),
+                ],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()?
+            .ok_or_else(|| {
+                StoreError::InvalidState(format!(
+                    "managed ancestor {} has no Lease for Attempt {}",
+                    ancestor.job_id, ancestor.attempt_id
+                ))
+            })?;
+        match lease.0.as_str() {
+            "granted" => claims.push(serde_json::from_str(&lease.1)?),
+            "released" => {}
+            other => {
+                return Err(StoreError::InvalidState(format!(
+                    "managed ancestor Lease has unknown state {other}"
+                )));
+            }
+        }
+        let columns = connection.query_row(
+            "SELECT parent_job_id, parent_attempt_id, parent_invocation_id
+             FROM jobs WHERE id = ?1",
+            [ancestor.job_id.entity_uuid().to_string()],
+            |row| {
+                Ok((
+                    row.get::<_, Option<String>>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            },
+        )?;
+        current = managed_parent_from_columns(store_uuid, columns)?;
+    }
+    Ok(claims)
 }
 
 fn managed_parent_from_columns(
@@ -2656,6 +3088,9 @@ fn create_current_schema(connection: &Connection, store_uuid: Uuid) -> StoreResu
              parent_job_id TEXT,
              parent_attempt_id TEXT,
              parent_invocation_id TEXT,
+             wait_intent INTEGER NOT NULL DEFAULT 0,
+             reject_code TEXT,
+             reject_detail TEXT,
              created_ms INTEGER NOT NULL,
              UNIQUE(scope, idempotency_key)
          );
@@ -2780,6 +3215,9 @@ fn validate_schema(connection: &Connection) -> StoreResult<()> {
                 "parent_job_id",
                 "parent_attempt_id",
                 "parent_invocation_id",
+                "wait_intent",
+                "reject_code",
+                "reject_detail",
             ] as &[_],
         ),
         ("batches", &["submission_id", "accepted_ms"] as &[_]),
@@ -3793,9 +4231,11 @@ mod tests {
             .unwrap()
             .unwrap();
         store.mark_started(&prepared, 1234, "exe-hash").unwrap();
+        assert_eq!(store.managed_containment_candidates().unwrap().len(), 1);
         store
             .mark_uncertain(&prepared, None, "interrupted")
             .unwrap();
+        assert!(store.managed_containment_candidates().unwrap().is_empty());
         let (containment, lease): (String, String) = store
             .connection
             .query_row(
@@ -4116,6 +4556,10 @@ mod tests {
     fn start_managed_parent(store: &mut Store, root: &Path, enabled: bool) -> PreparedJob {
         let mut parent_spec = spec(root);
         parent_spec.allow_child_submissions = enabled;
+        start_managed_parent_with_spec(store, parent_spec)
+    }
+
+    fn start_managed_parent_with_spec(store: &mut Store, parent_spec: JobSpec) -> PreparedJob {
         let hash = normalized_payload_hash(&parent_spec).unwrap();
         let receipt = store
             .submit(Uuid::now_v7(), &hash, &parent_spec)
@@ -4123,6 +4567,21 @@ mod tests {
             .receipt;
         let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
         store.mark_started(&prepared, 4242, "parent-image").unwrap();
+        prepared
+    }
+
+    fn start_managed_child(
+        store: &mut Store,
+        parent: SubmissionScope,
+        child_spec: &JobSpec,
+    ) -> PreparedJob {
+        let hash = normalized_payload_hash(child_spec).unwrap();
+        let receipt = store
+            .submit_with_stdin_scoped(parent, Uuid::now_v7(), &hash, child_spec, None)
+            .unwrap()
+            .receipt;
+        let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        store.mark_started(&prepared, 4343, "child-image").unwrap();
         prepared
     }
 
@@ -4200,6 +4659,354 @@ mod tests {
             store.submit_with_stdin_scoped(scope, key, &changed_hash, &changed, None),
             Err(StoreError::IdempotencyConflict)
         ));
+    }
+
+    #[test]
+    fn managed_combined_wait_rejects_ancestor_scalar_but_detached_submit_survives() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+        let mut parent_spec = spec(temp.path());
+        parent_spec.allow_child_submissions = true;
+        parent_spec.resources.cargo_slots = Some(1);
+        let parent = start_managed_parent_with_spec(&mut store, parent_spec);
+        let scope = scope_for(&parent);
+        let mut child = spec(temp.path());
+        child.resources.cargo_slots = Some(1);
+        let hash = normalized_payload_hash(&child).unwrap();
+        let wait_key = Uuid::now_v7();
+
+        assert!(matches!(
+            store.submit_with_stdin_scoped_for_wait(scope, wait_key, &hash, &child, None, true,),
+            Err(StoreError::BlockedByAncestor(_))
+        ));
+        let (state, wait_intent): (String, bool) = store
+            .connection
+            .query_row(
+                "SELECT state, wait_intent FROM submissions WHERE idempotency_key = ?1",
+                [wait_key.to_string()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(state, "rejected");
+        assert!(wait_intent);
+        assert!(matches!(
+            store.submit_with_stdin_scoped_for_wait(
+                scope,
+                wait_key,
+                &hash,
+                &child,
+                None,
+                true,
+            ),
+            Err(StoreError::BlockedByAncestor(detail)) if detail.contains("cargo_slots")
+        ));
+        assert!(matches!(
+            store.recover_submission_scoped(scope, wait_key, &hash).unwrap(),
+            RecoveryResult::Rejected { code, detail }
+                if code == "blocked_by_ancestor" && detail.contains("cargo_slots")
+        ));
+        let jobs: u64 = store
+            .connection
+            .query_row("SELECT COUNT(*) FROM jobs", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(jobs, 1, "unsafe combined wait must create no child Job");
+
+        let detached_key = Uuid::now_v7();
+        let detached = store
+            .submit_with_stdin_scoped_for_wait(scope, detached_key, &hash, &child, None, false)
+            .unwrap();
+        assert!(matches!(
+            store.validate_managed_wait(scope, &[detached.receipt.job_id]),
+            Err(StoreError::BlockedByAncestor(_))
+        ));
+        assert!(
+            detached
+                .receipt
+                .blockers
+                .iter()
+                .any(|blocker| blocker.code == "resource_busy")
+        );
+        let replay = store
+            .submit_with_stdin_scoped_for_wait(scope, detached_key, &hash, &child, None, true)
+            .unwrap();
+        assert_eq!(replay.receipt.job_id, detached.receipt.job_id);
+        assert!(!replay.should_schedule);
+    }
+
+    #[test]
+    fn managed_wait_rejects_a_claim_that_exceeds_host_capacity() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+        let mut parent_spec = spec(temp.path());
+        parent_spec.allow_child_submissions = true;
+        let parent = start_managed_parent_with_spec(&mut store, parent_spec);
+        let scope = scope_for(&parent);
+        let mut child = spec(temp.path());
+        child.resources.cargo_slots = Some(2);
+        let hash = normalized_payload_hash(&child).unwrap();
+
+        assert!(matches!(
+            store.submit_with_stdin_scoped_for_wait(
+                scope,
+                Uuid::now_v7(),
+                &hash,
+                &child,
+                None,
+                true,
+            ),
+            Err(StoreError::ManagedWaitRejected { code, detail })
+                if code == "resource_capacity" && detail.contains("configured capacity 1")
+        ));
+        let children: u64 = store
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM jobs WHERE parent_job_id = ?1",
+                [parent.job_id.entity_uuid().to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(children, 0);
+    }
+
+    #[test]
+    fn received_wait_intent_survives_resume_and_cannot_accept_an_unsafe_child() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+        let mut parent_spec = spec(temp.path());
+        parent_spec.allow_child_submissions = true;
+        parent_spec.resources.cargo_slots = Some(1);
+        let parent = start_managed_parent_with_spec(&mut store, parent_spec);
+        let scope = scope_for(&parent);
+        let mut child = spec(temp.path());
+        child.resources.cargo_slots = Some(1);
+        let hash = normalized_payload_hash(&child).unwrap();
+        let key = Uuid::now_v7();
+        let submission_id = SubmissionId::new(store.store_uuid);
+        let managed = scope.parent().unwrap();
+        store
+            .connection
+            .execute(
+                "INSERT INTO submissions(
+                    id, scope, idempotency_key, payload_hash, state, spec_json, kind,
+                    parent_job_id, parent_attempt_id, parent_invocation_id, wait_intent, created_ms
+                 ) VALUES (?1, ?2, ?3, ?4, 'received', ?5, 'job', ?6, ?7, ?8, 1, ?9)",
+                params![
+                    submission_id.entity_uuid().to_string(),
+                    scope.key(),
+                    key.to_string(),
+                    hash,
+                    serde_json::to_string(&child).unwrap(),
+                    managed.job_id.entity_uuid().to_string(),
+                    managed.attempt_id.entity_uuid().to_string(),
+                    managed.invocation_id.entity_uuid().to_string(),
+                    now_millis(),
+                ],
+            )
+            .unwrap();
+
+        store.resume_received().unwrap();
+        assert!(matches!(
+            store.recover_submission_scoped(scope, key, &hash).unwrap(),
+            RecoveryResult::Rejected { .. }
+        ));
+        let children: u64 = store
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM jobs WHERE parent_job_id = ?1",
+                [managed.job_id.entity_uuid().to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(children, 0);
+    }
+
+    #[test]
+    fn managed_wait_allows_orthogonal_child_and_checks_the_full_ancestor_chain() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+        let mut grandparent_spec = spec(temp.path());
+        grandparent_spec.allow_child_submissions = true;
+        grandparent_spec.resources.cargo_slots = Some(1);
+        let grandparent = start_managed_parent_with_spec(&mut store, grandparent_spec);
+
+        let mut waiter_spec = spec(temp.path());
+        waiter_spec.allow_child_submissions = true;
+        let waiter = start_managed_child(&mut store, scope_for(&grandparent), &waiter_spec);
+        let waiter_scope = scope_for(&waiter);
+        let mut orthogonal = spec(temp.path());
+        orthogonal.resources.gpu_slots = Some(1);
+        let orthogonal_hash = normalized_payload_hash(&orthogonal).unwrap();
+        let accepted = store
+            .submit_with_stdin_scoped_for_wait(
+                waiter_scope,
+                Uuid::now_v7(),
+                &orthogonal_hash,
+                &orthogonal,
+                None,
+                true,
+            )
+            .unwrap();
+        store
+            .validate_managed_wait(waiter_scope, &[accepted.receipt.job_id])
+            .unwrap();
+
+        let mut conflicting = spec(temp.path());
+        conflicting.resources.cargo_slots = Some(1);
+        let conflicting_hash = normalized_payload_hash(&conflicting).unwrap();
+        assert!(matches!(
+            store.submit_with_stdin_scoped_for_wait(
+                waiter_scope,
+                Uuid::now_v7(),
+                &conflicting_hash,
+                &conflicting,
+                None,
+                true,
+            ),
+            Err(StoreError::BlockedByAncestor(detail)) if detail.contains("cargo_slots")
+        ));
+    }
+
+    #[test]
+    fn managed_wait_walks_unfinished_predecessors_and_rejects_self_or_foreign_targets() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+        let mut parent_spec = spec(temp.path());
+        parent_spec.allow_child_submissions = true;
+        parent_spec.resources.cargo_slots = Some(1);
+        let parent = start_managed_parent_with_spec(&mut store, parent_spec);
+        let scope = scope_for(&parent);
+
+        let mut predecessor = spec(temp.path());
+        predecessor.resources.cargo_slots = Some(1);
+        let mut successor = spec(temp.path());
+        successor.resources.gpu_slots = Some(1);
+        let batch = BatchSpec {
+            spec_version: SPEC_VERSION,
+            jobs: vec![
+                member("predecessor", predecessor, Vec::new()),
+                member(
+                    "successor",
+                    successor,
+                    vec![DependencySpec {
+                        job: "predecessor".into(),
+                        on: DependencyKind::Terminal,
+                    }],
+                ),
+            ],
+        };
+        let hash = normalized_batch_payload_hash(&batch).unwrap();
+        let receipt = store
+            .submit_batch_with_stdins_scoped(
+                scope,
+                Uuid::now_v7(),
+                &hash,
+                &batch,
+                &Default::default(),
+            )
+            .unwrap()
+            .receipt;
+        let successor_id = receipt
+            .jobs
+            .iter()
+            .find(|member| member.name == "successor")
+            .unwrap()
+            .receipt
+            .job_id;
+        assert!(matches!(
+            store.validate_managed_wait(scope, &[successor_id]),
+            Err(StoreError::BlockedByAncestor(detail)) if detail.contains("predecessor") && detail.contains("cargo_slots")
+        ));
+
+        let foreign_spec = spec(temp.path());
+        let foreign_hash = normalized_payload_hash(&foreign_spec).unwrap();
+        let foreign = store
+            .submit(Uuid::now_v7(), &foreign_hash, &foreign_spec)
+            .unwrap();
+        assert!(matches!(
+            store.validate_managed_wait(scope, &[foreign.receipt.job_id]),
+            Err(StoreError::Rejected(_))
+        ));
+
+        let direct_child = receipt.jobs[0].receipt.job_id;
+        store
+            .connection
+            .execute(
+                "INSERT INTO dependencies(predecessor_id, successor_id, kind)
+                 VALUES (?1, ?2, 'terminal')",
+                params![
+                    parent.job_id.entity_uuid().to_string(),
+                    direct_child.entity_uuid().to_string(),
+                ],
+            )
+            .unwrap();
+        assert!(matches!(
+            store.validate_managed_wait(scope, &[direct_child]),
+            Err(StoreError::BlockedByAncestor(detail)) if detail.contains("waiting Job itself")
+        ));
+    }
+
+    #[test]
+    fn managed_batch_wait_rejects_atomically_when_one_member_conflicts() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+        let mut parent_spec = spec(temp.path());
+        parent_spec.allow_child_submissions = true;
+        parent_spec.resources.cargo_slots = Some(1);
+        let parent = start_managed_parent_with_spec(&mut store, parent_spec);
+        let scope = scope_for(&parent);
+        let mut safe = spec(temp.path());
+        safe.resources.gpu_slots = Some(1);
+        let mut blocked = spec(temp.path());
+        blocked.resources.cargo_slots = Some(1);
+        let batch = BatchSpec {
+            spec_version: SPEC_VERSION,
+            jobs: vec![
+                member("safe", safe, Vec::new()),
+                member("blocked", blocked, Vec::new()),
+            ],
+        };
+        let hash = normalized_batch_payload_hash(&batch).unwrap();
+        let key = Uuid::now_v7();
+        assert!(matches!(
+            store.submit_batch_with_stdins_scoped_for_wait(
+                scope,
+                key,
+                &hash,
+                &batch,
+                &Default::default(),
+                true,
+            ),
+            Err(StoreError::BlockedByAncestor(_))
+        ));
+        let child_jobs: u64 = store
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM jobs WHERE parent_job_id = ?1",
+                [parent.job_id.entity_uuid().to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(child_jobs, 0);
+        let batches: u64 = store
+            .connection
+            .query_row("SELECT COUNT(*) FROM batches", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(batches, 0);
+        let state: String = store
+            .connection
+            .query_row(
+                "SELECT state FROM submissions WHERE idempotency_key = ?1",
+                [key.to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(state, "rejected");
     }
 
     #[test]

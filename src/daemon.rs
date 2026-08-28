@@ -87,36 +87,71 @@ fn resolve_managed_membership(
     candidates: &[ManagedCandidate],
     mut is_member: impl FnMut(crate::InvocationId) -> std::io::Result<Option<bool>>,
 ) -> std::result::Result<Option<crate::ManagedParent>, StoreError> {
-    let mut matched = None;
+    let mut matched = Vec::new();
     for candidate in candidates {
         match is_member(candidate.parent.invocation_id).map_err(StoreError::Io)? {
             Some(true) => {}
             Some(false) => continue,
-            None if candidate.current => {
+            None => {
                 return Err(StoreError::InvalidState(
-                    "current managed Containment has no live daemon handle".into(),
+                    "a possibly live managed Containment has no daemon-held handle".into(),
                 ));
             }
-            None => continue,
         }
-        if matched.is_some() {
-            return Err(StoreError::Rejected(
-                "named-pipe peer belongs to multiple Stillyard containments".into(),
-            ));
-        }
-        if !candidate.current {
-            return Err(StoreError::Rejected(
-                "the containing primary is no longer current and live".into(),
-            ));
-        }
-        if !candidate.submissions_enabled {
-            return Err(StoreError::Rejected(
-                "the containing primary does not allow child submissions".into(),
-            ));
-        }
-        matched = Some(candidate.parent);
+        matched.push(candidate);
     }
-    Ok(matched)
+    if matched.is_empty() {
+        return Ok(None);
+    }
+
+    // A process in a nested Windows Job hierarchy is a member of the immediate Job and every
+    // ancestor Job. Select the unique leaf containment, then prove that every other match is on
+    // its direct durable parent chain. Multiple leaves are an ambiguous authority match.
+    let leaves = matched
+        .iter()
+        .copied()
+        .filter(|candidate| {
+            !matched
+                .iter()
+                .any(|other| other.parent_job_id == Some(candidate.parent.job_id))
+        })
+        .collect::<Vec<_>>();
+    let [immediate] = leaves.as_slice() else {
+        return Err(StoreError::Rejected(
+            "named-pipe peer belongs to ambiguous Stillyard containments".into(),
+        ));
+    };
+    let mut lineage = std::collections::HashSet::new();
+    let mut current = Some(*immediate);
+    while let Some(candidate) = current {
+        if !lineage.insert(candidate.parent.job_id) {
+            return Err(StoreError::InvalidState(
+                "managed containment parent graph contains a cycle".into(),
+            ));
+        }
+        current = candidate.parent_job_id.and_then(|parent_job_id| {
+            matched
+                .iter()
+                .copied()
+                .find(|parent| parent.parent.job_id == parent_job_id)
+        });
+    }
+    if lineage.len() != matched.len() {
+        return Err(StoreError::Rejected(
+            "named-pipe peer belongs to unrelated Stillyard containments".into(),
+        ));
+    }
+    if !immediate.current {
+        return Err(StoreError::Rejected(
+            "the containing primary is no longer current and live".into(),
+        ));
+    }
+    if !immediate.submissions_enabled {
+        return Err(StoreError::Rejected(
+            "the containing primary does not allow child submissions".into(),
+        ));
+    }
+    Ok(Some(immediate.parent))
 }
 
 #[cfg(windows)]
@@ -341,6 +376,7 @@ fn handle_request(
             stdin,
             expected_store_uuid,
             expected_parent,
+            wait_for_completion,
         } => submission_context(store, peer)
             .and_then(|context| {
                 if context.parent != expected_parent {
@@ -359,7 +395,7 @@ fn handle_request(
                                 "store identity changed during submission".into(),
                             ));
                         }
-                        store.submit_with_stdin_scoped(
+                        store.submit_with_stdin_scoped_for_wait(
                             context
                                 .parent
                                 .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
@@ -367,6 +403,7 @@ fn handle_request(
                             &payload_hash,
                             &spec,
                             stdin.as_ref(),
+                            wait_for_completion,
                         )
                     })
             })
@@ -383,6 +420,7 @@ fn handle_request(
             stdins,
             expected_store_uuid,
             expected_parent,
+            wait_for_completion,
         } => submission_context(store, peer)
             .and_then(|context| {
                 if context.parent != expected_parent {
@@ -401,7 +439,7 @@ fn handle_request(
                                 "store identity changed during submission".into(),
                             ));
                         }
-                        store.submit_batch_with_stdins_scoped(
+                        store.submit_batch_with_stdins_scoped_for_wait(
                             context
                                 .parent
                                 .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
@@ -409,6 +447,7 @@ fn handle_request(
                             &payload_hash,
                             &spec,
                             &stdins,
+                            wait_for_completion,
                         )
                     })
             })
@@ -454,13 +493,30 @@ fn handle_request(
         Request::Wait {
             job_id,
             max_wait_millis,
-        } => scheduler
-            .wait_snapshot(
-                store,
-                job_id,
-                Duration::from_millis(u64::from(max_wait_millis.min(1_000))),
-            )
-            .map(|snapshot| Response::Snapshot(Box::new(snapshot))),
+            claimed_parent,
+        } => submission_context(store, peer).and_then(|context| {
+            if claimed_parent.is_some() && claimed_parent != context.parent {
+                return Err(StoreError::Rejected(
+                    "claimed managed parent does not match daemon-held OS containment".into(),
+                ));
+            }
+            store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                .validate_managed_wait(
+                    context
+                        .parent
+                        .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
+                    &[job_id],
+                )?;
+            scheduler
+                .wait_snapshot(
+                    store,
+                    job_id,
+                    Duration::from_millis(u64::from(max_wait_millis.min(1_000))),
+                )
+                .map(|snapshot| Response::Snapshot(Box::new(snapshot)))
+        }),
         Request::Logs {
             job_id,
             stream,
@@ -489,6 +545,14 @@ fn handle_request(
         StoreError::Rejected(_) => Response::Error {
             code: "rejected".into(),
             message: error.to_string(),
+        },
+        StoreError::BlockedByAncestor(detail) => Response::Error {
+            code: "blocked_by_ancestor".into(),
+            message: detail,
+        },
+        StoreError::ManagedWaitRejected { code, detail } => Response::Error {
+            code,
+            message: detail,
         },
         StoreError::InvalidSpec(_) => Response::Error {
             code: "invalid_spec".into(),
@@ -712,6 +776,7 @@ mod tests {
                 attempt_id: crate::AttemptId::from_parts(store, uuid::Uuid::now_v7()),
                 invocation_id: crate::InvocationId::from_parts(store, uuid::Uuid::now_v7()),
             },
+            parent_job_id: None,
             submissions_enabled: enabled,
             current: true,
         }
@@ -736,6 +801,24 @@ mod tests {
     }
 
     #[test]
+    fn nested_membership_selects_the_unique_immediate_containment() {
+        let store = uuid::Uuid::now_v7();
+        let outer = candidate(store, true);
+        let mut inner = candidate(store, true);
+        inner.parent_job_id = Some(outer.parent.job_id);
+        assert_eq!(
+            resolve_managed_membership(&[outer, inner], |_| Ok(Some(true))).unwrap(),
+            Some(inner.parent)
+        );
+
+        inner.submissions_enabled = false;
+        assert!(matches!(
+            resolve_managed_membership(&[outer, inner], |_| Ok(Some(true))),
+            Err(StoreError::Rejected(_))
+        ));
+    }
+
+    #[test]
     fn peer_inside_disabled_primary_is_rejected_not_downgraded_to_unmanaged() {
         let candidate = candidate(uuid::Uuid::now_v7(), false);
         assert!(matches!(
@@ -751,6 +834,16 @@ mod tests {
         assert!(matches!(
             resolve_managed_membership(&[candidate], |_| Ok(Some(true))),
             Err(StoreError::Rejected(_))
+        ));
+    }
+
+    #[test]
+    fn missing_handle_never_downgrades_a_possible_managed_peer_to_unmanaged() {
+        let mut candidate = candidate(uuid::Uuid::now_v7(), true);
+        candidate.current = false;
+        assert!(matches!(
+            resolve_managed_membership(&[candidate], |_| Ok(None)),
+            Err(StoreError::InvalidState(_))
         ));
     }
 

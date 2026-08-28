@@ -170,6 +170,9 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             if let Some(result_file) = result_file {
                 options = options.with_result_file(result_file);
             }
+            if wait {
+                options = options.with_wait_for_completion();
+            }
             if let Some(path) = batch {
                 if passthrough {
                     return Err("--passthrough is valid only for a single Job".into());
@@ -448,6 +451,7 @@ fn error_exit_code(error: &(dyn std::error::Error + 'static)) -> i32 {
             stillyard::Error::InvalidSpec(_) => 64,
             stillyard::Error::Unavailable(_) | stillyard::Error::UnsupportedPlatform(_) => 69,
             stillyard::Error::DeadlineElapsed | stillyard::Error::Canceled => 25,
+            stillyard::Error::ManagedWaitRejected { .. } => 27,
             stillyard::Error::Protocol(message)
                 if message.starts_with("idempotency_conflict:")
                     || message.starts_with("rejected:") =>

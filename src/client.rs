@@ -172,6 +172,7 @@ impl Client {
                 stdin,
                 expected_store_uuid: Some(context.store_uuid),
                 expected_parent: context.parent,
+                wait_for_completion: options.wait_for_completion,
             },
             deadline,
             cancellation,
@@ -253,6 +254,7 @@ impl Client {
                 stdins,
                 expected_store_uuid: Some(context.store_uuid),
                 expected_parent: context.parent,
+                wait_for_completion: options.wait_for_completion,
             },
             deadline,
             cancellation,
@@ -497,6 +499,7 @@ impl Client {
                 Request::Wait {
                     job_id,
                     max_wait_millis: 1_000,
+                    claimed_parent: claimed_managed_parent()?,
                 },
                 deadline,
                 cancellation,
@@ -525,6 +528,7 @@ impl Client {
                 Request::Wait {
                     job_id,
                     max_wait_millis: 250,
+                    claimed_parent: claimed_managed_parent()?,
                 },
                 deadline,
                 cancellation,
@@ -592,7 +596,12 @@ impl Client {
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<JobSnapshot> {
-        let receipt = self.submit(spec, options, deadline, cancellation)?;
+        let receipt = self.submit(
+            spec,
+            &options.clone().with_wait_for_completion(),
+            deadline,
+            cancellation,
+        )?;
         self.wait(receipt.job_id, deadline, cancellation)
     }
 
@@ -728,6 +737,14 @@ fn response_error<T>(response: Response) -> Result<T> {
     match response {
         Response::Error { code, message } if code == "invalid_spec" => {
             Err(Error::InvalidSpec(message))
+        }
+        Response::Error { code, message }
+            if code == "blocked_by_ancestor" || code == "resource_capacity" =>
+        {
+            Err(Error::ManagedWaitRejected {
+                code,
+                detail: message,
+            })
         }
         Response::Error { code, message } => Err(Error::Protocol(format!("{code}: {message}"))),
         _ => Err(Error::Protocol("unexpected response variant".into())),
@@ -1020,6 +1037,14 @@ fn persist_submit_decision(
         Response::Error { code, .. } if code == "idempotency_conflict" => {
             Some(RecoveryResult::Conflict)
         }
+        Response::Error { code, message }
+            if code == "blocked_by_ancestor" || code == "resource_capacity" =>
+        {
+            Some(RecoveryResult::Rejected {
+                code: code.clone(),
+                detail: message.clone(),
+            })
+        }
         _ => None,
     };
     if let Some(decision) = decision {
@@ -1284,10 +1309,10 @@ pub(crate) fn default_endpoint() -> Result<String> {
     #[cfg(windows)]
     let digest = format!("{:x}", Sha256::digest(identity.as_bytes()));
     #[cfg(windows)]
-    return Ok(format!(r"\\.\pipe\stillyard-v5-{}", &digest[..16]));
+    return Ok(format!(r"\\.\pipe\stillyard-v6-{}", &digest[..16]));
     #[cfg(not(windows))]
     return Ok(default_store_root()?
-        .join("stillyard-v5.sock")
+        .join("stillyard-v6.sock")
         .to_string_lossy()
         .into_owned());
 }
@@ -1697,6 +1722,33 @@ mod tests {
         let conflicted: ResultFileRecord =
             serde_json::from_reader(std::fs::File::open(&path).unwrap()).unwrap();
         assert_eq!(conflicted.receipt, Some(RecoveryResult::Conflict));
+
+        unknown.receipt = None;
+        write_json_atomically(&path, &unknown).unwrap();
+        persist_submit_decision(
+            &path,
+            options.idempotency_key,
+            "payload",
+            "pipe-a",
+            SubmissionContext {
+                store_uuid,
+                parent: Some(parent),
+            },
+            &Response::Error {
+                code: "blocked_by_ancestor".into(),
+                message: "cargo_slots retained by parent".into(),
+            },
+        )
+        .unwrap();
+        let rejected: ResultFileRecord =
+            serde_json::from_reader(std::fs::File::open(&path).unwrap()).unwrap();
+        assert_eq!(
+            rejected.receipt,
+            Some(RecoveryResult::Rejected {
+                code: "blocked_by_ancestor".into(),
+                detail: "cargo_slots retained by parent".into(),
+            })
+        );
     }
 
     #[test]

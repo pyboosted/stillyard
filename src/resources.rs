@@ -107,6 +107,112 @@ impl ResolvedClaims {
         blockers.dedup();
         blockers
     }
+
+    /// Reports only conflicts that exist because authenticated ancestors retain Leases.
+    /// Unrelated active Jobs are intentionally excluded: they can finish while the caller waits.
+    pub(crate) fn ancestor_blockers(
+        &self,
+        capacities: &ResourceCapacities,
+        ancestors: &[Self],
+    ) -> Vec<Blocker> {
+        let mut blockers = Vec::new();
+        ancestor_scalar_blocker(
+            &mut blockers,
+            "cpu_units",
+            self.cpu_units,
+            u64::from(capacities.cpu_units),
+            ancestors.iter().map(|claim| claim.cpu_units).sum(),
+        );
+        ancestor_scalar_blocker(
+            &mut blockers,
+            "ram_mb",
+            self.ram_mb,
+            capacities.ram_mb,
+            ancestors.iter().map(|claim| claim.ram_mb).sum(),
+        );
+        ancestor_scalar_blocker(
+            &mut blockers,
+            "cargo_slots",
+            self.cargo_slots,
+            u64::from(capacities.cargo_slots),
+            ancestors.iter().map(|claim| claim.cargo_slots).sum(),
+        );
+        ancestor_scalar_blocker(
+            &mut blockers,
+            "gpu_slots",
+            self.gpu_slots,
+            u64::from(capacities.gpu_slots),
+            ancestors.iter().map(|claim| claim.gpu_slots).sum(),
+        );
+        for (name, requested) in &self.custom {
+            ancestor_scalar_blocker(
+                &mut blockers,
+                name,
+                *requested,
+                capacities.custom.get(name).copied().unwrap_or(0),
+                ancestors
+                    .iter()
+                    .map(|claim| claim.custom.get(name).copied().unwrap_or(0))
+                    .sum(),
+            );
+        }
+        for claim in ancestors {
+            for fence in self.exclusive_fences.intersection(&claim.exclusive_fences) {
+                ancestor_fence_blocker(&mut blockers, fence);
+            }
+            for fence in self.exclusive_fences.intersection(&claim.shared_fences) {
+                ancestor_fence_blocker(&mut blockers, fence);
+            }
+            for fence in self.shared_fences.intersection(&claim.exclusive_fences) {
+                ancestor_fence_blocker(&mut blockers, fence);
+            }
+        }
+        blockers.sort_by(|left, right| {
+            left.code
+                .cmp(&right.code)
+                .then(left.detail.cmp(&right.detail))
+        });
+        blockers.dedup();
+        blockers
+    }
+}
+
+fn ancestor_scalar_blocker(
+    blockers: &mut Vec<Blocker>,
+    name: &str,
+    requested: u64,
+    capacity: u64,
+    retained_by_ancestors: u64,
+) {
+    if requested == 0 {
+        return;
+    }
+    if requested > capacity {
+        blockers.push(Blocker {
+            code: "resource_capacity".into(),
+            detail: format!("{name}: requested {requested}, configured capacity {capacity}"),
+        });
+        return;
+    }
+    if retained_by_ancestors == 0 {
+        return;
+    }
+    let available_after_ancestors = capacity.saturating_sub(retained_by_ancestors);
+    if requested > available_after_ancestors {
+        blockers.push(Blocker {
+            code: "blocked_by_ancestor".into(),
+            detail: format!(
+                "{name}: requested {requested}, available while ancestors retain Leases {available_after_ancestors}, configured {capacity}"
+            ),
+        });
+    }
+}
+
+fn ancestor_fence_blocker(blockers: &mut Vec<Blocker>, fence: &str) {
+    blockers.push(Blocker {
+        code: "blocked_by_ancestor".into(),
+        detail: format!("path fence retained by an ancestor: {fence}"),
+    });
 }
 
 fn resolve_fences(paths: &[String]) -> io::Result<BTreeSet<String>> {
@@ -307,6 +413,59 @@ mod tests {
                 .first()
                 .map(|blocker| blocker.code.as_str()),
             Some("path_fence_busy")
+        );
+    }
+
+    #[test]
+    fn managed_wait_checks_only_components_retained_by_ancestors() {
+        let capacities = ResourceCapacities {
+            cpu_units: 4,
+            ram_mb: 100,
+            cargo_slots: 2,
+            gpu_slots: 1,
+            custom: BTreeMap::new(),
+        };
+        let ancestor = ResolvedClaims {
+            cargo_slots: 1,
+            shared_fences: ["shared".into()].into(),
+            exclusive_fences: ["exclusive".into()].into(),
+            ..ResolvedClaims::default()
+        };
+        let orthogonal = ResolvedClaims {
+            cargo_slots: 1,
+            gpu_slots: 1,
+            shared_fences: ["shared".into()].into(),
+            ..ResolvedClaims::default()
+        };
+        assert!(
+            orthogonal
+                .ancestor_blockers(&capacities, std::slice::from_ref(&ancestor))
+                .is_empty()
+        );
+
+        let blocked = ResolvedClaims {
+            cargo_slots: 2,
+            shared_fences: ["exclusive".into()].into(),
+            ..ResolvedClaims::default()
+        };
+        let blockers = blocked.ancestor_blockers(&capacities, &[ancestor]);
+        assert_eq!(blockers.len(), 2);
+        assert!(
+            blockers
+                .iter()
+                .all(|blocker| blocker.code == "blocked_by_ancestor")
+        );
+
+        let impossible = ResolvedClaims {
+            cargo_slots: 3,
+            ..ResolvedClaims::default()
+        };
+        assert_eq!(
+            impossible
+                .ancestor_blockers(&capacities, &[])
+                .first()
+                .map(|blocker| blocker.code.as_str()),
+            Some("resource_capacity")
         );
     }
 
