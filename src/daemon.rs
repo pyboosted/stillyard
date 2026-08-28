@@ -1,5 +1,5 @@
 use std::sync::{Arc, Condvar, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[cfg(windows)]
 use fs2::FileExt;
@@ -253,6 +253,12 @@ impl Scheduler {
 
     fn run(self: Arc<Self>, store: SharedStore) {
         loop {
+            let retry_scan_started = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+                .try_into()
+                .unwrap_or(i64::MAX);
             let mut retry = false;
             let next = {
                 let mut guard = match store.lock() {
@@ -311,7 +317,7 @@ impl Scheduler {
             let retry_delay = store
                 .lock()
                 .ok()
-                .and_then(|guard| guard.next_retry_delay().ok())
+                .and_then(|guard| guard.next_retry_delay(retry_scan_started).ok())
                 .flatten();
             let retry_deadline = retry_delay.and_then(|delay| Instant::now().checked_add(delay));
             let (lock, condition) = &*self.signal;

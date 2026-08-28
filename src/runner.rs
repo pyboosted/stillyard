@@ -4,18 +4,36 @@ use crate::store::{PreparedJob, Store};
 
 #[cfg(windows)]
 static LIVE_CONTAINMENTS: std::sync::OnceLock<
-    Mutex<std::collections::HashMap<crate::InvocationId, usize>>,
+    Mutex<std::collections::HashMap<crate::InvocationId, RegisteredContainment>>,
 > = std::sync::OnceLock::new();
 
 #[cfg(windows)]
 struct ContainmentRegistration(crate::InvocationId);
 
 #[cfg(windows)]
+enum RegisteredContainment {
+    Live(usize),
+    /// The OS handle is gone only after cleanup was proved. Keep a negative tombstone until the
+    /// durable Containment transition commits so unrelated pipe peers never observe a missing
+    /// authority for a row that is still transiently `live` in SQLite.
+    Retired,
+}
+
+#[cfg(windows)]
 impl Drop for ContainmentRegistration {
     fn drop(&mut self) {
         if let Ok(mut registry) = LIVE_CONTAINMENTS.get_or_init(Default::default).lock() {
-            registry.remove(&self.0);
+            if let Some(containment) = registry.get_mut(&self.0) {
+                *containment = RegisteredContainment::Retired;
+            }
         }
+    }
+}
+
+#[cfg(windows)]
+fn clear_containment_registration(invocation_id: crate::InvocationId) {
+    if let Ok(mut registry) = LIVE_CONTAINMENTS.get_or_init(Default::default).lock() {
+        registry.remove(&invocation_id);
     }
 }
 
@@ -34,7 +52,7 @@ fn register_containment(
             "Invocation containment is already registered",
         ));
     }
-    registry.insert(invocation_id, handle as usize);
+    registry.insert(invocation_id, RegisteredContainment::Live(handle as usize));
     Ok(ContainmentRegistration(invocation_id))
 }
 
@@ -49,8 +67,12 @@ pub(crate) fn process_in_containment(
         .get_or_init(Default::default)
         .lock()
         .map_err(|_| std::io::Error::other("containment registry mutex poisoned"))?;
-    let Some(job_handle) = registry.get(&invocation_id).copied() else {
+    let Some(containment) = registry.get(&invocation_id) else {
         return Ok(None);
+    };
+    let job_handle = match containment {
+        RegisteredContainment::Live(handle) => *handle,
+        RegisteredContainment::Retired => return Ok(Some(false)),
     };
     let mut member = 0;
     // SAFETY: the registry lock prevents the runner from unregistering and closing the Job
@@ -78,6 +100,7 @@ pub(crate) fn run(job: PreparedJob, store: Arc<Mutex<Store>>) {
 
 #[cfg(windows)]
 mod windows {
+    use super::clear_containment_registration;
     use std::collections::BTreeMap;
     use std::ffi::{OsStr, c_void};
     use std::fs::{File, OpenOptions};
@@ -257,17 +280,6 @@ mod windows {
                 return;
             }
         };
-        if let Ok(mut locked) = store.lock() {
-            if locked
-                .mark_invocation_resolved(job, Some(primary.0 as i32), None)
-                .is_err()
-            {
-                return;
-            }
-        } else {
-            return;
-        }
-
         let mut verdict = if progress.canceled {
             AttemptVerdict::Canceled
         } else if primary.1 {
@@ -277,8 +289,34 @@ mod windows {
         } else {
             AttemptVerdict::ProcessFailed
         };
+        if let Ok(mut locked) = store.lock() {
+            match locked.mark_invocation_resolved(job, Some(primary.0 as i32), None) {
+                Ok(()) => clear_containment_registration(job.invocation_id),
+                Err(error) => {
+                    drop(locked);
+                    finish_completed_invocation(job, store, Some(primary.0 as i32), None, verdict);
+                    report_runner_error(job, &error);
+                    return;
+                }
+            }
+        } else {
+            return;
+        }
+
         if !matches!(verdict, AttemptVerdict::Canceled | AttemptVerdict::TimedOut) {
             for index in 0..job.spec.postconditions.len() {
+                match pending_stop_verdict(job, store) {
+                    Ok(Some(stop)) => {
+                        verdict = stop;
+                        break;
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        verdict = AttemptVerdict::Interrupted;
+                        report_runner_error(job, error.as_ref());
+                        break;
+                    }
+                }
                 let postcondition = match store
                     .lock()
                     .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
@@ -304,21 +342,35 @@ mod windows {
                     }
                 };
                 if post_progress.canceled || result.1 {
-                    if let Ok(mut locked) = store.lock() {
-                        if locked
-                            .mark_invocation_resolved(&postcondition, Some(result.0 as i32), None)
-                            .is_err()
-                        {
-                            return;
-                        }
-                    } else {
-                        return;
-                    }
-                    verdict = if post_progress.canceled {
+                    let stop = if post_progress.canceled {
                         AttemptVerdict::Canceled
                     } else {
                         AttemptVerdict::TimedOut
                     };
+                    if let Ok(mut locked) = store.lock() {
+                        match locked.mark_invocation_resolved(
+                            &postcondition,
+                            Some(result.0 as i32),
+                            None,
+                        ) {
+                            Ok(()) => clear_containment_registration(postcondition.invocation_id),
+                            Err(error) => {
+                                drop(locked);
+                                finish_completed_invocation(
+                                    &postcondition,
+                                    store,
+                                    Some(result.0 as i32),
+                                    None,
+                                    stop,
+                                );
+                                report_runner_error(&postcondition, &error);
+                                return;
+                            }
+                        }
+                    } else {
+                        return;
+                    }
+                    verdict = stop;
                     break;
                 }
                 let definition = &job.spec.postconditions[index];
@@ -330,35 +382,87 @@ mod windows {
                 } else {
                     ExitClassification::Failed
                 };
+                let classified_verdict = match classification {
+                    ExitClassification::Accepted => verdict,
+                    ExitClassification::Retryable => AttemptVerdict::PostconditionRetryable,
+                    ExitClassification::Failed => AttemptVerdict::PostconditionFailed,
+                };
                 if let Ok(mut locked) = store.lock() {
-                    if locked
-                        .mark_invocation_resolved(
-                            &postcondition,
-                            Some(result.0 as i32),
-                            Some(classification),
-                        )
-                        .is_err()
-                    {
-                        return;
+                    match locked.mark_invocation_resolved(
+                        &postcondition,
+                        Some(result.0 as i32),
+                        Some(classification),
+                    ) {
+                        Ok(()) => clear_containment_registration(postcondition.invocation_id),
+                        Err(error) => {
+                            drop(locked);
+                            finish_completed_invocation(
+                                &postcondition,
+                                store,
+                                Some(result.0 as i32),
+                                Some(classification),
+                                classified_verdict,
+                            );
+                            report_runner_error(&postcondition, &error);
+                            return;
+                        }
                     }
                 } else {
                     return;
                 }
-                match classification {
-                    ExitClassification::Accepted => {}
-                    ExitClassification::Retryable => {
-                        verdict = AttemptVerdict::PostconditionRetryable;
-                        break;
-                    }
-                    ExitClassification::Failed => {
-                        verdict = AttemptVerdict::PostconditionFailed;
-                        break;
-                    }
+                verdict = classified_verdict;
+                if classification != ExitClassification::Accepted {
+                    break;
                 }
             }
         }
         if let Ok(mut locked) = store.lock() {
-            let _ = locked.settle_attempt(job, verdict);
+            if let Err(error) = locked.settle_attempt(job, verdict) {
+                report_runner_error(job, &error);
+            }
+        }
+    }
+
+    fn pending_stop_verdict(
+        job: &PreparedJob,
+        store: &Arc<Mutex<Store>>,
+    ) -> RunResult<Option<AttemptVerdict>> {
+        if store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+            .cancel_requested(job.job_id)?
+        {
+            return Ok(Some(AttemptVerdict::Canceled));
+        }
+        let now: i64 = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+            .try_into()
+            .unwrap_or(i64::MAX);
+        Ok(job
+            .attempt_deadline_unix_millis
+            .is_some_and(|deadline| deadline <= now)
+            .then_some(AttemptVerdict::TimedOut))
+    }
+
+    fn finish_completed_invocation(
+        job: &PreparedJob,
+        store: &Arc<Mutex<Store>>,
+        exit_code: Option<i32>,
+        classification: Option<ExitClassification>,
+        verdict: AttemptVerdict,
+    ) {
+        if let Ok(mut locked) = store.lock() {
+            if locked
+                .mark_invocation_resolved(job, exit_code, classification)
+                .is_ok()
+            {
+                clear_containment_registration(job.invocation_id);
+                if let Err(error) = locked.settle_attempt(job, verdict) {
+                    report_runner_error(job, &error);
+                }
+            }
         }
     }
 
@@ -402,10 +506,22 @@ mod windows {
                 };
                 let classification = (verdict == AttemptVerdict::PostconditionFailed)
                     .then_some(ExitClassification::Failed);
-                let _ = locked.mark_invocation_resolved(job, progress.exit_code, classification);
-                let _ = locked.settle_attempt(job, verdict);
+                if locked
+                    .mark_invocation_resolved(job, progress.exit_code, classification)
+                    .is_ok()
+                {
+                    clear_containment_registration(job.invocation_id);
+                    if let Err(error) = locked.settle_attempt(job, verdict) {
+                        report_runner_error(job, &error);
+                    }
+                }
             } else {
-                let _ = locked.mark_uncertain(job, progress.exit_code, "interrupted");
+                if locked
+                    .mark_uncertain(job, progress.exit_code, "interrupted")
+                    .is_ok()
+                {
+                    clear_containment_registration(job.invocation_id);
+                }
             }
         }
     }
@@ -560,12 +676,6 @@ mod windows {
         ));
 
         let execution = (|| -> RunResult<(u32, bool)> {
-            // SAFETY: the primary thread handle is valid and has not been resumed before.
-            if unsafe { ResumeThread(thread_handle.raw()) } == u32::MAX {
-                return Err(std::io::Error::last_os_error().into());
-            }
-            progress.user_code_released = true;
-
             let deadline = job.attempt_deadline_unix_millis.and_then(|deadline| {
                 let now: i64 = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
@@ -576,50 +686,76 @@ mod windows {
                 let remaining = u64::try_from(deadline.saturating_sub(now)).unwrap_or(0);
                 Instant::now().checked_add(Duration::from_millis(remaining))
             });
-            let mut timed_out = false;
-            loop {
-                // SAFETY: process_handle remains valid throughout the wait.
-                let wait = unsafe { WaitForSingleObject(process_handle.raw(), 100) };
-                if wait == WAIT_OBJECT_0 {
-                    break;
+            let stop_before_resume = pending_stop_verdict(job, store)?;
+            let mut timed_out = stop_before_resume == Some(AttemptVerdict::TimedOut);
+            if let Some(stop) = stop_before_resume {
+                progress.canceled = stop == AttemptVerdict::Canceled;
+                progress.timed_out = timed_out;
+                let exit_code = if progress.canceled { 22 } else { 21 };
+                // SAFETY: the process is still suspended and born-contained. No user code runs
+                // after a cancel/deadline that won between preparation and release.
+                unsafe { TerminateJobObject(job_object.raw(), exit_code) };
+                // SAFETY: process_handle remains valid.
+                if unsafe { WaitForSingleObject(process_handle.raw(), 30_000) } != WAIT_OBJECT_0 {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "stopped suspended root did not exit within cleanup bound",
+                    )
+                    .into());
                 }
-                if wait != WAIT_TIMEOUT {
+            } else {
+                // SAFETY: the primary thread handle is valid and has not been resumed before.
+                if unsafe { ResumeThread(thread_handle.raw()) } == u32::MAX {
                     return Err(std::io::Error::last_os_error().into());
                 }
-                if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
-                    timed_out = true;
-                    progress.timed_out = true;
-                    // SAFETY: job is valid and contains the complete tree.
-                    unsafe { TerminateJobObject(job_object.raw(), 21) };
-                    // SAFETY: process_handle remains valid.
-                    if unsafe { WaitForSingleObject(process_handle.raw(), 30_000) } != WAIT_OBJECT_0
-                    {
-                        return Err(std::io::Error::new(
-                            std::io::ErrorKind::TimedOut,
-                            "terminated root did not exit within cleanup bound",
-                        )
-                        .into());
+                progress.user_code_released = true;
+
+                loop {
+                    // SAFETY: process_handle remains valid throughout the wait.
+                    let wait = unsafe { WaitForSingleObject(process_handle.raw(), 100) };
+                    if wait == WAIT_OBJECT_0 {
+                        break;
                     }
-                    break;
-                }
-                if store
-                    .lock()
-                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
-                    .cancel_requested(job.job_id)?
-                {
-                    progress.canceled = true;
-                    // SAFETY: job is valid and contains the complete Invocation tree.
-                    unsafe { TerminateJobObject(job_object.raw(), 22) };
-                    // SAFETY: process_handle remains valid.
-                    if unsafe { WaitForSingleObject(process_handle.raw(), 30_000) } != WAIT_OBJECT_0
-                    {
-                        return Err(std::io::Error::new(
-                            std::io::ErrorKind::TimedOut,
-                            "canceled root did not exit within cleanup bound",
-                        )
-                        .into());
+                    if wait != WAIT_TIMEOUT {
+                        return Err(std::io::Error::last_os_error().into());
                     }
-                    break;
+                    if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+                        timed_out = true;
+                        progress.timed_out = true;
+                        // SAFETY: job is valid and contains the complete tree.
+                        unsafe { TerminateJobObject(job_object.raw(), 21) };
+                        // SAFETY: process_handle remains valid.
+                        if unsafe { WaitForSingleObject(process_handle.raw(), 30_000) }
+                            != WAIT_OBJECT_0
+                        {
+                            return Err(std::io::Error::new(
+                                std::io::ErrorKind::TimedOut,
+                                "terminated root did not exit within cleanup bound",
+                            )
+                            .into());
+                        }
+                        break;
+                    }
+                    if store
+                        .lock()
+                        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                        .cancel_requested(job.job_id)?
+                    {
+                        progress.canceled = true;
+                        // SAFETY: job is valid and contains the complete Invocation tree.
+                        unsafe { TerminateJobObject(job_object.raw(), 22) };
+                        // SAFETY: process_handle remains valid.
+                        if unsafe { WaitForSingleObject(process_handle.raw(), 30_000) }
+                            != WAIT_OBJECT_0
+                        {
+                            return Err(std::io::Error::new(
+                                std::io::ErrorKind::TimedOut,
+                                "canceled root did not exit within cleanup bound",
+                            )
+                            .into());
+                        }
+                        break;
+                    }
                 }
             }
 
@@ -661,6 +797,7 @@ mod windows {
                 .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
                 .mark_uncertain(job, progress.exit_code, "interrupted")?;
             drop(registration);
+            clear_containment_registration(job.invocation_id);
             drop(job_object);
             return execution;
         }
@@ -1019,13 +1156,14 @@ mod windows {
     mod tests {
         use super::*;
         use crate::protocol::StagedInputRef;
+        use crate::runner::{process_in_containment, register_containment};
         use crate::store::{
             StorePaths, normalized_payload_hash, normalized_payload_hash_with_input,
         };
         use crate::{
-            AttemptVerdict, EnvironmentSpec, ExitClassification, InvocationRole, JobOutcome,
-            JobSpec, JobState, PostconditionSpec, ResourceClaims, RetryPolicy, SPEC_VERSION,
-            StdinSpec,
+            AttemptVerdict, EnvironmentSpec, ExitClassification, InvocationId, InvocationRole,
+            JobOutcome, JobSpec, JobState, PostconditionSpec, ResourceClaims, RetryPolicy,
+            SPEC_VERSION, StdinSpec,
         };
         use uuid::Uuid;
 
@@ -1098,6 +1236,22 @@ mod windows {
             assert_eq!(
                 failed_run_classification(&progress),
                 (JobOutcome::Interrupted, "interrupted")
+            );
+        }
+
+        #[test]
+        fn retired_registration_is_negative_until_durable_state_catches_up() {
+            let invocation_id = InvocationId::new(Uuid::now_v7());
+            let registration = register_containment(invocation_id, INVALID_HANDLE_VALUE).unwrap();
+            drop(registration);
+            assert_eq!(
+                process_in_containment(invocation_id, INVALID_HANDLE_VALUE as usize).unwrap(),
+                Some(false)
+            );
+            clear_containment_registration(invocation_id);
+            assert_eq!(
+                process_in_containment(invocation_id, INVALID_HANDLE_VALUE as usize).unwrap(),
+                None
             );
         }
 
@@ -1188,6 +1342,10 @@ mod windows {
                 let mut locked = store.lock().unwrap();
                 let snapshot = locked.status(first.job_id).unwrap();
                 assert_eq!(snapshot.state, JobState::Pending);
+                assert_eq!(
+                    snapshot.root_exit_code, None,
+                    "retry must clear stale root exit"
+                );
                 assert_eq!(
                     snapshot.attempts[0].verdict,
                     Some(AttemptVerdict::PostconditionRetryable)
@@ -1482,6 +1640,77 @@ mod windows {
                 snapshot.attempts[0].invocations[1].containment.state,
                 crate::ContainmentState::Empty
             );
+        }
+
+        #[test]
+        fn cancel_before_postcondition_release_never_runs_validator_code() {
+            let temp = tempfile::tempdir().unwrap();
+            let marker = temp.path().join("must-not-exist.marker");
+            let powershell = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+                .join("System32")
+                .join("WindowsPowerShell")
+                .join("v1.0")
+                .join("powershell.exe");
+            let mut spec = job_spec(temp.path(), powershell.clone(), vec!["-NoLogo".into()]);
+            spec.environment.set.insert(
+                "STY_CANCEL_MARKER".into(),
+                marker.to_string_lossy().into_owned(),
+            );
+            spec.postconditions.push(PostconditionSpec {
+                executable: powershell,
+                args: vec![
+                    "-NoLogo".into(),
+                    "-NoProfile".into(),
+                    "-NonInteractive".into(),
+                    "-Command".into(),
+                    "New-Item -ItemType File -Path $env:STY_CANCEL_MARKER | Out-Null; Start-Sleep -Seconds 30".into(),
+                ],
+                working_directory: None,
+                accepted_exit_codes: vec![0],
+                retryable_exit_codes: Vec::new(),
+            });
+            let (primary, store) = prepared(&spec, temp.path());
+            {
+                let mut locked = store.lock().unwrap();
+                locked
+                    .mark_started(&primary, u32::MAX, "primary-hash")
+                    .unwrap();
+                locked.mark_root_exited(&primary, 0).unwrap();
+                locked
+                    .mark_invocation_resolved(&primary, Some(0), None)
+                    .unwrap();
+            }
+            let postcondition = store
+                .lock()
+                .unwrap()
+                .prepare_postcondition(&primary, 0)
+                .unwrap();
+            store
+                .lock()
+                .unwrap()
+                .cancel_jobs(&[primary.job_id])
+                .unwrap();
+
+            let mut progress = RunProgress {
+                cleanup_proven: true,
+                ..RunProgress::default()
+            };
+            let result = run_inner(&postcondition, &store, &mut progress).unwrap();
+            assert!(progress.canceled);
+            assert!(
+                !progress.user_code_released,
+                "validator root was resumed after durable cancel"
+            );
+            assert_eq!(result.0, 22);
+            assert!(!marker.exists(), "durably canceled validator user code ran");
+            let mut locked = store.lock().unwrap();
+            locked
+                .mark_invocation_resolved(&postcondition, Some(result.0 as i32), None)
+                .unwrap();
+            clear_containment_registration(postcondition.invocation_id);
+            locked
+                .settle_attempt(&primary, AttemptVerdict::Canceled)
+                .unwrap();
         }
 
         #[test]

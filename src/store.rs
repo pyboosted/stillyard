@@ -21,6 +21,8 @@ use crate::{
 // Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
 // the current schema changes; daemon startup will replace the whole SQLite database.
 const STORE_SCHEMA_EPOCH: &str = "stillyard-alpha-consumer-lifecycle-2026-08-28";
+const MAX_CANCEL_JOBS: usize = 16;
+const SNAPSHOT_DIAGNOSTIC_BUDGET_BYTES: usize = 64 * 1024;
 const MAX_STDIN_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_UPLOAD_CHUNK_BYTES: usize = 256 * 1024;
 
@@ -2028,8 +2030,12 @@ impl Store {
         exit_code: Option<i32>,
         classification: Option<ExitClassification>,
     ) -> StoreResult<()> {
-        let stdout_tail = read_diagnostic_tail(&job.stdout_path)?;
-        let stderr_tail = read_diagnostic_tail(&job.stderr_path)?;
+        // Diagnostic observations must never prevent the authoritative lifecycle transition.
+        // Preserve the read failure in-band while still resolving the Invocation and Lease.
+        let stdout_tail = read_diagnostic_tail(&job.stdout_path)
+            .unwrap_or_else(|error| format!("[stillyard stdout tail unavailable: {error}]"));
+        let stderr_tail = read_diagnostic_tail(&job.stderr_path)
+            .unwrap_or_else(|error| format!("[stillyard stderr tail unavailable: {error}]"));
         let transaction = self.connection.transaction()?;
         transaction.execute(
             "UPDATE invocations SET state = 'resolved', root_exit_code = COALESCE(?2, root_exit_code),
@@ -2103,7 +2109,8 @@ impl Store {
             );
             transaction.execute(
                 "UPDATE jobs SET state = 'pending', attempt_id = NULL, invocation_id = NULL,
-                    containment_id = NULL, retry_not_before_ms = ?2, cancel_requested = 0
+                    containment_id = NULL, root_exit_code = NULL,
+                    retry_not_before_ms = ?2, cancel_requested = 0
                  WHERE id = ?1",
                 params![job.job_id.entity_uuid().to_string(), not_before],
             )?;
@@ -2151,6 +2158,11 @@ impl Store {
             return Err(StoreError::InvalidSpec(
                 "cancel requires at least one explicit Job ID".into(),
             ));
+        }
+        if job_ids.len() > MAX_CANCEL_JOBS {
+            return Err(StoreError::InvalidSpec(format!(
+                "cancel accepts at most {MAX_CANCEL_JOBS} Job IDs per request"
+            )));
         }
         let local_ids = job_ids
             .iter()
@@ -2564,6 +2576,7 @@ impl Store {
                     stderr_tail: stderr_tail.unwrap_or_default(),
                 });
         }
+        bound_snapshot_diagnostics(&mut attempts);
         Ok(attempts)
     }
 
@@ -2696,16 +2709,20 @@ impl Store {
         Ok(jobs)
     }
 
-    pub(crate) fn next_retry_delay(&self) -> StoreResult<Option<std::time::Duration>> {
+    pub(crate) fn next_retry_delay(
+        &self,
+        scheduling_pass_started: i64,
+    ) -> StoreResult<Option<std::time::Duration>> {
+        let now = now_millis();
         let next: Option<i64> = self.connection.query_row(
             "SELECT MIN(retry_not_before_ms) FROM jobs
-             WHERE state = 'pending' AND retry_not_before_ms IS NOT NULL",
-            [],
+             WHERE state = 'pending' AND retry_not_before_ms > ?1",
+            [scheduling_pass_started],
             |row| row.get(0),
         )?;
         Ok(next.map(|instant| {
             std::time::Duration::from_millis(
-                u64::try_from(instant.saturating_sub(now_millis())).unwrap_or(0),
+                u64::try_from(instant.saturating_sub(now)).unwrap_or(0),
             )
         }))
     }
@@ -2755,15 +2772,8 @@ impl Store {
             [],
         )?;
         transaction.execute(
-            "UPDATE jobs SET state = 'final', outcome = 'failed', finished_ms = ?1
-             WHERE state = 'active' AND invocation_id IN (
-                SELECT id FROM invocations WHERE root_pid IS NULL
-             )",
-            [finished],
-        )?;
-        transaction.execute(
             "UPDATE invocations SET state = 'resolved', finished_ms = ?1
-             WHERE state = 'started'",
+             WHERE state IN ('started', 'exited')",
             [finished],
         )?;
         transaction.execute(
@@ -2776,7 +2786,14 @@ impl Store {
             [finished],
         )?;
         transaction.execute(
-            "UPDATE jobs SET state = 'final', outcome = 'interrupted', finished_ms = ?1
+            "UPDATE jobs SET state = 'final',
+                outcome = CASE
+                    WHEN attempt_id IN (
+                        SELECT id FROM attempts WHERE verdict = 'start_failed'
+                    ) THEN 'failed'
+                    ELSE 'interrupted'
+                END,
+                finished_ms = ?1
              WHERE state = 'active'",
             [finished],
         )?;
@@ -2792,6 +2809,16 @@ impl Store {
                 [attempt_id],
             )?;
         }
+        transaction.execute(
+            "UPDATE leases SET state = 'released'
+             WHERE state = 'granted' AND attempt_id NOT IN (
+                SELECT DISTINCT invocations.attempt_id
+                FROM invocations
+                JOIN containments ON containments.invocation_id = invocations.id
+                WHERE containments.state IN ('creating', 'live', 'uncertain')
+             )",
+            [],
+        )?;
         transaction.commit()?;
         Ok(())
     }
@@ -3919,6 +3946,33 @@ fn read_diagnostic_tail(path: &Path) -> StoreResult<String> {
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
+fn bound_snapshot_diagnostics(attempts: &mut [AttemptSnapshot]) {
+    let mut remaining = SNAPSHOT_DIAGNOSTIC_BUDGET_BYTES;
+    for attempt in attempts.iter_mut().rev() {
+        for invocation in attempt.invocations.iter_mut().rev() {
+            keep_tail_within_budget(&mut invocation.stderr_tail, &mut remaining);
+            keep_tail_within_budget(&mut invocation.stdout_tail, &mut remaining);
+        }
+    }
+}
+
+fn keep_tail_within_budget(value: &mut String, remaining: &mut usize) {
+    if value.len() <= *remaining {
+        *remaining -= value.len();
+        return;
+    }
+    if *remaining == 0 {
+        value.clear();
+        return;
+    }
+    let mut start = value.len() - *remaining;
+    while !value.is_char_boundary(start) {
+        start += 1;
+    }
+    *value = value[start..].to_owned();
+    *remaining = 0;
+}
+
 fn now_millis() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -4795,6 +4849,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             store.mark_started(&prepared, u32::MAX, "exe-hash").unwrap();
+            store.mark_root_exited(&prepared, 0).unwrap();
             prepared.job_id
         };
         let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
@@ -4813,6 +4868,10 @@ mod tests {
             .unwrap();
         assert_eq!(containment, "empty");
         assert_eq!(lease, "released");
+        assert_eq!(
+            store.status(job_id).unwrap().attempts[0].invocations[0].state,
+            InvocationState::Resolved
+        );
     }
 
     #[test]
@@ -4848,6 +4907,128 @@ mod tests {
             .unwrap();
         assert_eq!(verdict, "start_failed");
         assert_eq!(containment, "empty");
+        assert_eq!(lease, "released");
+    }
+
+    #[test]
+    fn restart_during_prepared_postcondition_interrupts_consistently_and_releases_lease() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let job_id = {
+            let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+            let mut job_spec = spec(temp.path());
+            job_spec.resources.cargo_slots = Some(1);
+            job_spec.postconditions.push(PostconditionSpec {
+                executable: temp.path().join("validate.exe"),
+                args: Vec::new(),
+                working_directory: None,
+                accepted_exit_codes: vec![0],
+                retryable_exit_codes: Vec::new(),
+            });
+            let hash = normalized_payload_hash(&job_spec).unwrap();
+            let receipt = store
+                .submit(Uuid::now_v7(), &hash, &job_spec)
+                .unwrap()
+                .receipt;
+            let primary = store.prepare_job(receipt.job_id).unwrap().unwrap();
+            store
+                .mark_started(&primary, u32::MAX, "primary-hash")
+                .unwrap();
+            store.mark_root_exited(&primary, 0).unwrap();
+            store
+                .mark_invocation_resolved(&primary, Some(0), None)
+                .unwrap();
+            store.prepare_postcondition(&primary, 0).unwrap();
+            receipt.job_id
+        };
+
+        let store =
+            Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+                .unwrap();
+        let snapshot = store.status(job_id).unwrap();
+        assert_eq!(snapshot.outcome, Some(JobOutcome::Interrupted));
+        assert_eq!(
+            snapshot.attempts[0].verdict,
+            Some(AttemptVerdict::Interrupted)
+        );
+        assert_eq!(snapshot.attempts[0].invocations.len(), 2);
+        assert_eq!(
+            snapshot.attempts[0].invocations[1].state,
+            InvocationState::Resolved
+        );
+        assert_eq!(
+            snapshot.attempts[0].invocations[1].containment.state,
+            ContainmentState::Empty
+        );
+        let lease: String = store
+            .connection
+            .query_row(
+                "SELECT leases.state FROM leases JOIN attempts ON attempts.id = leases.attempt_id
+                 WHERE attempts.job_id = ?1",
+                [job_id.entity_uuid().to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(lease, "released");
+    }
+
+    #[test]
+    fn restart_after_resolved_postcondition_releases_empty_attempt_lease() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let job_id = {
+            let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+            let mut job_spec = spec(temp.path());
+            job_spec.resources.cargo_slots = Some(1);
+            job_spec.postconditions.push(PostconditionSpec {
+                executable: temp.path().join("validate.exe"),
+                args: Vec::new(),
+                working_directory: None,
+                accepted_exit_codes: vec![0],
+                retryable_exit_codes: Vec::new(),
+            });
+            let hash = normalized_payload_hash(&job_spec).unwrap();
+            let receipt = store
+                .submit(Uuid::now_v7(), &hash, &job_spec)
+                .unwrap()
+                .receipt;
+            let primary = store.prepare_job(receipt.job_id).unwrap().unwrap();
+            store
+                .mark_started(&primary, u32::MAX, "primary-hash")
+                .unwrap();
+            store.mark_root_exited(&primary, 0).unwrap();
+            store
+                .mark_invocation_resolved(&primary, Some(0), None)
+                .unwrap();
+            let validator = store.prepare_postcondition(&primary, 0).unwrap();
+            store
+                .mark_started(&validator, u32::MAX, "validator-hash")
+                .unwrap();
+            store.mark_root_exited(&validator, 0).unwrap();
+            store
+                .mark_invocation_resolved(&validator, Some(0), Some(ExitClassification::Accepted))
+                .unwrap();
+            receipt.job_id
+        };
+
+        let store =
+            Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+                .unwrap();
+        let snapshot = store.status(job_id).unwrap();
+        assert_eq!(snapshot.outcome, Some(JobOutcome::Interrupted));
+        assert_eq!(
+            snapshot.attempts[0].verdict,
+            Some(AttemptVerdict::Interrupted)
+        );
+        let lease: String = store
+            .connection
+            .query_row(
+                "SELECT leases.state FROM leases JOIN attempts ON attempts.id = leases.attempt_id
+                 WHERE attempts.job_id = ?1",
+                [job_id.entity_uuid().to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
         assert_eq!(lease, "released");
     }
 
@@ -4926,6 +5107,34 @@ mod tests {
             .unwrap();
         assert!(gap.gap.is_some());
         assert!(gap.bytes.is_empty());
+    }
+
+    #[test]
+    fn diagnostic_tail_io_failure_cannot_block_invocation_resolution() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        let receipt = store
+            .submit(Uuid::now_v7(), &hash, &job_spec)
+            .unwrap()
+            .receipt;
+        let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        std::fs::create_dir(&prepared.stdout_path).unwrap();
+
+        store
+            .mark_invocation_resolved(&prepared, Some(0), None)
+            .unwrap();
+        let snapshot = store.status(receipt.job_id).unwrap();
+        assert_eq!(
+            snapshot.attempts[0].invocations[0].state,
+            InvocationState::Resolved
+        );
+        assert!(
+            snapshot.attempts[0].invocations[0]
+                .stdout_tail
+                .contains("tail unavailable")
+        );
     }
 
     #[test]
@@ -5789,9 +5998,27 @@ mod tests {
         );
 
         let validator = store.prepare_postcondition(&first, 0).unwrap();
+        assert!(
+            store
+                .status(contender.job_id)
+                .unwrap()
+                .blockers
+                .iter()
+                .any(|blocker| blocker.code == "resource_busy"),
+            "preparing a postcondition must retain the complete Attempt Lease"
+        );
         store
             .mark_invocation_resolved(&validator, Some(10), Some(ExitClassification::Retryable))
             .unwrap();
+        assert!(
+            store
+                .status(contender.job_id)
+                .unwrap()
+                .blockers
+                .iter()
+                .any(|blocker| blocker.code == "resource_busy"),
+            "resolving the validator must not release the Lease before Attempt settlement"
+        );
         assert!(
             store
                 .settle_attempt(&first, AttemptVerdict::PostconditionRetryable)
@@ -5863,6 +6090,10 @@ mod tests {
             .receipt;
         let reviewer = receipt.jobs[0].receipt.job_id;
         let collect = receipt.jobs[1].receipt.job_id;
+        assert!(matches!(
+            store.cancel_jobs(&vec![reviewer; MAX_CANCEL_JOBS + 1]),
+            Err(StoreError::InvalidSpec(_))
+        ));
         let canceled = store.cancel_jobs(&[reviewer]).unwrap();
         assert_eq!(canceled[0].outcome, Some(JobOutcome::Canceled));
         assert!(canceled[0].cancel_requested);
@@ -5900,6 +6131,77 @@ mod tests {
         let active = store.status(active).unwrap();
         assert_eq!(active.outcome, Some(JobOutcome::Canceled));
         assert_eq!(active.attempts[0].verdict, Some(AttemptVerdict::Canceled));
+    }
+
+    #[test]
+    fn alpha6_expired_blocked_retry_does_not_spin_and_backoff_cancel_is_terminal() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut store =
+            Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+                .unwrap();
+        let mut retry_spec = spec(temp.path());
+        retry_spec.resources.cargo_slots = Some(1);
+        retry_spec.retry = RetryPolicy {
+            max_attempts: 2,
+            backoff_seconds: 60,
+            retryable: vec!["process_failed".into()],
+        };
+        let hash = normalized_payload_hash(&retry_spec).unwrap();
+        let retry_job = store
+            .submit(Uuid::now_v7(), &hash, &retry_spec)
+            .unwrap()
+            .receipt
+            .job_id;
+        let first = store.prepare_job(retry_job).unwrap().unwrap();
+        store
+            .mark_invocation_resolved(&first, Some(1), None)
+            .unwrap();
+        assert!(
+            store
+                .settle_attempt(&first, AttemptVerdict::ProcessFailed)
+                .unwrap()
+        );
+
+        let mut holder_spec = spec(temp.path());
+        holder_spec.resources.cargo_slots = Some(1);
+        let hash = normalized_payload_hash(&holder_spec).unwrap();
+        let holder = store
+            .submit(Uuid::now_v7(), &hash, &holder_spec)
+            .unwrap()
+            .receipt
+            .job_id;
+        store.prepare_job(holder).unwrap().unwrap();
+        let boundary = now_millis();
+        store
+            .connection
+            .execute(
+                "UPDATE jobs SET retry_not_before_ms = ?2 WHERE id = ?1",
+                params![retry_job.entity_uuid().to_string(), boundary],
+            )
+            .unwrap();
+        assert!(
+            store.next_retry_delay(boundary - 1).unwrap().is_some(),
+            "a retry that expires during a scheduling pass needs one immediate rescan"
+        );
+        store
+            .connection
+            .execute(
+                "UPDATE jobs SET retry_not_before_ms = ?2 WHERE id = ?1",
+                params![retry_job.entity_uuid().to_string(), now_millis() - 1],
+            )
+            .unwrap();
+
+        assert!(store.prepare_job(retry_job).unwrap().is_none());
+        let after_expiry = now_millis();
+        assert_eq!(
+            store.next_retry_delay(after_expiry).unwrap(),
+            None,
+            "an expired retry blocked on a Lease must wait for the Lease-release wakeup"
+        );
+        let canceled = store.cancel_jobs(&[retry_job]).unwrap();
+        assert_eq!(canceled[0].outcome, Some(JobOutcome::Canceled));
+        assert_eq!(canceled[0].attempts.len(), 1);
+        assert!(store.prepare_job(retry_job).unwrap().is_none());
     }
 
     #[test]
@@ -5980,5 +6282,18 @@ mod tests {
         assert_eq!(invocation.state, InvocationState::Exited);
         assert_eq!(invocation.root_exit_code, Some(0));
         assert_eq!(invocation.containment.state, ContainmentState::Live);
+    }
+
+    #[test]
+    fn snapshot_diagnostic_budget_keeps_newest_utf8_suffixes() {
+        let mut newest = "new".to_owned();
+        let mut older = "éolder".to_owned();
+        let mut remaining = 5;
+        keep_tail_within_budget(&mut newest, &mut remaining);
+        keep_tail_within_budget(&mut older, &mut remaining);
+
+        assert_eq!(newest, "new");
+        assert_eq!(older, "er");
+        assert_eq!(remaining, 0);
     }
 }

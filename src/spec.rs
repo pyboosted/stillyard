@@ -95,6 +95,13 @@ impl JobSpec {
         if self.postconditions.len() > 32 {
             return Err(Error::InvalidSpec("more than 32 postconditions".into()));
         }
+        let lifecycle_invocations = u64::from(self.retry.max_attempts)
+            .saturating_mul(u64::try_from(self.postconditions.len() + 1).unwrap_or(u64::MAX));
+        if lifecycle_invocations > 256 {
+            return Err(Error::InvalidSpec(
+                "retry attempts times Invocations per Attempt exceeds 256".into(),
+            ));
+        }
         for postcondition in &self.postconditions {
             postcondition.validate(self)?;
         }
@@ -780,5 +787,32 @@ mod tests {
         };
 
         assert!(retry.validate().is_err());
+    }
+
+    #[test]
+    fn lifecycle_history_has_a_finite_snapshot_bound() {
+        let root = std::env::current_dir().unwrap();
+        let mut job: JobSpec = serde_json::from_str(&format!(
+            r#"{{
+                "spec_version": 1,
+                "executable": {},
+                "working_directory": {},
+                "retry": {{ "max_attempts": 100, "backoff_seconds": 0 }}
+            }}"#,
+            serde_json::to_string(&root.join("tool.exe")).unwrap(),
+            serde_json::to_string(&root).unwrap(),
+        ))
+        .unwrap();
+        job.postconditions = (0..2)
+            .map(|_| PostconditionSpec {
+                executable: root.join("validator.exe"),
+                args: Vec::new(),
+                working_directory: None,
+                accepted_exit_codes: vec![0],
+                retryable_exit_codes: Vec::new(),
+            })
+            .collect();
+
+        assert!(job.validate().is_err());
     }
 }

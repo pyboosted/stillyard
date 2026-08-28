@@ -17,13 +17,23 @@ does not add a workflow engine, durable Wait entity, or a second scheduler.
   starting a validator never refreshes the budget.
 - `RetryPolicy` accepts known Attempt verdict names. A retryable settled Attempt releases its Lease,
   waits for the finite backoff without polling, and creates a new ordered Attempt under the same
-  Job. Cancel, timeout, and interruption never retry.
+  Job. A retry is always a complete rerun beginning with the primary Invocation; primary commands
+  must therefore be safe to run again. `max_attempts` counts the first run and every retry.
+- Postconditions run after every normally exited primary, including a nonzero primary exit. An
+  accepted validator preserves the primary verdict; `postcondition_retryable` or
+  `postcondition_failed` replaces it. A retryable validator exit starts another Attempt only when
+  `RetryPolicy::retryable` includes `postcondition_retryable`. Cancel and timeout take precedence
+  over every exit classification and never retry; interruption is likewise terminal.
 - The public snapshot exposes all Attempts and Invocations, postcondition exit classification,
-  bounded diagnostic tails, executable hash, daemon generation, and Containment state/incident.
+  executable hash, daemon generation, and Containment state/incident. Structural history is
+  complete; diagnostic tails share a 64 KiB newest-first budget per Job snapshot. Admission rejects
+  specs whose `max_attempts × (1 + postconditions)` exceeds 256.
 
 ## Plain cancel
 
 - `Client::cancel` and `stillyard cancel JOB...` atomically select explicit Job IDs only.
+- One request accepts at most 16 IDs and returns one acknowledgement snapshot per ID in input order;
+  any unknown ID rejects the whole request without changing any Job.
 - A pending Job becomes canceled without an Attempt. A running Job receives a durable cancel
   request; its runner terminates the complete Job Object, proves it empty, settles the Attempt
   canceled, releases the Lease, and suppresses retry.

@@ -21,6 +21,7 @@ use crate::{
 };
 
 const RESULT_FILE_VERSION: u32 = 4;
+const MAX_CANCEL_JOBS: usize = 16;
 
 #[derive(Clone, Debug)]
 pub struct ClientBuilder {
@@ -500,6 +501,11 @@ impl Client {
             return Err(Error::InvalidSpec(
                 "cancel requires at least one explicit Job ID".into(),
             ));
+        }
+        if job_ids.len() > MAX_CANCEL_JOBS {
+            return Err(Error::InvalidSpec(format!(
+                "cancel accepts at most {MAX_CANCEL_JOBS} Job IDs per request"
+            )));
         }
         match self.request(
             Request::Cancel {
