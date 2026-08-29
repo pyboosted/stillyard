@@ -92,9 +92,17 @@ VRAM UUIDs, and legacy retained alpha.9 policy spelling.
 
 The corrective test Job passed 186 library tests with 3 ignored, 28 TUI/CLI tests, and all
 integration/public API tests. The corrective release artifact has SHA-256
-`732D99C61A76F814D2705114AC2A4334C86A9A664363AEFF2513D962AC36D8FF`. It is recorded as a source
-and release-artifact correction; the already-running canonical daemon was deliberately not
-restarted during this follow-up.
+`732D99C61A76F814D2705114AC2A4334C86A9A664363AEFF2513D962AC36D8FF`.
+
+The artifact was then promoted to the canonical client/daemon executable. The prior `fccd01e`
+alpha.9 image is recoverable as
+`C:\Users\User\AppData\Local\stillyard\Stillyard\bin\stillyard.exe.alpha9-fccd01e-20260829.bak`
+with SHA-256 `7511D6D52F7E2B5B83E1084489AA551B59CBC0661EFDD465A9A3081B7AB0E99A`.
+The replacement daemon started as PID 59804 with generation
+`01a04e49-0615-71d1-acb2-34193b39b2e8`, retained the existing store UUID, and successfully ran
+post-promotion `fmt` Job
+`01a04dcf-9568-7952-ad05-ab209d61282f~01a04e49-32b2-7ab0-9a84-74048d9e68c5`.
+The promoted client also completed a JSON tree smoke against the retained managed family.
 
 ## Verdict
 
