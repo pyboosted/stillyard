@@ -1,4 +1,48 @@
 use super::*;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::path::Path;
+
+const MAX_MANAGED_POLICY_DEPTH: usize = 64;
+
+fn policy_rejection(code: &str, detail: impl Into<String>) -> StoreError {
+    let mut detail = detail.into();
+    truncate_policy_detail(&mut detail);
+    StoreError::OperationRejected {
+        code: code.into(),
+        detail,
+    }
+}
+
+fn contextualize_policy_rejection(
+    error: StoreError,
+    parent: Option<ManagedParent>,
+    batch_member: Option<&str>,
+) -> StoreError {
+    let StoreError::OperationRejected { code, detail } = error else {
+        return error;
+    };
+    let Some(parent) = parent else {
+        return StoreError::OperationRejected { code, detail };
+    };
+    let member = batch_member.map_or_else(String::new, |name| format!("; batch_member={name:?}"));
+    let mut detail = format!(
+        "parent_job={} parent_attempt={} parent_invocation={}{}; {}",
+        parent.job_id, parent.attempt_id, parent.invocation_id, member, detail
+    );
+    truncate_policy_detail(&mut detail);
+    StoreError::OperationRejected { code, detail }
+}
+
+fn truncate_policy_detail(detail: &mut String) {
+    if detail.len() <= 4096 {
+        return;
+    }
+    let mut end = 4096;
+    while !detail.is_char_boundary(end) {
+        end -= 1;
+    }
+    detail.truncate(end);
+}
 
 impl Store {
     #[cfg(test)]
@@ -151,7 +195,12 @@ impl Store {
         self.verify_staged_input(spec, stdin)?;
         let submission_id = SubmissionId::new(self.store_uuid);
         let received = self.connection.transaction()?;
-        validate_current_parent(&received, self.store_uuid, self.daemon_generation, scope)?;
+        validate_current_parent_identity(
+            &received,
+            self.store_uuid,
+            self.daemon_generation,
+            scope,
+        )?;
         let parent = scope.parent();
         received.execute(
             "INSERT INTO submissions(
@@ -336,7 +385,12 @@ impl Store {
         self.verify_staged_batch_inputs(spec, stdins)?;
         let submission_id = SubmissionId::new(self.store_uuid);
         let received = self.connection.transaction()?;
-        validate_current_parent(&received, self.store_uuid, self.daemon_generation, scope)?;
+        validate_current_parent_identity(
+            &received,
+            self.store_uuid,
+            self.daemon_generation,
+            scope,
+        )?;
         let parent = scope.parent();
         received.execute(
             "INSERT INTO submissions(
@@ -371,7 +425,7 @@ impl Store {
     ) -> StoreResult<BatchSubmitResult> {
         if let Err(error) = self.verify_staged_batch_inputs(spec, stdins) {
             self.reject_received_with(submission_id, error_code::REJECTED, &error.to_string())?;
-            return Err(StoreError::Rejected(error.to_string()));
+            return Err(error);
         }
         let batch_id = BatchId::new(self.store_uuid);
         let accepted_ms = now_millis();
@@ -385,6 +439,13 @@ impl Store {
                         .map_err(|error| StoreError::InvalidSpec(error.to_string()))?,
                     member.spec.clone(),
                     stdins.get(&member.name).cloned(),
+                    member
+                        .spec
+                        .child_submission_policy
+                        .as_ref()
+                        .map(ResolvedChildSubmissionPolicy::resolve)
+                        .transpose()
+                        .map_err(|error| StoreError::InvalidSpec(error.to_string()))?,
                 ))
             })
             .collect();
@@ -399,7 +460,7 @@ impl Store {
             .jobs
             .iter()
             .zip(&jobs)
-            .map(|(member, (job_id, _, _, _))| (member.name.as_str(), *job_id))
+            .map(|(member, (job_id, _, _, _, _))| (member.name.as_str(), *job_id))
             .collect();
         let store_uuid = self.store_uuid;
         let daemon_generation = self.daemon_generation;
@@ -431,13 +492,34 @@ impl Store {
                 "submission {submission_id} is terminal in state {state}"
             )));
         }
-        if let Err(error) =
-            validate_current_parent(&transaction, self.store_uuid, self.daemon_generation, scope)
-        {
+        if let Err(error) = validate_current_parent_identity(
+            &transaction,
+            self.store_uuid,
+            self.daemon_generation,
+            scope,
+        ) {
             drop(transaction);
             self.reject_received_for_error(submission_id, &error)?;
             return Err(StoreError::Rejected(error.to_string()));
         }
+        let policy_admissions = match spec
+            .jobs
+            .iter()
+            .map(|member| {
+                evaluate_managed_policy(&transaction, store_uuid, scope, &member.spec, accepted_ms)
+                    .map_err(|error| {
+                        contextualize_policy_rejection(error, scope.parent(), Some(&member.name))
+                    })
+            })
+            .collect::<StoreResult<Vec<_>>>()
+        {
+            Ok(admissions) => admissions,
+            Err(error) => {
+                drop(transaction);
+                self.reject_received_for_error(submission_id, &error)?;
+                return Err(error);
+            }
+        };
         let parent = scope.parent();
         transaction.execute(
             "INSERT INTO batches(id, state, submission_id, accepted_ms)
@@ -448,15 +530,23 @@ impl Store {
                 accepted_ms,
             ],
         )?;
-        for (index, (member, (job_id, claims, accepted_spec, stdin))) in
-            spec.jobs.iter().zip(&jobs).enumerate()
+        for (
+            (index, (member, (job_id, claims, accepted_spec, stdin, resolved_policy))),
+            admission,
+        ) in spec
+            .jobs
+            .iter()
+            .zip(&jobs)
+            .enumerate()
+            .zip(&policy_admissions)
         {
             transaction.execute(
                 "INSERT INTO jobs(
                     id, submission_id, batch_id, batch_member, batch_index, state,
                     spec_json, claims_json, stdin_hash, stdin_len,
-                    parent_job_id, parent_attempt_id, parent_invocation_id, accepted_ms
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, 'pending', ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                    parent_job_id, parent_attempt_id, parent_invocation_id,
+                    resolved_child_policy_json, managed_policy_admission_json, accepted_ms
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, 'pending', ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 params![
                     job_id.entity_uuid().to_string(),
                     submission_id.entity_uuid().to_string(),
@@ -470,11 +560,13 @@ impl Store {
                     parent.map(|parent| parent.job_id.entity_uuid().to_string()),
                     parent.map(|parent| parent.attempt_id.entity_uuid().to_string()),
                     parent.map(|parent| parent.invocation_id.entity_uuid().to_string()),
+                    resolved_policy.as_ref().map(serde_json::to_string).transpose()?,
+                    admission.as_ref().map(serde_json::to_string).transpose()?,
                     accepted_ms,
                 ],
             )?;
         }
-        for (member, (successor, _, _, _)) in spec.jobs.iter().zip(&jobs) {
+        for (member, (successor, _, _, _, _)) in spec.jobs.iter().zip(&jobs) {
             for dependency in &member.dependencies {
                 let predecessor = names.get(dependency.job.as_str()).copied().ok_or_else(|| {
                     StoreError::InvalidState(format!(
@@ -496,7 +588,7 @@ impl Store {
         if wait_for_completion {
             let targets = jobs
                 .iter()
-                .map(|(job_id, _, _, _)| *job_id)
+                .map(|(job_id, _, _, _, _)| *job_id)
                 .collect::<Vec<_>>();
             if let Err(error) = validate_managed_wait_targets(
                 &transaction,
@@ -648,7 +740,7 @@ impl Store {
             return match scope {
                 SubmissionScope::Unmanaged => Ok(RecoveryResult::Unknown),
                 SubmissionScope::Managed(_) => {
-                    match validate_current_parent(
+                    match validate_current_parent_identity(
                         &self.connection,
                         self.store_uuid,
                         self.daemon_generation,
@@ -718,6 +810,18 @@ impl Store {
                 return Err(StoreError::Rejected(error.to_string()));
             }
         };
+        let resolved_owned_policy = match spec
+            .child_submission_policy
+            .as_ref()
+            .map(ResolvedChildSubmissionPolicy::resolve)
+            .transpose()
+        {
+            Ok(policy) => policy,
+            Err(error) => {
+                self.reject_received_with(submission_id, error_code::REJECTED, &error.to_string())?;
+                return Err(StoreError::InvalidSpec(error.to_string()));
+            }
+        };
         let accepted_ms = now_millis();
         let store_uuid = self.store_uuid;
         let daemon_generation = self.daemon_generation;
@@ -749,19 +853,34 @@ impl Store {
                 "submission {submission_id} is terminal in state {state}"
             )));
         }
-        if let Err(error) =
-            validate_current_parent(&transaction, self.store_uuid, self.daemon_generation, scope)
-        {
+        if let Err(error) = validate_current_parent_identity(
+            &transaction,
+            self.store_uuid,
+            self.daemon_generation,
+            scope,
+        ) {
             drop(transaction);
             self.reject_received_for_error(submission_id, &error)?;
-            return Err(StoreError::Rejected(error.to_string()));
+            return Err(error);
         }
+        let policy_admission =
+            match evaluate_managed_policy(&transaction, store_uuid, scope, spec, accepted_ms)
+                .map_err(|error| contextualize_policy_rejection(error, scope.parent(), None))
+            {
+                Ok(admission) => admission,
+                Err(error) => {
+                    drop(transaction);
+                    self.reject_received_for_error(submission_id, &error)?;
+                    return Err(error);
+                }
+            };
         let parent = scope.parent();
         transaction.execute(
             "INSERT INTO jobs(
                 id, submission_id, state, spec_json, claims_json, stdin_hash, stdin_len,
-                parent_job_id, parent_attempt_id, parent_invocation_id, accepted_ms
-             ) VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                parent_job_id, parent_attempt_id, parent_invocation_id,
+                resolved_child_policy_json, managed_policy_admission_json, accepted_ms
+             ) VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 job_id.entity_uuid().to_string(),
                 submission_id.entity_uuid().to_string(),
@@ -772,6 +891,14 @@ impl Store {
                 parent.map(|parent| parent.job_id.entity_uuid().to_string()),
                 parent.map(|parent| parent.attempt_id.entity_uuid().to_string()),
                 parent.map(|parent| parent.invocation_id.entity_uuid().to_string()),
+                resolved_owned_policy
+                    .as_ref()
+                    .map(serde_json::to_string)
+                    .transpose()?,
+                policy_admission
+                    .as_ref()
+                    .map(serde_json::to_string)
+                    .transpose()?,
                 accepted_ms,
             ],
         )?;
@@ -835,6 +962,15 @@ impl Store {
         };
         let estimate = self.estimate_for_job(job_id, &blockers)?;
         let parent = self.parent_for_job(job_id)?;
+        let managed_policy_admission = self
+            .connection
+            .query_row(
+                "SELECT managed_policy_admission_json FROM jobs WHERE id = ?1",
+                [job_id.entity_uuid().to_string()],
+                |row| row.get::<_, Option<String>>(0),
+            )?
+            .map(|json| serde_json::from_str(&json))
+            .transpose()?;
         Ok(JobReceipt {
             submission_id,
             job_id,
@@ -844,6 +980,7 @@ impl Store {
             queue_rank,
             estimate,
             parent,
+            managed_policy_admission,
             gpu_provenance: self.gpu_provenance_for_job(job_id)?,
             admission: self.admission_for_job(job_id)?,
             daemon_generation: self.accepting_daemon_generation(submission_id)?,
@@ -889,7 +1026,7 @@ impl Store {
                 job,
                 attempt,
                 invocation,
-                spec_json,
+                _spec_json,
                 parent_job,
                 job_state,
                 job_attempt,
@@ -901,7 +1038,6 @@ impl Store {
                 daemon_generation,
                 containment_state,
             ) = row?;
-            let spec: JobSpec = serde_json::from_str(&spec_json)?;
             let current = job_state == "active"
                 && job_attempt.as_deref() == Some(attempt.as_str())
                 && job_invocation.as_deref() == Some(invocation.as_str())
@@ -924,7 +1060,6 @@ impl Store {
                     .map(|job| Uuid::parse_str(&job))
                     .transpose()?
                     .map(|job| JobId::from_parts(self.store_uuid, job)),
-                submissions_enabled: spec.allow_child_submissions,
                 current,
             });
         }
@@ -938,6 +1073,7 @@ pub(super) fn rejection_decision(error: &StoreError) -> (String, String) {
             (error_code::BLOCKED_BY_ANCESTOR.into(), detail.clone())
         }
         StoreError::ManagedWaitRejected { code, detail } => (code.clone(), detail.clone()),
+        StoreError::OperationRejected { code, detail } => (code.clone(), detail.clone()),
         _ => (error_code::REJECTED.into(), error.to_string()),
     }
 }
@@ -948,11 +1084,15 @@ pub(super) fn retained_rejection(code: Option<String>, detail: Option<String>) -
     match code.as_str() {
         error_code::BLOCKED_BY_ANCESTOR => StoreError::BlockedByAncestor(detail),
         error_code::RESOURCE_CAPACITY => StoreError::ManagedWaitRejected { code, detail },
+        code if code.starts_with("child_") => StoreError::OperationRejected {
+            code: code.to_owned(),
+            detail,
+        },
         _ => StoreError::Rejected(detail),
     }
 }
 
-pub(super) fn validate_current_parent(
+pub(super) fn validate_current_parent_identity(
     connection: &Connection,
     store_uuid: Uuid,
     daemon_generation: Uuid,
@@ -969,7 +1109,7 @@ pub(super) fn validate_current_parent(
             "managed parent belongs to a foreign store".into(),
         ));
     }
-    let spec_json = connection
+    let found = connection
         .query_row(
             "SELECT jobs.spec_json
              FROM jobs
@@ -996,16 +1136,434 @@ pub(super) fn validate_current_parent(
             |row| row.get::<_, String>(0),
         )
         .optional()?;
-    let Some(spec_json) = spec_json else {
+    let Some(_) = found else {
         return Err(StoreError::Rejected(
             "managed parent is no longer the live current primary Invocation".into(),
         ));
     };
-    let spec: JobSpec = serde_json::from_str(&spec_json)?;
-    if !spec.allow_child_submissions {
-        return Err(StoreError::Rejected(
-            "managed parent does not allow child submissions".into(),
+    Ok(())
+}
+
+fn require_current_parent_policy(
+    connection: &Connection,
+    scope: SubmissionScope,
+) -> StoreResult<()> {
+    let SubmissionScope::Managed(parent) = scope else {
+        return Ok(());
+    };
+    let policy: Option<String> = connection
+        .query_row(
+            "SELECT resolved_child_policy_json FROM jobs WHERE id = ?1",
+            [parent.job_id.entity_uuid().to_string()],
+            |row| row.get(0),
+        )
+        .optional()?
+        .flatten();
+    if policy.is_none() {
+        return Err(policy_rejection(
+            "child_submission_disabled",
+            format!("parent {} has no child submission policy", parent.job_id),
         ));
+    }
+    Ok(())
+}
+
+fn evaluate_managed_policy(
+    connection: &Connection,
+    store_uuid: Uuid,
+    scope: SubmissionScope,
+    spec: &JobSpec,
+    evaluated_unix_millis: i64,
+) -> StoreResult<Option<ManagedPolicyAdmissionSnapshot>> {
+    let SubmissionScope::Managed(immediate_parent) = scope else {
+        return Ok(None);
+    };
+    let mut current = Some(immediate_parent.job_id);
+    let mut visited = HashSet::new();
+    let mut ancestors = Vec::new();
+    while let Some(job_id) = current {
+        // The public bound counts the proposed child as part of the managed ancestry.
+        // A child may therefore retain at most MAX_MANAGED_POLICY_DEPTH - 1 ancestors.
+        if ancestors.len() + 1 >= MAX_MANAGED_POLICY_DEPTH {
+            return Err(policy_rejection(
+                "child_policy_depth_exceeded",
+                format!("managed ancestry would exceed {MAX_MANAGED_POLICY_DEPTH} Jobs"),
+            ));
+        }
+        if !visited.insert(job_id.entity_uuid()) {
+            return Err(StoreError::InvalidState(
+                "managed policy ancestry contains a cycle".into(),
+            ));
+        }
+        let row = connection
+            .query_row(
+                "SELECT resolved_child_policy_json, parent_job_id,
+                        parent_attempt_id, parent_invocation_id
+                 FROM jobs WHERE id = ?1",
+                [job_id.entity_uuid().to_string()],
+                |row| {
+                    Ok((
+                        row.get::<_, Option<String>>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                        row.get::<_, Option<String>>(3)?,
+                    ))
+                },
+            )
+            .optional()?
+            .ok_or_else(|| {
+                StoreError::InvalidState(format!("managed policy ancestor {job_id} is missing"))
+            })?;
+        let Some(policy_json) = row.0 else {
+            return Err(policy_rejection(
+                "child_submission_disabled",
+                format!("policy ancestor {job_id} has no child submission policy"),
+            ));
+        };
+        ancestors.push((
+            job_id,
+            serde_json::from_str::<ResolvedChildSubmissionPolicy>(&policy_json)?,
+        ));
+        current = managed_parent_from_columns(store_uuid, (row.1, row.2, row.3))?
+            .map(|parent| parent.job_id);
+    }
+
+    let mut effective_claims = ancestors[0].1.policy.max_claims.clone();
+    let mut effective_impacts = ancestors[0]
+        .1
+        .policy
+        .allowed_impacts
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let mut required = BTreeMap::<String, (String, JobId)>::new();
+    let mut allow_observed = true;
+    let mut allow_quiet = true;
+    let mut allow_delegation = true;
+
+    for (ancestor_id, resolved) in &ancestors {
+        let policy = &resolved.policy;
+        validate_claims_against_limit(spec, &policy.max_claims, *ancestor_id)?;
+        for impact in &spec.resources.impacts {
+            if !policy.allowed_impacts.contains(impact) {
+                return Err(policy_rejection(
+                    "child_impact_not_permitted",
+                    format!("impact {impact:?} is denied by policy ancestor {ancestor_id}"),
+                ));
+            }
+        }
+        for fence in &spec.resources.shared_fences {
+            if !resolved.allows_shared(Path::new(fence)).map_err(|error| {
+                StoreError::InvalidSpec(format!(
+                    "cannot resolve requested shared fence while checking policy ancestor {ancestor_id}: {error}"
+                ))
+            })? {
+                return Err(policy_rejection(
+                    "child_fence_not_permitted",
+                    format!("shared fence {fence:?} is denied by policy ancestor {ancestor_id}"),
+                ));
+            }
+        }
+        for fence in &spec.resources.exclusive_fences {
+            if !resolved
+                .allows_exclusive(Path::new(fence))
+                .map_err(|error| {
+                    StoreError::InvalidSpec(format!(
+                        "cannot resolve requested exclusive fence while checking policy ancestor {ancestor_id}: {error}"
+                    ))
+                })?
+            {
+                return Err(policy_rejection(
+                    "child_fence_not_permitted",
+                    format!("exclusive fence {fence:?} is denied by policy ancestor {ancestor_id}"),
+                ));
+            }
+        }
+        if spec.observed.is_some() && !policy.allow_observed {
+            return Err(policy_rejection(
+                "child_observed_not_permitted",
+                format!("observed policy is denied by policy ancestor {ancestor_id}"),
+            ));
+        }
+        if spec.quiet.is_some() && !policy.allow_quiet {
+            return Err(policy_rejection(
+                "child_quiet_not_permitted",
+                format!("quiet policy is denied by policy ancestor {ancestor_id}"),
+            ));
+        }
+        for label in &policy.required_labels {
+            match required.get(&label.key) {
+                Some((value, _)) if value != &label.value => {
+                    return Err(StoreError::InvalidState(format!(
+                        "policy ancestors disagree on required label {:?}",
+                        label.key
+                    )));
+                }
+                Some(_) => {}
+                None => {
+                    required.insert(label.key.clone(), (label.value.clone(), *ancestor_id));
+                }
+            }
+        }
+        effective_claims = intersect_claim_limits(&effective_claims, &policy.max_claims);
+        effective_impacts.retain(|impact| policy.allowed_impacts.contains(impact));
+        allow_observed &= policy.allow_observed;
+        allow_quiet &= policy.allow_quiet;
+        allow_delegation &= policy.allow_delegation;
+    }
+
+    let actual_labels = spec
+        .labels
+        .iter()
+        .map(|label| (label.key.as_str(), label.value.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    for (key, (value, ancestor_id)) in &required {
+        match actual_labels.get(key.as_str()) {
+            None => {
+                return Err(policy_rejection(
+                    "child_required_label_missing",
+                    format!("required label {key:?} from policy ancestor {ancestor_id} is absent"),
+                ));
+            }
+            Some(actual) if *actual != value => {
+                return Err(policy_rejection(
+                    "child_required_label_conflict",
+                    format!(
+                        "label {key:?} conflicts with policy ancestor {ancestor_id}: expected {value:?}"
+                    ),
+                ));
+            }
+            Some(_) => {}
+        }
+    }
+
+    if let Some(delegated) = &spec.child_submission_policy {
+        if !allow_delegation {
+            return Err(policy_rejection(
+                "child_policy_escalation",
+                format!(
+                    "policy delegation is denied by an ancestor of {}",
+                    immediate_parent.job_id
+                ),
+            ));
+        }
+        validate_delegated_policy(
+            delegated,
+            &effective_claims,
+            &effective_impacts,
+            &required,
+            allow_observed,
+            allow_quiet,
+            allow_delegation,
+            &ancestors,
+        )?;
+    }
+
+    let immediate = &ancestors[0].1;
+    let effective_policy = EffectiveChildSubmissionPolicy {
+        max_claims: effective_claims,
+        allowed_impacts: effective_impacts.into_iter().collect(),
+        required_labels: required
+            .into_iter()
+            .map(|(key, (value, _))| crate::Label { key, value })
+            .collect(),
+        fences: crate::ChildFencePolicy {
+            shared_roots: immediate
+                .shared_fences
+                .iter()
+                .map(|fence| fence.display_path.clone())
+                .collect(),
+            exclusive_roots: immediate
+                .exclusive_fences
+                .iter()
+                .map(|fence| fence.display_path.clone())
+                .collect(),
+        },
+        allow_observed,
+        allow_quiet,
+        allow_delegation,
+    };
+    Ok(Some(ManagedPolicyAdmissionSnapshot {
+        parent: immediate_parent,
+        evaluated_unix_millis,
+        effective_policy,
+        policy_ancestors: ancestors.iter().map(|(job_id, _)| *job_id).collect(),
+    }))
+}
+
+fn validate_claims_against_limit(
+    spec: &JobSpec,
+    limits: &crate::ResourceClaimLimits,
+    ancestor_id: JobId,
+) -> StoreResult<()> {
+    for (name, requested, permitted) in [
+        (
+            "cpu_units",
+            spec.resources.cpu_units.map(u64::from),
+            limits.cpu_units.map(u64::from),
+        ),
+        ("ram_mb", spec.resources.ram_mb, limits.ram_mb),
+        (
+            "cargo_slots",
+            spec.resources.cargo_slots.map(u64::from),
+            limits.cargo_slots.map(u64::from),
+        ),
+        (
+            "gpu_slots",
+            spec.resources.gpu_slots.map(u64::from),
+            limits.gpu_slots.map(u64::from),
+        ),
+    ] {
+        if requested.is_some_and(|value| permitted.is_none_or(|maximum| value > maximum)) {
+            return Err(policy_rejection(
+                "child_claim_not_permitted",
+                format!(
+                    "claim {name}={requested:?} exceeds {permitted:?} at policy ancestor {ancestor_id}"
+                ),
+            ));
+        }
+    }
+    for (name, requested) in &spec.resources.custom {
+        if limits
+            .custom
+            .get(name)
+            .is_none_or(|maximum| requested > maximum)
+        {
+            return Err(policy_rejection(
+                "child_claim_not_permitted",
+                format!(
+                    "custom claim {name:?}={requested} is denied by policy ancestor {ancestor_id}"
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn intersect_claim_limits(
+    left: &crate::ResourceClaimLimits,
+    right: &crate::ResourceClaimLimits,
+) -> crate::ResourceClaimLimits {
+    fn minimum<T: Copy + Ord>(left: Option<T>, right: Option<T>) -> Option<T> {
+        match (left, right) {
+            (Some(left), Some(right)) => Some(left.min(right)),
+            _ => None,
+        }
+    }
+    crate::ResourceClaimLimits {
+        cpu_units: minimum(left.cpu_units, right.cpu_units),
+        ram_mb: minimum(left.ram_mb, right.ram_mb),
+        cargo_slots: minimum(left.cargo_slots, right.cargo_slots),
+        gpu_slots: minimum(left.gpu_slots, right.gpu_slots),
+        custom: left
+            .custom
+            .iter()
+            .filter_map(|(name, value)| {
+                right
+                    .custom
+                    .get(name)
+                    .map(|other| (name.clone(), (*value).min(*other)))
+            })
+            .collect(),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_delegated_policy(
+    delegated: &crate::ChildSubmissionPolicy,
+    effective_claims: &crate::ResourceClaimLimits,
+    effective_impacts: &BTreeSet<String>,
+    required: &BTreeMap<String, (String, JobId)>,
+    allow_observed: bool,
+    allow_quiet: bool,
+    allow_delegation: bool,
+    ancestors: &[(JobId, ResolvedChildSubmissionPolicy)],
+) -> StoreResult<()> {
+    let envelope = JobSpec {
+        spec_version: crate::SPEC_VERSION,
+        executable: Path::new("C:\\stillyard-policy-check.exe").to_path_buf(),
+        args: Vec::new(),
+        working_directory: Path::new("C:\\").to_path_buf(),
+        stdin: crate::StdinSpec::default(),
+        environment: crate::EnvironmentSpec::default(),
+        resources: crate::ResourceClaims {
+            cpu_units: delegated.max_claims.cpu_units,
+            ram_mb: delegated.max_claims.ram_mb,
+            cargo_slots: delegated.max_claims.cargo_slots,
+            gpu_slots: delegated.max_claims.gpu_slots,
+            custom: delegated.max_claims.custom.clone(),
+            ..Default::default()
+        },
+        observed: None,
+        conditions: Vec::new(),
+        retry: crate::RetryPolicy::default(),
+        postconditions: Vec::new(),
+        labels: Vec::new(),
+        expected_duration_seconds: None,
+        timeout_seconds: None,
+        quiet: None,
+        artifacts: Vec::new(),
+        child_submission_policy: None,
+    };
+    validate_claims_against_limit(&envelope, effective_claims, ancestors[0].0).map_err(|_| {
+        policy_rejection(
+            "child_policy_escalation",
+            "delegated claim limits widen the effective ancestor policy",
+        )
+    })?;
+    if delegated
+        .allowed_impacts
+        .iter()
+        .any(|impact| !effective_impacts.contains(impact))
+        || (delegated.allow_observed && !allow_observed)
+        || (delegated.allow_quiet && !allow_quiet)
+        || (delegated.allow_delegation && !allow_delegation)
+    {
+        return Err(policy_rejection(
+            "child_policy_escalation",
+            "delegated impacts or booleans widen the effective ancestor policy",
+        ));
+    }
+    let delegated_labels = delegated
+        .required_labels
+        .iter()
+        .map(|label| (label.key.as_str(), label.value.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    if required.iter().any(|(key, (value, _))| {
+        delegated_labels
+            .get(key.as_str())
+            .is_none_or(|delegated| *delegated != value)
+    }) {
+        return Err(policy_rejection(
+            "child_policy_escalation",
+            "delegated required labels are not a consistent superset",
+        ));
+    }
+    for (ancestor_id, ancestor) in ancestors {
+        for root in &delegated.fences.shared_roots {
+            if !ancestor.allows_shared(root).map_err(|error| {
+                StoreError::InvalidSpec(format!(
+                    "cannot resolve delegated shared fence while checking policy ancestor {ancestor_id}: {error}"
+                ))
+            })? {
+                return Err(policy_rejection(
+                    "child_policy_escalation",
+                    format!("delegated shared fence is denied by ancestor {ancestor_id}"),
+                ));
+            }
+        }
+        for root in &delegated.fences.exclusive_roots {
+            if !ancestor.allows_exclusive(root).map_err(|error| {
+                StoreError::InvalidSpec(format!(
+                    "cannot resolve delegated exclusive fence while checking policy ancestor {ancestor_id}: {error}"
+                ))
+            })? {
+                return Err(policy_rejection(
+                    "child_policy_escalation",
+                    format!("delegated exclusive fence is denied by ancestor {ancestor_id}"),
+                ));
+            }
+        }
     }
     Ok(())
 }
@@ -1027,7 +1585,8 @@ pub(super) fn validate_managed_wait_targets(
             "managed wait requires at least one target".into(),
         ));
     }
-    validate_current_parent(connection, store_uuid, daemon_generation, scope)?;
+    validate_current_parent_identity(connection, store_uuid, daemon_generation, scope)?;
+    require_current_parent_policy(connection, scope)?;
     let ancestor_claims = managed_ancestor_claims(connection, store_uuid, parent)?;
     let mut pending = std::collections::VecDeque::from_iter(targets.iter().copied());
     let mut visited = std::collections::HashSet::new();
@@ -1129,6 +1688,11 @@ pub(super) fn job_descends_from(
             return Err(StoreError::InvalidState(
                 "managed parent graph contains a cycle".into(),
             ));
+        }
+        if visited.len() > MAX_MANAGED_POLICY_DEPTH {
+            return Err(StoreError::InvalidState(format!(
+                "managed parent graph exceeds {MAX_MANAGED_POLICY_DEPTH} Jobs"
+            )));
         }
         let columns = connection
             .query_row(

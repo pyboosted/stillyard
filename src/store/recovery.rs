@@ -182,7 +182,8 @@ impl Store {
                     StoreError::InvalidSpec(_)
                     | StoreError::Rejected(_)
                     | StoreError::BlockedByAncestor(_)
-                    | StoreError::ManagedWaitRejected { .. },
+                    | StoreError::ManagedWaitRejected { .. }
+                    | StoreError::OperationRejected { .. },
                 ) => {}
                 Err(error) => return Err(error),
             }

@@ -6,12 +6,13 @@ use uuid::Uuid;
 
 use crate::{
     BatchReceipt, BatchSpec, ClearContainmentResult, ContainmentId, ContainmentIncidentCursor,
-    DaemonSnapshot, DoctorSnapshot, EventCursor, JobId, JobListCursor, JobListPage, JobReceipt,
-    JobSelector, JobSnapshot, JobSpec, LogChunk, LogStream, ManagedParent, ObservationFrame,
-    SubmissionContext,
+    DaemonSnapshot, DoctorSnapshot, EventCursor, JobChildrenCursor, JobChildrenPage, JobId,
+    JobListCursor, JobListPage, JobReceipt, JobSelector, JobSnapshot, JobSpec, JobTreePage,
+    JobTreeRootCursor, JobTreeSelector, LogChunk, LogStream, ManagedParent, ObservationFrame,
+    SubmissionContext, TreeObservationFrame,
 };
 
-pub(crate) const PROTOCOL_VERSION: u32 = 13;
+pub(crate) const PROTOCOL_VERSION: u32 = 14;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 pub(crate) mod error_code {
@@ -22,6 +23,8 @@ pub(crate) mod error_code {
     pub(crate) const REJECTED: &str = "rejected";
     pub(crate) const RESOURCE_CAPACITY: &str = "resource_capacity";
     pub(crate) const STORE_ERROR: &str = "store_error";
+    pub(crate) const TREE_CURSOR_STALE: &str = "tree_cursor_stale";
+    pub(crate) const TREE_SCAN_LIMIT: &str = "tree_scan_limit";
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -82,12 +85,38 @@ pub(crate) enum Request {
         cursor: Option<JobListCursor>,
         limit: u32,
     },
+    Tree {
+        selector: JobSelector,
+        root_cursor: Option<JobTreeRootCursor>,
+        root_limit: u32,
+        node_limit: u32,
+        max_depth: Option<u32>,
+    },
+    TreeForJob {
+        job_id: JobId,
+        node_limit: u32,
+        max_depth: Option<u32>,
+    },
+    TreeChildren {
+        cursor: JobChildrenCursor,
+        node_limit: u32,
+        additional_depth: Option<u32>,
+    },
     Observe {
         selector: JobSelector,
         cursor: Option<EventCursor>,
         limit: u32,
         max_wait_millis: u32,
         managed_wait: bool,
+    },
+    ObserveTrees {
+        selector: JobTreeSelector,
+        cursor: Option<EventCursor>,
+        event_limit: u32,
+        root_limit: u32,
+        node_limit: u32,
+        max_depth: Option<u32>,
+        max_wait_millis: u32,
     },
     Cancel {
         job_ids: Vec<JobId>,
@@ -134,7 +163,10 @@ pub(crate) enum Response {
     },
     Snapshot(Box<JobSnapshot>),
     Listed(JobListPage),
+    Tree(JobTreePage),
+    TreeChildren(JobChildrenPage),
     Observed(ObservationFrame),
+    TreesObserved(TreeObservationFrame),
     Canceled {
         snapshots: Vec<JobSnapshot>,
     },

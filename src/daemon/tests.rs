@@ -57,7 +57,7 @@ fn first_pipe_instance_is_exclusive_and_released_with_its_handle() {
     create_pipe_instance(&endpoint, true).unwrap();
 }
 
-fn candidate(store: uuid::Uuid, enabled: bool) -> ManagedCandidate {
+fn candidate(store: uuid::Uuid, _enabled: bool) -> ManagedCandidate {
     ManagedCandidate {
         parent: crate::ManagedParent {
             job_id: crate::JobId::from_parts(store, uuid::Uuid::now_v7()),
@@ -65,7 +65,6 @@ fn candidate(store: uuid::Uuid, enabled: bool) -> ManagedCandidate {
             invocation_id: crate::InvocationId::from_parts(store, uuid::Uuid::now_v7()),
         },
         parent_job_id: None,
-        submissions_enabled: enabled,
         current: true,
     }
 }
@@ -99,20 +98,19 @@ fn nested_membership_selects_the_unique_immediate_containment() {
         Some(inner.parent)
     );
 
-    inner.submissions_enabled = false;
-    assert!(matches!(
-        resolve_managed_membership(&[outer, inner], |_| Ok(Some(true))),
-        Err(StoreError::Rejected(_))
-    ));
+    assert_eq!(
+        resolve_managed_membership(&[outer, inner], |_| Ok(Some(true))).unwrap(),
+        Some(inner.parent)
+    );
 }
 
 #[test]
-fn peer_inside_disabled_primary_is_rejected_not_downgraded_to_unmanaged() {
+fn peer_inside_disabled_primary_is_authenticated_not_downgraded_to_unmanaged() {
     let candidate = candidate(uuid::Uuid::now_v7(), false);
-    assert!(matches!(
-        resolve_managed_membership(&[candidate], |_| Ok(Some(true))),
-        Err(StoreError::Rejected(_))
-    ));
+    assert_eq!(
+        resolve_managed_membership(&[candidate], |_| Ok(Some(true))).unwrap(),
+        Some(candidate.parent)
+    );
 }
 
 #[test]
@@ -196,7 +194,7 @@ fn commit_at_wait_boundary_wakes_from_durable_event() {
         timeout_seconds: None,
         quiet: None,
         artifacts: Vec::new(),
-        allow_child_submissions: false,
+        child_submission_policy: None,
     };
     let hash = crate::store::normalized_payload_hash(&spec).unwrap();
     let receipt = store
@@ -327,7 +325,7 @@ fn wait_snapshot_includes_daemon_reconciliation_evidence() {
         timeout_seconds: None,
         quiet: None,
         artifacts: Vec::new(),
-        allow_child_submissions: false,
+        child_submission_policy: None,
     };
     let hash = crate::store::normalized_payload_hash(&spec).unwrap();
     let receipt = store

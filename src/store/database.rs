@@ -1,5 +1,23 @@
 use super::*;
 
+const JOBS_TREE_ORDER_INSERT_TRIGGER: &str = "CREATE TRIGGER jobs_tree_order_insert
+AFTER INSERT ON jobs BEGIN
+    UPDATE meta SET value = CAST(value AS INTEGER) + 1
+    WHERE key = 'tree_order_revision';
+END";
+
+const JOBS_TREE_ORDER_UPDATE_TRIGGER: &str = "CREATE TRIGGER jobs_tree_order_update
+AFTER UPDATE OF state, outcome, parent_job_id, parent_attempt_id, parent_invocation_id
+ON jobs
+WHEN OLD.state IS NOT NEW.state
+  OR OLD.outcome IS NOT NEW.outcome
+  OR OLD.parent_job_id IS NOT NEW.parent_job_id
+  OR OLD.parent_attempt_id IS NOT NEW.parent_attempt_id
+  OR OLD.parent_invocation_id IS NOT NEW.parent_invocation_id BEGIN
+    UPDATE meta SET value = CAST(value AS INTEGER) + 1
+    WHERE key = 'tree_order_revision';
+END";
+
 pub(super) fn load_host_config(path: &Path) -> StoreResult<HostConfig> {
     match File::open(path) {
         Ok(file) => {
@@ -291,7 +309,9 @@ pub(super) fn create_current_schema(
              retry_not_before_ms INTEGER,
              parent_job_id TEXT,
              parent_attempt_id TEXT,
-             parent_invocation_id TEXT
+             parent_invocation_id TEXT,
+             resolved_child_policy_json TEXT,
+             managed_policy_admission_json TEXT
          );
          CREATE TABLE dependencies(
              predecessor_id TEXT NOT NULL REFERENCES jobs(id),
@@ -404,6 +424,9 @@ pub(super) fn create_current_schema(
              committed_ms INTEGER NOT NULL
          );
          CREATE INDEX events_job_sequence ON events(job_id, sequence);
+         CREATE INDEX jobs_parent_accepted ON jobs(parent_job_id, accepted_ms, id);
+         CREATE INDEX jobs_state_accepted ON jobs(state, accepted_ms, id);
+         CREATE INDEX jobs_accepted_order ON jobs(accepted_ms, id);
          CREATE TRIGGER events_prune AFTER INSERT ON events BEGIN
              DELETE FROM events WHERE sequence <= NEW.sequence - {MAX_EVENT_ROWS};
          END;
@@ -433,6 +456,8 @@ pub(super) fn create_current_schema(
              VALUES ('job_changed', NEW.id, NEW.batch_id,
                  CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER));
          END;
+         {JOBS_TREE_ORDER_INSERT_TRIGGER};
+         {JOBS_TREE_ORDER_UPDATE_TRIGGER};
          CREATE TRIGGER cancellation_event_update AFTER UPDATE OF cancel_requested ON jobs
          WHEN OLD.cancel_requested IS NOT NEW.cancel_requested BEGIN
              INSERT INTO events(kind, job_id, batch_id, committed_ms)
@@ -491,6 +516,7 @@ pub(super) fn create_current_schema(
          END;
          INSERT INTO meta(key, value) VALUES ('store_uuid', '{store_uuid}');
          INSERT INTO meta(key, value) VALUES ('schema_epoch', '{STORE_SCHEMA_EPOCH}');
+         INSERT INTO meta(key, value) VALUES ('tree_order_revision', '0');
          {bound_host_meta}
          COMMIT;"
     ))?;
@@ -556,6 +582,8 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
                 "parent_job_id",
                 "parent_attempt_id",
                 "parent_invocation_id",
+                "resolved_child_policy_json",
+                "managed_policy_admission_json",
             ] as &[_],
         ),
         (
@@ -652,6 +680,8 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
         "events_prune",
         "jobs_event_insert",
         "jobs_event_update",
+        "jobs_tree_order_insert",
+        "jobs_tree_order_update",
         "cancellation_event_update",
         "logs_event_update",
         "attempts_event_insert",
@@ -672,5 +702,43 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
             )));
         }
     }
+    for index in [
+        "jobs_parent_accepted",
+        "jobs_state_accepted",
+        "jobs_accepted_order",
+    ] {
+        let exists = connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?1)",
+            [index],
+            |row| row.get::<_, bool>(0),
+        )?;
+        if !exists {
+            return Err(StoreError::InvalidState(format!(
+                "current schema is missing index {index}"
+            )));
+        }
+    }
+    for (name, expected) in [
+        ("jobs_tree_order_insert", JOBS_TREE_ORDER_INSERT_TRIGGER),
+        ("jobs_tree_order_update", JOBS_TREE_ORDER_UPDATE_TRIGGER),
+    ] {
+        let actual: String = connection.query_row(
+            "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = ?1",
+            [name],
+            |row| row.get(0),
+        )?;
+        if normalize_schema_sql(&actual) != normalize_schema_sql(expected) {
+            return Err(StoreError::InvalidState(format!(
+                "current schema trigger {name} does not match its canonical definition"
+            )));
+        }
+    }
     Ok(())
+}
+
+fn normalize_schema_sql(sql: &str) -> String {
+    sql.trim_end_matches(';')
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }

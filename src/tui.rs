@@ -1,11 +1,9 @@
 //! Operator terminal for `stillyard watch`.
 //!
-//! One screen: a queue grouped by what needs attention (running, queued, finished), a
-//! detail pane for the selected Job, and a log pane with `stdout`/`stderr` tabs. Every pane
-//! can take the whole screen with Enter; Tab moves focus; the footer names the keys that
-//! act on the focused pane.
+//! One screen combines the attention-grouped queue, selected Job detail, and log tabs.
+//! Enter expands a pane, Tab moves focus, and the footer names context-sensitive keys.
 
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::io;
 use std::sync::mpsc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -27,6 +25,9 @@ use stillyard::{
     AttemptVerdict, Client, JobId, JobListPage, JobOutcome, JobSelector, JobSnapshot, JobState,
     JobSummary, LogStream, ObservationFrame, ResourceClaims,
 };
+
+mod tree;
+use tree::{TreeView, load_tree_page, observe_for_refresh, refresh_page, request_deadline};
 
 const LOG_WINDOW_BYTES: usize = 64 * 1024;
 /// Label key that names the operator-facing project of a Job (see `AGENTS.md`).
@@ -140,6 +141,7 @@ enum Link {
 
 struct App {
     page: JobListPage,
+    tree: TreeView,
     /// Index into `page.jobs` of the selected Job (stable across re-sorting).
     selected: usize,
     detail: Option<JobSnapshot>,
@@ -192,6 +194,23 @@ impl App {
     /// Job indices in display order: running first, then queued by rank, then finished
     /// newest first.
     fn ordered_jobs(&self) -> Vec<usize> {
+        if !self.tree.order.is_empty() {
+            let by_id = self
+                .page
+                .jobs
+                .iter()
+                .enumerate()
+                .map(|(index, job)| (job.job_id, index))
+                .collect::<HashMap<_, _>>();
+            return self
+                .tree
+                .order
+                .iter()
+                .filter(|job_id| !self.tree_hidden(**job_id))
+                .filter_map(|job_id| by_id.get(job_id).copied())
+                .filter(|index| self.job_visible(&self.page.jobs[*index]))
+                .collect();
+        }
         let mut order: Vec<usize> = (0..self.page.jobs.len())
             .filter(|&index| self.job_visible(&self.page.jobs[index]))
             .collect();
@@ -204,12 +223,12 @@ impl App {
         let mut rows = Vec::with_capacity(order.len() + 3);
         let mut current: Option<Bucket> = None;
         for &index in &order {
-            let bucket = Bucket::of(&self.page.jobs[index]);
+            let bucket = self.bucket_for(&self.page.jobs[index]);
             if current != Some(bucket) {
                 current = Some(bucket);
                 let count = order
                     .iter()
-                    .filter(|&&other| Bucket::of(&self.page.jobs[other]) == bucket)
+                    .filter(|&&other| self.bucket_for(&self.page.jobs[other]) == bucket)
                     .count();
                 rows.push(RowKind::Group { bucket, count });
             }
@@ -344,16 +363,16 @@ pub(crate) fn run(
     deadline: Instant,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let limit = limit.clamp(1, stillyard::MAX_OBSERVATION_PAGE);
-    let page = client.list(
-        selector.clone(),
-        None,
-        limit,
-        request_deadline(deadline),
-        None,
-    )?;
+    let (page, tree) =
+        load_tree_page(&client, selector.clone(), limit, request_deadline(deadline))?;
     let initial_cursor = page.event_cursor;
+    let initial_status = tree.unavailable.as_ref().map_or_else(
+        || "connected".to_owned(),
+        |reason| format!("TREE VIEW UNAVAILABLE: {reason}"),
+    );
     let mut app = App {
         page,
+        tree,
         selected: 0,
         detail: None,
         detail_job: None,
@@ -361,7 +380,7 @@ pub(crate) fn run(
         stderr_offset: 0,
         stdout: VecDeque::with_capacity(LOG_WINDOW_BYTES),
         stderr: VecDeque::with_capacity(LOG_WINDOW_BYTES),
-        status: "connected".into(),
+        status: initial_status,
         link: Link::Connected,
         last_refresh: Instant::now(),
         focus: Pane::Queue,
@@ -406,14 +425,7 @@ pub(crate) fn run(
             let mut cursor = initial_cursor;
             loop {
                 let requested = cursor;
-                match observer.observe(
-                    selector.clone(),
-                    Some(cursor),
-                    stillyard::MAX_OBSERVATION_PAGE,
-                    std::time::Duration::from_secs(30),
-                    deadline,
-                    None,
-                ) {
+                match observe_for_refresh(&observer, &selector, cursor, deadline) {
                     Ok(frame) => {
                         cursor = frame.cursor();
                         if matches!(
@@ -538,6 +550,14 @@ pub(crate) fn run(
                                 app.select_edge(true);
                                 reselect = true;
                             }
+                            KeyCode::Left | KeyCode::Char('h') => {
+                                app.collapse_or_parent();
+                                reselect = true;
+                            }
+                            KeyCode::Right | KeyCode::Char('l') => {
+                                app.expand_or_child();
+                                reselect = true;
+                            }
                             _ => {}
                         },
                         Pane::Detail => match code {
@@ -605,10 +625,14 @@ pub(crate) fn run(
                 };
                 let refresh_deadline = request_deadline(deadline);
                 let refresh = match frame {
-                    ObservationFrame::Gap { snapshot, .. } => {
-                        replace_page(&mut app, snapshot);
-                        refresh_detail(&client, &mut app, refresh_deadline)
-                    }
+                    ObservationFrame::Gap { .. } => refresh_page(
+                        &client,
+                        &mut app,
+                        &refresh_selector,
+                        limit,
+                        refresh_deadline,
+                    )
+                    .and_then(|()| refresh_detail(&client, &mut app, refresh_deadline)),
                     ObservationFrame::Events { .. } => refresh_page(
                         &client,
                         &mut app,
@@ -624,6 +648,9 @@ pub(crate) fn run(
                 } else {
                     app.link = Link::Connected;
                     app.last_refresh = Instant::now();
+                    if let Some(reason) = &app.tree.unavailable {
+                        app.status = format!("TREE VIEW UNAVAILABLE: {reason}");
+                    }
                 }
             }
             Message::Observation(Err(error)) => {
@@ -651,28 +678,6 @@ pub(crate) fn run(
             }
         }
     }
-}
-
-fn request_deadline(overall: Instant) -> Instant {
-    overall.min(Instant::now() + std::time::Duration::from_secs(2))
-}
-
-fn replace_page(app: &mut App, page: JobListPage) {
-    let selected = app.selected_job();
-    app.page = page;
-    app.settle_selection(selected);
-}
-
-fn refresh_page(
-    client: &Client,
-    app: &mut App,
-    selector: &JobSelector,
-    limit: u32,
-    deadline: Instant,
-) -> stillyard::Result<()> {
-    let page = client.list(selector.clone(), None, limit, deadline, None)?;
-    replace_page(app, page);
-    Ok(())
 }
 
 fn refresh_detail(client: &Client, app: &mut App, deadline: Instant) -> stillyard::Result<()> {
@@ -1597,7 +1602,7 @@ fn draw_queue(
                     if column_index > 0 {
                         spans.push(Span::raw(" "));
                     }
-                    spans.extend(queue_cell(job, column, widths[column_index], clock));
+                    spans.extend(queue_cell(app, job, column, widths[column_index], clock));
                 }
                 let mut line = Line::from(spans);
                 if selected {
@@ -1611,13 +1616,22 @@ fn draw_queue(
     draw_scrollbar(frame, area, rows.len(), app.queue_offset, view, focused);
 }
 
-fn queue_cell(job: &JobSummary, column: &Column, width: usize, clock: Clock) -> Vec<Span<'static>> {
+fn queue_cell(
+    app: &App,
+    job: &JobSummary,
+    column: &Column,
+    width: usize,
+    clock: Clock,
+) -> Vec<Span<'static>> {
     let visual = state_visual(job.state, job.outcome);
     let bucket = Bucket::of(job);
+    let context_only = app.tree.context_only.contains(&job.job_id);
     match column.title {
         "STATE" => vec![Span::styled(
             pad_right(&format!("{} {}", visual.glyph, visual.label), width),
-            if bucket == Bucket::Running {
+            if context_only {
+                dim()
+            } else if bucket == Bucket::Running {
                 bold(Style::default().fg(visual.color))
             } else {
                 Style::default().fg(visual.color)
@@ -1691,14 +1705,30 @@ fn queue_cell(job: &JobSummary, column: &Column, width: usize, clock: Clock) -> 
                     }
                 },
             );
-            fit_spans(command_spans(&command), width)
+            let depth = app.tree.depths.get(&job.job_id).copied().unwrap_or(0);
+            let guide = if app.tree.orphans.contains(&job.job_id) {
+                "?─ ".to_owned()
+            } else if depth == 0 {
+                String::new()
+            } else {
+                format!("{}├─ ", "│  ".repeat(depth.saturating_sub(1) as usize))
+            };
+            let command = format!("{guide}{command}");
+            if context_only {
+                fit_spans(vec![Span::styled(command, dim())], width)
+            } else {
+                fit_spans(command_spans(&command), width)
+            }
         }
         "NOTE" => {
-            let note = job
-                .blocker
-                .as_ref()
-                .map(|blocker| blocker.code.clone())
-                .unwrap_or_default();
+            let note = if app.tree.orphans.contains(&job.job_id) {
+                "orphan: parent not retained".to_owned()
+            } else {
+                job.blocker
+                    .as_ref()
+                    .map(|blocker| blocker.code.clone())
+                    .unwrap_or_default()
+            };
             let style = if bucket == Bucket::Queued && !note.is_empty() {
                 Style::default().fg(palette::WARN)
             } else {
@@ -1845,6 +1875,18 @@ fn detail_lines(app: &App, clock: Clock, width: usize) -> Vec<Line<'static>> {
     if !claims.is_empty() {
         kv("Claims", claims);
     }
+    if let Some(policy) = &job.spec.child_submission_policy {
+        kv(
+            "Child policy",
+            vec![
+                Span::styled("authorization only; not reserved  ", dim()),
+                Span::styled(
+                    serde_json::to_string(policy).unwrap_or_else(|_| "?".into()),
+                    text(),
+                ),
+            ],
+        );
+    }
     if !job.spec.labels.is_empty() {
         let mut spans = Vec::new();
         for (index, label) in job.spec.labels.iter().enumerate() {
@@ -1869,6 +1911,21 @@ fn detail_lines(app: &App, clock: Clock, width: usize) -> Vec<Line<'static>> {
                 format!(
                     "{} / {} / {}",
                     parent.job_id, parent.attempt_id, parent.invocation_id
+                ),
+                text(),
+            )],
+        );
+    }
+    if let Some(admission) = &job.managed_policy_admission {
+        kv(
+            "Policy admit",
+            vec![Span::styled(
+                format!(
+                    "{} ancestor(s), evaluated {}; effective {}",
+                    admission.policy_ancestors.len(),
+                    clock.precise(admission.evaluated_unix_millis),
+                    serde_json::to_string(&admission.effective_policy)
+                        .unwrap_or_else(|_| "?".into())
                 ),
                 text(),
             )],
@@ -2323,6 +2380,7 @@ mod tests {
         .expect("test page deserializes");
         let mut app = App {
             page,
+            tree: TreeView::default(),
             selected: 0,
             detail: None,
             detail_job: None,
@@ -2354,7 +2412,7 @@ mod tests {
 
     fn snapshot(summary: &JobSummary) -> JobSnapshot {
         let spec = serde_json::json!({
-            "spec_version": 1,
+            "spec_version": 2,
             "executable": r"C:\tools\cmd.exe",
             "args": ["/d", "/c", "echo released>target\\dogfood\\e-released.txt"],
             "working_directory": r"C:\Development\stillyard",

@@ -19,6 +19,12 @@ pub enum Error {
     #[error("operation rejected ({code}): {detail}")]
     Rejected { code: String, detail: String },
 
+    #[error("view cursor is stale: {detail}")]
+    ViewStale { detail: String },
+
+    #[error("view unavailable: {detail}")]
+    ViewUnavailable { detail: String },
+
     #[error("{detail}")]
     NotFound { detail: String },
 

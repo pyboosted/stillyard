@@ -3,32 +3,37 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
+use rusqlite::{
+    Connection, OpenFlags, OptionalExtension, Transaction, TransactionBehavior, params,
+};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::identity::{StartupIdentity, probe_startup_identity};
 use crate::payload::{MAX_CANCEL_JOBS, MAX_STDIN_BYTES};
 use crate::protocol::{StagedInputRef, error_code};
-use crate::resources::ResolvedClaims;
+use crate::resources::{ResolvedChildSubmissionPolicy, ResolvedClaims};
 use crate::{
     AdmissionDecisionSnapshot, AdmissionDecisionState, AttemptId, AttemptSnapshot, AttemptVerdict,
     BatchId, BatchJobReceipt, BatchReceipt, BatchSpec, Blocker, BootId, ClearContainmentResult,
     ClearanceOrigin, ContainmentId, ContainmentIncidentCursor, ContainmentIncidentSnapshot,
     ContainmentResolution, ContainmentResolutionAudit, ContainmentSnapshot, ContainmentState,
     DaemonSnapshot, DoctorBoundary, DoctorCheck, DoctorCheckStatus, DoctorHostSnapshot,
-    DoctorIncidentPage, DoctorOverallStatus, DoctorSnapshot, DoctorStoreSnapshot, Estimate,
-    EventCursor, EventGap, ExitClassification, ForcedClearanceAudit, GpuProvenance, HostConfig,
-    HostId, InvocationId, InvocationRole, InvocationSnapshot, InvocationState, JobId,
-    JobListCursor, JobListPage, JobOutcome, JobReceipt, JobSelector, JobSnapshot, JobSpec,
-    JobState, JobSummary, LogChunk, LogStream, MAX_OBSERVATION_PAGE, ManagedParent,
+    DoctorIncidentPage, DoctorOverallStatus, DoctorSnapshot, DoctorStoreSnapshot,
+    EffectiveChildSubmissionPolicy, Estimate, EventCursor, EventGap, ExitClassification,
+    ForcedClearanceAudit, GpuProvenance, HostConfig, HostId, InvocationId, InvocationRole,
+    InvocationSnapshot, InvocationState, JobChildrenCursor, JobChildrenPage, JobId, JobListCursor,
+    JobListPage, JobOutcome, JobReceipt, JobSelector, JobSnapshot, JobSpec, JobState, JobSummary,
+    JobTreePage, JobTreeRootCursor, JobTreeSelector, LogChunk, LogStream, MAX_OBSERVATION_PAGE,
+    MAX_TREE_PAGE_NODES, MAX_TREE_SELECTOR_JOBS, ManagedParent, ManagedPolicyAdmissionSnapshot,
     ObservationFrame, ProcessIdentity, ReconciliationResult, RecoveryResult, ResourceCapacities,
     SchedulerEvent, SchedulerEventKind, StdinSpec, SubmissionId, SubmissionState,
+    TreeAttentionBucket, TreeObservationFrame,
 };
 
 // Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
 // the current schema changes; daemon startup will replace the whole SQLite database.
-const STORE_SCHEMA_EPOCH: &str = "stillyard-observed-admission-r2-2026-08-29";
+const STORE_SCHEMA_EPOCH: &str = "stillyard-managed-child-tree-r1-2026-08-29";
 const MAX_EVENT_ROWS: u64 = 16_384;
 const SNAPSHOT_DIAGNOSTIC_BUDGET_BYTES: usize = 64 * 1024;
 const MAX_UPLOAD_CHUNK_BYTES: usize = 256 * 1024;
@@ -116,6 +121,10 @@ pub(crate) enum StoreError {
     InvalidSpec(String),
     #[error("invalid durable state: {0}")]
     InvalidState(String),
+    #[error("view cursor is stale: {0}")]
+    ViewStale(String),
+    #[error("view unavailable: {0}")]
+    ViewUnavailable(String),
 }
 
 pub(crate) type StoreResult<T> = std::result::Result<T, StoreError>;
@@ -160,7 +169,6 @@ impl SubmissionScope {
 pub(crate) struct ManagedCandidate {
     pub(crate) parent: ManagedParent,
     pub(crate) parent_job_id: Option<JobId>,
-    pub(crate) submissions_enabled: bool,
     pub(crate) current: bool,
 }
 
@@ -233,6 +241,30 @@ pub(crate) struct Store {
 impl Store {
     pub(crate) fn store_uuid(&self) -> Uuid {
         self.store_uuid
+    }
+
+    /// Opens a read-only peer view so potentially broad operator queries never retain the
+    /// scheduler's writer mutex while walking or serializing durable state.
+    pub(crate) fn open_read_view(&self) -> StoreResult<Self> {
+        let connection = Connection::open_with_flags(
+            &self.paths.database,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+        connection.busy_timeout(std::time::Duration::from_secs(5))?;
+        connection.pragma_update(None, "query_only", true)?;
+        connection.pragma_update(None, "foreign_keys", true)?;
+        Ok(Self {
+            connection,
+            paths: self.paths.clone(),
+            store_uuid: self.store_uuid,
+            daemon_generation: self.daemon_generation,
+            capacities: self.capacities.clone(),
+            impact_incompatibilities: self.impact_incompatibilities.clone(),
+            observation_config: self.observation_config.clone(),
+            config_sha256: self.config_sha256.clone(),
+            startup_identity: self.startup_identity.clone(),
+            bound_host_id: self.bound_host_id.clone(),
+        })
     }
 
     pub(crate) fn set_change_notifier(&mut self, notifier: std::sync::Arc<dyn Fn() + Send + Sync>) {
@@ -439,6 +471,7 @@ mod reconciliation;
 mod recovery;
 mod release;
 mod schedule;
+mod tree;
 mod values;
 
 use admission::*;

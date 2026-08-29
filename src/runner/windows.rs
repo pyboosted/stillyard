@@ -1383,7 +1383,7 @@ mod tests {
             timeout_seconds: Some(10),
             quiet: None,
             artifacts: Vec::new(),
-            allow_child_submissions: false,
+            child_submission_policy: None,
         }
     }
 

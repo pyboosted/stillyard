@@ -9,11 +9,14 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    AttemptId, AttemptVerdict, BatchId, ContainmentId, InvocationId, JobId, JobOutcome, JobSpec,
-    JobState, Label, ResourceClaims, SubmissionId, SubmissionState,
+    AttemptId, AttemptVerdict, BatchId, ChildFencePolicy, ContainmentId, InvocationId, JobId,
+    JobOutcome, JobSpec, JobState, Label, ResourceClaimLimits, ResourceClaims, SubmissionId,
+    SubmissionState,
 };
 
 pub const MAX_OBSERVATION_PAGE: u32 = 1_024;
+pub const MAX_TREE_PAGE_NODES: u32 = 256;
+pub const MAX_TREE_SELECTOR_JOBS: usize = 64;
 pub const MAX_WAIT_STREAM_JOBS: usize = 1_024;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -172,6 +175,90 @@ pub struct JobListPage {
     pub event_cursor: EventCursor,
 }
 
+impl JobListPage {
+    #[must_use]
+    pub fn from_jobs(jobs: Vec<JobSummary>, event_cursor: EventCursor) -> Self {
+        Self {
+            jobs,
+            next_cursor: None,
+            event_cursor,
+        }
+    }
+}
+
+#[derive(
+    Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema,
+)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum TreeAttentionBucket {
+    Running,
+    Queued,
+    Finished,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct JobTreeRootCursor {
+    pub store_uuid: Uuid,
+    pub order_revision: u64,
+    pub selector_hash: String,
+    pub bucket: TreeAttentionBucket,
+    pub accepted_unix_millis: i64,
+    pub root_job_id: JobId,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct JobChildrenCursor {
+    pub store_uuid: Uuid,
+    pub selector_hash: String,
+    pub parent_job_id: JobId,
+    pub accepted_unix_millis: i64,
+    pub child_job_id: JobId,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct JobTreeNode {
+    pub summary: JobSummary,
+    pub depth: u32,
+    /// Aggregate attention bucket on a family root; absent on descendants.
+    pub family_attention: Option<TreeAttentionBucket>,
+    pub context_only: bool,
+    pub parent_retained: Option<bool>,
+    pub has_children: bool,
+    pub descendants_truncated: bool,
+    pub next_children_cursor: Option<JobChildrenCursor>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct JobTreePage {
+    pub nodes: Vec<JobTreeNode>,
+    pub next_root_cursor: Option<JobTreeRootCursor>,
+    pub selected_job_id: Option<JobId>,
+    pub event_cursor: EventCursor,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct JobChildrenPage {
+    pub parent_job_id: JobId,
+    pub nodes: Vec<JobTreeNode>,
+    pub next_children_cursor: Option<JobChildrenCursor>,
+    pub event_cursor: EventCursor,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct JobTreeSelector {
+    pub root_job_ids: Vec<JobId>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
@@ -193,6 +280,33 @@ pub enum ObservationFrame {
         snapshot: JobListPage,
         cursor: EventCursor,
     },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(tag = "frame", rename_all = "snake_case", deny_unknown_fields)]
+// Keep the frozen public Gap shape (`snapshot: JobTreePage`) rather than exposing Box ownership
+// solely to reduce this short-lived response enum's stack size.
+#[allow(clippy::large_enum_variant)]
+pub enum TreeObservationFrame {
+    Events {
+        events: Vec<SchedulerEvent>,
+        cursor: EventCursor,
+    },
+    Gap {
+        gap: EventGap,
+        snapshot: JobTreePage,
+        cursor: EventCursor,
+    },
+}
+
+impl TreeObservationFrame {
+    #[must_use]
+    pub fn cursor(&self) -> EventCursor {
+        match self {
+            Self::Events { cursor, .. } | Self::Gap { cursor, .. } => *cursor,
+        }
+    }
 }
 
 impl ObservationFrame {
@@ -219,6 +333,27 @@ pub struct ManagedParent {
     pub job_id: JobId,
     pub attempt_id: AttemptId,
     pub invocation_id: InvocationId,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct EffectiveChildSubmissionPolicy {
+    pub max_claims: ResourceClaimLimits,
+    pub allowed_impacts: Vec<String>,
+    pub required_labels: Vec<Label>,
+    pub fences: ChildFencePolicy,
+    pub allow_observed: bool,
+    pub allow_quiet: bool,
+    pub allow_delegation: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ManagedPolicyAdmissionSnapshot {
+    pub parent: ManagedParent,
+    pub evaluated_unix_millis: i64,
+    pub effective_policy: EffectiveChildSubmissionPolicy,
+    pub policy_ancestors: Vec<JobId>,
 }
 
 /// Store and optional managed-parent identity observed for this client connection.
@@ -408,6 +543,8 @@ pub struct JobReceipt {
     pub queue_rank: Option<u64>,
     pub estimate: Estimate,
     pub parent: Option<ManagedParent>,
+    #[serde(default)]
+    pub managed_policy_admission: Option<ManagedPolicyAdmissionSnapshot>,
     #[serde(default)]
     pub gpu_provenance: Option<GpuProvenance>,
     #[serde(default)]
@@ -989,6 +1126,8 @@ pub struct JobSnapshot {
     pub spec: JobSpec,
     #[serde(default)]
     pub parent: Option<ManagedParent>,
+    #[serde(default)]
+    pub managed_policy_admission: Option<ManagedPolicyAdmissionSnapshot>,
     #[serde(default)]
     pub blockers: Vec<Blocker>,
     #[serde(default)]

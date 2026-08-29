@@ -291,7 +291,7 @@ fn pinned_isolated_daemons_coexist_and_own_both_coordinates() {
         timeout_seconds: Some(10),
         quiet: None,
         artifacts: Vec::new(),
-        allow_child_submissions: false,
+        child_submission_policy: None,
     };
     let receipt = client_b
         .submit(
@@ -553,7 +553,7 @@ fn external_nvml_generation_change_never_releases_the_suspended_child() {
             }],
         }),
         artifacts: Vec::new(),
-        allow_child_submissions: false,
+        child_submission_policy: None,
     };
     let spec_path = temp.path().join("strict-job.json");
     std::fs::write(&spec_path, serde_json::to_vec_pretty(&job).unwrap()).unwrap();

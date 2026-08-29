@@ -1,6 +1,13 @@
 use super::*;
 use crate::protocol::error_code;
 
+fn open_read_view(store: &SharedStore) -> std::result::Result<Store, StoreError> {
+    store
+        .lock()
+        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+        .open_read_view()
+}
+
 pub(super) fn handle_request(
     store: &SharedStore,
     scheduler: &DaemonReactor,
@@ -182,6 +189,29 @@ pub(super) fn handle_request(
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
             .and_then(|store| store.list_jobs(&selector, cursor, limit))
             .map(Response::Listed),
+        Request::Tree {
+            selector,
+            root_cursor,
+            root_limit,
+            node_limit,
+            max_depth,
+        } => open_read_view(store)
+            .and_then(|store| store.tree(&selector, root_cursor, root_limit, node_limit, max_depth))
+            .map(Response::Tree),
+        Request::TreeForJob {
+            job_id,
+            node_limit,
+            max_depth,
+        } => open_read_view(store)
+            .and_then(|store| store.tree_for_job(job_id, node_limit, max_depth))
+            .map(Response::Tree),
+        Request::TreeChildren {
+            cursor,
+            node_limit,
+            additional_depth,
+        } => open_read_view(store)
+            .and_then(|store| store.tree_children(&cursor, node_limit, additional_depth))
+            .map(Response::TreeChildren),
         Request::Observe {
             selector,
             cursor,
@@ -216,6 +246,26 @@ pub(super) fn handle_request(
                 )
                 .map(Response::Observed)
         })(),
+        Request::ObserveTrees {
+            selector,
+            cursor,
+            event_limit,
+            root_limit,
+            node_limit,
+            max_depth,
+            max_wait_millis,
+        } => scheduler
+            .wait_tree_observation(
+                store,
+                &selector,
+                cursor,
+                event_limit,
+                root_limit,
+                node_limit,
+                max_depth,
+                Duration::from_millis(u64::from(max_wait_millis.min(60_000))),
+            )
+            .map(Response::TreesObserved),
         Request::Cancel { job_ids } => store
             .lock()
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
@@ -349,6 +399,14 @@ pub(super) fn handle_request(
         StoreError::InvalidSpec(_) => Response::Error {
             code: error_code::INVALID_SPEC.into(),
             message: error.to_string(),
+        },
+        StoreError::ViewStale(detail) => Response::Error {
+            code: error_code::TREE_CURSOR_STALE.into(),
+            message: detail,
+        },
+        StoreError::ViewUnavailable(detail) => Response::Error {
+            code: error_code::TREE_SCAN_LIMIT.into(),
+            message: detail,
         },
         _ => Response::Error {
             code: error_code::STORE_ERROR.into(),

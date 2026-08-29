@@ -22,7 +22,7 @@ fn spec(root: &Path) -> JobSpec {
         timeout_seconds: None,
         quiet: None,
         artifacts: Vec::new(),
-        allow_child_submissions: false,
+        child_submission_policy: None,
     }
 }
 
@@ -71,3 +71,4 @@ mod input_submission;
 mod managed_submission;
 mod observation;
 mod store_recovery;
+mod tree;

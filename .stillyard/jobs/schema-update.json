@@ -1,5 +1,5 @@
 {
-  "spec_version": 1,
+  "spec_version": 2,
   "executable": "C:\\Users\\User\\.cargo\\bin\\cargo.exe",
   "args": ["run", "--example", "generate_schemas", "--all-features"],
   "working_directory": "C:\\Development\\stillyard",

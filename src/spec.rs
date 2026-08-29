@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
 
-pub const SPEC_VERSION: u32 = 1;
+pub const SPEC_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -37,9 +37,9 @@ pub struct JobSpec {
     pub quiet: Option<QuietPolicy>,
     #[serde(default)]
     pub artifacts: Vec<PathBuf>,
-    /// Allows processes in this primary Invocation's OS containment to submit child work.
+    /// Maximum capabilities that authenticated managed descendants may request.
     #[serde(default)]
-    pub allow_child_submissions: bool,
+    pub child_submission_policy: Option<ChildSubmissionPolicy>,
 }
 
 impl JobSpec {
@@ -73,8 +73,15 @@ impl JobSpec {
         if self.labels.len() > 32 {
             return Err(Error::InvalidSpec("more than 32 labels".into()));
         }
+        let mut label_keys = BTreeSet::new();
         for label in &self.labels {
             label.validate()?;
+            if !label_keys.insert(&label.key) {
+                return Err(Error::InvalidSpec(format!(
+                    "duplicate label key {:?}",
+                    label.key
+                )));
+            }
         }
         self.environment.validate()?;
         if let StdinSpec::File { path } = &self.stdin {
@@ -92,6 +99,9 @@ impl JobSpec {
         // The first executable slice fails closed for baseline features whose admission providers
         // are not shipped yet. Declaring a claim must never silently run as if it were satisfied.
         self.resources.validate()?;
+        if let Some(policy) = &self.child_submission_policy {
+            policy.validate()?;
+        }
         if let Some(observed) = &self.observed {
             observed.validate()?;
         }
@@ -178,6 +188,133 @@ impl JobSpec {
         }
         ages.into_iter().min()
     }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct ChildSubmissionPolicy {
+    pub max_claims: ResourceClaimLimits,
+    pub allowed_impacts: Vec<String>,
+    pub required_labels: Vec<Label>,
+    pub fences: ChildFencePolicy,
+    pub allow_observed: bool,
+    pub allow_quiet: bool,
+    pub allow_delegation: bool,
+}
+
+impl ChildSubmissionPolicy {
+    fn validate(&self) -> Result<()> {
+        self.max_claims.validate()?;
+        if self.allowed_impacts.len() > 16 {
+            return Err(Error::InvalidSpec(
+                "child policy has more than 16 allowed impacts".into(),
+            ));
+        }
+        let mut impacts = BTreeSet::new();
+        for impact in &self.allowed_impacts {
+            validate_policy_name("impact", impact)?;
+            if !impacts.insert(impact) {
+                return Err(Error::InvalidSpec(
+                    "child policy contains a duplicate allowed impact".into(),
+                ));
+            }
+        }
+        if self.required_labels.len() > 32 {
+            return Err(Error::InvalidSpec(
+                "child policy has more than 32 required labels".into(),
+            ));
+        }
+        let mut label_keys = BTreeSet::new();
+        for label in &self.required_labels {
+            label.validate()?;
+            if !label_keys.insert(&label.key) {
+                return Err(Error::InvalidSpec(format!(
+                    "child policy repeats required label key {:?}",
+                    label.key
+                )));
+            }
+        }
+        self.fences.validate()
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct ResourceClaimLimits {
+    pub cpu_units: Option<u32>,
+    pub ram_mb: Option<u64>,
+    pub cargo_slots: Option<u32>,
+    pub gpu_slots: Option<u32>,
+    pub custom: BTreeMap<String, u64>,
+}
+
+impl ResourceClaimLimits {
+    fn validate(&self) -> Result<()> {
+        if self.custom.len() > 16 {
+            return Err(Error::InvalidSpec(
+                "child policy has more than 16 custom claim limits".into(),
+            ));
+        }
+        if self.cpu_units == Some(0)
+            || self.ram_mb == Some(0)
+            || self.cargo_slots == Some(0)
+            || self.gpu_slots == Some(0)
+            || self.custom.iter().any(|(name, value)| {
+                name.is_empty()
+                    || name.len() > 64
+                    || name.contains('\0')
+                    || is_builtin_resource(name)
+                    || *value == 0
+            })
+        {
+            return Err(Error::InvalidSpec(
+                "child claim limits and custom names must be valid and non-zero".into(),
+            ));
+        }
+        validate_vram_keys(self.custom.keys())
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct ChildFencePolicy {
+    pub shared_roots: Vec<PathBuf>,
+    pub exclusive_roots: Vec<PathBuf>,
+}
+
+impl ChildFencePolicy {
+    fn validate(&self) -> Result<()> {
+        if self.shared_roots.len() > 8 || self.exclusive_roots.len() > 8 {
+            return Err(Error::InvalidSpec(
+                "child policy has more than 8 roots in one fence mode".into(),
+            ));
+        }
+        validate_policy_fence_roots("shared", &self.shared_roots)?;
+        validate_policy_fence_roots("exclusive", &self.exclusive_roots)
+    }
+}
+
+fn validate_policy_fence_roots(mode: &str, roots: &[PathBuf]) -> Result<()> {
+    let mut spellings = BTreeSet::new();
+    for root in roots {
+        let spelling = root.as_os_str().to_string_lossy();
+        let encoded_len = serde_json::to_vec(root)?.len();
+        if spelling.is_empty()
+            || spelling.contains('\0')
+            || !root.is_absolute()
+            || encoded_len > 512
+        {
+            return Err(Error::InvalidSpec(format!(
+                "child policy {mode} roots must be nonempty absolute paths without NUL and at most 512 JSON bytes"
+            )));
+        }
+        if !spellings.insert(spelling.into_owned()) {
+            return Err(Error::InvalidSpec(format!(
+                "child policy contains a duplicate {mode} root spelling"
+            )));
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -373,13 +510,21 @@ pub struct ResourceClaims {
 
 impl ResourceClaims {
     fn validate(&self) -> Result<()> {
+        if self.custom.len() > 16
+            || self.impacts.len() > 16
+            || self.shared_fences.len() + self.exclusive_fences.len() > 8
+        {
+            return Err(Error::InvalidSpec(
+                "resource claims exceed the version 2 count bounds".into(),
+            ));
+        }
         if self.cpu_units == Some(0)
             || self.ram_mb == Some(0)
             || self.cargo_slots == Some(0)
             || self.gpu_slots == Some(0)
             || self.custom.iter().any(|(name, value)| {
                 name.is_empty()
-                    || name.len() > 128
+                    || name.len() > 64
                     || name.contains('\0')
                     || is_builtin_resource(name)
                     || *value == 0
@@ -398,6 +543,12 @@ impl ResourceClaims {
             }
         }
         let shared: BTreeSet<_> = self.shared_fences.iter().collect();
+        let exclusive: BTreeSet<_> = self.exclusive_fences.iter().collect();
+        if shared.len() != self.shared_fences.len()
+            || exclusive.len() != self.exclusive_fences.len()
+        {
+            return Err(Error::InvalidSpec("duplicate path fence".into()));
+        }
         if self
             .exclusive_fences
             .iter()
@@ -413,9 +564,14 @@ impl ResourceClaims {
             .chain(self.exclusive_fences.iter())
         {
             let path = PathBuf::from(fence);
-            if fence.is_empty() || fence.contains('\0') || !path.is_absolute() {
+            if fence.is_empty()
+                || fence.contains('\0')
+                || !path.is_absolute()
+                || serde_json::to_vec(fence)?.len() > 512
+            {
                 return Err(Error::InvalidSpec(
-                    "path fences must be nonempty absolute paths without NUL".into(),
+                    "path fences must be nonempty absolute paths without NUL and at most 512 JSON bytes"
+                        .into(),
                 ));
             }
         }
@@ -888,7 +1044,7 @@ fn default_accepted_exit_codes() -> Vec<i32> {
 }
 
 fn validate_policy_name(kind: &str, name: &str) -> Result<()> {
-    if name.is_empty() || name.len() > 128 || name.contains('\0') {
+    if name.is_empty() || name.len() > 64 || name.contains('\0') {
         return Err(Error::InvalidSpec(format!("invalid {kind} name")));
     }
     Ok(())
@@ -985,7 +1141,11 @@ pub struct Label {
 
 impl Label {
     fn validate(&self) -> Result<()> {
-        if self.key.is_empty() || self.value.is_empty() {
+        if self.key.is_empty()
+            || self.key.len() > 64
+            || self.value.is_empty()
+            || self.value.len() > 128
+        {
             return Err(Error::InvalidSpec("label key/value is empty".into()));
         }
         if self.key.contains(['\0', '=']) || self.value.contains('\0') {
@@ -1019,7 +1179,7 @@ mod tests {
     fn schema_is_stable_within_one_build() {
         assert_eq!(
             schema_json().unwrap(),
-            include_str!("../schema/stillyard-spec-v1.json")
+            include_str!("../schema/stillyard-spec-v2.json")
         );
         assert_eq!(
             config_schema_json().unwrap(),
@@ -1030,7 +1190,7 @@ mod tests {
     #[test]
     fn unknown_job_field_rejects() {
         let json = r#"{
-            "spec_version": 1,
+            "spec_version": 2,
             "executable": "tool.exe",
             "working_directory": ".",
             "surprise": true
@@ -1041,7 +1201,7 @@ mod tests {
     #[test]
     fn daemon_environment_presets_are_not_accepted() {
         let job = r#"{
-            "spec_version": 1,
+            "spec_version": 2,
             "executable": "tool.exe",
             "working_directory": ".",
             "environment": { "profile": "reviewer" }
@@ -1059,7 +1219,7 @@ mod tests {
     fn supported_claim_and_impact_validate() {
         let mut job: JobSpec = serde_json::from_str(
             r#"{
-                "spec_version": 1,
+                "spec_version": 2,
                 "executable": "tool.exe",
                 "working_directory": ".",
                 "resources": { "gpu_slots": 1 }
@@ -1090,7 +1250,7 @@ mod tests {
         let root = std::env::current_dir().unwrap();
         let mut job: JobSpec = serde_json::from_str(&format!(
             r#"{{
-                "spec_version": 1,
+                "spec_version": 2,
                 "executable": {},
                 "working_directory": {},
                 "retry": {{ "max_attempts": 100, "backoff_seconds": 0 }}
@@ -1117,7 +1277,7 @@ mod tests {
         let root = std::env::current_dir().unwrap();
         let mut job: JobSpec = serde_json::from_str(&format!(
             r#"{{
-                "spec_version": 1,
+                "spec_version": 2,
                 "executable": {},
                 "working_directory": {},
                 "retry": {{ "max_attempts": 100, "backoff_seconds": 0 }}
@@ -1146,5 +1306,62 @@ mod tests {
         });
         assert!(job.validate().is_ok());
         assert!(host.validate_job(&job).is_err());
+    }
+
+    #[test]
+    fn version_two_rejects_duplicate_label_keys_and_invalid_policy_shapes() {
+        let root = std::env::current_dir().unwrap();
+        let mut job: JobSpec = serde_json::from_str(&format!(
+            r#"{{
+                "spec_version": 2,
+                "executable": {},
+                "working_directory": {}
+            }}"#,
+            serde_json::to_string(&root.join("tool.exe")).unwrap(),
+            serde_json::to_string(&root).unwrap(),
+        ))
+        .unwrap();
+        job.labels = vec![
+            Label {
+                key: "project".into(),
+                value: "one".into(),
+            },
+            Label {
+                key: "project".into(),
+                value: "two".into(),
+            },
+        ];
+        assert!(
+            matches!(job.validate(), Err(Error::InvalidSpec(detail)) if detail.contains("duplicate label key"))
+        );
+
+        job.labels.clear();
+        job.child_submission_policy = Some(ChildSubmissionPolicy {
+            allowed_impacts: vec!["cpu_heavy".into(), "cpu_heavy".into()],
+            ..Default::default()
+        });
+        assert!(
+            matches!(job.validate(), Err(Error::InvalidSpec(detail)) if detail.contains("duplicate allowed impact"))
+        );
+
+        job.child_submission_policy = Some(ChildSubmissionPolicy {
+            max_claims: ResourceClaimLimits {
+                cargo_slots: Some(0),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        assert!(job.validate().is_err());
+    }
+
+    #[test]
+    fn child_policy_unknown_fields_are_rejected_during_decode() {
+        let json = r#"{
+            "spec_version": 2,
+            "executable": "C:\\tool.exe",
+            "working_directory": "C:\\",
+            "child_submission_policy": { "future_authority": true }
+        }"#;
+        assert!(serde_json::from_str::<JobSpec>(json).is_err());
     }
 }

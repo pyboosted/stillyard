@@ -742,7 +742,7 @@ mod tests {
                 ],
             }),
             artifacts: Vec::new(),
-            allow_child_submissions: false,
+            child_submission_policy: None,
         }
     }
 

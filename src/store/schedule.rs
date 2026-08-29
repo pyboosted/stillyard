@@ -770,7 +770,7 @@ impl Store {
         spec.observed = None;
         spec.quiet = None;
         spec.postconditions.clear();
-        spec.allow_child_submissions = false;
+        spec.child_submission_policy = None;
         let log_directory = self
             .paths
             .logs

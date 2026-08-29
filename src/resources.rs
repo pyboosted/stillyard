@@ -1,13 +1,76 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
-#[cfg(windows)]
 use std::path::Component;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::spec::canonical_custom_resource_name;
-use crate::{Blocker, ResourceCapacities, ResourceClaims};
+use crate::{Blocker, ChildSubmissionPolicy, ResourceCapacities, ResourceClaims};
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ResolvedPolicyFence {
+    pub(crate) identity_key: String,
+    pub(crate) remaining_components: Vec<String>,
+    pub(crate) display_path: PathBuf,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct ResolvedChildSubmissionPolicy {
+    pub(crate) policy: ChildSubmissionPolicy,
+    pub(crate) shared_fences: Vec<ResolvedPolicyFence>,
+    pub(crate) exclusive_fences: Vec<ResolvedPolicyFence>,
+}
+
+impl ResolvedChildSubmissionPolicy {
+    pub(crate) fn resolve(policy: &ChildSubmissionPolicy) -> io::Result<Self> {
+        let shared_fences = policy
+            .fences
+            .shared_roots
+            .iter()
+            .map(|path| resolve_policy_fence(path))
+            .collect::<io::Result<Vec<_>>>()?;
+        let exclusive_fences = policy
+            .fences
+            .exclusive_roots
+            .iter()
+            .map(|path| resolve_policy_fence(path))
+            .collect::<io::Result<Vec<_>>>()?;
+        ensure_unique_policy_fences(&shared_fences)?;
+        ensure_unique_policy_fences(&exclusive_fences)?;
+        Ok(Self {
+            policy: policy.clone(),
+            shared_fences,
+            exclusive_fences,
+        })
+    }
+
+    pub(crate) fn allows_shared(&self, path: &Path) -> io::Result<bool> {
+        policy_fences_allow(&self.shared_fences, path)
+    }
+
+    pub(crate) fn allows_exclusive(&self, path: &Path) -> io::Result<bool> {
+        policy_fences_allow(&self.exclusive_fences, path)
+    }
+}
+
+fn ensure_unique_policy_fences(fences: &[ResolvedPolicyFence]) -> io::Result<()> {
+    let mut seen = BTreeSet::new();
+    for fence in fences {
+        if !seen.insert((
+            fence.identity_key.as_str(),
+            fence.remaining_components.as_slice(),
+        )) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "child policy roots collide after resolution",
+            ));
+        }
+    }
+    Ok(())
+}
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -368,6 +431,156 @@ fn fence_blocker(blockers: &mut Vec<Blocker>, fence: &str) {
     });
 }
 
+fn resolve_policy_fence(path: &Path) -> io::Result<ResolvedPolicyFence> {
+    let (ancestor, remainder) = existing_ancestor(path)?;
+    let identity_key = policy_identity_key(&ancestor, remainder.as_os_str().is_empty())?;
+    let remaining_components = policy_components(&remainder);
+    let display_path = if remainder.as_os_str().is_empty() {
+        match (ancestor.parent(), ancestor.file_name()) {
+            (Some(parent), Some(name)) => std::fs::canonicalize(parent)?.join(name),
+            _ => std::fs::canonicalize(&ancestor)?,
+        }
+    } else {
+        std::fs::canonicalize(&ancestor)?.join(&remainder)
+    };
+    Ok(ResolvedPolicyFence {
+        identity_key,
+        remaining_components,
+        display_path,
+    })
+}
+
+fn policy_fences_allow(fences: &[ResolvedPolicyFence], path: &Path) -> io::Result<bool> {
+    let mut candidate = path.to_path_buf();
+    let mut remainder = PathBuf::new();
+    loop {
+        match std::fs::symlink_metadata(&candidate) {
+            Ok(_) => {
+                let identity = policy_identity_key(&candidate, remainder.as_os_str().is_empty())?;
+                let components = policy_components(&remainder);
+                let clean = !has_intermediate_reparse(&candidate, &remainder)?;
+                if clean
+                    && fences.iter().any(|scope| {
+                        scope.identity_key == identity
+                            && components.starts_with(&scope.remaining_components)
+                    })
+                {
+                    return Ok(true);
+                }
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+        let Some(name) = candidate.file_name() else {
+            return Ok(false);
+        };
+        remainder = PathBuf::from(name).join(remainder);
+        let Some(parent) = candidate.parent() else {
+            return Ok(false);
+        };
+        if parent == candidate {
+            return Ok(false);
+        }
+        candidate = parent.to_path_buf();
+    }
+}
+
+fn policy_components(path: &Path) -> Vec<String> {
+    path.components()
+        .filter_map(|component| match component {
+            Component::Normal(value) => {
+                let rendered = value.to_string_lossy().into_owned();
+                #[cfg(windows)]
+                let rendered = rendered.to_lowercase();
+                Some(rendered)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[cfg(windows)]
+fn policy_identity_key(path: &Path, leaf: bool) -> io::Result<String> {
+    use std::mem::size_of;
+    use std::os::windows::fs::OpenOptionsExt;
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_ID_INFO, FILE_SHARE_DELETE,
+        FILE_SHARE_READ, FILE_SHARE_WRITE, FileIdInfo, GetFileInformationByHandleEx,
+    };
+
+    let flags = FILE_FLAG_BACKUP_SEMANTICS
+        | if leaf {
+            FILE_FLAG_OPEN_REPARSE_POINT
+        } else {
+            0
+        };
+    let file = std::fs::OpenOptions::new()
+        .access_mode(0)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+        .custom_flags(flags)
+        .open(path)?;
+    let mut info = FILE_ID_INFO::default();
+    // SAFETY: the handle is valid and info is an exactly sized writable output buffer.
+    if unsafe {
+        GetFileInformationByHandleEx(
+            file.as_raw_handle(),
+            FileIdInfo,
+            (&raw mut info).cast(),
+            size_of::<FILE_ID_INFO>() as u32,
+        )
+    } == 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(format!(
+        "{:016x}:{}",
+        info.VolumeSerialNumber,
+        info.FileId
+            .Identifier
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    ))
+}
+
+#[cfg(not(windows))]
+fn policy_identity_key(path: &Path, _leaf: bool) -> io::Result<String> {
+    Ok(std::fs::canonicalize(path)?.to_string_lossy().into_owned())
+}
+
+#[cfg(windows)]
+fn has_intermediate_reparse(ancestor: &Path, remainder: &Path) -> io::Result<bool> {
+    use std::os::windows::fs::MetadataExt;
+    use windows_sys::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT;
+
+    let components = remainder
+        .components()
+        .filter_map(|component| match component {
+            Component::Normal(value) => Some(value.to_owned()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let mut current = ancestor.to_path_buf();
+    for component in components.iter().take(components.len().saturating_sub(1)) {
+        current.push(component);
+        match std::fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 => {
+                return Ok(true);
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(false)
+}
+
+#[cfg(not(windows))]
+fn has_intermediate_reparse(_ancestor: &Path, _remainder: &Path) -> io::Result<bool> {
+    Ok(false)
+}
+
 #[cfg(windows)]
 fn resolve_fence(path: &Path) -> io::Result<Vec<String>> {
     use std::mem::size_of;
@@ -653,6 +866,49 @@ mod tests {
             first
                 .blockers(&ResourceCapacities::default(), &[second], &BTreeMap::new(),)
                 .is_empty()
+        );
+    }
+
+    #[test]
+    fn existing_policy_root_replacement_does_not_inherit_object_authority() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("authority");
+        std::fs::create_dir_all(&root).unwrap();
+        let policy = ChildSubmissionPolicy {
+            fences: crate::ChildFencePolicy {
+                shared_roots: vec![root.clone()],
+                exclusive_roots: Vec::new(),
+            },
+            ..Default::default()
+        };
+        let resolved = ResolvedChildSubmissionPolicy::resolve(&policy).unwrap();
+        let retained = temp.path().join("retained-object");
+        std::fs::rename(&root, &retained).unwrap();
+        std::fs::create_dir_all(&root).unwrap();
+
+        assert!(!resolved.allows_shared(&root.join("child")).unwrap());
+        assert!(resolved.allows_shared(&retained.join("child")).unwrap());
+    }
+
+    #[test]
+    fn missing_policy_root_retains_component_authority_after_creation() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("future-authority");
+        let policy = ChildSubmissionPolicy {
+            fences: crate::ChildFencePolicy {
+                shared_roots: vec![root.clone()],
+                exclusive_roots: Vec::new(),
+            },
+            ..Default::default()
+        };
+        let resolved = ResolvedChildSubmissionPolicy::resolve(&policy).unwrap();
+        std::fs::create_dir_all(&root).unwrap();
+
+        assert!(resolved.allows_shared(&root.join("child")).unwrap());
+        assert!(
+            !resolved
+                .allows_shared(&temp.path().join("sibling"))
+                .unwrap()
         );
     }
 

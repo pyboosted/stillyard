@@ -10,7 +10,7 @@ state and logs, and exposes visible reasons while they wait.
 Stillyard is useful when independent processes need one scheduling authority without moving into
 containers, a CI service, or a remote worker platform.
 
-Current release: **0.1.0-alpha.8 for Windows 10 1809+ and Windows Server 2019+**.
+Current release: **0.1.0-alpha.9 for Windows 10 1809+ and Windows Server 2019+**.
 
 ## What works today
 
@@ -30,9 +30,13 @@ Current release: **0.1.0-alpha.8 for Windows 10 1809+ and Windows Server 2019+**
 - **Job lifecycle.** Success/failure dependencies, immutable file stdin, explicit environments,
   bounded retries, executable postconditions, managed child submission, and safe managed waits
   are supported.
+- **Managed capability policy.** A primary may authorize bounded child claims, impacts, fences,
+  observed/quiet admission, mandatory labels, and narrower delegation without reserving those
+  capabilities in the parent's Lease. Denials are durable Submission decisions.
 - **Operator interfaces.** The CLI provides submit, recover, status, list, events, logs, wait,
-  cancel, daemon status, schema, and doctor commands. `stillyard watch` is an event-driven terminal
-  view. The Rust crate exposes the same public protocol through a blocking client.
+  cancel, daemon status, schema, doctor, and bounded tree commands. `stillyard watch` is an
+  event-driven parent/child forest. The Rust crate exposes the same public protocol through a
+  blocking client.
 
 Resource declarations are admission reservations, not hard CPU, RAM, or GPU limits on a running
 process. Callers should declare every scarce resource or conflicting impact they rely on.
@@ -46,7 +50,7 @@ Create `hello.json`:
 
 ```json
 {
-  "spec_version": 1,
+  "spec_version": 2,
   "executable": "C:\\Windows\\System32\\cmd.exe",
   "args": ["/d", "/c", "echo hello from Stillyard"],
   "working_directory": "C:\\"
@@ -65,6 +69,8 @@ Inspect the scheduler:
 stillyard daemon-status
 stillyard doctor
 stillyard list
+stillyard list --tree
+stillyard tree JOB_ID
 stillyard watch
 ```
 
@@ -122,7 +128,9 @@ idempotency history do not survive that reset.
 
 For the exact contract, see [requirements](docs/requirements.md). Evidence for observed-resource
 and quiet admission is recorded in the
-[Windows verification report](docs/observed-resource-quiet-admission-verification.md).
+[Windows verification report](docs/observed-resource-quiet-admission-verification.md). The
+alpha.9 managed-policy and tree contract is recorded in the
+[frozen implementation brief](docs/managed-child-policy-and-tree-views.md).
 
 ## Developing Stillyard
 

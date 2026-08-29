@@ -90,11 +90,6 @@ pub(super) fn resolve_managed_membership(
             "the containing primary is no longer current and live".into(),
         ));
     }
-    if !immediate.submissions_enabled {
-        return Err(StoreError::Rejected(
-            "the containing primary does not allow child submissions".into(),
-        ));
-    }
     Ok(Some(immediate.parent))
 }
 
@@ -237,6 +232,68 @@ impl DaemonReactor {
             let ready = match &frame {
                 crate::ObservationFrame::Events { events, .. } => !events.is_empty(),
                 crate::ObservationFrame::Gap { .. } => true,
+            } || requested != Some(frame.cursor());
+            if ready || Instant::now() >= deadline {
+                return Ok(frame);
+            }
+            cursor = Some(frame.cursor());
+            let (lock, condition) = &*self.events;
+            let mut generation = lock
+                .lock()
+                .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
+            while *generation == observed {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    break;
+                }
+                let waited = condition
+                    .wait_timeout(generation, remaining)
+                    .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
+                generation = waited.0;
+                if waited.1.timed_out() {
+                    break;
+                }
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn wait_tree_observation(
+        &self,
+        store: &SharedStore,
+        selector: &crate::JobTreeSelector,
+        cursor: Option<crate::EventCursor>,
+        event_limit: u32,
+        root_limit: u32,
+        node_limit: u32,
+        max_depth: Option<u32>,
+        max_wait: Duration,
+    ) -> std::result::Result<crate::TreeObservationFrame, StoreError> {
+        let deadline = Instant::now() + max_wait;
+        let mut cursor = cursor;
+        loop {
+            let observed = self
+                .events
+                .0
+                .lock()
+                .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))
+                .map(|generation| *generation)?;
+            let requested = cursor;
+            let reader = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                .open_read_view()?;
+            let frame = reader.observe_trees(
+                selector,
+                cursor,
+                event_limit,
+                root_limit,
+                node_limit,
+                max_depth,
+            )?;
+            let ready = match &frame {
+                crate::TreeObservationFrame::Events { events, .. } => !events.is_empty(),
+                crate::TreeObservationFrame::Gap { .. } => true,
             } || requested != Some(frame.cursor());
             if ready || Instant::now() >= deadline {
                 return Ok(frame);

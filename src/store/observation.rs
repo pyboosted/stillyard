@@ -59,7 +59,7 @@ impl Store {
                     containment_id, root_exit_code, accepted_ms, started_ms, finished_ms,
                     spec_json, batch_id, batch_member,
                     parent_job_id, parent_attempt_id, parent_invocation_id,
-                    cancel_requested != 0
+                    cancel_requested != 0, managed_policy_admission_json
                  FROM jobs WHERE id = ?1",
                 [self.local_id(job_id)?],
                 |row| {
@@ -88,6 +88,7 @@ impl Store {
                         row.get::<_, Option<String>>(14)?,
                         row.get::<_, Option<String>>(15)?,
                         row.get::<_, bool>(16)?,
+                        row.get::<_, Option<String>>(17)?,
                     ))
                 },
             )
@@ -112,6 +113,7 @@ impl Store {
                     parent_attempt,
                     parent_invocation,
                     cancel_requested,
+                    managed_policy_admission_json,
                 )| {
                     let parsed_state = parse_job_state(&state)?;
                     Ok(JobSnapshot {
@@ -157,6 +159,9 @@ impl Store {
                             self.store_uuid,
                             (parent_job, parent_attempt, parent_invocation),
                         )?,
+                        managed_policy_admission: managed_policy_admission_json
+                            .map(|json| serde_json::from_str(&json))
+                            .transpose()?,
                         blockers: if parsed_state == JobState::Pending {
                             self.blockers_for_job(job_id)?
                         } else {
@@ -392,7 +397,7 @@ impl Store {
         })
     }
 
-    fn validate_selector(&self, selector: &JobSelector) -> StoreResult<()> {
+    pub(super) fn validate_selector(&self, selector: &JobSelector) -> StoreResult<()> {
         match selector {
             JobSelector::All => Ok(()),
             JobSelector::Jobs { job_ids } => {

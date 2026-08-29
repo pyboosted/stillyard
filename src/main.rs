@@ -5,8 +5,8 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand, ValueEnum, error::ErrorKind};
 use stillyard::{
-    BatchSpec, Client, JobId, JobOutcome, JobSnapshot, JobSpec, LogStream, RecoveryResult,
-    SubmitOptions,
+    BatchSpec, Client, JobId, JobOutcome, JobSnapshot, JobSpec, JobTreePage, LogStream,
+    RecoveryResult, SubmitOptions,
 };
 use uuid::Uuid;
 
@@ -89,6 +89,30 @@ enum Command {
         cursor: Option<stillyard::JobListCursor>,
         #[arg(long)]
         json: bool,
+        #[arg(long)]
+        tree: bool,
+        #[arg(long, default_value_t = 100, requires = "tree")]
+        root_limit: u32,
+        #[arg(long, default_value_t = 256, requires = "tree")]
+        node_limit: u32,
+        #[arg(long, requires = "tree")]
+        depth: Option<u32>,
+        #[arg(long, requires = "tree", conflicts_with = "json")]
+        ascii: bool,
+        #[arg(long, default_value_t = 10)]
+        deadline_seconds: u64,
+    },
+    /// Show the retained managed family containing one Job.
+    Tree {
+        job_id: JobId,
+        #[arg(long, default_value_t = 256)]
+        node_limit: u32,
+        #[arg(long)]
+        depth: Option<u32>,
+        #[arg(long)]
+        json: bool,
+        #[arg(long, conflicts_with = "json")]
+        ascii: bool,
         #[arg(long, default_value_t = 10)]
         deadline_seconds: u64,
     },
@@ -272,7 +296,9 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 if passthrough {
                     return Err("--passthrough is valid only for a single Job".into());
                 }
-                let spec: BatchSpec = serde_json::from_slice(&read_input(&path)?)?;
+                let input = read_input(&path)?;
+                require_current_spec_version(&input)?;
+                let spec: BatchSpec = serde_json::from_slice(&input)?;
                 let receipt = client.submit_batch(spec, &options, deadline, None)?;
                 if !silent {
                     print_json(&receipt)?;
@@ -295,7 +321,9 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 }
             } else {
                 let path = spec.expect("clap requires --spec or --batch");
-                let spec: JobSpec = serde_json::from_slice(&read_input(&path)?)?;
+                let input = read_input(&path)?;
+                require_current_spec_version(&input)?;
+                let spec: JobSpec = serde_json::from_slice(&input)?;
                 let receipt = client.submit(spec, &options, deadline, None)?;
                 if !silent {
                     if passthrough {
@@ -412,16 +440,52 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             limit,
             cursor,
             json,
+            tree,
+            root_limit,
+            node_limit,
+            depth,
+            ascii,
             deadline_seconds,
         } => {
             let deadline = deadline(deadline_seconds);
             let client = connect_client(endpoint.as_deref(), deadline)?;
             let selector = labels_selector(&labels)?;
-            let page = client.list(selector, cursor, limit, deadline, None)?;
+            if tree {
+                if cursor.is_some() {
+                    return Err("--cursor is valid only for flat list".into());
+                }
+                let page = client.tree(
+                    selector, None, root_limit, node_limit, depth, deadline, None,
+                )?;
+                if json {
+                    print_json(&page)?;
+                } else {
+                    print_job_tree(&page, ascii);
+                }
+            } else {
+                let page = client.list(selector, cursor, limit, deadline, None)?;
+                if json {
+                    print_json(&page)?;
+                } else {
+                    print_job_list(&page);
+                }
+            }
+        }
+        Command::Tree {
+            job_id,
+            node_limit,
+            depth,
+            json,
+            ascii,
+            deadline_seconds,
+        } => {
+            let deadline = deadline(deadline_seconds);
+            let client = connect_client(endpoint.as_deref(), deadline)?;
+            let page = client.tree_for_job(job_id, node_limit, depth, deadline, None)?;
             if json {
                 print_json(&page)?;
             } else {
-                print_job_list(&page);
+                print_job_tree(&page, ascii);
             }
         }
         Command::Events {
@@ -793,6 +857,101 @@ fn print_job_list(page: &stillyard::JobListPage) {
     println!("event_cursor={}", page.event_cursor);
 }
 
+fn print_job_tree(page: &JobTreePage, ascii: bool) {
+    println!("STATE\tRANK\tJOB / COMMAND\tCLAIMS\tNOTE");
+    let mut ancestors = Vec::<usize>::new();
+    for (index, node) in page.nodes.iter().enumerate() {
+        let depth = usize::try_from(node.depth).unwrap_or(usize::MAX);
+        ancestors.truncate(depth);
+        let mut indent = String::new();
+        for ancestor in ancestors.iter().skip(1) {
+            indent.push_str(if has_later_tree_sibling(&page.nodes, *ancestor) {
+                if ascii { "|  " } else { "│  " }
+            } else {
+                "   "
+            });
+        }
+        if node.parent_retained == Some(false) {
+            indent.push_str("?-- ");
+        } else if depth > 0 {
+            indent.push_str(if has_later_tree_sibling(&page.nodes, index) {
+                if ascii { "|-- " } else { "├─ " }
+            } else if ascii {
+                "\\-- "
+            } else {
+                "└─ "
+            });
+        }
+        let claims = serde_json::to_string(&node.summary.claims).unwrap_or_else(|_| "?".into());
+        let mut notes = Vec::new();
+        if node.parent_retained == Some(false) {
+            notes.push(node.summary.parent.map_or_else(
+                || "orphan: missing parent".into(),
+                |parent| format!("orphan: missing parent {}", parent.job_id),
+            ));
+        }
+        if node.context_only {
+            notes.push("context".into());
+        }
+        if node.descendants_truncated {
+            notes.push("truncated".into());
+        }
+        if let Some(blocker) = &node.summary.blocker {
+            notes.push(blocker.code.clone());
+        }
+        println!(
+            "{:?}\t{}\t{}{} {}\t{}\t{}",
+            node.summary.state,
+            node.summary
+                .queue_rank
+                .map(|rank| rank.to_string())
+                .unwrap_or_else(|| "-".into()),
+            indent,
+            node.summary.job_id,
+            node.summary.command_preview,
+            claims,
+            notes.join(", ")
+        );
+        if ancestors.len() == depth {
+            ancestors.push(index);
+        }
+    }
+    if page.next_root_cursor.is_some() {
+        println!("next_root_cursor=available");
+    }
+    println!("event_cursor={}", page.event_cursor);
+}
+
+fn has_later_tree_sibling(nodes: &[stillyard::JobTreeNode], index: usize) -> bool {
+    let depth = nodes[index].depth;
+    for candidate in &nodes[index + 1..] {
+        if candidate.depth < depth {
+            return false;
+        }
+        if candidate.depth == depth {
+            return true;
+        }
+    }
+    false
+}
+
+fn require_current_spec_version(bytes: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    let value: serde_json::Value = serde_json::from_slice(bytes)?;
+    let version = value
+        .as_object()
+        .and_then(|object| object.get("spec_version"))
+        .and_then(serde_json::Value::as_u64)
+        .ok_or("submission document has no integer spec_version")?;
+    if version != u64::from(stillyard::SPEC_VERSION) {
+        return Err(format!(
+            "unsupported spec_version {version}, expected {}",
+            stillyard::SPEC_VERSION
+        )
+        .into());
+    }
+    Ok(())
+}
+
 fn read_input(path: &PathBuf) -> io::Result<Vec<u8>> {
     let mut bytes = Vec::new();
     if path.as_os_str() == "-" {
@@ -869,7 +1028,10 @@ fn error_exit_code(error: &(dyn std::error::Error + 'static)) -> i32 {
     if let Some(error) = error.downcast_ref::<stillyard::Error>() {
         return match error {
             stillyard::Error::InvalidSpec(_) => 64,
-            stillyard::Error::Unavailable(_) | stillyard::Error::UnsupportedPlatform(_) => 69,
+            stillyard::Error::Unavailable(_)
+            | stillyard::Error::ViewUnavailable { .. }
+            | stillyard::Error::ViewStale { .. }
+            | stillyard::Error::UnsupportedPlatform(_) => 69,
             stillyard::Error::DeadlineElapsed | stillyard::Error::Canceled => 25,
             stillyard::Error::ManagedWaitRejected { .. } | stillyard::Error::Rejected { .. } => 27,
             stillyard::Error::NotFound { .. } => 70,

@@ -28,13 +28,16 @@ pub use api::{
     ContainmentResolutionAudit, ContainmentSnapshot, ContainmentState, DaemonSnapshot,
     DetectorEvidenceSnapshot, DoctorBoundary, DoctorCheck, DoctorCheckStatus, DoctorCoverage,
     DoctorHostSnapshot, DoctorIncidentPage, DoctorOverallStatus, DoctorSnapshot,
-    DoctorStoreSnapshot, Estimate, EstimateConfidence, EventCursor, EventGap, ExitClassification,
-    ForcedClearanceAudit, GpuProvenance, HostId, InvocationRole, InvocationSnapshot,
-    InvocationState, JobListCursor, JobListPage, JobReceipt, JobSelector, JobSnapshot, JobSummary,
-    LogChunk, LogStream, MAX_OBSERVATION_PAGE, MAX_WAIT_STREAM_JOBS, ManagedParent,
-    ObservationCursorParseError, ObservationFrame, ObservedOperandSnapshot, ProcessIdentity,
-    ReconciliationResult, RecoveryResult, SchedulerEvent, SchedulerEventKind, SubmissionContext,
-    SubmitOptions, WaitStreamItem,
+    DoctorStoreSnapshot, EffectiveChildSubmissionPolicy, Estimate, EstimateConfidence, EventCursor,
+    EventGap, ExitClassification, ForcedClearanceAudit, GpuProvenance, HostId, InvocationRole,
+    InvocationSnapshot, InvocationState, JobChildrenCursor, JobChildrenPage, JobListCursor,
+    JobListPage, JobReceipt, JobSelector, JobSnapshot, JobSummary, JobTreeNode, JobTreePage,
+    JobTreeRootCursor, JobTreeSelector, LogChunk, LogStream, MAX_OBSERVATION_PAGE,
+    MAX_TREE_PAGE_NODES, MAX_TREE_SELECTOR_JOBS, MAX_WAIT_STREAM_JOBS, ManagedParent,
+    ManagedPolicyAdmissionSnapshot, ObservationCursorParseError, ObservationFrame,
+    ObservedOperandSnapshot, ProcessIdentity, ReconciliationResult, RecoveryResult, SchedulerEvent,
+    SchedulerEventKind, SubmissionContext, SubmitOptions, TreeAttentionBucket,
+    TreeObservationFrame, WaitStreamItem,
 };
 pub use client::{Client, ClientBuilder, LogFollower, ObservationStream, WaitStream};
 pub use error::{Error, Result};
@@ -43,11 +46,11 @@ pub use model::{
     JobOutcome, JobState, SubmissionId, SubmissionState,
 };
 pub use spec::{
-    BatchMember, BatchSpec, ConditionSpec, DependencyKind, DependencySpec, EnvironmentSpec,
-    GpuProviderConfig, HostConfig, HostObservationConfig, JobSpec, Label, ObservedResourcePolicy,
-    PostconditionSpec, ProcessRules, QuietDetector, QuietPolicy, ResourceCapacities,
-    ResourceClaims, RetryPolicy, SPEC_VERSION, StdinSpec, SubmissionSpec, config_schema_json,
-    schema_json,
+    BatchMember, BatchSpec, ChildFencePolicy, ChildSubmissionPolicy, ConditionSpec, DependencyKind,
+    DependencySpec, EnvironmentSpec, GpuProviderConfig, HostConfig, HostObservationConfig, JobSpec,
+    Label, ObservedResourcePolicy, PostconditionSpec, ProcessRules, QuietDetector, QuietPolicy,
+    ResourceCapacities, ResourceClaimLimits, ResourceClaims, RetryPolicy, SPEC_VERSION, StdinSpec,
+    SubmissionSpec, config_schema_json, schema_json,
 };
 
 /// Runs the per-user daemon in the foreground.

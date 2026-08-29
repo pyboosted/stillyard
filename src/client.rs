@@ -17,10 +17,11 @@ use crate::protocol::{PROTOCOL_VERSION, Request, Response, StagedInputRef, error
 use crate::protocol::{read_frame, write_frame};
 use crate::{
     BatchReceipt, BatchSpec, CancellationToken, ClearContainmentResult, ContainmentId,
-    ContainmentIncidentCursor, DaemonSnapshot, DoctorSnapshot, Error, EventCursor, JobId,
-    JobListCursor, JobListPage, JobReceipt, JobSelector, JobSnapshot, JobSpec, LogChunk, LogStream,
+    ContainmentIncidentCursor, DaemonSnapshot, DoctorSnapshot, Error, EventCursor,
+    JobChildrenCursor, JobChildrenPage, JobId, JobListCursor, JobListPage, JobReceipt, JobSelector,
+    JobSnapshot, JobSpec, JobTreePage, JobTreeRootCursor, JobTreeSelector, LogChunk, LogStream,
     MAX_OBSERVATION_PAGE, ManagedParent, ObservationFrame, RecoveryResult, Result,
-    SubmissionContext, SubmitOptions, WaitStreamItem,
+    SubmissionContext, SubmitOptions, TreeObservationFrame, WaitStreamItem,
 };
 
 const RESULT_FILE_VERSION: u32 = 4;
@@ -558,6 +559,77 @@ impl Client {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn tree(
+        &self,
+        selector: JobSelector,
+        root_cursor: Option<JobTreeRootCursor>,
+        root_limit: u32,
+        node_limit: u32,
+        max_depth: Option<u32>,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<JobTreePage> {
+        match self.request(
+            Request::Tree {
+                selector,
+                root_cursor,
+                root_limit,
+                node_limit,
+                max_depth,
+            },
+            deadline,
+            cancellation,
+        )? {
+            Response::Tree(page) => Ok(page),
+            response => response_error(response),
+        }
+    }
+
+    pub fn tree_for_job(
+        &self,
+        job_id: JobId,
+        node_limit: u32,
+        max_depth: Option<u32>,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<JobTreePage> {
+        match self.request(
+            Request::TreeForJob {
+                job_id,
+                node_limit,
+                max_depth,
+            },
+            deadline,
+            cancellation,
+        )? {
+            Response::Tree(page) => Ok(page),
+            response => response_error(response),
+        }
+    }
+
+    pub fn tree_children(
+        &self,
+        cursor: JobChildrenCursor,
+        node_limit: u32,
+        additional_depth: Option<u32>,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<JobChildrenPage> {
+        match self.request(
+            Request::TreeChildren {
+                cursor,
+                node_limit,
+                additional_depth,
+            },
+            deadline,
+            cancellation,
+        )? {
+            Response::TreeChildren(page) => Ok(page),
+            response => response_error(response),
+        }
+    }
+
     pub fn observe(
         &self,
         selector: JobSelector,
@@ -576,6 +648,43 @@ impl Client {
             deadline,
             cancellation,
         )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn observe_trees(
+        &self,
+        selector: JobTreeSelector,
+        cursor: Option<EventCursor>,
+        event_limit: u32,
+        root_limit: u32,
+        node_limit: u32,
+        max_depth: Option<u32>,
+        max_wait: Duration,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<TreeObservationFrame> {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match self.request(
+            Request::ObserveTrees {
+                selector,
+                cursor,
+                event_limit,
+                root_limit,
+                node_limit,
+                max_depth,
+                max_wait_millis: max_wait
+                    .min(Duration::from_secs(60))
+                    .min(remaining)
+                    .as_millis()
+                    .try_into()
+                    .unwrap_or(60_000),
+            },
+            deadline,
+            cancellation,
+        )? {
+            Response::TreesObserved(frame) => Ok(frame),
+            response => response_error(response),
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1234,12 +1343,19 @@ fn response_error<T>(response: Response) -> Result<T> {
         Response::Error { code, message }
             if code == error_code::IDEMPOTENCY_CONFLICT
                 || code == error_code::REJECTED
+                || code.starts_with("child_")
                 || code.starts_with("containment_") =>
         {
             Err(Error::Rejected {
                 code,
                 detail: message,
             })
+        }
+        Response::Error { code, message } if code == error_code::TREE_CURSOR_STALE => {
+            Err(Error::ViewStale { detail: message })
+        }
+        Response::Error { code, message } if code == error_code::TREE_SCAN_LIMIT => {
+            Err(Error::ViewUnavailable { detail: message })
         }
         Response::Error { code, message } => Err(Error::Protocol(format!("{code}: {message}"))),
         _ => Err(Error::Protocol("unexpected response variant".into())),
@@ -1578,7 +1694,9 @@ fn persist_submit_decision(
             Some(RecoveryResult::Conflict)
         }
         Response::Error { code, message }
-            if code == error_code::BLOCKED_BY_ANCESTOR || code == error_code::RESOURCE_CAPACITY =>
+            if code == error_code::BLOCKED_BY_ANCESTOR
+                || code == error_code::RESOURCE_CAPACITY
+                || code.starts_with("child_") =>
         {
             Some(RecoveryResult::Rejected {
                 code: code.clone(),
@@ -1846,6 +1964,7 @@ mod tests {
         for code in [
             error_code::IDEMPOTENCY_CONFLICT,
             error_code::REJECTED,
+            "child_claim_not_permitted",
             "containment_identity_unavailable",
         ] {
             assert!(matches!(
@@ -2081,6 +2200,7 @@ mod tests {
             queue_rank: Some(1),
             estimate: crate::Estimate::unknown("test"),
             parent: None,
+            managed_policy_admission: None,
             gpu_provenance: None,
             admission: None,
             daemon_generation: uuid::Uuid::nil(),
@@ -2119,6 +2239,7 @@ mod tests {
                 queue_rank: Some(1),
                 estimate: crate::Estimate::unknown("pending"),
                 parent: None,
+                managed_policy_admission: None,
                 gpu_provenance: None,
                 admission: None,
                 daemon_generation: uuid::Uuid::nil(),
@@ -2135,6 +2256,7 @@ mod tests {
             queue_rank: None,
             estimate: crate::Estimate::unknown("final"),
             parent: None,
+            managed_policy_admission: None,
             gpu_provenance: None,
             admission: None,
             daemon_generation: uuid::Uuid::nil(),
@@ -2151,6 +2273,7 @@ mod tests {
             queue_rank: None,
             estimate: crate::Estimate::unknown("foreign"),
             parent: None,
+            managed_policy_admission: None,
             gpu_provenance: None,
             admission: None,
             daemon_generation: uuid::Uuid::nil(),
@@ -2178,6 +2301,7 @@ mod tests {
             queue_rank: Some(rank),
             estimate: crate::Estimate::unknown("pending"),
             parent: None,
+            managed_policy_admission: None,
             gpu_provenance: None,
             admission: None,
             daemon_generation: uuid::Uuid::nil(),
@@ -2348,6 +2472,33 @@ mod tests {
             Some(RecoveryResult::Rejected {
                 code: "blocked_by_ancestor".into(),
                 detail: "cargo_slots retained by parent".into(),
+            })
+        );
+
+        unknown.receipt = None;
+        write_json_atomically(&path, &unknown).unwrap();
+        persist_submit_decision(
+            &path,
+            options.idempotency_key,
+            "payload",
+            "pipe-a",
+            SubmissionContext {
+                store_uuid,
+                parent: Some(parent),
+            },
+            &Response::Error {
+                code: "child_claim_not_permitted".into(),
+                message: "cargo_slots=2 exceeds 1".into(),
+            },
+        )
+        .unwrap();
+        let rejected: ResultFileRecord =
+            serde_json::from_reader(std::fs::File::open(&path).unwrap()).unwrap();
+        assert_eq!(
+            rejected.receipt,
+            Some(RecoveryResult::Rejected {
+                code: "child_claim_not_permitted".into(),
+                detail: "cargo_slots=2 exceeds 1".into(),
             })
         );
     }
