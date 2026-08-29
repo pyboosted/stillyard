@@ -58,6 +58,7 @@ impl Store {
     ) -> StoreResult<SubmitResult> {
         spec.validate()
             .map_err(|error| StoreError::InvalidSpec(error.to_string()))?;
+        self.validate_host_job(spec)?;
         validate_input_shape(spec, stdin)?;
         let payload_hash = normalized_payload_hash_with_input(spec, stdin)?;
         if claimed_payload_hash != payload_hash {
@@ -237,6 +238,9 @@ impl Store {
     ) -> StoreResult<BatchSubmitResult> {
         spec.validate()
             .map_err(|error| StoreError::InvalidSpec(error.to_string()))?;
+        for member in &spec.jobs {
+            self.validate_host_job(&member.spec)?;
+        }
         validate_batch_input_shape(spec, stdins)?;
         let payload_hash = normalized_batch_payload_hash_with_inputs(spec, stdins)?;
         if claimed_payload_hash != payload_hash {
@@ -840,6 +844,8 @@ impl Store {
             queue_rank,
             estimate,
             parent,
+            gpu_provenance: self.gpu_provenance_for_job(job_id)?,
+            admission: self.admission_for_job(job_id)?,
             daemon_generation: self.accepting_daemon_generation(submission_id)?,
         })
     }

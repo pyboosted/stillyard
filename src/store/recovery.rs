@@ -72,7 +72,7 @@ impl Store {
         )?;
         transaction.execute(
             "UPDATE attempts SET state = 'settled', verdict = 'interrupted', finished_ms = ?1
-             WHERE state != 'settled'",
+             WHERE state = 'running'",
             [finished],
         )?;
         transaction.execute(

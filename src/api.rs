@@ -152,6 +152,10 @@ pub struct JobSummary {
     pub queue_rank: Option<u64>,
     pub estimate: Estimate,
     pub claims: ResourceClaims,
+    /// Operator-declared labels copied from the accepted spec, e.g. `project=…` and `gate=…`,
+    /// so list views can group and colour rows without fetching every snapshot.
+    #[serde(default)]
+    pub labels: Vec<Label>,
     pub blocker: Option<Blocker>,
     pub attempt_id: Option<AttemptId>,
     pub invocation_id: Option<InvocationId>,
@@ -333,6 +337,67 @@ pub struct Blocker {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
+pub struct GpuProvenance {
+    pub uuid: String,
+    pub driver_version: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum AdmissionDecisionState {
+    Waiting,
+    Reserved,
+    Released,
+    Replanned,
+    Failed,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct ObservedOperandSnapshot {
+    pub name: String,
+    pub requested: u64,
+    pub configured_capacity: Option<u64>,
+    pub observed: Option<u64>,
+    pub safety_margin: u64,
+    pub granted_debit: Option<u64>,
+    pub satisfied: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct DetectorEvidenceSnapshot {
+    pub detector: String,
+    pub observed: Option<u64>,
+    pub threshold: Option<u64>,
+    pub satisfied: bool,
+    pub detail: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct AdmissionDecisionSnapshot {
+    pub state: AdmissionDecisionState,
+    pub evaluated_unix_millis: Option<i64>,
+    pub observation_generation: Option<Uuid>,
+    #[serde(default)]
+    pub blockers: Vec<Blocker>,
+    #[serde(default)]
+    pub operands: Vec<ObservedOperandSnapshot>,
+    #[serde(default)]
+    pub detectors: Vec<DetectorEvidenceSnapshot>,
+    pub gpu_provenance: Option<GpuProvenance>,
+    pub final_sample: bool,
+    pub deferral_count: u32,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
 pub struct JobReceipt {
     pub submission_id: SubmissionId,
     pub job_id: JobId,
@@ -343,6 +408,10 @@ pub struct JobReceipt {
     pub queue_rank: Option<u64>,
     pub estimate: Estimate,
     pub parent: Option<ManagedParent>,
+    #[serde(default)]
+    pub gpu_provenance: Option<GpuProvenance>,
+    #[serde(default)]
+    pub admission: Option<AdmissionDecisionSnapshot>,
     pub daemon_generation: Uuid,
 }
 
@@ -772,6 +841,17 @@ pub struct DoctorCheck {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
+pub struct DoctorCoverage {
+    pub provider: String,
+    pub detector: String,
+    pub status: DoctorCheckStatus,
+    pub observed_unix_millis: Option<i64>,
+    pub observation_generation: Option<Uuid>,
+    pub remediation: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 pub struct DoctorBoundary {
     pub code: String,
     pub statement: String,
@@ -810,6 +890,8 @@ pub struct DoctorSnapshot {
     pub host: DoctorHostSnapshot,
     pub store: DoctorStoreSnapshot,
     pub checks: Vec<DoctorCheck>,
+    #[serde(default)]
+    pub coverage: Vec<DoctorCoverage>,
     pub incidents: DoctorIncidentPage,
     pub boundaries: Vec<DoctorBoundary>,
 }
@@ -876,9 +958,14 @@ pub struct AttemptSnapshot {
     pub attempt_id: AttemptId,
     pub attempt_index: u32,
     pub verdict: Option<AttemptVerdict>,
-    pub started_unix_millis: i64,
+    #[serde(default, alias = "safety_reason")]
+    pub reason_code: Option<String>,
+    pub created_unix_millis: i64,
+    pub started_unix_millis: Option<i64>,
     pub deadline_unix_millis: Option<i64>,
     pub finished_unix_millis: Option<i64>,
+    #[serde(default)]
+    pub admission: Option<AdmissionDecisionSnapshot>,
     pub invocations: Vec<InvocationSnapshot>,
 }
 
@@ -906,6 +993,10 @@ pub struct JobSnapshot {
     pub blockers: Vec<Blocker>,
     #[serde(default)]
     pub attempts: Vec<AttemptSnapshot>,
+    #[serde(default)]
+    pub gpu_provenance: Option<GpuProvenance>,
+    #[serde(default)]
+    pub admission: Option<AdmissionDecisionSnapshot>,
     pub daemon_generation: Uuid,
 }
 
@@ -919,6 +1010,9 @@ impl JobSnapshot {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
+// This public result mirrors the wire response. Boxing only the receipt would make the Rust API
+// less direct for a modest stack saving while leaving its serialized representation unchanged.
+#[allow(clippy::large_enum_variant)]
 pub enum RecoveryResult {
     Received { submission_id: SubmissionId },
     Accepted(JobReceipt),

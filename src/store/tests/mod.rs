@@ -13,6 +13,7 @@ fn spec(root: &Path) -> JobSpec {
         stdin: StdinSpec::Eof,
         environment: EnvironmentSpec::default(),
         resources: ResourceClaims::default(),
+        observed: None,
         conditions: Vec::new(),
         retry: RetryPolicy::default(),
         postconditions: Vec::new(),
@@ -63,6 +64,7 @@ fn stage_bytes(store: &Store, bytes: &[u8]) -> StagedInputRef {
     input
 }
 
+mod admission_safety;
 mod attempt_lifecycle;
 mod containment_safety;
 mod input_submission;

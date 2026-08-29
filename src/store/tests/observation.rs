@@ -33,6 +33,7 @@ fn list_events_and_cursor_are_one_public_observation_path() {
     );
     assert_eq!(page.jobs[0].queue_rank, Some(1));
     assert_eq!(page.jobs[0].claims.cargo_slots, Some(1));
+    assert_eq!(page.jobs[0].labels, job.labels);
     assert!(page.event_cursor.sequence > 0);
 
     let frame = store

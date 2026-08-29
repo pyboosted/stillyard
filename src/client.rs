@@ -2081,6 +2081,8 @@ mod tests {
             queue_rank: Some(1),
             estimate: crate::Estimate::unknown("test"),
             parent: None,
+            gpu_provenance: None,
+            admission: None,
             daemon_generation: uuid::Uuid::nil(),
         });
         persist_result_receipt(&path, &stale, accepted.clone()).unwrap();
@@ -2117,6 +2119,8 @@ mod tests {
                 queue_rank: Some(1),
                 estimate: crate::Estimate::unknown("pending"),
                 parent: None,
+                gpu_provenance: None,
+                admission: None,
                 daemon_generation: uuid::Uuid::nil(),
             })),
         };
@@ -2131,6 +2135,8 @@ mod tests {
             queue_rank: None,
             estimate: crate::Estimate::unknown("final"),
             parent: None,
+            gpu_provenance: None,
+            admission: None,
             daemon_generation: uuid::Uuid::nil(),
         });
         persist_result_receipt(&path, &record, refreshed).unwrap();
@@ -2145,6 +2151,8 @@ mod tests {
             queue_rank: None,
             estimate: crate::Estimate::unknown("foreign"),
             parent: None,
+            gpu_provenance: None,
+            admission: None,
             daemon_generation: uuid::Uuid::nil(),
         });
         assert!(matches!(
@@ -2170,6 +2178,8 @@ mod tests {
             queue_rank: Some(rank),
             estimate: crate::Estimate::unknown("pending"),
             parent: None,
+            gpu_provenance: None,
+            admission: None,
             daemon_generation: uuid::Uuid::nil(),
         };
         let durable_batch = BatchReceipt {

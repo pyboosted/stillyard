@@ -5,8 +5,10 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 use stillyard::{
-    Client, DaemonSnapshot, DoctorSnapshot, EnvironmentSpec, Error, JobId, JobSpec, LogStream,
-    ResourceClaims, RetryPolicy, SPEC_VERSION, StdinSpec, SubmitOptions,
+    Client, DaemonSnapshot, DoctorCheckStatus, DoctorSnapshot, EnvironmentSpec, Error,
+    GpuProviderConfig, HostConfig, HostObservationConfig, JobId, JobSpec, LogStream, ProcessRules,
+    QuietDetector, QuietPolicy, ResourceCapacities, ResourceClaims, RetryPolicy, SPEC_VERSION,
+    StdinSpec, SubmitOptions,
 };
 use uuid::Uuid;
 
@@ -84,6 +86,29 @@ fn copied_daemon(root: &Path) -> PathBuf {
     let pinned = pinned_dir.join("stillyard.exe");
     std::fs::copy(source, &pinned).unwrap();
     pinned
+}
+
+fn build_nvml_generation_fixture(runtime: &Path) {
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join("nvml_generation_guard.c");
+    let output = runtime.join("nvml.dll");
+    let compile = Command::new("cl.exe")
+        .current_dir(runtime)
+        .args(["/nologo", "/LD", "/O2"])
+        .arg(source)
+        .arg("/link")
+        .arg(format!("/OUT:{}", output.display()))
+        .output()
+        .unwrap();
+    assert!(
+        compile.status.success(),
+        "NVML fixture build failed:\n{}\n{}",
+        String::from_utf8_lossy(&compile.stdout),
+        String::from_utf8_lossy(&compile.stderr)
+    );
+    assert!(output.is_file());
 }
 
 fn canary_daemon(root: &Path) -> (PathBuf, PathBuf) {
@@ -257,6 +282,7 @@ fn pinned_isolated_daemons_coexist_and_own_both_coordinates() {
         stdin: StdinSpec::Eof,
         environment: EnvironmentSpec::default(),
         resources: ResourceClaims::default(),
+        observed: None,
         conditions: Vec::new(),
         retry: RetryPolicy::default(),
         postconditions: Vec::new(),
@@ -434,6 +460,146 @@ fn absent_custom_endpoints_never_auto_start() {
         assert!(command.status().unwrap().success(), "mode={mode}");
         assert!(!marker.exists(), "mode={mode} attempted daemon auto-start");
     }
+}
+
+#[test]
+fn external_nvml_generation_change_never_releases_the_suspended_child() {
+    let temp = tempfile::tempdir().unwrap();
+    let runtime = temp.path().join("runtime");
+    let store = temp.path().join("store");
+    std::fs::create_dir_all(&runtime).unwrap();
+    std::fs::create_dir_all(&store).unwrap();
+    let source_executable = PathBuf::from(env!("CARGO_BIN_EXE_stillyard"));
+    let executable = runtime.join("stillyard.exe");
+    std::fs::copy(source_executable, &executable).unwrap();
+    build_nvml_generation_fixture(&runtime);
+
+    let gpu_uuid = "GPU-a1144c26-a15c-cba1-3b7a-870c755ef08a";
+    let config = HostConfig {
+        resources: ResourceCapacities {
+            gpu_slots: 1,
+            ..Default::default()
+        },
+        impact_incompatibilities: Default::default(),
+        observation: HostObservationConfig {
+            sample_interval_millis: 100,
+            quiet_max_sample_gap_millis: 200,
+            generation_max_cadence_gap_millis: 500,
+            memory_max_sample_age_millis: 500,
+            gpu_slot_uuid: Some(gpu_uuid.into()),
+            process_rules: ProcessRules::default(),
+            pre_release_max_deferrals: 1,
+            pre_release_backoff_millis: 100,
+            admission_wall_clock_limit_seconds: 10,
+            gpu_provider: GpuProviderConfig::Nvml,
+            ..Default::default()
+        },
+    };
+    std::fs::write(
+        store.join("config.json"),
+        serde_json::to_vec_pretty(&config).unwrap(),
+    )
+    .unwrap();
+    let endpoint = format!(r"\\.\pipe\stillyard-a05-{}", Uuid::now_v7());
+    let _daemon = spawn_daemon(&executable, &store, &endpoint);
+    let client = connect(&executable, &endpoint);
+    let doctor_output = Command::new(&executable)
+        .args(["--endpoint", &endpoint, "doctor", "--json"])
+        .output()
+        .unwrap();
+    assert!(
+        doctor_output.status.success(),
+        "fixture doctor failed: {}",
+        String::from_utf8_lossy(&doctor_output.stderr)
+    );
+    let doctor: DoctorSnapshot = serde_json::from_slice(&doctor_output.stdout).unwrap();
+    assert!(doctor.coverage.iter().any(|coverage| {
+        coverage.detector == "gpu_placement" && coverage.status == DoctorCheckStatus::Pass
+    }));
+
+    let system_root = PathBuf::from(std::env::var_os("SystemRoot").unwrap());
+    let child = runtime.join("stillyard-a05-child.exe");
+    std::fs::copy(system_root.join("System32").join("cmd.exe"), &child).unwrap();
+    let marker = temp.path().join("forbidden-release.txt");
+    let job = JobSpec {
+        spec_version: SPEC_VERSION,
+        executable: child,
+        args: vec![
+            "/d".into(),
+            "/c".into(),
+            format!("echo released>\"{}\"", marker.display()),
+        ],
+        working_directory: temp.path().to_path_buf(),
+        stdin: StdinSpec::Eof,
+        environment: EnvironmentSpec::default(),
+        resources: ResourceClaims {
+            gpu_slots: Some(1),
+            ..Default::default()
+        },
+        observed: None,
+        conditions: Vec::new(),
+        retry: RetryPolicy::default(),
+        postconditions: Vec::new(),
+        labels: Vec::new(),
+        expected_duration_seconds: Some(1),
+        timeout_seconds: Some(10),
+        quiet: Some(QuietPolicy {
+            stable_seconds: 1,
+            max_sample_age_seconds: 1,
+            wait_budget_seconds: 5,
+            detectors: vec![QuietDetector::GpuUtilization {
+                gpu_uuid: gpu_uuid.into(),
+                max_percent: 0,
+            }],
+        }),
+        artifacts: Vec::new(),
+        allow_child_submissions: false,
+    };
+    let spec_path = temp.path().join("strict-job.json");
+    std::fs::write(&spec_path, serde_json::to_vec_pretty(&job).unwrap()).unwrap();
+    let submit = Command::new(&executable)
+        .args(["--endpoint", &endpoint, "submit", "--spec"])
+        .arg(&spec_path)
+        .args(["--wait", "--deadline-seconds", "20"])
+        .output()
+        .unwrap();
+    assert!(
+        !submit.status.success(),
+        "generation-contaminated strict Job unexpectedly succeeded"
+    );
+    assert!(
+        !marker.exists(),
+        "A-05: user code was released from stale reservation evidence"
+    );
+    let jobs = client
+        .list(
+            stillyard::JobSelector::default(),
+            None,
+            10,
+            Instant::now() + Duration::from_secs(2),
+            None,
+        )
+        .unwrap();
+    let summary = jobs.jobs.last().expect("strict fixture Job is retained");
+    let snapshot = client
+        .status(
+            summary.job_id,
+            Instant::now() + Duration::from_secs(2),
+            None,
+        )
+        .unwrap();
+    assert_eq!(snapshot.outcome, Some(stillyard::JobOutcome::Failed));
+    assert_eq!(
+        snapshot.attempts[0].reason_code.as_deref(),
+        Some("quiet_unattainable")
+    );
+    assert!(
+        snapshot
+            .admission
+            .as_ref()
+            .is_some_and(|admission| admission.deferral_count >= 1),
+        "A-05 must prove a reserved suspended child reached final-sample deferral"
+    );
 }
 
 #[test]

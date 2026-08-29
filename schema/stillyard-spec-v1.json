@@ -209,6 +209,16 @@
             "$ref": "#/$defs/Label"
           }
         },
+        "observed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ObservedResourcePolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "postconditions": {
           "type": "array",
           "default": [],
@@ -293,6 +303,39 @@
         "value"
       ]
     },
+    "ObservedResourcePolicy": {
+      "type": "object",
+      "properties": {
+        "cpu_utilization_percent_at_most": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "gpu_utilization_percent_at_most": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0
+          },
+          "default": {}
+        },
+        "max_sample_age_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "max_sample_age_seconds"
+      ]
+    },
     "PostconditionSpec": {
       "type": "object",
       "properties": {
@@ -337,6 +380,104 @@
         "executable"
       ]
     },
+    "QuietDetector": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "cpu_utilization"
+            },
+            "max_percent": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "max_percent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "gpu_uuid": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "gpu_utilization"
+            },
+            "max_percent": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "gpu_uuid",
+            "max_percent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "disk_utilization"
+            },
+            "max_percent": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "max_percent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "gpu_uuid": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "foreign_gpu_compute"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "gpu_uuid"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "blocked_processes"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
     "QuietPolicy": {
       "type": "object",
       "properties": {
@@ -344,7 +485,7 @@
           "type": "array",
           "default": [],
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/QuietDetector"
           }
         },
         "max_sample_age_seconds": {

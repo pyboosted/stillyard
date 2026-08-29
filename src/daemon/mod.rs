@@ -48,7 +48,12 @@ pub(crate) fn run(store_root: Option<PathBuf>, endpoint: Option<String>) -> Resu
     let first_pipe = create_pipe_instance(&endpoint, true)?;
     let (_lock, store) = open_store_under_lock(StorePaths::new(store_root))?;
     let store = Arc::new(Mutex::new(store));
-    let scheduler = DaemonReactor::start(Arc::clone(&store), endpoint);
+    let observation_config = store
+        .lock()
+        .map_err(|_| Error::Unavailable("store mutex poisoned".into()))?
+        .host_config()
+        .observation;
+    let scheduler = DaemonReactor::start(Arc::clone(&store), endpoint, observation_config);
     let notifier = Arc::downgrade(&scheduler);
     store
         .lock()

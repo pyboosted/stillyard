@@ -29,6 +29,158 @@ impl Store {
         managed_parent_from_columns(self.store_uuid, row)
     }
 
+    pub(super) fn gpu_provenance_for_job(
+        &self,
+        job_id: JobId,
+    ) -> StoreResult<Option<crate::GpuProvenance>> {
+        self.connection
+            .query_row(
+                "SELECT admissions.gpu_uuid, admissions.gpu_driver_version
+                 FROM admissions JOIN attempts ON attempts.id = admissions.attempt_id
+                 WHERE attempts.job_id = ?1 AND admissions.gpu_uuid IS NOT NULL
+                   AND admissions.gpu_driver_version IS NOT NULL
+                 ORDER BY attempts.attempt_index DESC LIMIT 1",
+                [self.local_id(job_id)?],
+                |row| {
+                    Ok(crate::GpuProvenance {
+                        uuid: row.get(0)?,
+                        driver_version: row.get(1)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(Into::into)
+    }
+
+    pub(super) fn admission_for_job(
+        &self,
+        job_id: JobId,
+    ) -> StoreResult<Option<AdmissionDecisionSnapshot>> {
+        let attempt_id = self
+            .connection
+            .query_row(
+                "SELECT admissions.attempt_id FROM admissions
+                 JOIN attempts ON attempts.id = admissions.attempt_id
+                 WHERE attempts.job_id = ?1
+                 ORDER BY attempts.attempt_index DESC LIMIT 1",
+                [self.local_id(job_id)?],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        attempt_id
+            .as_deref()
+            .map(|attempt_id| self.admission_for_attempt_key(attempt_id))
+            .transpose()
+    }
+
+    pub(super) fn admission_for_attempt(
+        &self,
+        attempt_id: AttemptId,
+    ) -> StoreResult<Option<AdmissionDecisionSnapshot>> {
+        if attempt_id.store_uuid() != self.store_uuid {
+            return Err(StoreError::NotFound(attempt_id.to_string()));
+        }
+        self.admission_for_attempt_key(&attempt_id.entity_uuid().to_string())
+            .map(Some)
+            .or_else(|error| match error {
+                StoreError::Sqlite(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                other => Err(other),
+            })
+    }
+
+    fn admission_for_attempt_key(
+        &self,
+        attempt_id: &str,
+    ) -> StoreResult<AdmissionDecisionSnapshot> {
+        let (
+            attempt_state,
+            verdict,
+            deferral_count,
+            last_eval_unix_millis,
+            last_blockers_json,
+            last_evidence_json,
+            reservation_evidence_json,
+            release_evidence_json,
+            gpu_uuid,
+            gpu_driver_version,
+        ) = self.connection.query_row(
+            "SELECT attempts.state, attempts.verdict, admissions.deferral_count,
+                    admissions.last_eval_unix_ms, admissions.last_blockers_json,
+                    admissions.last_evidence_json, admissions.reservation_evidence_json,
+                    admissions.release_evidence_json, admissions.gpu_uuid,
+                    admissions.gpu_driver_version
+             FROM admissions JOIN attempts ON attempts.id = admissions.attempt_id
+             WHERE admissions.attempt_id = ?1",
+            [attempt_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, u32>(2)?,
+                    row.get::<_, Option<i64>>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, Option<String>>(9)?,
+                ))
+            },
+        )?;
+        let final_sample = release_evidence_json.is_some();
+        let evidence_json = release_evidence_json
+            .as_deref()
+            .or(reservation_evidence_json.as_deref())
+            .or(last_evidence_json.as_deref());
+        let evidence = evidence_json
+            .map(serde_json::from_str::<AdmissionEvidenceRecord>)
+            .transpose()?
+            .unwrap_or_default();
+        let fallback_blockers = serde_json::from_str::<Vec<Blocker>>(&last_blockers_json)?;
+        let state = if verdict.as_deref() == Some("safety_failed") {
+            AdmissionDecisionState::Failed
+        } else if attempt_state == "planned" && deferral_count > 0 {
+            AdmissionDecisionState::Replanned
+        } else if matches!(attempt_state.as_str(), "planned" | "admitting") {
+            AdmissionDecisionState::Waiting
+        } else if attempt_state == "starting" {
+            AdmissionDecisionState::Reserved
+        } else if matches!(attempt_state.as_str(), "running" | "settled")
+            && reservation_evidence_json.is_some()
+        {
+            AdmissionDecisionState::Released
+        } else {
+            AdmissionDecisionState::Failed
+        };
+        let gpu_provenance = gpu_uuid
+            .zip(gpu_driver_version)
+            .map(|(uuid, driver_version)| GpuProvenance {
+                uuid,
+                driver_version,
+            });
+        Ok(AdmissionDecisionSnapshot {
+            state,
+            evaluated_unix_millis: evidence.evaluated_unix_millis.or(last_eval_unix_millis),
+            observation_generation: evidence.observation_generation,
+            blockers: if evidence.blockers.is_empty()
+                && matches!(
+                    state,
+                    AdmissionDecisionState::Waiting
+                        | AdmissionDecisionState::Replanned
+                        | AdmissionDecisionState::Failed
+                ) {
+                fallback_blockers
+            } else {
+                evidence.blockers
+            },
+            operands: evidence.operands,
+            detectors: evidence.detectors,
+            gpu_provenance,
+            final_sample,
+            deferral_count,
+        })
+    }
+
     pub(super) fn blockers_for_job(&self, job_id: JobId) -> StoreResult<Vec<Blocker>> {
         let job_key = self.local_id(job_id)?;
         let mut blockers = self.dependency_blockers(&job_key)?.0;
@@ -60,6 +212,25 @@ impl Store {
             &self.active_and_reserved_claims_before(&job_key)?,
             &self.impact_incompatibilities,
         ));
+        let admission_blockers: Option<String> = self
+            .connection
+            .query_row(
+                "SELECT admissions.last_blockers_json FROM admissions
+                 JOIN jobs ON jobs.attempt_id = admissions.attempt_id
+                 WHERE jobs.id = ?1",
+                [&job_key],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if let Some(json) = admission_blockers {
+            blockers.extend(serde_json::from_str::<Vec<Blocker>>(&json)?);
+        }
+        blockers.sort_by(|left, right| {
+            left.code
+                .cmp(&right.code)
+                .then(left.detail.cmp(&right.detail))
+        });
+        blockers.dedup();
         Ok(blockers)
     }
 
@@ -267,12 +438,48 @@ impl Store {
         Ok(self.prepare_next_job_with_progress()?.job)
     }
 
+    #[cfg(test)]
     pub(crate) fn prepare_next_job_with_progress(&mut self) -> StoreResult<PrepareNext> {
+        self.prepare_next_job_with_observation(None)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn prepare_next_job_with_observation(
+        &mut self,
+        observation: Option<crate::host_observation::ObservationMoment<'_>>,
+    ) -> StoreResult<PrepareNext> {
+        self.prepare_next_job_with_observation_source(|| Ok(observation))
+    }
+
+    pub(crate) fn prepare_next_job_with_sample(
+        &mut self,
+        sample: Option<&crate::host_observation::HostSample>,
+    ) -> StoreResult<PrepareNext> {
+        self.prepare_next_job_with_observation_source(|| {
+            let Some(sample) = sample else {
+                return Ok(None);
+            };
+            let (now_unix_millis, now_monotonic_millis) =
+                crate::host_observation::observation_clock()?;
+            Ok(Some(crate::host_observation::ObservationMoment {
+                sample,
+                now_unix_millis,
+                now_monotonic_millis,
+            }))
+        })
+    }
+
+    fn prepare_next_job_with_observation_source<'a>(
+        &mut self,
+        mut observation: impl FnMut() -> StoreResult<
+            Option<crate::host_observation::ObservationMoment<'a>>,
+        >,
+    ) -> StoreResult<PrepareNext> {
         let mut state_changed = false;
         loop {
             let mut skipped_in_pass = false;
             for job_id in self.pending_jobs()? {
-                match self.prepare_job_inner(job_id)? {
+                match self.prepare_job_inner(job_id, observation()?)? {
                     PrepareJob::Ready(job) => {
                         return Ok(PrepareNext {
                             job: Some(*job),
@@ -280,7 +487,7 @@ impl Store {
                         });
                     }
                     PrepareJob::Blocked => {}
-                    PrepareJob::Skipped => {
+                    PrepareJob::StateChanged => {
                         skipped_in_pass = true;
                         state_changed = true;
                     }
@@ -297,19 +504,38 @@ impl Store {
 
     #[cfg(test)]
     pub(crate) fn prepare_job(&mut self, job_id: JobId) -> StoreResult<Option<PreparedJob>> {
-        Ok(match self.prepare_job_inner(job_id)? {
+        Ok(match self.prepare_job_inner(job_id, None)? {
             PrepareJob::Ready(job) => Some(*job),
-            PrepareJob::Blocked | PrepareJob::Skipped => None,
+            PrepareJob::Blocked | PrepareJob::StateChanged => None,
         })
     }
 
-    pub(super) fn prepare_job_inner(&mut self, job_id: JobId) -> StoreResult<PrepareJob> {
+    pub(super) fn prepare_job_inner(
+        &mut self,
+        job_id: JobId,
+        observation: Option<crate::host_observation::ObservationMoment<'_>>,
+    ) -> StoreResult<PrepareJob> {
         let job_key = self.local_id(job_id)?;
         if !self.startup_identity.capable() {
             return Ok(PrepareJob::Blocked);
         }
+        let observed_job = self
+            .connection
+            .query_row(
+                "SELECT spec_json FROM jobs WHERE id = ?1 AND state = 'pending'",
+                [&job_key],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+            .map(|json| serde_json::from_str::<JobSpec>(&json))
+            .transpose()?
+            .is_some_and(|spec| spec.requires_host_observation());
+        if observed_job {
+            return self.advance_observed_admission(job_id, observation);
+        }
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
+        let host_config = self.host_config();
         let attempt_id = AttemptId::new(self.store_uuid);
         let invocation_id = InvocationId::new(self.store_uuid);
         let containment_id = ContainmentId::new(self.store_uuid);
@@ -343,13 +569,14 @@ impl Store {
                 params![job_id.entity_uuid().to_string(), now_millis()],
             )?;
             transaction.commit()?;
-            return Ok(PrepareJob::Skipped);
+            return Ok(PrepareJob::StateChanged);
         }
         if !dependency_blockers.is_empty() {
             transaction.rollback()?;
             return Ok(PrepareJob::Blocked);
         }
         let claims: ResolvedClaims = serde_json::from_str(&claims_json)?;
+        let spec: JobSpec = serde_json::from_str(&spec_json)?;
         let active = active_claims_tx(&transaction)?;
         if !claims
             .blockers(&capacities, &active, &impact_incompatibilities)
@@ -358,7 +585,24 @@ impl Store {
             transaction.rollback()?;
             return Ok(PrepareJob::Blocked);
         }
-        let spec = serde_json::from_str(&spec_json)?;
+        if spec.requires_host_observation() {
+            let Some(observation) = observation else {
+                transaction.rollback()?;
+                return Ok(PrepareJob::Blocked);
+            };
+            let context = crate::host_observation::evaluate_admission(
+                &spec,
+                &host_config,
+                observation.sample,
+                &active,
+                observation.now_unix_millis,
+                observation.now_monotonic_millis,
+            );
+            if !context.blockers.is_empty() || spec.quiet.is_some() {
+                transaction.rollback()?;
+                return Ok(PrepareJob::Blocked);
+            }
+        }
         let stdin = match (stdin_hash, stdin_len) {
             (Some(sha256), Some(length)) => Some(StagedInputRef { sha256, length }),
             (None, None) => None,
@@ -393,8 +637,9 @@ impl Store {
                 .saturating_add(i64::try_from(seconds.saturating_mul(1000)).unwrap_or(i64::MAX))
         });
         transaction.execute(
-            "INSERT INTO attempts(id, job_id, state, attempt_index, started_ms, deadline_ms)
-             VALUES (?1, ?2, 'starting', ?3, ?4, ?5)",
+            "INSERT INTO attempts(
+                id, job_id, state, attempt_index, created_ms, started_ms, deadline_ms
+             ) VALUES (?1, ?2, 'starting', ?3, ?4, ?4, ?5)",
             params![
                 attempt_id.entity_uuid().to_string(),
                 job_id.entity_uuid().to_string(),
@@ -475,14 +720,23 @@ impl Store {
                 "postcondition requires the current active Attempt".into(),
             ));
         }
+        let role_index: u32 = transaction.query_row(
+            "SELECT COALESCE(MAX(role_index), -1) + 1
+             FROM invocations WHERE attempt_id = ?1",
+            [primary.attempt_id.entity_uuid().to_string()],
+            |row| row.get(0),
+        )?;
+        let postcondition_index = u32::try_from(index)
+            .map_err(|_| StoreError::InvalidState("too many postconditions".into()))?;
         transaction.execute(
-            "INSERT INTO invocations(id, attempt_id, role, role_index, state)
-             VALUES (?1, ?2, 'postcondition', ?3, 'prepared')",
+            "INSERT INTO invocations(
+                id, attempt_id, role, role_index, postcondition_index, state
+             ) VALUES (?1, ?2, 'postcondition', ?3, ?4, 'prepared')",
             params![
                 invocation_id.entity_uuid().to_string(),
                 primary.attempt_id.entity_uuid().to_string(),
-                u32::try_from(index + 1)
-                    .map_err(|_| StoreError::InvalidState("too many postconditions".into()))?,
+                role_index,
+                postcondition_index,
             ],
         )?;
         transaction.execute(
@@ -513,6 +767,8 @@ impl Store {
             spec.working_directory = working_directory.clone();
         }
         spec.stdin = StdinSpec::Eof;
+        spec.observed = None;
+        spec.quiet = None;
         spec.postconditions.clear();
         spec.allow_child_submissions = false;
         let log_directory = self
@@ -548,6 +804,82 @@ impl Store {
         Ok(jobs)
     }
 
+    pub(crate) fn host_observation_demand(&self) -> StoreResult<bool> {
+        let mut statement = self.connection.prepare(
+            "SELECT jobs.state, jobs.spec_json FROM jobs
+             LEFT JOIN attempts ON attempts.id = jobs.attempt_id
+             WHERE (jobs.state = 'pending'
+                    AND COALESCE(jobs.retry_not_before_ms, 0) <= ?1)
+                OR (jobs.state = 'active' AND attempts.state = 'starting')",
+        )?;
+        let rows = statement.query_map([now_millis()], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        for row in rows {
+            let (state, spec_json) = row?;
+            let spec: JobSpec = serde_json::from_str(&spec_json)?;
+            if (state == "pending" && spec.requires_host_observation())
+                || (state == "active" && spec.quiet.is_some())
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    pub(crate) fn host_observation_requirements(
+        &self,
+    ) -> StoreResult<crate::host_observation::HostObservationRequirements> {
+        let mut required = crate::host_observation::HostObservationRequirements {
+            memory: self.capacities.ram_mb > 0,
+            gpu: self.capacities.gpu_slots > 0
+                || self
+                    .capacities
+                    .custom
+                    .iter()
+                    .any(|(name, capacity)| name.starts_with("vram_mb:") && *capacity > 0),
+            gpu_uuid: self
+                .observation_config
+                .gpu_slot_uuid
+                .as_deref()
+                .and_then(|uuid| crate::spec::canonical_gpu_uuid(uuid).ok()),
+            ..Default::default()
+        };
+        let mut statement = self
+            .connection
+            .prepare("SELECT spec_json FROM jobs WHERE state IN ('pending', 'active')")?;
+        let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
+        for row in rows {
+            let spec: JobSpec = serde_json::from_str(&row?)?;
+            required.memory |= spec.resources.ram_mb.unwrap_or(0) > 0;
+            required.gpu |= spec.resources.gpu_slots.unwrap_or(0) > 0
+                || spec
+                    .resources
+                    .custom
+                    .keys()
+                    .any(|name| name.starts_with("vram_mb:"));
+            if let Some(observed) = &spec.observed {
+                required.cpu |= observed.cpu_utilization_percent_at_most.is_some();
+                required.gpu |= !observed.gpu_utilization_percent_at_most.is_empty();
+            }
+            if let Some(quiet) = &spec.quiet {
+                for detector in &quiet.detectors {
+                    match detector {
+                        crate::QuietDetector::CpuUtilization { .. } => required.cpu = true,
+                        crate::QuietDetector::DiskUtilization { .. } => required.disk = true,
+                        crate::QuietDetector::BlockedProcesses => required.processes = true,
+                        crate::QuietDetector::GpuUtilization { .. } => required.gpu = true,
+                        crate::QuietDetector::ForeignGpuCompute { .. } => {
+                            required.gpu = true;
+                            required.processes = true;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(required)
+    }
+
     pub(crate) fn next_retry_delay(
         &self,
         scheduling_pass_started: i64,
@@ -565,4 +897,18 @@ impl Store {
             )
         }))
     }
+}
+
+#[derive(Default, serde::Deserialize)]
+struct AdmissionEvidenceRecord {
+    #[serde(default)]
+    evaluated_unix_millis: Option<i64>,
+    #[serde(default)]
+    observation_generation: Option<Uuid>,
+    #[serde(default)]
+    blockers: Vec<Blocker>,
+    #[serde(default)]
+    operands: Vec<crate::ObservedOperandSnapshot>,
+    #[serde(default)]
+    detectors: Vec<crate::DetectorEvidenceSnapshot>,
 }

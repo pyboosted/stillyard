@@ -259,6 +259,7 @@ fn impact_rules_block_admission_and_ancestor_waits_symmetrically() {
             vec!["cpu_heavy".into(), "gpu_heavy".into()],
         )]
         .into(),
+        observation: Default::default(),
     };
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),

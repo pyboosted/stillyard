@@ -527,6 +527,11 @@ fn schema_epoch_mismatch_resets_database_and_preserves_other_files() {
     let config = HostConfig {
         resources: capacities(),
         impact_incompatibilities: Default::default(),
+        observation: crate::HostObservationConfig {
+            ram_safety_margin_mb: 1,
+            gpu_slot_uuid: Some("GPU-00000000-0000-0000-0000-000000000000".into()),
+            ..Default::default()
+        },
     };
     std::fs::write(&paths.config, serde_json::to_vec(&config).unwrap()).unwrap();
     let store = Store::open(paths).unwrap();

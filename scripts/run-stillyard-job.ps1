@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet('fmt', 'check', 'test', 'clippy', 'build-release')]
+    [ValidateSet('fmt', 'fmt-write', 'check', 'test', 'clippy', 'schema-update', 'build-release')]
     [string] $Job
 )
 

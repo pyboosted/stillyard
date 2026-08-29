@@ -12,7 +12,8 @@
       "PATH": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\x64;C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Mozilla.sccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\sccache-v0.16.0-x86_64-pc-windows-msvc;C:\\Users\\User\\.cargo\\bin;C:\\Program Files\\Git\\cmd;C:\\Program Files\\CMake\\bin;C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem",
       "RUSTUP_HOME": "C:\\Users\\User\\.rustup",
       "SCCACHE_DIR": "C:\\Development\\.sccache",
-      "USERPROFILE": "C:\\Users\\User"
+      "USERPROFILE": "C:\\Users\\User",
+      "SYSTEMDRIVE": "C:"
     }
   },
   "resources": {

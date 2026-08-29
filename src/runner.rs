@@ -218,6 +218,7 @@ pub(crate) fn run(
     store: Arc<Mutex<Store>>,
     endpoint: Arc<str>,
     live_containments: LiveContainments,
+    host_observation: Arc<crate::host_observation::HostObservationService>,
     reconciliation_wake: ReconciliationWake,
 ) {
     #[cfg(windows)]
@@ -226,11 +227,19 @@ pub(crate) fn run(
         &store,
         &endpoint,
         &live_containments,
+        &host_observation,
         &reconciliation_wake,
     );
 
     #[cfg(not(windows))]
-    let _ = (job, store, endpoint, live_containments, reconciliation_wake);
+    let _ = (
+        job,
+        store,
+        endpoint,
+        live_containments,
+        host_observation,
+        reconciliation_wake,
+    );
 }
 
 #[cfg(windows)]

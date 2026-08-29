@@ -7,6 +7,9 @@ fn observation_scheduler() -> Arc<DaemonReactor> {
         endpoint: Arc::from(r"\\.\pipe\stillyard-daemon-test"),
         live_containments: crate::runner::LiveContainments::default(),
         reconciliation_observations: Mutex::new(Default::default()),
+        host_observation: Arc::new(crate::host_observation::HostObservationService::new(
+            Default::default(),
+        )),
     })
 }
 
@@ -184,6 +187,7 @@ fn commit_at_wait_boundary_wakes_from_durable_event() {
         stdin: crate::StdinSpec::Eof,
         environment: Default::default(),
         resources: Default::default(),
+        observed: None,
         conditions: Vec::new(),
         retry: Default::default(),
         postconditions: Vec::new(),
@@ -314,6 +318,7 @@ fn wait_snapshot_includes_daemon_reconciliation_evidence() {
         stdin: crate::StdinSpec::Eof,
         environment: Default::default(),
         resources: Default::default(),
+        observed: None,
         conditions: Vec::new(),
         retry: Default::default(),
         postconditions: Vec::new(),

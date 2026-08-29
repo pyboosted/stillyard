@@ -23,6 +23,7 @@ pub struct JobSpec {
     pub environment: EnvironmentSpec,
     #[serde(default)]
     pub resources: ResourceClaims,
+    pub observed: Option<ObservedResourcePolicy>,
     #[serde(default)]
     pub conditions: Vec<ConditionSpec>,
     #[serde(default)]
@@ -91,6 +92,12 @@ impl JobSpec {
         // The first executable slice fails closed for baseline features whose admission providers
         // are not shipped yet. Declaring a claim must never silently run as if it were satisfied.
         self.resources.validate()?;
+        if let Some(observed) = &self.observed {
+            observed.validate()?;
+        }
+        if let Some(quiet) = &self.quiet {
+            quiet.validate()?;
+        }
         self.retry.validate()?;
         if self.postconditions.len() > 32 {
             return Err(Error::InvalidSpec("more than 32 postconditions".into()));
@@ -105,12 +112,71 @@ impl JobSpec {
         for postcondition in &self.postconditions {
             postcondition.validate(self)?;
         }
-        if !self.conditions.is_empty() || self.quiet.is_some() || !self.artifacts.is_empty() {
+        if !self.conditions.is_empty() || !self.artifacts.is_empty() {
             return Err(Error::InvalidSpec(
-                "staged/EOF stdin, explicit environment, resource admission, retries, and postconditions do not support Conditions/quiet/artifacts".into(),
+                "staged/EOF stdin, explicit environment, resource admission, retries, postconditions, observed thresholds, and quiet admission do not support Conditions/artifacts".into(),
             ));
         }
         Ok(())
+    }
+
+    pub(crate) fn gpu_uuids(&self) -> Result<BTreeSet<String>> {
+        let mut uuids = BTreeSet::new();
+        for name in self.resources.custom.keys() {
+            if name.starts_with("vram_mb:") {
+                let (_, uuid) = split_vram_key(name)?;
+                uuids.insert(canonical_gpu_uuid(uuid)?);
+            }
+        }
+        if let Some(observed) = &self.observed {
+            for uuid in observed.gpu_utilization_percent_at_most.keys() {
+                uuids.insert(canonical_gpu_uuid(uuid)?);
+            }
+        }
+        if let Some(quiet) = &self.quiet {
+            for uuid in quiet.detectors.iter().filter_map(QuietDetector::gpu_uuid) {
+                uuids.insert(canonical_gpu_uuid(uuid)?);
+            }
+        }
+        if uuids.len() > 1 {
+            return Err(Error::InvalidSpec(
+                "one Job cannot name more than one GPU UUID".into(),
+            ));
+        }
+        Ok(uuids)
+    }
+
+    pub(crate) fn requires_host_observation(&self) -> bool {
+        self.resources.ram_mb.is_some()
+            || self.resources.gpu_slots.is_some()
+            || self
+                .resources
+                .custom
+                .keys()
+                .any(|name| name.starts_with("vram_mb:"))
+            || self.observed.is_some()
+            || self.quiet.is_some()
+    }
+
+    pub(crate) fn minimum_observation_age_millis(&self, host: &HostConfig) -> Option<u64> {
+        let mut ages = Vec::new();
+        if self.resources.ram_mb.is_some()
+            || self.resources.gpu_slots.is_some()
+            || self
+                .resources
+                .custom
+                .keys()
+                .any(|name| name.starts_with("vram_mb:"))
+        {
+            ages.push(host.observation.memory_max_sample_age_millis);
+        }
+        if let Some(observed) = &self.observed {
+            ages.push(observed.max_sample_age_seconds.saturating_mul(1_000));
+        }
+        if let Some(quiet) = &self.quiet {
+            ages.push(quiet.max_sample_age_seconds.saturating_mul(1_000));
+        }
+        ages.into_iter().min()
     }
 }
 
@@ -323,6 +389,7 @@ impl ResourceClaims {
                 "resource quantities and custom names must be non-zero".into(),
             ));
         }
+        validate_vram_keys(self.custom.keys())?;
         let mut impacts = BTreeSet::new();
         for impact in &self.impacts {
             validate_policy_name("impact", impact)?;
@@ -375,11 +442,13 @@ pub struct HostConfig {
     /// Directed declarations interpreted symmetrically by admission.
     #[serde(default)]
     pub impact_incompatibilities: BTreeMap<String, Vec<String>>,
+    pub observation: HostObservationConfig,
 }
 
 impl HostConfig {
     pub fn validate(&self) -> Result<()> {
         self.resources.validate()?;
+        self.observation.validate()?;
         for (impact, incompatible) in &self.impact_incompatibilities {
             validate_policy_name("impact", impact)?;
             let mut seen = BTreeSet::new();
@@ -390,6 +459,71 @@ impl HostConfig {
                         "duplicate incompatibility for impact {impact}"
                     )));
                 }
+            }
+        }
+        let configured_vram = self
+            .resources
+            .custom
+            .iter()
+            .filter(|(name, value)| name.starts_with("vram_mb:") && **value > 0)
+            .collect::<Vec<_>>();
+        if self.resources.ram_mb > 0 && self.observation.ram_safety_margin_mb == 0 {
+            return Err(Error::InvalidSpec(
+                "nonzero ram_mb capacity requires a positive RAM safety margin".into(),
+            ));
+        }
+        if !configured_vram.is_empty() && self.observation.vram_safety_margin_mb == 0 {
+            return Err(Error::InvalidSpec(
+                "nonzero VRAM capacity requires a positive VRAM safety margin".into(),
+            ));
+        }
+        if self.resources.gpu_slots > 0 || !configured_vram.is_empty() {
+            let placement = self.observation.gpu_slot_uuid.as_deref().ok_or_else(|| {
+                Error::InvalidSpec("configured GPU capacity requires gpu_slot_uuid".into())
+            })?;
+            let placement = canonical_gpu_uuid(placement)?;
+            for (name, _) in configured_vram {
+                let (_, uuid) = split_vram_key(name)?;
+                if canonical_gpu_uuid(uuid)? != placement {
+                    return Err(Error::InvalidSpec(
+                        "configured VRAM UUID differs from gpu_slot_uuid".into(),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn validate_job(&self, job: &JobSpec) -> Result<()> {
+        let configured = self
+            .observation
+            .gpu_slot_uuid
+            .as_deref()
+            .map(canonical_gpu_uuid)
+            .transpose()?;
+        for uuid in job.gpu_uuids()? {
+            if configured.as_deref().is_some_and(|value| value != uuid) {
+                return Err(Error::InvalidSpec(
+                    "Job GPU UUID differs from host gpu_slot_uuid".into(),
+                ));
+            }
+        }
+        if let Some(quiet) = &job.quiet {
+            if quiet.stable_seconds > self.observation.admission_wall_clock_limit_seconds {
+                return Err(Error::InvalidSpec(
+                    "quiet stable_seconds exceeds host admission wall-clock limit".into(),
+                ));
+            }
+            let invocations = u64::from(job.retry.max_attempts).saturating_mul(
+                u64::try_from(job.postconditions.len() + 1)
+                    .unwrap_or(u64::MAX)
+                    .saturating_add(u64::from(self.observation.pre_release_max_deferrals)),
+            );
+            if invocations > 256 {
+                return Err(Error::InvalidSpec(
+                    "quiet retries, postconditions, and host deferrals exceed 256 Invocations"
+                        .into(),
+                ));
             }
         }
         Ok(())
@@ -405,6 +539,7 @@ impl ResourceCapacities {
                 "invalid, empty, or reserved custom capacity name".into(),
             ));
         }
+        validate_vram_keys(self.custom.keys())?;
         Ok(())
     }
 }
@@ -428,7 +563,209 @@ pub struct QuietPolicy {
     pub max_sample_age_seconds: u64,
     pub wait_budget_seconds: u64,
     #[serde(default)]
-    pub detectors: Vec<String>,
+    pub detectors: Vec<QuietDetector>,
+}
+
+impl QuietPolicy {
+    fn validate(&self) -> Result<()> {
+        if !(1..=3600).contains(&self.stable_seconds)
+            || !(1..=30).contains(&self.max_sample_age_seconds)
+            || self.wait_budget_seconds < self.stable_seconds
+            || self.wait_budget_seconds > 86_400
+            || self.detectors.is_empty()
+            || self.detectors.len() > 16
+        {
+            return Err(Error::InvalidSpec("invalid quiet policy bounds".into()));
+        }
+        let mut unique = BTreeSet::new();
+        for detector in &self.detectors {
+            detector.validate()?;
+            if !unique.insert(detector) {
+                return Err(Error::InvalidSpec("duplicate quiet detector".into()));
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum QuietDetector {
+    CpuUtilization { max_percent: u8 },
+    GpuUtilization { gpu_uuid: String, max_percent: u8 },
+    DiskUtilization { max_percent: u8 },
+    ForeignGpuCompute { gpu_uuid: String },
+    BlockedProcesses,
+}
+
+impl QuietDetector {
+    fn validate(&self) -> Result<()> {
+        match self {
+            Self::CpuUtilization { max_percent } | Self::DiskUtilization { max_percent } => {
+                validate_percent(*max_percent)
+            }
+            Self::GpuUtilization {
+                gpu_uuid,
+                max_percent,
+            } => {
+                canonical_gpu_uuid(gpu_uuid)?;
+                validate_percent(*max_percent)
+            }
+            Self::ForeignGpuCompute { gpu_uuid } => canonical_gpu_uuid(gpu_uuid).map(|_| ()),
+            Self::BlockedProcesses => Ok(()),
+        }
+    }
+
+    fn gpu_uuid(&self) -> Option<&str> {
+        match self {
+            Self::GpuUtilization { gpu_uuid, .. } | Self::ForeignGpuCompute { gpu_uuid } => {
+                Some(gpu_uuid)
+            }
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ObservedResourcePolicy {
+    pub max_sample_age_seconds: u64,
+    pub cpu_utilization_percent_at_most: Option<u8>,
+    #[serde(default)]
+    pub gpu_utilization_percent_at_most: BTreeMap<String, u8>,
+}
+
+impl ObservedResourcePolicy {
+    fn validate(&self) -> Result<()> {
+        let nonempty = self.cpu_utilization_percent_at_most.is_some()
+            || !self.gpu_utilization_percent_at_most.is_empty();
+        if !nonempty || !(1..=30).contains(&self.max_sample_age_seconds) {
+            return Err(Error::InvalidSpec(
+                "invalid observed resource policy bounds".into(),
+            ));
+        }
+        if let Some(percent) = self.cpu_utilization_percent_at_most {
+            validate_percent(percent)?;
+        }
+        let mut canonical = BTreeSet::new();
+        for (uuid, percent) in &self.gpu_utilization_percent_at_most {
+            validate_percent(*percent)?;
+            if !canonical.insert(canonical_gpu_uuid(uuid)?) {
+                return Err(Error::InvalidSpec("duplicate observed GPU UUID".into()));
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct HostObservationConfig {
+    pub sample_interval_millis: u64,
+    pub quiet_max_sample_gap_millis: u64,
+    pub generation_max_cadence_gap_millis: u64,
+    pub memory_max_sample_age_millis: u64,
+    pub ram_safety_margin_mb: u64,
+    pub vram_safety_margin_mb: u64,
+    pub gpu_slot_uuid: Option<String>,
+    pub process_rules: ProcessRules,
+    pub pre_release_max_deferrals: u32,
+    pub pre_release_backoff_millis: u64,
+    pub admission_wall_clock_limit_seconds: u64,
+    pub gpu_provider: GpuProviderConfig,
+}
+
+impl Default for HostObservationConfig {
+    fn default() -> Self {
+        Self {
+            sample_interval_millis: 1_000,
+            quiet_max_sample_gap_millis: 2_000,
+            generation_max_cadence_gap_millis: 2_500,
+            memory_max_sample_age_millis: 2_500,
+            ram_safety_margin_mb: 0,
+            vram_safety_margin_mb: 0,
+            gpu_slot_uuid: None,
+            process_rules: ProcessRules::default(),
+            pre_release_max_deferrals: 16,
+            pre_release_backoff_millis: 1_000,
+            admission_wall_clock_limit_seconds: 3_600,
+            gpu_provider: GpuProviderConfig::Nvml,
+        }
+    }
+}
+
+impl HostObservationConfig {
+    fn validate(&self) -> Result<()> {
+        if !(100..=5_000).contains(&self.sample_interval_millis)
+            || self.quiet_max_sample_gap_millis < self.sample_interval_millis
+            || self.generation_max_cadence_gap_millis < self.quiet_max_sample_gap_millis
+            || self.memory_max_sample_age_millis < self.sample_interval_millis
+            || !(1..=64).contains(&self.pre_release_max_deferrals)
+            || !(100..=60_000).contains(&self.pre_release_backoff_millis)
+            || !(1..=86_400).contains(&self.admission_wall_clock_limit_seconds)
+        {
+            return Err(Error::InvalidSpec("invalid host observation bounds".into()));
+        }
+        if let Some(uuid) = &self.gpu_slot_uuid {
+            canonical_gpu_uuid(uuid)?;
+        }
+        self.process_rules.validate()
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProcessRules {
+    #[serde(default)]
+    pub block: Vec<String>,
+    #[serde(default = "default_process_ignores")]
+    pub ignore: Vec<String>,
+}
+
+impl Default for ProcessRules {
+    fn default() -> Self {
+        Self {
+            block: Vec::new(),
+            ignore: default_process_ignores(),
+        }
+    }
+}
+
+impl ProcessRules {
+    fn validate(&self) -> Result<()> {
+        let mut block = BTreeSet::new();
+        let mut ignore = BTreeSet::new();
+        for pattern in &self.block {
+            validate_process_pattern(pattern)?;
+            if !block.insert(pattern.to_ascii_lowercase()) {
+                return Err(Error::InvalidSpec(
+                    "duplicate blocked process pattern".into(),
+                ));
+            }
+        }
+        for pattern in &self.ignore {
+            validate_process_pattern(pattern)?;
+            if !ignore.insert(pattern.to_ascii_lowercase()) {
+                return Err(Error::InvalidSpec(
+                    "duplicate ignored process pattern".into(),
+                ));
+            }
+        }
+        if block.iter().any(|pattern| ignore.contains(pattern)) {
+            return Err(Error::InvalidSpec(
+                "process pattern appears in both block and ignore".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum GpuProviderConfig {
+    #[default]
+    Nvml,
+    Disabled,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -557,6 +894,78 @@ fn validate_policy_name(kind: &str, name: &str) -> Result<()> {
     Ok(())
 }
 
+fn validate_percent(value: u8) -> Result<()> {
+    if value <= 100 {
+        Ok(())
+    } else {
+        Err(Error::InvalidSpec(
+            "utilization percentage exceeds 100".into(),
+        ))
+    }
+}
+
+pub(crate) fn canonical_gpu_uuid(value: &str) -> Result<String> {
+    if value.is_empty()
+        || value.len() > 128
+        || value.contains('\0')
+        || !value.is_ascii()
+        || !value.to_ascii_lowercase().starts_with("gpu-")
+    {
+        return Err(Error::InvalidSpec("invalid GPU UUID".into()));
+    }
+    Ok(value.to_ascii_lowercase())
+}
+
+fn split_vram_key(value: &str) -> Result<(&str, &str)> {
+    let Some(uuid) = value.strip_prefix("vram_mb:") else {
+        return Err(Error::InvalidSpec("invalid VRAM resource key".into()));
+    };
+    canonical_gpu_uuid(uuid)?;
+    Ok(("vram_mb", uuid))
+}
+
+pub(crate) fn canonical_custom_resource_name(value: &str) -> Result<String> {
+    if let Some(uuid) = value.strip_prefix("vram_mb:") {
+        return Ok(format!("vram_mb:{}", canonical_gpu_uuid(uuid)?));
+    }
+    Ok(value.to_owned())
+}
+
+fn validate_vram_keys<'a>(keys: impl Iterator<Item = &'a String>) -> Result<()> {
+    let mut canonical = BTreeSet::new();
+    for name in keys {
+        if name.to_ascii_lowercase().starts_with("vram_mb:") {
+            if !name.starts_with("vram_mb:") {
+                return Err(Error::InvalidSpec(
+                    "VRAM resource keys require the lowercase vram_mb: prefix".into(),
+                ));
+            }
+            let (_, uuid) = split_vram_key(name)?;
+            if !canonical.insert(canonical_gpu_uuid(uuid)?) {
+                return Err(Error::InvalidSpec("duplicate VRAM GPU UUID".into()));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_process_pattern(pattern: &str) -> Result<()> {
+    if pattern.is_empty()
+        || pattern.len() > 128
+        || pattern.contains(['\0', '/', '\\', '?', '[', ']'])
+        || !pattern.is_ascii()
+    {
+        return Err(Error::InvalidSpec(
+            "invalid process basename pattern".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn default_process_ignores() -> Vec<String> {
+    vec!["dwm.exe".into(), "LogonUI.exe".into()]
+}
+
 impl Default for RetryPolicy {
     fn default() -> Self {
         Self {
@@ -608,14 +1017,6 @@ mod tests {
 
     #[test]
     fn schema_is_stable_within_one_build() {
-        if std::env::var_os("STILLYARD_UPDATE_SCHEMA").is_some() {
-            std::fs::write("schema/stillyard-spec-v1.json", schema_json().unwrap()).unwrap();
-            std::fs::write(
-                "schema/stillyard-config-v1.json",
-                config_schema_json().unwrap(),
-            )
-            .unwrap();
-        }
         assert_eq!(
             schema_json().unwrap(),
             include_str!("../schema/stillyard-spec-v1.json")
@@ -709,5 +1110,41 @@ mod tests {
             .collect();
 
         assert!(job.validate().is_err());
+    }
+
+    #[test]
+    fn host_deferral_bound_applies_only_to_jobs_that_request_quiet() {
+        let root = std::env::current_dir().unwrap();
+        let mut job: JobSpec = serde_json::from_str(&format!(
+            r#"{{
+                "spec_version": 1,
+                "executable": {},
+                "working_directory": {},
+                "retry": {{ "max_attempts": 100, "backoff_seconds": 0 }}
+            }}"#,
+            serde_json::to_string(&root.join("tool.exe")).unwrap(),
+            serde_json::to_string(&root).unwrap(),
+        ))
+        .unwrap();
+        job.postconditions.push(PostconditionSpec {
+            executable: root.join("validator.exe"),
+            args: Vec::new(),
+            working_directory: None,
+            accepted_exit_codes: vec![0],
+            retryable_exit_codes: Vec::new(),
+        });
+        assert!(job.validate().is_ok());
+        let mut host = HostConfig::default();
+        host.observation.pre_release_max_deferrals = 64;
+        assert!(host.validate_job(&job).is_ok());
+
+        job.quiet = Some(QuietPolicy {
+            stable_seconds: 1,
+            max_sample_age_seconds: 1,
+            wait_budget_seconds: 1,
+            detectors: vec![QuietDetector::CpuUtilization { max_percent: 0 }],
+        });
+        assert!(job.validate().is_ok());
+        assert!(host.validate_job(&job).is_err());
     }
 }

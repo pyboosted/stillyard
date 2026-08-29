@@ -12,23 +12,23 @@ use crate::payload::{MAX_CANCEL_JOBS, MAX_STDIN_BYTES};
 use crate::protocol::{StagedInputRef, error_code};
 use crate::resources::ResolvedClaims;
 use crate::{
-    AttemptId, AttemptSnapshot, AttemptVerdict, BatchId, BatchJobReceipt, BatchReceipt, BatchSpec,
-    Blocker, BootId, ClearContainmentResult, ClearanceOrigin, ContainmentId,
-    ContainmentIncidentCursor, ContainmentIncidentSnapshot, ContainmentResolution,
-    ContainmentResolutionAudit, ContainmentSnapshot, ContainmentState, DaemonSnapshot,
-    DoctorBoundary, DoctorCheck, DoctorCheckStatus, DoctorHostSnapshot, DoctorIncidentPage,
-    DoctorOverallStatus, DoctorSnapshot, DoctorStoreSnapshot, Estimate, EventCursor, EventGap,
-    ExitClassification, ForcedClearanceAudit, HostConfig, HostId, InvocationId, InvocationRole,
-    InvocationSnapshot, InvocationState, JobId, JobListCursor, JobListPage, JobOutcome, JobReceipt,
-    JobSelector, JobSnapshot, JobSpec, JobState, JobSummary, LogChunk, LogStream,
-    MAX_OBSERVATION_PAGE, ManagedParent, ObservationFrame, ProcessIdentity, ReconciliationResult,
-    RecoveryResult, ResourceCapacities, SchedulerEvent, SchedulerEventKind, StdinSpec,
-    SubmissionId, SubmissionState,
+    AdmissionDecisionSnapshot, AdmissionDecisionState, AttemptId, AttemptSnapshot, AttemptVerdict,
+    BatchId, BatchJobReceipt, BatchReceipt, BatchSpec, Blocker, BootId, ClearContainmentResult,
+    ClearanceOrigin, ContainmentId, ContainmentIncidentCursor, ContainmentIncidentSnapshot,
+    ContainmentResolution, ContainmentResolutionAudit, ContainmentSnapshot, ContainmentState,
+    DaemonSnapshot, DoctorBoundary, DoctorCheck, DoctorCheckStatus, DoctorHostSnapshot,
+    DoctorIncidentPage, DoctorOverallStatus, DoctorSnapshot, DoctorStoreSnapshot, Estimate,
+    EventCursor, EventGap, ExitClassification, ForcedClearanceAudit, GpuProvenance, HostConfig,
+    HostId, InvocationId, InvocationRole, InvocationSnapshot, InvocationState, JobId,
+    JobListCursor, JobListPage, JobOutcome, JobReceipt, JobSelector, JobSnapshot, JobSpec,
+    JobState, JobSummary, LogChunk, LogStream, MAX_OBSERVATION_PAGE, ManagedParent,
+    ObservationFrame, ProcessIdentity, ReconciliationResult, RecoveryResult, ResourceCapacities,
+    SchedulerEvent, SchedulerEventKind, StdinSpec, SubmissionId, SubmissionState,
 };
 
 // Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
 // the current schema changes; daemon startup will replace the whole SQLite database.
-const STORE_SCHEMA_EPOCH: &str = "stillyard-operational-diagnostics-r1-2026-08-28";
+const STORE_SCHEMA_EPOCH: &str = "stillyard-observed-admission-r2-2026-08-29";
 const MAX_EVENT_ROWS: u64 = 16_384;
 const SNAPSHOT_DIAGNOSTIC_BUDGET_BYTES: usize = 64 * 1024;
 const MAX_UPLOAD_CHUNK_BYTES: usize = 256 * 1024;
@@ -201,10 +201,20 @@ pub(crate) struct PrepareNext {
     pub(crate) state_changed: bool,
 }
 
-enum PrepareJob {
+pub(crate) enum ReleaseAuthorization {
+    Authorized {
+        runtime_deadline_unix_millis: Option<i64>,
+        evidence_expires_monotonic_millis: u64,
+    },
+    Deferred {
+        reason: String,
+    },
+}
+
+pub(super) enum PrepareJob {
     Ready(Box<PreparedJob>),
     Blocked,
-    Skipped,
+    StateChanged,
 }
 
 pub(crate) struct Store {
@@ -214,6 +224,7 @@ pub(crate) struct Store {
     daemon_generation: Uuid,
     capacities: ResourceCapacities,
     impact_incompatibilities: std::collections::BTreeMap<String, Vec<String>>,
+    observation_config: crate::HostObservationConfig,
     config_sha256: String,
     startup_identity: StartupIdentity,
     bound_host_id: Option<HostId>,
@@ -252,6 +263,7 @@ impl Store {
             HostConfig {
                 resources: capacities,
                 impact_incompatibilities: Default::default(),
+                observation: Default::default(),
             },
             probe_startup_identity(),
         )
@@ -329,6 +341,7 @@ impl Store {
         startup_identity: StartupIdentity,
     ) -> StoreResult<Self> {
         configure_database(&connection)?;
+        validate_retained_jobs(&connection, &config)?;
         let store_uuid = current_store_uuid(&connection)?;
         let config_sha256 = format!("{:x}", Sha256::digest(serde_json::to_vec(&config)?));
         let bound_host_id = meta_value(&connection, "bound_host_id")?.map(HostId);
@@ -351,6 +364,7 @@ impl Store {
             daemon_generation,
             capacities: config.resources,
             impact_incompatibilities: config.impact_incompatibilities,
+            observation_config: config.observation,
             config_sha256,
             startup_identity,
             bound_host_id,
@@ -371,6 +385,20 @@ impl Store {
         Ok(id.entity_uuid().to_string())
     }
 
+    pub(crate) fn host_config(&self) -> HostConfig {
+        HostConfig {
+            resources: self.capacities.clone(),
+            impact_incompatibilities: self.impact_incompatibilities.clone(),
+            observation: self.observation_config.clone(),
+        }
+    }
+
+    fn validate_host_job(&self, spec: &JobSpec) -> StoreResult<()> {
+        self.host_config()
+            .validate_job(spec)
+            .map_err(|error| StoreError::InvalidSpec(error.to_string()))
+    }
+
     fn local_containment_id(&self, id: ContainmentId) -> StoreResult<String> {
         if id.store_uuid() != self.store_uuid {
             return Err(StoreError::OperationRejected {
@@ -382,7 +410,26 @@ impl Store {
     }
 }
 
+fn validate_retained_jobs(connection: &Connection, config: &HostConfig) -> StoreResult<()> {
+    let mut statement = connection
+        .prepare("SELECT id, spec_json FROM jobs WHERE state = 'pending' ORDER BY rowid")?;
+    let rows = statement.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    for row in rows {
+        let (job_id, spec_json) = row?;
+        let spec: JobSpec = serde_json::from_str(&spec_json)?;
+        config.validate_job(&spec).map_err(|error| {
+            StoreError::InvalidSpec(format!(
+                "retained Job {job_id} is incompatible with host configuration: {error}"
+            ))
+        })?;
+    }
+    Ok(())
+}
+
 mod admission;
+mod admitting;
 mod database;
 mod input;
 mod lease;
@@ -390,6 +437,7 @@ mod lifecycle;
 mod observation;
 mod reconciliation;
 mod recovery;
+mod release;
 mod schedule;
 mod values;
 

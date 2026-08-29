@@ -6,6 +6,7 @@ pub(super) struct DaemonReactor {
     pub(super) endpoint: Arc<str>,
     pub(super) live_containments: crate::runner::LiveContainments,
     pub(super) reconciliation_observations: Mutex<crate::store::ReconciliationObservations>,
+    pub(super) host_observation: Arc<crate::host_observation::HostObservationService>,
 }
 
 pub(super) fn submission_context(
@@ -125,13 +126,20 @@ pub(super) fn authenticate_managed_peer(
 }
 
 impl DaemonReactor {
-    pub(super) fn start(store: SharedStore, endpoint: String) -> Arc<Self> {
+    pub(super) fn start(
+        store: SharedStore,
+        endpoint: String,
+        observation_config: crate::HostObservationConfig,
+    ) -> Arc<Self> {
         let scheduler = Arc::new(Self {
             signal: Arc::new((Mutex::new(false), Condvar::new())),
             events: Arc::new((Mutex::new(0), Condvar::new())),
             endpoint: Arc::from(endpoint),
             live_containments: crate::runner::LiveContainments::default(),
             reconciliation_observations: Mutex::new(Default::default()),
+            host_observation: Arc::new(crate::host_observation::HostObservationService::new(
+                observation_config,
+            )),
         });
         let worker = Arc::clone(&scheduler);
         std::thread::Builder::new()
@@ -353,12 +361,20 @@ impl DaemonReactor {
                 .try_into()
                 .unwrap_or(i64::MAX);
             let mut retry = false;
+            let observation_needed = store
+                .lock()
+                .ok()
+                .and_then(|guard| guard.host_observation_demand().ok())
+                .unwrap_or(false);
+            let sample = observation_needed
+                .then(|| self.host_observation.sample_now().ok())
+                .flatten();
             let next = {
                 let mut guard = match store.lock() {
                     Ok(guard) => guard,
                     Err(_) => return,
                 };
-                match guard.prepare_next_job_with_progress() {
+                match guard.prepare_next_job_with_sample(sample.as_ref()) {
                     Ok(job) => job,
                     Err(_) => {
                         retry = true;
@@ -380,6 +396,7 @@ impl DaemonReactor {
                 let worker_scheduler = Arc::clone(&self);
                 let worker_endpoint = Arc::clone(&self.endpoint);
                 let worker_containments = self.live_containments.clone();
+                let worker_observation = Arc::clone(&self.host_observation);
                 let thread_job = job.clone();
                 let spawned = std::thread::Builder::new()
                     .name(format!("stillyard-job-{}", job.job_id.entity_uuid()))
@@ -390,6 +407,7 @@ impl DaemonReactor {
                             worker_store,
                             worker_endpoint,
                             worker_containments,
+                            worker_observation,
                             Arc::new(move || {
                                 if let Some(scheduler) = wake_scheduler.upgrade() {
                                     scheduler.wake();
@@ -426,11 +444,18 @@ impl DaemonReactor {
                 .and_then(|guard| guard.next_retry_delay(retry_scan_started).ok())
                 .flatten();
             let retry_deadline = retry_delay.and_then(|delay| Instant::now().checked_add(delay));
-            let wake_deadline = match (retry_deadline, reconciliation_deadline) {
-                (Some(left), Some(right)) => Some(left.min(right)),
-                (Some(deadline), None) | (None, Some(deadline)) => Some(deadline),
-                (None, None) => None,
-            };
+            let observation_deadline = observation_needed.then(|| {
+                Instant::now()
+                    + Duration::from_millis(self.host_observation.sample_interval_millis())
+            });
+            let wake_deadline = [
+                retry_deadline,
+                reconciliation_deadline,
+                observation_deadline,
+            ]
+            .into_iter()
+            .flatten()
+            .min();
             let (lock, condition) = &*self.signal;
             let mut pending = match lock.lock() {
                 Ok(pending) => pending,

@@ -422,22 +422,25 @@ fn complete_leases_serialize_conflicts_but_allow_orthogonal_work() {
             .unwrap();
     let mut cpu = spec(temp.path());
     cpu.resources.cpu_units = Some(3);
-    cpu.resources.ram_mb = Some(8_000);
+    cpu.resources.custom.insert("review_slots".into(), 1);
     cpu.expected_duration_seconds = Some(30);
     let mut blocked = spec(temp.path());
     blocked.resources.cpu_units = Some(2);
-    blocked.resources.ram_mb = Some(1_000);
-    let mut gpu = spec(temp.path());
-    gpu.resources.gpu_slots = Some(1);
-    let mut ram = spec(temp.path());
-    ram.resources.ram_mb = Some(8_000);
+    blocked.resources.custom.insert("review_slots".into(), 1);
+    let mut review = spec(temp.path());
+    review.resources.cargo_slots = Some(1);
+    let mut remaining_scalar = spec(temp.path());
+    remaining_scalar
+        .resources
+        .custom
+        .insert("review_slots".into(), 1);
     let batch = BatchSpec {
         spec_version: SPEC_VERSION,
         jobs: vec![
             member("cpu", cpu, vec![]),
             member("blocked", blocked, vec![]),
-            member("gpu", gpu, vec![]),
-            member("ram", ram, vec![]),
+            member("review", review, vec![]),
+            member("remaining-scalar", remaining_scalar, vec![]),
         ],
     };
     let hash = normalized_batch_payload_hash(&batch).unwrap();
@@ -456,17 +459,17 @@ fn complete_leases_serialize_conflicts_but_allow_orthogonal_work() {
     assert!(receipt.jobs[2].receipt.blockers.is_empty());
     assert!(
         receipt.jobs[3].receipt.blockers.is_empty(),
-        "a non-fitting earlier claim must not reserve only its RAM portion"
+        "a non-fitting earlier claim must not reserve only its custom-scalar portion"
     );
     let cpu = store.prepare_next_job().unwrap().unwrap();
     assert_eq!(cpu.job_id, receipt.jobs[0].receipt.job_id);
-    let gpu = store.prepare_next_job().unwrap().unwrap();
+    let review = store.prepare_next_job().unwrap().unwrap();
     assert_eq!(
-        gpu.job_id, receipt.jobs[2].receipt.job_id,
-        "a partially fitting CPU claim must not reserve RAM or block orthogonal GPU work"
+        review.job_id, receipt.jobs[2].receipt.job_id,
+        "a partially fitting CPU claim must not reserve its custom scalar or block orthogonal work"
     );
-    let ram = store.prepare_next_job().unwrap().unwrap();
-    assert_eq!(ram.job_id, receipt.jobs[3].receipt.job_id);
+    let remaining_scalar = store.prepare_next_job().unwrap().unwrap();
+    assert_eq!(remaining_scalar.job_id, receipt.jobs[3].receipt.job_id);
     let blocked = store.status(receipt.jobs[1].receipt.job_id).unwrap();
     assert!(
         blocked

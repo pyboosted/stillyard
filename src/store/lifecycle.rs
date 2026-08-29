@@ -293,6 +293,13 @@ impl Store {
             match state.as_str() {
                 "pending" => {
                     transaction.execute(
+                        "UPDATE attempts SET state = 'settled', verdict = 'canceled',
+                            finished_ms = ?2
+                         WHERE id = (SELECT attempt_id FROM jobs WHERE id = ?1)
+                           AND state IN ('planned', 'admitting')",
+                        params![local_id, now_millis()],
+                    )?;
+                    transaction.execute(
                         "UPDATE jobs SET state = 'final', outcome = 'canceled',
                             cancel_requested = 1, retry_not_before_ms = NULL, finished_ms = ?2
                          WHERE id = ?1",
@@ -380,6 +387,31 @@ impl Store {
         exit_code: Option<i32>,
         verdict: &str,
     ) -> StoreResult<()> {
+        self.mark_uncertain_settlement(job, exit_code, verdict, None, JobOutcome::Interrupted)
+    }
+
+    pub(crate) fn mark_pre_release_cleanup_uncertain(
+        &mut self,
+        job: &PreparedJob,
+        exit_code: Option<i32>,
+    ) -> StoreResult<()> {
+        self.mark_uncertain_settlement(
+            job,
+            exit_code,
+            AttemptVerdict::SafetyFailed.as_str(),
+            Some("pre_release_cleanup_uncertain"),
+            JobOutcome::Failed,
+        )
+    }
+
+    fn mark_uncertain_settlement(
+        &mut self,
+        job: &PreparedJob,
+        exit_code: Option<i32>,
+        verdict: &str,
+        safety_reason: Option<&str>,
+        outcome: JobOutcome,
+    ) -> StoreResult<()> {
         let transaction = self.connection.transaction()?;
         let state: String = transaction.query_row(
             "SELECT state FROM jobs WHERE id = ?1",
@@ -427,28 +459,31 @@ impl Store {
             params![
                 job.containment_id.entity_uuid().to_string(),
                 incident_sequence,
-                verdict,
+                safety_reason.unwrap_or(verdict),
                 "cleanup could not be proven within the bounded runner wait",
                 opened,
                 retained_claims_json,
             ],
         )?;
         transaction.execute(
-            "UPDATE attempts SET state = 'settled', verdict = ?2, finished_ms = ?3
+            "UPDATE attempts SET state = 'settled', verdict = ?2, safety_reason = ?3,
+                finished_ms = ?4
              WHERE id = ?1 AND state != 'settled'",
             params![
                 job.attempt_id.entity_uuid().to_string(),
                 verdict,
+                safety_reason,
                 now_millis()
             ],
         )?;
         // An uncertain Containment deliberately keeps its Lease granted.
         transaction.execute(
-            "UPDATE jobs SET state = 'final', outcome = 'interrupted',
-                root_exit_code = COALESCE(?2, root_exit_code), finished_ms = ?3
+            "UPDATE jobs SET state = 'final', outcome = ?2,
+                root_exit_code = COALESCE(?3, root_exit_code), finished_ms = ?4
              WHERE id = ?1 AND state = 'active'",
             params![
                 job.job_id.entity_uuid().to_string(),
+                outcome_string(outcome),
                 (job.role == InvocationRole::Primary)
                     .then_some(exit_code)
                     .flatten(),

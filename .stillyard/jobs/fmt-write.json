@@ -1,7 +1,7 @@
 {
   "spec_version": 1,
   "executable": "C:\\Users\\User\\.cargo\\bin\\cargo.exe",
-  "args": ["build", "--workspace", "--release", "--all-features"],
+  "args": ["fmt", "--all"],
   "working_directory": "C:\\Development\\stillyard",
   "environment": {
     "set": {
@@ -22,8 +22,8 @@
   },
   "labels": [
     {"key": "project", "value": "stillyard"},
-    {"key": "gate", "value": "build-release"}
+    {"key": "gate", "value": "fmt-write"}
   ],
-  "expected_duration_seconds": 180,
-  "timeout_seconds": 1800
+  "expected_duration_seconds": 10,
+  "timeout_seconds": 120
 }

@@ -252,6 +252,7 @@ fn missing_host_capability_blocks_before_lease_grant() {
     let config = HostConfig {
         resources: capacities(),
         impact_incompatibilities: Default::default(),
+        observation: Default::default(),
     };
     let unavailable = StartupIdentity {
         host_id: None,
@@ -291,6 +292,7 @@ fn doctor_reports_loaded_config_evidence() {
     let config = HostConfig {
         resources: capacities(),
         impact_incompatibilities: [("measurement".into(), vec!["cpu_heavy".into()])].into(),
+        observation: Default::default(),
     };
     let expected_hash = format!("{:x}", Sha256::digest(serde_json::to_vec(&config).unwrap()));
     let store = Store::open_with_config(
@@ -390,6 +392,7 @@ fn foreign_host_binding_resets_the_whole_store() {
         HostConfig {
             resources: capacities(),
             impact_incompatibilities: Default::default(),
+            observation: Default::default(),
         },
         startup,
     )

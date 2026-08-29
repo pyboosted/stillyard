@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::spec::canonical_custom_resource_name;
 use crate::{Blocker, ResourceCapacities, ResourceClaims};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -23,12 +24,23 @@ pub(crate) struct ResolvedClaims {
 
 impl ResolvedClaims {
     pub(crate) fn resolve(claims: &ResourceClaims) -> io::Result<Self> {
+        let mut custom = BTreeMap::new();
+        for (name, value) in &claims.custom {
+            let canonical = canonical_custom_resource_name(name)
+                .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
+            if custom.insert(canonical, *value).is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "duplicate canonical custom resource",
+                ));
+            }
+        }
         let resolved = Self {
             cpu_units: u64::from(claims.cpu_units.unwrap_or(0)),
             ram_mb: claims.ram_mb.unwrap_or(0),
             cargo_slots: u64::from(claims.cargo_slots.unwrap_or(0)),
             gpu_slots: u64::from(claims.gpu_slots.unwrap_or(0)),
-            custom: claims.custom.clone(),
+            custom,
             shared_fences: resolve_fences(&claims.shared_fences)?,
             exclusive_fences: resolve_fences(&claims.exclusive_fences)?,
             impacts: claims.impacts.iter().cloned().collect(),
@@ -58,39 +70,40 @@ impl ResolvedClaims {
             "cpu_units",
             self.cpu_units,
             u64::from(capacities.cpu_units),
-            active.iter().map(|claim| claim.cpu_units).sum(),
+            checked_total(active.iter().map(|claim| claim.cpu_units)),
         );
         scalar_blocker(
             &mut blockers,
             "ram_mb",
             self.ram_mb,
             capacities.ram_mb,
-            active.iter().map(|claim| claim.ram_mb).sum(),
+            checked_total(active.iter().map(|claim| claim.ram_mb)),
         );
         scalar_blocker(
             &mut blockers,
             "cargo_slots",
             self.cargo_slots,
             u64::from(capacities.cargo_slots),
-            active.iter().map(|claim| claim.cargo_slots).sum(),
+            checked_total(active.iter().map(|claim| claim.cargo_slots)),
         );
         scalar_blocker(
             &mut blockers,
             "gpu_slots",
             self.gpu_slots,
             u64::from(capacities.gpu_slots),
-            active.iter().map(|claim| claim.gpu_slots).sum(),
+            checked_total(active.iter().map(|claim| claim.gpu_slots)),
         );
         for (name, requested) in &self.custom {
             scalar_blocker(
                 &mut blockers,
                 name,
                 *requested,
-                capacities.custom.get(name).copied().unwrap_or(0),
-                active
-                    .iter()
-                    .map(|claim| claim.custom.get(name).copied().unwrap_or(0))
-                    .sum(),
+                custom_capacity(capacities, name),
+                checked_total(
+                    active
+                        .iter()
+                        .map(|claim| claim.custom.get(name).copied().unwrap_or(0)),
+                ),
             );
         }
         for claim in active {
@@ -137,39 +150,40 @@ impl ResolvedClaims {
             "cpu_units",
             self.cpu_units,
             u64::from(capacities.cpu_units),
-            ancestors.iter().map(|claim| claim.cpu_units).sum(),
+            checked_total(ancestors.iter().map(|claim| claim.cpu_units)),
         );
         ancestor_scalar_blocker(
             &mut blockers,
             "ram_mb",
             self.ram_mb,
             capacities.ram_mb,
-            ancestors.iter().map(|claim| claim.ram_mb).sum(),
+            checked_total(ancestors.iter().map(|claim| claim.ram_mb)),
         );
         ancestor_scalar_blocker(
             &mut blockers,
             "cargo_slots",
             self.cargo_slots,
             u64::from(capacities.cargo_slots),
-            ancestors.iter().map(|claim| claim.cargo_slots).sum(),
+            checked_total(ancestors.iter().map(|claim| claim.cargo_slots)),
         );
         ancestor_scalar_blocker(
             &mut blockers,
             "gpu_slots",
             self.gpu_slots,
             u64::from(capacities.gpu_slots),
-            ancestors.iter().map(|claim| claim.gpu_slots).sum(),
+            checked_total(ancestors.iter().map(|claim| claim.gpu_slots)),
         );
         for (name, requested) in &self.custom {
             ancestor_scalar_blocker(
                 &mut blockers,
                 name,
                 *requested,
-                capacities.custom.get(name).copied().unwrap_or(0),
-                ancestors
-                    .iter()
-                    .map(|claim| claim.custom.get(name).copied().unwrap_or(0))
-                    .sum(),
+                custom_capacity(capacities, name),
+                checked_total(
+                    ancestors
+                        .iter()
+                        .map(|claim| claim.custom.get(name).copied().unwrap_or(0)),
+                ),
             );
         }
         for claim in ancestors {
@@ -205,6 +219,19 @@ impl ResolvedClaims {
     }
 }
 
+fn custom_capacity(capacities: &ResourceCapacities, requested_name: &str) -> u64 {
+    capacities
+        .custom
+        .iter()
+        .find_map(|(name, capacity)| {
+            canonical_custom_resource_name(name)
+                .ok()
+                .filter(|canonical| canonical == requested_name)
+                .map(|_| *capacity)
+        })
+        .unwrap_or(0)
+}
+
 fn impacts_conflict(left: &str, right: &str, rules: &BTreeMap<String, Vec<String>>) -> bool {
     rules
         .get(left)
@@ -219,7 +246,7 @@ fn ancestor_scalar_blocker(
     name: &str,
     requested: u64,
     capacity: u64,
-    retained_by_ancestors: u64,
+    retained_by_ancestors: Option<u64>,
 ) {
     if requested == 0 {
         return;
@@ -231,6 +258,13 @@ fn ancestor_scalar_blocker(
         });
         return;
     }
+    let Some(retained_by_ancestors) = retained_by_ancestors else {
+        blockers.push(Blocker {
+            code: "blocked_by_ancestor".into(),
+            detail: format!("{name}: retained ancestor debit sum overflow"),
+        });
+        return;
+    };
     if retained_by_ancestors == 0 {
         return;
     }
@@ -265,11 +299,18 @@ fn scalar_blocker(
     name: &str,
     requested: u64,
     capacity: u64,
-    granted: u64,
+    granted: Option<u64>,
 ) {
     if requested == 0 {
         return;
     }
+    let Some(granted) = granted else {
+        blockers.push(Blocker {
+            code: "resource_busy".into(),
+            detail: format!("{name}: granted debit sum overflow"),
+        });
+        return;
+    };
     let available = capacity.saturating_sub(granted);
     if requested > available {
         blockers.push(Blocker {
@@ -283,6 +324,40 @@ fn scalar_blocker(
                 "{name}: requested {requested}, available {available}, configured {capacity}"
             ),
         });
+    }
+}
+
+fn checked_total(mut values: impl Iterator<Item = u64>) -> Option<u64> {
+    values.try_fold(0_u64, u64::checked_add)
+}
+
+pub(crate) fn observed_resource_blocker(
+    name: &str,
+    requested: u64,
+    observed_headroom: u64,
+    safety_margin: u64,
+    granted_excluding_self: u64,
+) -> Option<Blocker> {
+    if requested == 0 {
+        return None;
+    }
+    let available = observed_headroom
+        .checked_sub(safety_margin)
+        .and_then(|headroom| headroom.checked_sub(granted_excluding_self));
+    match available {
+        Some(available) if requested <= available => None,
+        Some(available) => Some(Blocker {
+            code: "observed_resource_busy".into(),
+            detail: format!(
+                "{name}: requested {requested}, observed {observed_headroom}, margin {safety_margin}, granted {granted_excluding_self}, available {available}"
+            ),
+        }),
+        None => Some(Blocker {
+            code: "observation_unusable".into(),
+            detail: format!(
+                "{name}: checked headroom arithmetic failed for observed {observed_headroom}, margin {safety_margin}, granted {granted_excluding_self}"
+            ),
+        }),
     }
 }
 
@@ -403,6 +478,29 @@ mod tests {
     use super::*;
 
     #[test]
+    fn observed_headroom_is_checked_and_excludes_only_the_supplied_debit() {
+        assert!(observed_resource_blocker("ram_mb", 8_000, 12_000, 500, 0).is_none());
+        assert_eq!(
+            observed_resource_blocker("ram_mb", 8_000, 12_000, 500, 4_000)
+                .unwrap()
+                .code,
+            "observed_resource_busy"
+        );
+        assert_eq!(
+            observed_resource_blocker("ram_mb", 1, 10, 11, 0)
+                .unwrap()
+                .code,
+            "observation_unusable"
+        );
+        assert_eq!(
+            observed_resource_blocker("ram_mb", 1, 10, 0, 11)
+                .unwrap()
+                .code,
+            "observation_unusable"
+        );
+    }
+
+    #[test]
     fn complete_scalar_lease_never_partially_fits() {
         let capacities = ResourceCapacities {
             cpu_units: 4,
@@ -424,6 +522,32 @@ mod tests {
         let blockers = requested.blockers(&capacities, &[active], &BTreeMap::new());
         assert_eq!(blockers.len(), 1);
         assert!(blockers[0].detail.starts_with("ram_mb:"));
+    }
+
+    #[test]
+    fn granted_debit_overflow_blocks_instead_of_wrapping_capacity() {
+        let capacities = ResourceCapacities {
+            ram_mb: u64::MAX,
+            ..Default::default()
+        };
+        let requested = ResolvedClaims {
+            ram_mb: 1,
+            ..ResolvedClaims::default()
+        };
+        let active = [
+            ResolvedClaims {
+                ram_mb: u64::MAX,
+                ..ResolvedClaims::default()
+            },
+            ResolvedClaims {
+                ram_mb: 1,
+                ..ResolvedClaims::default()
+            },
+        ];
+        let blockers = requested.blockers(&capacities, &active, &BTreeMap::new());
+        assert_eq!(blockers.len(), 1);
+        assert_eq!(blockers[0].code, "resource_busy");
+        assert!(blockers[0].detail.contains("sum overflow"));
     }
 
     #[test]

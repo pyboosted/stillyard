@@ -266,24 +266,56 @@ pub(super) fn handle_request(
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
             .and_then(|store| store.daemon_status(&scheduler.endpoint))
             .map(Response::DaemonStatus),
-        Request::Doctor { cursor, limit } => scheduler
-            .reconciliation_observations
+        Request::Doctor { cursor, limit } => store
             .lock()
-            .map_err(|_| StoreError::InvalidState("reconciliation mutex poisoned".into()))
-            .and_then(|observations| {
-                store
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.host_observation_requirements())
+            .and_then(|requirements| {
+                let (detector_checks, detector_coverage) =
+                    scheduler.host_observation.doctor_diagnostics(requirements);
+                scheduler
+                    .reconciliation_observations
                     .lock()
-                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-                    .and_then(|store| {
-                        store.doctor_with_reconciliation(
-                            &scheduler.endpoint,
-                            cursor,
-                            limit,
-                            &observations,
-                        )
+                    .map_err(|_| StoreError::InvalidState("reconciliation mutex poisoned".into()))
+                    .and_then(|observations| {
+                        store
+                            .lock()
+                            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                            .and_then(|store| {
+                                store.doctor_with_reconciliation(
+                                    &scheduler.endpoint,
+                                    cursor,
+                                    limit,
+                                    &observations,
+                                )
+                            })
                     })
-            })
-            .map(|snapshot| Response::Doctor(Box::new(snapshot))),
+                    .map(|mut snapshot| {
+                        snapshot.checks.extend(detector_checks);
+                        snapshot.coverage.extend(detector_coverage);
+                        snapshot
+                            .checks
+                            .sort_by(|left, right| left.code.cmp(&right.code));
+                        snapshot.overall = if snapshot
+                            .checks
+                            .iter()
+                            .any(|check| check.status == crate::DoctorCheckStatus::Fail)
+                        {
+                            crate::DoctorOverallStatus::Unsafe
+                        } else if snapshot.checks.iter().any(|check| {
+                            matches!(
+                                check.status,
+                                crate::DoctorCheckStatus::Warning
+                                    | crate::DoctorCheckStatus::Unknown(_)
+                            )
+                        }) {
+                            crate::DoctorOverallStatus::AttentionRequired
+                        } else {
+                            crate::DoctorOverallStatus::Healthy
+                        };
+                        Response::Doctor(Box::new(snapshot))
+                    })
+            }),
         Request::ForceClearContainment { containment_id } => {
             force_clear_containment(store, scheduler, peer, containment_id)
                 .map(Response::ContainmentCleared)

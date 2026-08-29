@@ -602,18 +602,12 @@ fn draw(frame: &mut ratatui::Frame<'_>, app: &mut App) {
         |job| {
             let mut lines = vec![
                 Line::from(format!("Job: {}", job.job_id)),
+                Line::from(format_working_directory(&job.spec.working_directory)),
                 Line::from(format!(
                     "Accepted: {}",
                     format_exact_utc(job.accepted_unix_millis)
                 )),
-                Line::from(format!(
-                    "State: {:?}  Outcome: {:?}",
-                    job.state, job.outcome
-                )),
-                Line::from(format!(
-                    "Parent: {:?}  Batch: {:?} / {:?}",
-                    job.parent, job.batch_id, job.batch_member
-                )),
+                Line::from(format!("State: {:?}", job.state)),
             ];
             if !selected_command.is_empty() {
                 lines.insert(1, Line::from(format!("Command: {selected_command}")));
@@ -630,33 +624,127 @@ fn draw(frame: &mut ratatui::Frame<'_>, app: &mut App) {
                     format_exact_utc(finished)
                 )));
             }
+            if let Some(outcome) = job.outcome {
+                lines.push(Line::from(format!("Outcome: {outcome:?}")));
+            }
+            if let Some(parent) = &job.parent {
+                lines.push(Line::from(format!(
+                    "Parent: {} / {} / {}",
+                    parent.job_id, parent.attempt_id, parent.invocation_id
+                )));
+            }
+            if let Some(batch_id) = job.batch_id {
+                let mut batch = format!("Batch: {batch_id}");
+                if let Some(member) = &job.batch_member {
+                    batch.push_str(&format!(" / {member}"));
+                }
+                lines.push(Line::from(batch));
+            }
+            if let Some(gpu) = &job.gpu_provenance {
+                lines.push(Line::from(format!(
+                    "GPU: {}  driver {}",
+                    gpu.uuid, gpu.driver_version
+                )));
+            }
             let claims = format_claims(&job.spec.resources);
             if !claims.is_empty() {
                 lines.push(Line::from(format!("Claims: {claims}")));
             }
+            if let Some(admission) = &job.admission {
+                let mut decision = format!("Admission: {:?}", admission.state);
+                if admission.final_sample {
+                    decision.push_str(" (final sample)");
+                }
+                if admission.deferral_count > 0 {
+                    decision.push_str(&format!(", deferrals {}", admission.deferral_count));
+                }
+                lines.push(Line::from(decision));
+                if let Some(evaluated) = admission.evaluated_unix_millis {
+                    lines.push(Line::from(format!(
+                        "  Evaluated: {}",
+                        format_exact_utc(evaluated)
+                    )));
+                }
+                for operand in &admission.operands {
+                    let mut evidence = format!(
+                        "  {}: requested {}, margin {}",
+                        operand.name, operand.requested, operand.safety_margin
+                    );
+                    if let Some(capacity) = operand.configured_capacity {
+                        evidence.push_str(&format!(", capacity {capacity}"));
+                    }
+                    if let Some(observed) = operand.observed {
+                        evidence.push_str(&format!(", observed {observed}"));
+                    }
+                    if let Some(granted) = operand.granted_debit {
+                        evidence.push_str(&format!(", granted {granted}"));
+                    }
+                    evidence.push_str(if operand.satisfied {
+                        ", pass"
+                    } else {
+                        ", blocked"
+                    });
+                    lines.push(Line::from(evidence));
+                }
+                for detector in &admission.detectors {
+                    let mut evidence = format!("  {}", detector.detector);
+                    if let Some(observed) = detector.observed {
+                        evidence.push_str(&format!(": observed {observed}"));
+                    }
+                    if let Some(threshold) = detector.threshold {
+                        evidence.push_str(&format!(", threshold {threshold}"));
+                    }
+                    evidence.push_str(if detector.satisfied {
+                        ", pass"
+                    } else {
+                        ", blocked"
+                    });
+                    lines.push(Line::from(evidence));
+                }
+                for blocker in &admission.blockers {
+                    lines.push(Line::from(format!(
+                        "  Blocked: {} — {}",
+                        blocker.code, blocker.detail
+                    )));
+                }
+            }
             for attempt in &job.attempts {
                 let mut attempt_line = format!(
-                    "Attempt {}: {:?}, started {} ({} invocation(s))",
+                    "Attempt {}: {} invocation(s), created {}",
                     attempt.attempt_index,
-                    attempt.verdict,
-                    format_exact_utc(attempt.started_unix_millis),
-                    attempt.invocations.len()
+                    attempt.invocations.len(),
+                    format_exact_utc(attempt.created_unix_millis),
                 );
+                if let Some(verdict) = attempt.verdict {
+                    attempt_line.push_str(&format!(", verdict {verdict:?}"));
+                }
+                if let Some(reason) = &attempt.reason_code {
+                    attempt_line.push_str(&format!("/{reason}"));
+                }
+                if let Some(started) = attempt.started_unix_millis {
+                    attempt_line.push_str(&format!(", started {}", format_exact_utc(started)));
+                }
                 if let Some(finished) = attempt.finished_unix_millis {
                     attempt_line.push_str(&format!(", finished {}", format_exact_utc(finished)));
                 }
                 lines.push(Line::from(attempt_line));
                 for invocation in &attempt.invocations {
                     let mut invocation_line = format!(
-                        "  {:?}[{}] {:?}, exit {:?}/{:?}, containment {:?}, incident {:?}",
+                        "  {:?}[{}] {:?}, containment {:?}",
                         invocation.role,
                         invocation.role_index,
                         invocation.state,
-                        invocation.root_exit_code,
-                        invocation.exit_classification,
                         invocation.containment.state,
-                        invocation.containment.incident_id
                     );
+                    if let Some(exit_code) = invocation.root_exit_code {
+                        invocation_line.push_str(&format!(", exit {exit_code}"));
+                    }
+                    if let Some(classification) = invocation.exit_classification {
+                        invocation_line.push_str(&format!("/{classification:?}"));
+                    }
+                    if let Some(incident) = invocation.containment.incident_id {
+                        invocation_line.push_str(&format!(", incident {incident}"));
+                    }
                     if let Some(started) = invocation.started_unix_millis {
                         invocation_line
                             .push_str(&format!(", started {}", format_exact_utc(started)));
@@ -713,6 +801,10 @@ fn terminal_text(bytes: &[u8]) -> String {
         .collect()
 }
 
+fn format_working_directory(path: &std::path::Path) -> String {
+    format!("CWD: {}", path.display())
+}
+
 fn gap_resync_offset(requested: u64, committed: u64, gap: bool, window: u64) -> Option<u64> {
     (gap && committed != requested).then(|| committed.saturating_sub(window))
 }
@@ -720,8 +812,10 @@ fn gap_resync_offset(requested: u64, committed: u64, gap: bool, window: u64) -> 
 #[cfg(test)]
 mod tests {
     use super::{
-        format_claims, format_compact_utc, format_exact_utc, gap_resync_offset, terminal_text,
+        format_claims, format_compact_utc, format_exact_utc, format_working_directory,
+        gap_resync_offset, terminal_text,
     };
+    use std::path::Path;
     use stillyard::ResourceClaims;
 
     #[test]
@@ -754,6 +848,14 @@ mod tests {
             "06-28 19:34:56Z"
         );
         assert_eq!(format_compact_utc(None), "");
+    }
+
+    #[test]
+    fn detail_identifies_the_job_working_directory() {
+        assert_eq!(
+            format_working_directory(Path::new(r"C:\Development\the-debrix")),
+            r"CWD: C:\Development\the-debrix"
+        );
     }
 
     #[test]
