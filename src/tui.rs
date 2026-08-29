@@ -1727,6 +1727,7 @@ fn queue_cell(
                 job.blocker
                     .as_ref()
                     .map(|blocker| blocker.code.clone())
+                    .or_else(|| app.tree.collapsed_outcome_summary(job.job_id))
                     .unwrap_or_default()
             };
             let style = if bucket == Bucket::Queued && !note.is_empty() {

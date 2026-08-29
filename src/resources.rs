@@ -40,11 +40,31 @@ impl ResolvedChildSubmissionPolicy {
             .collect::<io::Result<Vec<_>>>()?;
         ensure_unique_policy_fences(&shared_fences)?;
         ensure_unique_policy_fences(&exclusive_fences)?;
-        Ok(Self {
+        let mut resolved = Self {
             policy: policy.clone(),
             shared_fences,
             exclusive_fences,
-        })
+        };
+        resolved.canonicalize_custom_claims()?;
+        Ok(resolved)
+    }
+
+    /// Older retained alpha.9 rows may contain a display-valid but non-canonical VRAM UUID.
+    /// Normalize only the claim names: fence identities must remain exactly as admitted.
+    pub(crate) fn canonicalize_custom_claims(&mut self) -> io::Result<()> {
+        let mut canonical = BTreeMap::new();
+        for (name, value) in &self.policy.max_claims.custom {
+            let name = canonical_custom_resource_name(name)
+                .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
+            if canonical.insert(name, *value).is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "duplicate canonical child-policy custom resource",
+                ));
+            }
+        }
+        self.policy.max_claims.custom = canonical;
+        Ok(())
     }
 
     pub(crate) fn allows_shared(&self, path: &Path) -> io::Result<bool> {
@@ -909,6 +929,24 @@ mod tests {
             !resolved
                 .allows_shared(&temp.path().join("sibling"))
                 .unwrap()
+        );
+    }
+
+    #[test]
+    fn child_policy_vram_claim_names_are_canonicalized() {
+        let policy = ChildSubmissionPolicy {
+            max_claims: crate::ResourceClaimLimits {
+                custom: [("vram_mb:GPU-AbC123".into(), 4096)].into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let resolved = ResolvedChildSubmissionPolicy::resolve(&policy).unwrap();
+
+        assert_eq!(
+            resolved.policy.max_claims.custom,
+            [("vram_mb:gpu-abc123".into(), 4096)].into()
         );
     }
 

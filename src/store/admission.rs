@@ -1220,10 +1220,13 @@ fn evaluate_managed_policy(
                 format!("policy ancestor {job_id} has no child submission policy"),
             ));
         };
-        ancestors.push((
-            job_id,
-            serde_json::from_str::<ResolvedChildSubmissionPolicy>(&policy_json)?,
-        ));
+        let mut resolved = serde_json::from_str::<ResolvedChildSubmissionPolicy>(&policy_json)?;
+        resolved.canonicalize_custom_claims().map_err(|error| {
+            StoreError::InvalidState(format!(
+                "managed policy ancestor {job_id} has invalid custom claims: {error}"
+            ))
+        })?;
+        ancestors.push((job_id, resolved));
         current = managed_parent_from_columns(store_uuid, (row.1, row.2, row.3))?
             .map(|parent| parent.job_id);
     }
@@ -1424,9 +1427,11 @@ fn validate_claims_against_limit(
         }
     }
     for (name, requested) in &spec.resources.custom {
+        let canonical_name = crate::spec::canonical_custom_resource_name(name)
+            .map_err(|error| StoreError::InvalidSpec(error.to_string()))?;
         if limits
             .custom
-            .get(name)
+            .get(&canonical_name)
             .is_none_or(|maximum| requested > maximum)
         {
             return Err(policy_rejection(

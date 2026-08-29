@@ -65,6 +65,37 @@ The pre-promotion alpha.8 image remains recoverable at
 `C:\Users\User\AppData\Local\stillyard\Stillyard\bin\stillyard.exe.alpha8-20260829.bak` with
 SHA-256 `30F3876A9D82500A9EF0E3EAC21B08B25482B02B3DBA0239E70D0937E1F34664`.
 
+## Corrective review follow-up
+
+A post-delivery review identified four contract gaps. The corrective change:
+
+- prioritizes continuation work by its actual depth-first position and rebuilds the visible order
+  from the loaded relation graph, including left-to-right sibling branches;
+- discards every partially loaded page and restarts with no root cursor after `ViewStale`;
+- expands the active/queued node itself and renders bounded direct-child outcome summaries such as
+  `3 children: 2 ok, 1 failed` for collapsed branches;
+- canonicalizes VRAM custom claim names in new and retained policies, requested-claim lookup, and
+  effective admission evidence.
+
+Deterministic tests cover ancestor-versus-sibling continuation, two unfinished sibling branches,
+root-cursor staleness, nested active-branch expansion, collapsed outcome text, mixed-case requested
+VRAM UUIDs, and legacy retained alpha.9 policy spelling.
+
+| Corrective gate | Job ID | Result |
+| --- | --- | --- |
+| `fmt-write` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e3b-3389-7d80-a29c-3dc59fc60db1` | succeeded |
+| `check` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e3b-353b-7511-887e-9cdeb702f797` | succeeded |
+| `test` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e3b-3b55-75e1-9632-ceb418761910` | succeeded |
+| `clippy` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e3b-6bcc-7381-be5a-3cc27faa0403` | succeeded |
+| `fmt` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e3c-5a78-71e1-a3eb-8b636629f512` | succeeded |
+| `build-release` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e3c-5c42-75d3-ab86-372f983ba825` | succeeded |
+
+The corrective test Job passed 186 library tests with 3 ignored, 28 TUI/CLI tests, and all
+integration/public API tests. The corrective release artifact has SHA-256
+`732D99C61A76F814D2705114AC2A4334C86A9A664363AEFF2513D962AC36D8FF`. It is recorded as a source
+and release-artifact correction; the already-running canonical daemon was deliberately not
+restarted during this follow-up.
+
 ## Verdict
 
 The frozen brief is implemented, the independent implementation-review gate is closed, all

@@ -751,6 +751,53 @@ fn delegated_policy_is_intersected_across_the_full_ancestor_chain() {
 }
 
 #[test]
+fn vram_policy_claims_compare_and_persist_in_canonical_form() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let mut policy = child_policy();
+    policy
+        .max_claims
+        .custom
+        .insert("vram_mb:GPU-AbC123".into(), 4096);
+    let mut parent_spec = spec(temp.path());
+    parent_spec.child_submission_policy = Some(policy);
+    let parent = start_managed_parent_with_spec(&mut store, parent_spec);
+    let scope = scope_for(&parent);
+
+    // Exercise legacy retained alpha.9 spelling as well as new canonical persistence.
+    store
+        .connection
+        .execute(
+            "UPDATE jobs SET resolved_child_policy_json = replace(
+                resolved_child_policy_json, 'vram_mb:gpu-abc123', 'vram_mb:GPU-AbC123'
+             ) WHERE id = ?1",
+            [parent.job_id.entity_uuid().to_string()],
+        )
+        .unwrap();
+
+    let mut child = spec(temp.path());
+    child
+        .resources
+        .custom
+        .insert("vram_mb:GPU-ABC123".into(), 2048);
+    let hash = normalized_payload_hash(&child).unwrap();
+    let accepted = store
+        .submit_with_stdin_scoped(scope, Uuid::now_v7(), &hash, &child, None)
+        .unwrap();
+
+    assert_eq!(
+        accepted
+            .receipt
+            .managed_policy_admission
+            .unwrap()
+            .effective_policy
+            .max_claims
+            .custom,
+        [("vram_mb:gpu-abc123".into(), 4096)].into()
+    );
+}
+
+#[test]
 fn policy_invalid_batch_names_the_member_and_is_atomic() {
     let temp = tempfile::tempdir().unwrap();
     let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
