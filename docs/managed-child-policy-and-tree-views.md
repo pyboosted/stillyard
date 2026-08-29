@@ -642,8 +642,10 @@ language introduced at 37acffc:
 
 - root families remain grouped as Running, Queued, and Finished by aggregate attention;
 - each expanded root is followed immediately by its children in depth-first order;
-- active and queued branches start expanded;
-- fully finished subtrees start collapsed with a bounded outcome summary;
+- every represented branch starts expanded and remains visible across state transitions, so a
+  child finishing cannot make rows disappear or cause an automatic layout jump;
+- only an explicit user collapse hides a subtree; the collapsed row carries a bounded outcome
+  summary;
 - Left collapses or selects the retained parent; Right expands or selects the first child;
 - selection remains keyed by JobId across refresh, reordering, collapse, and Gap recovery;
 - the TUI follows root cursors and every emitted truncated-branch JobChildrenCursor until its

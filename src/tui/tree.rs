@@ -392,17 +392,9 @@ fn load_tree_page_attempt(
         };
         root_cursor = Some(next);
     }
-    for job in summaries.values() {
-        if job.state != JobState::Final {
-            // Include the active/queued node itself: an active branch with only finished children
-            // is still an active branch and must start expanded.
-            let mut current = Some(job.job_id);
-            while let Some(parent) = current {
-                tree.expanded.insert(parent);
-                current = tree.parents.get(&parent).copied();
-            }
-        }
-    }
+    // State transitions must not reshuffle the visible queue by auto-collapsing a family. Every
+    // represented branch starts expanded; only an explicit user override may collapse it.
+    tree.expanded.extend(tree.has_children.iter().copied());
     summarize_child_outcomes(&mut tree, &summaries);
     tree.order = depth_first_order(&tree, &root_order, &ingest_order);
     let jobs = tree
@@ -473,9 +465,6 @@ fn ingest_tree_nodes(
             })
             .unwrap_or_else(|| Bucket::of(&node.summary));
         tree.buckets.insert(job_id, bucket);
-        if node.depth == 0 && bucket != Bucket::Finished {
-            tree.expanded.insert(job_id);
-        }
         ingest_order.push(job_id);
         summaries.insert(job_id, node.summary);
     }
@@ -978,7 +967,7 @@ mod tests {
     }
 
     #[test]
-    fn active_branches_expand_and_finished_children_have_outcome_summary() {
+    fn all_branches_stay_expanded_and_explicit_collapse_has_outcome_summary() {
         let root = job_id();
         let active = job_id();
         let active_child = job_id();
@@ -1044,7 +1033,7 @@ mod tests {
             Vec::new(),
         );
 
-        let (_, tree) = load_tree_page_from(
+        let (_, mut tree) = load_tree_page_from(
             &source,
             JobSelector::All,
             16,
@@ -1054,7 +1043,9 @@ mod tests {
 
         assert!(tree.expanded.contains(&root));
         assert!(tree.expanded.contains(&active));
-        assert!(!tree.expanded.contains(&finished));
+        assert!(tree.expanded.contains(&finished));
+        assert_eq!(tree.collapsed_outcome_summary(finished), None);
+        tree.expanded.remove(&finished);
         assert_eq!(
             tree.collapsed_outcome_summary(finished).as_deref(),
             Some("3 children: 2 ok, 1 failed")

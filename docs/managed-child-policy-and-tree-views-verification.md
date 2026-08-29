@@ -104,6 +104,34 @@ post-promotion `fmt` Job
 `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e49-32b2-7ab0-9a84-74048d9e68c5`.
 The promoted client also completed a JSON tree smoke against the retained managed family.
 
+## Stable expansion follow-up
+
+Operator feedback superseded the original finished-subtree default: represented branches now
+start expanded and remain expanded across running, queued, and final state transitions. Completion
+therefore cannot make child rows disappear or cause an automatic layout jump. Only an explicit
+Left action collapses a branch; its bounded outcome summary remains available in that state.
+
+The TUI regression covers a finished branch visible by default and verifies that an explicit
+collapse still produces `3 children: 2 ok, 1 failed`.
+
+| Stable-expansion gate | Job ID | Result |
+| --- | --- | --- |
+| `fmt-write` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e4d-85a5-7911-b48f-4551da9c2315` | succeeded |
+| `check` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e4d-8754-7e10-ac49-acd45991dd81` | succeeded |
+| `test` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e4d-8992-76b3-83a9-ca1ab2ed13b7` | succeeded |
+| `clippy` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e4d-ba15-7010-80dc-0685f137083d` | succeeded |
+| `build-release` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e4d-bdd9-7a93-ab47-7f136ccd1716` | succeeded |
+
+The release and canonical installed executable have SHA-256
+`647CEF61461FEE03B36EBBEB9FD817FA81D9D719D3334489D222849CC5679EF3`. The prior corrective image
+is recoverable at
+`C:\Users\User\AppData\Local\stillyard\Stillyard\bin\stillyard.exe.alpha9-dd39de7-stable-expansion-20260829.bak`
+with SHA-256 `732D99C61A76F814D2705114AC2A4334C86A9A664363AEFF2513D962AC36D8FF`.
+The replacement daemon runs as PID 46564 with generation
+`01a04e4e-7b11-7f82-bcc1-c1b7c292df49`; the installed image then passed post-promotion `fmt` Job
+`01a04dcf-9568-7952-ad05-ab209d61282f~01a04e4f-25e9-7872-867a-aa4ea76bc37a` after respecting an
+already-running external Cargo workload's `cargo_slots` claim.
+
 ## Verdict
 
 The frozen brief is implemented, the independent implementation-review gate is closed, all
