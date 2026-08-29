@@ -154,7 +154,18 @@ Regressions: `tree_guides_close_last_siblings_and_carry_ancestor_rails`,
 `expanded_finished_family_is_visibly_a_tree` snapshot. Validation Jobs: fmt-write
 `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e70-852a-7811-9fe8-b2d3c8f6e716`, clippy
 `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e70-c9ba-78b3-88db-8d9a1204d895`, test
-`01a04dcf-9568-7952-ad05-ab209d61282f~01a04e70-ce49-7932-ba3b-4812d1097945`.
+`01a04dcf-9568-7952-ad05-ab209d61282f~01a04e70-ce49-7932-ba3b-4812d1097945`, build-release
+`01a04dcf-9568-7952-ad05-ab209d61282f~01a04edb-5a62-7be2-988a-f8ca88946223` (commit `52e4539`).
+
+The release and installed executable have SHA-256
+`F12E25AD39AA1CEA776A38ED59CE03C7A888B3A4BCE752FEAC2877D5748CDA9C`. The prior image is
+recoverable at
+`C:\Users\User\AppData\Local\stillyard\Stillyard\bin\stillyard.exe.alpha9-95681ca-history-visible-20260829.bak`
+with SHA-256 `EFCFD8A5D3ED0F5773DB25596156D548FE9035586AD9840D406705D69B300B78`. The promotion
+waited for an idle daemon; the replacement daemon runs as PID 58120 with generation
+`01a04edc-183c-7dc3-bab9-cefdb86c243e`, retained store `01a04dcf-9568-7952-ad05-ab209d61282f`,
+and passed post-promotion `fmt` Job
+`01a04dcf-9568-7952-ad05-ab209d61282f~01a04ee0-7f71-79c2-8aa8-ff156b6e3d23`.
 
 | Finished-history gate | Job ID | Result |
 | --- | --- | --- |
