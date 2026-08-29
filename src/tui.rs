@@ -1,21 +1,26 @@
 //! Operator terminal for `stillyard watch`.
 //!
 //! One screen combines the attention-grouped queue, selected Job detail, and log tabs.
-//! Enter expands a pane, Tab moves focus, and the footer names context-sensitive keys.
+//! Enter expands a pane, Tab moves focus, and the footer names context-sensitive keys. The mouse
+//! wheel scrolls the pane under the pointer; a click focuses a pane, selects a queue row, toggles
+//! a family through its `▾`/`▸` marker, or switches the log stream through its tab.
 
 use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::io;
 use std::sync::mpsc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseButton,
+    MouseEvent, MouseEventKind,
+};
 use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
-use ratatui::layout::{Constraint, Layout, Margin, Rect};
+use ratatui::layout::{Constraint, Layout, Margin, Position, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
@@ -48,7 +53,9 @@ mod palette {
     pub const DIM: Color = Color::Indexed(243);
     pub const DIMMER: Color = Color::Indexed(238);
     pub const BORDER: Color = Color::Indexed(238);
-    pub const SELECTION: Color = Color::Indexed(236);
+    pub const SELECTION: Color = Color::Indexed(237);
+    /// Background of every row of an expanded family, one tone above the terminal ground.
+    pub const BAND: Color = Color::Indexed(235);
     pub const TEXT: Color = Color::Indexed(253);
     pub const LOG: Color = Color::Indexed(250);
     /// Muted hues that stay legible next to the state colours; a project name hashes to one.
@@ -67,7 +74,7 @@ struct TerminalRestore;
 impl Drop for TerminalRestore {
     fn drop(&mut self) {
         let _ = disable_raw_mode();
-        let _ = execute!(io::stdout(), LeaveAlternateScreen);
+        let _ = execute!(io::stdout(), DisableMouseCapture, LeaveAlternateScreen);
     }
 }
 
@@ -92,6 +99,29 @@ impl Pane {
             Self::Queue => Self::Logs,
             Self::Detail => Self::Queue,
             Self::Logs => Self::Detail,
+        }
+    }
+}
+
+/// Screen areas of the panes as of the last draw; mouse events are resolved against them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct PaneRects {
+    queue: Rect,
+    detail: Rect,
+    logs: Rect,
+}
+
+impl PaneRects {
+    fn hit(&self, column: u16, row: u16) -> Option<Pane> {
+        let position = Position::new(column, row);
+        if self.queue.contains(position) {
+            Some(Pane::Queue)
+        } else if self.detail.contains(position) {
+            Some(Pane::Detail)
+        } else if self.logs.contains(position) {
+            Some(Pane::Logs)
+        } else {
+            None
         }
     }
 }
@@ -167,6 +197,15 @@ struct App {
     log_view: usize,
     detail_len: usize,
     log_len: usize,
+    /// Whether the queue viewport follows the selection; wheel scrolling releases it until the
+    /// selection moves again.
+    queue_pin: bool,
+    panes: PaneRects,
+    /// Inner area of the queue pane (header row first) and the width of its tree gutter.
+    queue_inner: Rect,
+    queue_gutter: u16,
+    /// Absolute column ranges of the stdout and stderr tabs on the logs title row.
+    log_tabs: [(u16, u16); 2],
 }
 
 impl App {
@@ -322,6 +361,119 @@ impl App {
             self.follow = true;
         }
     }
+
+    /// Scrolls the queue viewport without moving the selection.
+    fn scroll_queue(&mut self, delta: isize) {
+        self.queue_pin = false;
+        self.queue_offset = clamp_scroll(
+            self.queue_offset.saturating_add_signed(delta),
+            self.rows().len(),
+            self.queue_view,
+        );
+    }
+
+    /// The Job shown on screen row `row` of the queue pane, if any.
+    fn queue_job_at(&self, row: u16) -> Option<usize> {
+        let inner = self.queue_inner;
+        // The first inner row is the column header.
+        if inner.height < 2 || row <= inner.y || row >= inner.y.saturating_add(inner.height) {
+            return None;
+        }
+        let index = usize::from(row - inner.y - 1).checked_add(self.queue_offset)?;
+        match self.rows().get(index).copied()? {
+            RowKind::Job(index) => Some(index),
+            RowKind::Group { .. } => None,
+        }
+    }
+
+    /// Whether screen column `column` lies in the queue's tree gutter.
+    fn in_queue_gutter(&self, column: u16) -> bool {
+        let start = self.queue_inner.x.saturating_add(1);
+        self.queue_gutter > 0 && column >= start && column < start.saturating_add(self.queue_gutter)
+    }
+
+    fn log_tab_at(&self, column: u16, row: u16) -> Option<LogStream> {
+        if row != self.panes.logs.y {
+            return None;
+        }
+        let [(stdout_start, stdout_end), (stderr_start, stderr_end)] = self.log_tabs;
+        if column >= stdout_start && column < stdout_end {
+            Some(LogStream::Stdout)
+        } else if column >= stderr_start && column < stderr_end {
+            Some(LogStream::Stderr)
+        } else {
+            None
+        }
+    }
+
+    fn toggle_family(&mut self, job_id: JobId) {
+        if !self.tree.children.contains_key(&job_id) {
+            return;
+        }
+        if self.tree.expanded.contains(&job_id) {
+            self.collapse_or_parent();
+        } else {
+            self.expand_or_child();
+        }
+    }
+
+    /// Applies a mouse event; returns whether the selection changed.
+    fn handle_mouse(&mut self, mouse: MouseEvent) -> bool {
+        const WHEEL_ROWS: isize = 3;
+        let (column, row) = (mouse.column, mouse.row);
+        match mouse.kind {
+            MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
+                let delta = if mouse.kind == MouseEventKind::ScrollUp {
+                    -WHEEL_ROWS
+                } else {
+                    WHEEL_ROWS
+                };
+                match self.panes.hit(column, row) {
+                    Some(Pane::Queue) => self.scroll_queue(delta),
+                    Some(Pane::Detail) => self.scroll_detail(delta),
+                    Some(Pane::Logs) => {
+                        self.scroll_logs(delta);
+                        // Wheeling back to the tail resumes following it.
+                        if delta > 0
+                            && self.log_scroll >= self.log_len.saturating_sub(self.log_view)
+                        {
+                            self.follow = true;
+                        }
+                    }
+                    None => {}
+                }
+                false
+            }
+            MouseEventKind::Down(MouseButton::Left) => {
+                let Some(pane) = self.panes.hit(column, row) else {
+                    return false;
+                };
+                self.focus = pane;
+                match pane {
+                    Pane::Queue => {
+                        let Some(index) = self.queue_job_at(row) else {
+                            return false;
+                        };
+                        let changed = index != self.selected;
+                        self.selected = index;
+                        self.queue_pin = true;
+                        if self.in_queue_gutter(column) {
+                            self.toggle_family(self.page.jobs[index].job_id);
+                        }
+                        changed
+                    }
+                    Pane::Logs => {
+                        if let Some(stream) = self.log_tab_at(column, row) {
+                            self.switch_stream(stream);
+                        }
+                        false
+                    }
+                    Pane::Detail => false,
+                }
+            }
+            _ => false,
+        }
+    }
 }
 
 fn project_of(job: &JobSummary) -> Option<&str> {
@@ -412,12 +564,17 @@ pub(crate) fn run(
         log_view: 1,
         detail_len: 0,
         log_len: 0,
+        queue_pin: true,
+        panes: PaneRects::default(),
+        queue_inner: Rect::default(),
+        queue_gutter: 0,
+        log_tabs: [(0, 0); 2],
     };
     app.settle_selection(None);
     refresh_detail(&client, &mut app, request_deadline(deadline))?;
 
     enable_raw_mode()?;
-    execute!(io::stdout(), EnterAlternateScreen)?;
+    execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
     let _restore = TerminalRestore;
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
     terminal.clear()?;
@@ -618,6 +775,18 @@ pub(crate) fn run(
                     },
                 }
                 if reselect {
+                    app.queue_pin = true;
+                    if let Err(error) =
+                        refresh_detail(&client, &mut app, request_deadline(deadline))
+                    {
+                        app.status = format!("stale after detail error: {error}");
+                    } else {
+                        app.last_refresh = Instant::now();
+                    }
+                }
+            }
+            Message::Input(Event::Mouse(mouse)) => {
+                if app.handle_mouse(mouse) {
                     if let Err(error) =
                         refresh_detail(&client, &mut app, request_deadline(deadline))
                     {
@@ -1219,10 +1388,20 @@ fn draw(frame: &mut ratatui::Frame<'_>, app: &mut App) {
     frame.render_widget(header_line(app, clock, header.width as usize), header);
 
     if app.fullscreen {
+        app.panes = PaneRects::default();
         match app.focus {
-            Pane::Queue => draw_queue(frame, app, clock, body, true),
-            Pane::Detail => draw_detail(frame, app, clock, body, true),
-            Pane::Logs => draw_logs(frame, app, body, true),
+            Pane::Queue => {
+                app.panes.queue = body;
+                draw_queue(frame, app, clock, body, true);
+            }
+            Pane::Detail => {
+                app.panes.detail = body;
+                draw_detail(frame, app, clock, body, true);
+            }
+            Pane::Logs => {
+                app.panes.logs = body;
+                draw_logs(frame, app, body, true);
+            }
         }
     } else {
         let rows = app.rows().len();
@@ -1243,6 +1422,11 @@ fn draw(frame: &mut ratatui::Frame<'_>, app: &mut App) {
             Constraint::Min(3),
         ])
         .areas(body);
+        app.panes = PaneRects {
+            queue,
+            detail,
+            logs,
+        };
         draw_queue(frame, app, clock, queue, app.focus == Pane::Queue);
         draw_detail_lines(frame, app, detail_lines, detail, app.focus == Pane::Detail);
         draw_logs(frame, app, logs, app.focus == Pane::Logs);
@@ -1543,16 +1727,23 @@ fn draw_queue(
     );
     let inner = block.inner(area);
     frame.render_widget(block, area);
+    app.queue_inner = inner;
     if inner.height < 2 || inner.width < 20 {
         return;
     }
 
-    // One column for the selection bar, then the table columns.
+    // One column for the selection bar, the tree gutter, then the table columns.
+    let guides = tree_guides(app, &rows);
+    let gutter = tree_gutter_width(app).min(usize::from(inner.width) / 3);
+    app.queue_gutter = gutter as u16;
     let table_area = Rect {
-        x: inner.x + 1,
-        width: inner.width.saturating_sub(1),
+        x: inner.x + 1 + gutter as u16,
+        width: inner.width.saturating_sub(1 + gutter as u16),
         ..inner
     };
+    let selected_family = app
+        .selected_job()
+        .map(|job_id| family_root(&app.tree, job_id));
     let (columns, constraints) = queue_columns(inner.width);
     let widths: Vec<usize> = Layout::horizontal(constraints)
         .spacing(1)
@@ -1566,7 +1757,7 @@ fn draw_queue(
     let selected_row = rows
         .iter()
         .position(|row| *row == RowKind::Job(app.selected));
-    if let Some(selected_row) = selected_row {
+    if let Some(selected_row) = selected_row.filter(|_| app.queue_pin) {
         let subtree_end = visible_subtree_end(app, &rows, selected_row);
         // A family moving from Running to Finished can move its selected root a long way down the
         // history. Keep as much of the expanded subtree beside that root as the viewport permits
@@ -1577,7 +1768,7 @@ fn draw_queue(
     app.queue_offset = clamp_scroll(app.queue_offset, rows.len(), view);
 
     let mut lines = Vec::with_capacity(view + 1);
-    let mut header = vec![Span::raw(" ")];
+    let mut header = vec![Span::raw(" ".repeat(1 + gutter))];
     for (index, column) in columns.iter().enumerate() {
         if index > 0 {
             header.push(Span::raw(" "));
@@ -1595,7 +1786,7 @@ fn draw_queue(
             dim(),
         )));
     }
-    for row in rows.iter().skip(app.queue_offset).take(view) {
+    for (row_index, row) in rows.iter().enumerate().skip(app.queue_offset).take(view) {
         lines.push(match *row {
             RowKind::Group { bucket, count } => {
                 let label = format!(" {} ({count}) ", bucket.title());
@@ -1615,6 +1806,22 @@ fn draw_queue(
                 } else {
                     Span::raw(" ")
                 }];
+                let later = guides[row_index].as_deref().unwrap_or_default();
+                let in_family = !later.is_empty()
+                    || (app.tree.children.contains_key(&job.job_id)
+                        && app.tree.expanded.contains(&job.job_id));
+                if gutter > 0 {
+                    let rail = if in_family
+                        && selected_family == Some(family_root(&app.tree, job.job_id))
+                    {
+                        accent()
+                    } else if app.tree.context_only.contains(&job.job_id) {
+                        dimmer()
+                    } else {
+                        dim()
+                    };
+                    spans.push(tree_gutter(app, job.job_id, later, gutter, rail));
+                }
                 for (column_index, column) in columns.iter().enumerate() {
                     if column_index > 0 {
                         spans.push(Span::raw(" "));
@@ -1624,6 +1831,8 @@ fn draw_queue(
                 let mut line = Line::from(spans);
                 if selected {
                     line = line.patch_style(Style::default().bg(palette::SELECTION));
+                } else if in_family {
+                    line = line.patch_style(Style::default().bg(palette::BAND));
                 }
                 line
             }
@@ -1631,6 +1840,88 @@ fn draw_queue(
     }
     frame.render_widget(Paragraph::new(lines), inner);
     draw_scrollbar(frame, area, rows.len(), app.queue_offset, view, focused);
+}
+
+/// Tree guides per row: one flag per ancestor level of the shown Job (index `k` is depth
+/// `k + 1`), true when a later row at that depth still belongs to the same family. The last flag
+/// therefore says whether the Job itself has a later sibling on screen. Group rows carry `None`.
+fn tree_guides(app: &App, rows: &[RowKind]) -> Vec<Option<Vec<bool>>> {
+    let mut guides = vec![None; rows.len()];
+    let mut later_at_depth: Vec<bool> = Vec::new();
+    for (index, row) in rows.iter().enumerate().rev() {
+        match *row {
+            RowKind::Group { .. } => later_at_depth.clear(),
+            RowKind::Job(job_index) => {
+                let job_id = app.page.jobs[job_index].job_id;
+                let depth = app.tree.depths.get(&job_id).copied().unwrap_or(0) as usize;
+                // A row this shallow separates every deeper row below from the rows above it.
+                later_at_depth.resize(depth + 1, false);
+                guides[index] = Some(later_at_depth[1..].to_vec());
+                later_at_depth[depth] = true;
+            }
+        }
+    }
+    guides
+}
+
+/// Columns needed for the deepest branch on the page plus its disclosure cell; zero without
+/// families. Hidden (collapsed) rows count so that toggling a family never shifts the columns.
+fn tree_gutter_width(app: &App) -> usize {
+    let deepest = app
+        .page
+        .jobs
+        .iter()
+        .filter(|job| app.job_visible(job))
+        .filter_map(|job| {
+            let depth = app.tree.depths.get(&job.job_id).copied().unwrap_or(0) as usize;
+            (depth > 0 || app.tree.children.contains_key(&job.job_id)).then_some(depth)
+        })
+        .max();
+    deepest.map_or(0, |depth| 2 * (depth + 1))
+}
+
+/// Rails for every ancestor level, then the disclosure cell, padded to `width`.
+fn tree_gutter(
+    app: &App,
+    job_id: JobId,
+    later: &[bool],
+    width: usize,
+    style: Style,
+) -> Span<'static> {
+    let depth = later.len();
+    let orphan = app.tree.orphans.contains(&job_id);
+    let mut text = String::with_capacity(width);
+    for (level, has_later) in later.iter().enumerate() {
+        let own = level + 1 == depth;
+        text.push_str(match (orphan, own, *has_later) {
+            (true, true, _) => "?─",
+            (true, false, _) | (false, false, false) => "  ",
+            (false, true, true) => "├─",
+            (false, true, false) => "└─",
+            (false, false, true) => "│ ",
+        });
+    }
+    if app.tree.children.contains_key(&job_id) {
+        text.push_str(if app.tree.expanded.contains(&job_id) {
+            "▾ "
+        } else {
+            "▸ "
+        });
+    } else if orphan && depth == 0 {
+        text.push_str("? ");
+    }
+    Span::styled(fit_text(&text, width), style)
+}
+
+fn family_root(tree: &TreeView, job_id: JobId) -> JobId {
+    let mut current = job_id;
+    for _ in 0..64 {
+        match tree.parents.get(&current) {
+            Some(parent) => current = *parent,
+            None => break,
+        }
+    }
+    current
 }
 
 fn visible_subtree_end(app: &App, rows: &[RowKind], selected_row: usize) -> usize {
@@ -1678,13 +1969,25 @@ fn queue_cell(
                 Style::default().fg(visual.color)
             },
         )],
-        "PROJECT" => match project_of(job) {
-            Some(project) => vec![Span::styled(
-                pad_right(project, width),
-                Style::default().fg(project_color(project)),
-            )],
-            None => vec![Span::styled(pad_right("—", width), dimmer())],
-        },
+        "PROJECT" => {
+            let parent_project = app
+                .tree
+                .parents
+                .get(&job.job_id)
+                .and_then(|parent| app.page.jobs.iter().find(|other| other.job_id == *parent))
+                .and_then(project_of);
+            match project_of(job) {
+                // A child repeating its parent's project is noise; a differing one is a signal.
+                Some(project) if parent_project == Some(project) => {
+                    vec![Span::styled(pad_right("·", width), dimmer())]
+                }
+                Some(project) => vec![Span::styled(
+                    pad_right(project, width),
+                    Style::default().fg(project_color(project)),
+                )],
+                None => vec![Span::styled(pad_right("—", width), dimmer())],
+            }
+        }
         "WHEN" => {
             let when = match bucket {
                 Bucket::Queued => job.accepted_unix_millis,
@@ -1694,7 +1997,12 @@ fn queue_cell(
                     .or(job.started_unix_millis)
                     .unwrap_or(job.accepted_unix_millis),
             };
-            vec![Span::styled(pad_right(&clock.compact(when), width), text())]
+            let style = if app.tree.parents.contains_key(&job.job_id) {
+                dim()
+            } else {
+                text()
+            };
+            vec![Span::styled(pad_right(&clock.compact(when), width), style)]
         }
         "TIME" => {
             let (value, style) = match bucket {
@@ -1746,24 +2054,6 @@ fn queue_cell(
                     }
                 },
             );
-            let depth = app.tree.depths.get(&job.job_id).copied().unwrap_or(0);
-            let guide = if app.tree.orphans.contains(&job.job_id) {
-                "?─ ".to_owned()
-            } else if depth == 0 {
-                String::new()
-            } else {
-                format!("{}├─ ", "│  ".repeat(depth.saturating_sub(1) as usize))
-            };
-            let disclosure = if app.tree.children.contains_key(&job.job_id) {
-                if app.tree.expanded.contains(&job.job_id) {
-                    "▾ "
-                } else {
-                    "▸ "
-                }
-            } else {
-                ""
-            };
-            let command = format!("{guide}{disclosure}{command}");
             if context_only {
                 fit_spans(vec![Span::styled(command, dim())], width)
             } else {
@@ -1771,21 +2061,24 @@ fn queue_cell(
             }
         }
         "NOTE" => {
-            let note = if app.tree.orphans.contains(&job.job_id) {
-                "orphan: parent not retained".to_owned()
-            } else {
-                job.blocker
-                    .as_ref()
-                    .map(|blocker| blocker.code.clone())
-                    .or_else(|| app.tree.collapsed_outcome_summary(job.job_id))
-                    .unwrap_or_default()
-            };
-            let style = if bucket == Bucket::Queued && !note.is_empty() {
-                Style::default().fg(palette::WARN)
-            } else {
-                dim()
-            };
-            vec![Span::styled(pad_right(&note, width), style)]
+            if app.tree.orphans.contains(&job.job_id) {
+                return vec![Span::styled(
+                    pad_right("orphan: parent not retained", width),
+                    dim(),
+                )];
+            }
+            if let Some(blocker) = &job.blocker {
+                let style = if bucket == Bucket::Queued {
+                    Style::default().fg(palette::WARN)
+                } else {
+                    dim()
+                };
+                return vec![Span::styled(pad_right(&blocker.code, width), style)];
+            }
+            match app.tree.collapsed_outcome(job.job_id) {
+                Some(summary) => fit_spans(outcome_summary_spans(summary), width),
+                None => vec![Span::raw(" ".repeat(width))],
+            }
         }
         _ => vec![Span::raw(" ".repeat(width))],
     }
@@ -1797,6 +2090,42 @@ fn elapsed_millis(started: Option<i64>, finished: Option<i64>, clock: Clock) -> 
     };
     let end = finished.unwrap_or(clock.now_millis);
     u64::try_from(end.saturating_sub(started)).unwrap_or(0)
+}
+
+/// The collapsed-branch summary as text with semantic colours on its outcome counts.
+fn outcome_summary_spans(summary: tree::ChildOutcomeSummary) -> Vec<Span<'static>> {
+    let suffix = if summary.incomplete { "+" } else { "" };
+    let noun = if summary.total == 1 && !summary.incomplete {
+        "child"
+    } else {
+        "children"
+    };
+    let mut spans = vec![Span::styled(
+        format!("{}{suffix} {noun}", summary.total),
+        dim(),
+    )];
+    let counts = [
+        (summary.succeeded, "ok", palette::OK),
+        (summary.failed, "failed", palette::BAD),
+        (summary.active, "active", palette::RUNNING),
+    ];
+    for (index, (count, label, color)) in counts
+        .into_iter()
+        .filter(|(count, _, _)| *count > 0)
+        .enumerate()
+    {
+        spans.push(Span::styled(if index == 0 { ": " } else { ", " }, dim()));
+        spans.push(Span::styled(
+            format!("{count} {label}"),
+            Style::default().fg(color),
+        ));
+    }
+    spans
+}
+
+/// Clips `text` to `width` characters (ending in `…`) and pads to exactly `width`.
+fn fit_text(text: &str, width: usize) -> String {
+    pad_right(&ellipsize(text, width), width)
 }
 
 /// Clips styled spans to `width` characters (ending in `…`) and pads to exactly `width`.
@@ -2308,8 +2637,19 @@ fn draw_logs(frame: &mut ratatui::Frame<'_>, app: &mut App, area: Rect, focused:
         ]
     };
     let mut title = tab("stdout", LogStream::Stdout, stdout_len);
+    let stdout_tab = span_width(&title) as u16;
     title.push(Span::styled("│", Style::default().fg(palette::BORDER)));
     title.extend(tab("stderr", LogStream::Stderr, stderr_len));
+    // The title starts one cell past the corner of the border.
+    let tabs_start = area.x.saturating_add(1);
+    let stderr_start = tabs_start.saturating_add(stdout_tab + 1);
+    app.log_tabs = [
+        (tabs_start, tabs_start.saturating_add(stdout_tab)),
+        (
+            stderr_start,
+            tabs_start.saturating_add(span_width(&title) as u16),
+        ),
+    ];
     let mut right = Vec::new();
     let window_start = app.log_window_start();
     if window_start > 0 {
@@ -2455,6 +2795,11 @@ mod tests {
             log_view: 10,
             detail_len: 0,
             log_len: 0,
+            queue_pin: true,
+            panes: PaneRects::default(),
+            queue_inner: Rect::default(),
+            queue_gutter: 0,
+            log_tabs: [(0, 0); 2],
         };
         app.page.jobs = jobs;
         app.settle_selection(None);
@@ -2909,25 +3254,210 @@ mod tests {
         app.tree.buckets.insert(child_id, Bucket::Finished);
 
         let expanded = screen_text(&mut app, 136, 20);
+        let lines: Vec<&str> = expanded.lines().collect();
+        let parent_row = lines
+            .iter()
+            .position(|line| line.contains("managed parent"))
+            .expect("parent row is on screen");
         assert!(
-            expanded.contains("▾ managed parent"),
-            "expanded finished parent has a disclosure marker:\n{expanded}"
+            lines[parent_row].contains("▾   ✓ Succeeded"),
+            "expanded parent carries its disclosure marker in the tree gutter:\n{expanded}"
         );
         assert!(
-            expanded.contains("├─ managed child"),
-            "expanded finished child remains adjacent to its parent:\n{expanded}"
+            lines[parent_row + 1].contains("└─  ✓ Succeeded   ·")
+                && lines[parent_row + 1].contains("managed child"),
+            "the last child closes the rail, repeats no project, and stays adjacent:\n{expanded}"
+        );
+        assert!(
+            !lines[parent_row + 1].contains("├─"),
+            "a family's last child never shows an open rail:\n{expanded}"
         );
 
         app.tree.expanded.remove(&parent_id);
         let collapsed = screen_text(&mut app, 136, 20);
+        let parent_line = collapsed
+            .lines()
+            .find(|line| line.contains("managed parent"))
+            .expect("parent row is on screen");
         assert!(
-            collapsed.contains("▸ managed parent"),
+            parent_line.contains("▸   ✓ Succeeded"),
             "collapsed parent has a disclosure marker:\n{collapsed}"
         );
         assert!(
             !collapsed.contains("managed child"),
             "only an explicit collapse hides the child:\n{collapsed}"
         );
+    }
+
+    #[test]
+    fn tree_guides_close_last_siblings_and_carry_ancestor_rails() {
+        let mut jobs = Vec::new();
+        for _ in 0..7 {
+            jobs.push(summary(
+                "final",
+                Some("succeeded"),
+                1_000,
+                Some(1_100),
+                Some(2_000),
+                None,
+                Some("stillyard"),
+            ));
+        }
+        let ids: Vec<JobId> = jobs.iter().map(|job| job.job_id).collect();
+        let mut app = app_with(jobs);
+        // root, child, child(parent), grandchild, grandchild, child, root
+        for (job_id, depth) in ids.iter().zip([0, 1, 1, 2, 2, 1, 0]) {
+            app.tree.depths.insert(*job_id, depth);
+        }
+        let rows: Vec<RowKind> = std::iter::once(RowKind::Group {
+            bucket: Bucket::Finished,
+            count: 7,
+        })
+        .chain((0..7).map(RowKind::Job))
+        .collect();
+        let guides = tree_guides(&app, &rows);
+        assert_eq!(guides[0], None);
+        assert_eq!(guides[1], Some(vec![]));
+        assert_eq!(
+            guides[2],
+            Some(vec![true]),
+            "first child has later siblings"
+        );
+        assert_eq!(guides[3], Some(vec![true]));
+        assert_eq!(
+            guides[4],
+            Some(vec![true, true]),
+            "grandchild: parent has a later sibling, so does it"
+        );
+        assert_eq!(
+            guides[5],
+            Some(vec![true, false]),
+            "last grandchild closes its rail while the parent's rail continues"
+        );
+        assert_eq!(guides[6], Some(vec![false]), "last child closes the rail");
+        assert_eq!(
+            guides[7],
+            Some(vec![]),
+            "a root after the family is unaffected"
+        );
+        app.tree.children.insert(ids[2], vec![ids[3], ids[4]]);
+        assert_eq!(tree_gutter_width(&app), 6);
+        let gutter = tree_gutter(&app, ids[4], &[true, false], 6, dim());
+        assert_eq!(gutter.content.as_ref(), "│ └─  ");
+        app.tree.expanded.insert(ids[2]);
+        let gutter = tree_gutter(&app, ids[2], &[true], 6, dim());
+        assert_eq!(gutter.content.as_ref(), "├─▾   ");
+        assert_eq!(
+            tree_gutter(&app, ids[0], &[], 6, dim()).content.as_ref(),
+            "      "
+        );
+    }
+
+    #[test]
+    fn mouse_targets_panes_rows_gutter_and_log_tabs() {
+        let now = unix_millis_now();
+        let mut parent = summary(
+            "final",
+            Some("succeeded"),
+            now - 9_000,
+            Some(now - 8_000),
+            Some(now - 1_000),
+            None,
+            Some("stillyard"),
+        );
+        parent.command_preview = "managed parent".into();
+        let mut child = summary(
+            "final",
+            Some("failed"),
+            now - 7_000,
+            Some(now - 6_000),
+            Some(now - 2_000),
+            None,
+            Some("stillyard"),
+        );
+        child.command_preview = "managed child".into();
+        let (parent_id, child_id) = (parent.job_id, child.job_id);
+        let mut app = app_with(vec![parent, child]);
+        app.tree.order = vec![parent_id, child_id];
+        app.tree.depths.insert(parent_id, 0);
+        app.tree.depths.insert(child_id, 1);
+        app.tree.parents.insert(child_id, parent_id);
+        app.tree.children.insert(parent_id, vec![child_id]);
+        app.tree.expanded.insert(parent_id);
+        app.stdout.extend(b"hello\n");
+        let _ = screen_text(&mut app, 120, 30);
+
+        let queue = app.panes.queue;
+        let logs = app.panes.logs;
+        assert!(queue.height > 0 && app.panes.detail.height > 0 && logs.height > 0);
+        assert_eq!(app.panes.hit(queue.x + 2, queue.y + 1), Some(Pane::Queue));
+        assert_eq!(app.panes.hit(logs.x + 2, logs.y + 1), Some(Pane::Logs));
+        assert_eq!(
+            app.panes.hit(0, 0),
+            None,
+            "the header line belongs to no pane"
+        );
+
+        // Inner rows: header, group separator, parent, child.
+        let inner = app.queue_inner;
+        assert_eq!(app.queue_job_at(inner.y), None);
+        assert_eq!(
+            app.queue_job_at(inner.y + 1),
+            None,
+            "group rows are not selectable"
+        );
+        assert_eq!(app.queue_job_at(inner.y + 2), Some(0));
+        assert_eq!(app.queue_job_at(inner.y + 3), Some(1));
+
+        let click = |column, row| MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            modifiers: crossterm::event::KeyModifiers::NONE,
+        };
+        assert!(app.handle_mouse(click(inner.x + 20, inner.y + 3)));
+        assert_eq!(app.selected, 1);
+        assert!(app.tree.expanded.contains(&parent_id));
+
+        // A click on the parent's disclosure cell collapses the family.
+        assert!(app.in_queue_gutter(inner.x + 1));
+        assert!(!app.in_queue_gutter(inner.x + 1 + app.queue_gutter));
+        assert!(app.handle_mouse(click(inner.x + 1, inner.y + 2)));
+        assert_eq!(app.selected, 0);
+        assert!(!app.tree.expanded.contains(&parent_id));
+        assert!(!app.handle_mouse(click(inner.x + 1, inner.y + 2)));
+        assert!(app.tree.expanded.contains(&parent_id));
+
+        // Clicking the stderr tab switches the stream and focuses the logs pane.
+        app.focus = Pane::Queue;
+        let (stderr_start, _) = app.log_tabs[1];
+        assert!(!app.handle_mouse(click(stderr_start + 1, logs.y)));
+        assert_eq!(app.focus, Pane::Logs);
+        assert_eq!(app.stream, LogStream::Stderr);
+        let (stdout_start, _) = app.log_tabs[0];
+        app.handle_mouse(click(stdout_start, logs.y));
+        assert_eq!(app.stream, LogStream::Stdout);
+
+        // The wheel scrolls the pane under the pointer and releases the queue pin.
+        app.queue_view = 1;
+        let wheel = |kind, column, row| MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: crossterm::event::KeyModifiers::NONE,
+        };
+        assert!(!app.handle_mouse(wheel(MouseEventKind::ScrollDown, queue.x + 2, queue.y + 1)));
+        assert!(!app.queue_pin);
+        assert_eq!(app.queue_offset, 2, "clamped to the last row of three");
+        app.log_len = 40;
+        app.log_view = 10;
+        app.log_scroll = 0;
+        app.handle_mouse(wheel(MouseEventKind::ScrollDown, logs.x + 2, logs.y + 1));
+        assert!(!app.follow);
+        assert_eq!(app.log_scroll, 3);
+        app.log_scroll = 29;
+        app.handle_mouse(wheel(MouseEventKind::ScrollDown, logs.x + 2, logs.y + 1));
+        assert!(app.follow, "wheeling to the tail resumes following it");
     }
 
     #[test]

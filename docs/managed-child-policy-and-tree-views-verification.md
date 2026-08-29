@@ -146,6 +146,16 @@ expanded subtree beside its parent as the viewport permits. A terminal snapshot 
 the completed parent and adjacent child rows plus the explicit collapsed state; a scroll regression
 checks both small and viewport-sized subtrees.
 
+A later pass (2026-08-29) moved the tree out of COMMAND into a rail gutter before STATE, closed
+the last sibling with `└─`, banded expanded families, and added mouse support (wheel per pane,
+click to focus/select, click on the disclosure cell to toggle, click on a log tab to switch).
+Regressions: `tree_guides_close_last_siblings_and_carry_ancestor_rails`,
+`mouse_targets_panes_rows_gutter_and_log_tabs`, and the updated
+`expanded_finished_family_is_visibly_a_tree` snapshot. Validation Jobs: fmt-write
+`01a04dcf-9568-7952-ad05-ab209d61282f~01a04e70-852a-7811-9fe8-b2d3c8f6e716`, clippy
+`01a04dcf-9568-7952-ad05-ab209d61282f~01a04e70-c9ba-78b3-88db-8d9a1204d895`, test
+`01a04dcf-9568-7952-ad05-ab209d61282f~01a04e70-ce49-7932-ba3b-4812d1097945`.
+
 | Finished-history gate | Job ID | Result |
 | --- | --- | --- |
 | `fmt-write` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e5c-576b-7ec2-831c-17bad7e56709` | succeeded |

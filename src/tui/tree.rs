@@ -28,15 +28,16 @@ pub(super) struct TreeView {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-struct ChildOutcomeSummary {
-    total: usize,
-    succeeded: usize,
-    failed: usize,
-    active: usize,
-    incomplete: bool,
+pub(super) struct ChildOutcomeSummary {
+    pub(super) total: usize,
+    pub(super) succeeded: usize,
+    pub(super) failed: usize,
+    pub(super) active: usize,
+    pub(super) incomplete: bool,
 }
 
 impl ChildOutcomeSummary {
+    #[cfg(test)]
     fn render(self) -> String {
         let suffix = if self.incomplete { "+" } else { "" };
         let mut outcomes = Vec::new();
@@ -76,10 +77,16 @@ impl TreeView {
         }
     }
 
-    pub(super) fn collapsed_outcome_summary(&self, job_id: JobId) -> Option<String> {
+    /// The bounded outcome summary of a branch while it is collapsed.
+    pub(super) fn collapsed_outcome(&self, job_id: JobId) -> Option<ChildOutcomeSummary> {
         (!self.expanded.contains(&job_id))
             .then(|| self.child_outcomes.get(&job_id).copied())
             .flatten()
+    }
+
+    #[cfg(test)]
+    pub(super) fn collapsed_outcome_summary(&self, job_id: JobId) -> Option<String> {
+        self.collapsed_outcome(job_id)
             .map(ChildOutcomeSummary::render)
     }
 }

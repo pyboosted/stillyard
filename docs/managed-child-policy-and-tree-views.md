@@ -646,10 +646,19 @@ language introduced at 37acffc:
   child finishing cannot make rows disappear or cause an automatic layout jump;
 - only an explicit user collapse hides a subtree; the collapsed row carries a bounded outcome
   summary;
-- branch rows carry an expanded/collapsed disclosure marker, and when a selected family moves into
-  Finished history the viewport keeps as much of its expanded subtree adjacent to the parent as
-  fits on screen;
-- Left collapses or selects the retained parent; Right expands or selects the first child;
+- tree structure lives in a gutter between the selection bar and STATE, not in COMMAND: every
+  ancestor level is a two-cell rail (`├─`/`└─` for the row's own branch, `│ ` while an ancestor
+  still has later siblings), followed by the `▾`/`▸` disclosure cell of branch rows; the gutter is
+  sized for the deepest branch on the page, hidden rows included, so toggling never shifts columns;
+- every row of an expanded family sits on a band one tone above the terminal ground, the rails of
+  the selected family use the accent colour, a child repeating its parent's project shows `·`, and
+  a collapsed branch's outcome summary colours its counts semantically;
+- when a selected family moves into Finished history the viewport keeps as much of its expanded
+  subtree adjacent to the parent as fits on screen;
+- Left collapses or selects the retained parent; Right expands or selects the first child; the
+  mouse wheel scrolls the pane under the pointer (queue scrolling releases the selection pin until
+  the selection moves again), a click focuses the pane, selects a queue row, toggles a family when
+  it lands on the disclosure cell, or switches the log stream when it lands on a tab;
 - selection remains keyed by JobId across refresh, reordering, collapse, and Gap recovery;
 - the TUI follows root cursors and every emitted truncated-branch JobChildrenCursor until its
   existing MAX_OBSERVATION_PAGE visible-Job budget is full; it finishes each represented family
