@@ -646,6 +646,9 @@ language introduced at 37acffc:
   child finishing cannot make rows disappear or cause an automatic layout jump;
 - only an explicit user collapse hides a subtree; the collapsed row carries a bounded outcome
   summary;
+- branch rows carry an expanded/collapsed disclosure marker, and when a selected family moves into
+  Finished history the viewport keeps as much of its expanded subtree adjacent to the parent as
+  fits on screen;
 - Left collapses or selects the retained parent; Right expands or selects the first child;
 - selection remains keyed by JobId across refresh, reordering, collapse, and Gap recovery;
 - the TUI follows root cursors and every emitted truncated-branch JobChildrenCursor until its

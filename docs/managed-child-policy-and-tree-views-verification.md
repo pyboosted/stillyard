@@ -132,6 +132,36 @@ The replacement daemon runs as PID 46564 with generation
 `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e4f-25e9-7872-867a-aa4ea76bc37a` after respecting an
 already-running external Cargo workload's `cargo_slots` claim.
 
+## Finished-history visibility follow-up
+
+The retained completed family
+`01a04dcf-9568-7952-ad05-ab209d61282f~01a04e4b-3170-7e01-a153-d472538d53a5`
+proved that daemon storage and the public tree API still returned both depth-1 fmt and Clippy
+children after completion. The remaining visibility problem was TUI-only: a branch row had no
+disclosure marker, and attention-bucket movement could pin the selected parent to the final
+viewport row with its expanded children just below the screen.
+
+The correction renders `▾`/`▸` on expanded/collapsed branches and keeps as much of a selected
+expanded subtree beside its parent as the viewport permits. A terminal snapshot regression checks
+the completed parent and adjacent child rows plus the explicit collapsed state; a scroll regression
+checks both small and viewport-sized subtrees.
+
+| Finished-history gate | Job ID | Result |
+| --- | --- | --- |
+| `fmt-write` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e5c-576b-7ec2-831c-17bad7e56709` | succeeded |
+| `check` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e5e-7303-7a00-8d72-eb1609856d4c` | succeeded |
+| `test` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e5e-7894-7202-a13f-fe66d3f7f6f1` | succeeded |
+| `clippy` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e5e-b049-7f30-9ba0-d4a18d768bc9` | succeeded |
+| `build-release` | `01a04dcf-9568-7952-ad05-ab209d61282f~01a04e5e-b48a-7fa3-b1e5-02152d8eebff` | succeeded |
+
+The release and installed executable have SHA-256
+`EFCFD8A5D3ED0F5773DB25596156D548FE9035586AD9840D406705D69B300B78`. The prior image is
+recoverable at
+`C:\Users\User\AppData\Local\stillyard\Stillyard\bin\stillyard.exe.alpha9-1c0731a-finished-history-20260829.bak`.
+The replacement daemon runs as PID 58784 with generation
+`01a04e5f-583c-7b32-89e5-ee2315b26aa3` and passed post-promotion `fmt` Job
+`01a04dcf-9568-7952-ad05-ab209d61282f~01a04e5f-efbf-7970-8ddd-69968de7ea4c`.
+
 ## Verdict
 
 The frozen brief is implemented, the independent implementation-review gate is closed, all

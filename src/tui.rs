@@ -356,6 +356,22 @@ fn clamp_scroll(scroll: usize, len: usize, view: usize) -> usize {
     scroll.min(len.saturating_sub(view))
 }
 
+fn keep_selected_subtree_visible(
+    current: usize,
+    view: usize,
+    selected_row: usize,
+    subtree_end: usize,
+) -> usize {
+    if selected_row < current {
+        selected_row.saturating_sub(1)
+    } else if subtree_end >= current.saturating_add(view) {
+        let visible_end = subtree_end.min(selected_row.saturating_add(view.saturating_sub(1)));
+        visible_end.saturating_add(1).saturating_sub(view)
+    } else {
+        current
+    }
+}
+
 pub(crate) fn run(
     client: Client,
     selector: JobSelector,
@@ -1551,11 +1567,12 @@ fn draw_queue(
         .iter()
         .position(|row| *row == RowKind::Job(app.selected));
     if let Some(selected_row) = selected_row {
-        if selected_row < app.queue_offset {
-            app.queue_offset = selected_row.saturating_sub(1);
-        } else if selected_row >= app.queue_offset + view {
-            app.queue_offset = selected_row + 1 - view;
-        }
+        let subtree_end = visible_subtree_end(app, &rows, selected_row);
+        // A family moving from Running to Finished can move its selected root a long way down the
+        // history. Keep as much of the expanded subtree beside that root as the viewport permits
+        // instead of pinning the root to the last row and hiding every child below it.
+        app.queue_offset =
+            keep_selected_subtree_visible(app.queue_offset, view, selected_row, subtree_end);
     }
     app.queue_offset = clamp_scroll(app.queue_offset, rows.len(), view);
 
@@ -1614,6 +1631,30 @@ fn draw_queue(
     }
     frame.render_widget(Paragraph::new(lines), inner);
     draw_scrollbar(frame, area, rows.len(), app.queue_offset, view, focused);
+}
+
+fn visible_subtree_end(app: &App, rows: &[RowKind], selected_row: usize) -> usize {
+    let Some(RowKind::Job(selected_index)) = rows.get(selected_row).copied() else {
+        return selected_row;
+    };
+    let selected = app.page.jobs[selected_index].job_id;
+    if !app.tree.expanded.contains(&selected) {
+        return selected_row;
+    }
+    let selected_depth = app.tree.depths.get(&selected).copied().unwrap_or(0);
+    rows.iter()
+        .enumerate()
+        .skip(selected_row + 1)
+        .take_while(|(_, row)| match **row {
+            RowKind::Job(index) => {
+                let job_id = app.page.jobs[index].job_id;
+                app.tree.depths.get(&job_id).copied().unwrap_or(0) > selected_depth
+            }
+            RowKind::Group { .. } => false,
+        })
+        .map(|(index, _)| index)
+        .last()
+        .unwrap_or(selected_row)
 }
 
 fn queue_cell(
@@ -1713,7 +1754,16 @@ fn queue_cell(
             } else {
                 format!("{}├─ ", "│  ".repeat(depth.saturating_sub(1) as usize))
             };
-            let command = format!("{guide}{command}");
+            let disclosure = if app.tree.children.contains_key(&job.job_id) {
+                if app.tree.expanded.contains(&job.job_id) {
+                    "▾ "
+                } else {
+                    "▸ "
+                }
+            } else {
+                ""
+            };
+            let command = format!("{guide}{disclosure}{command}");
             if context_only {
                 fit_spans(vec![Span::styled(command, dim())], width)
             } else {
@@ -2822,6 +2872,69 @@ mod tests {
         let canceled = state_visual(JobState::Final, Some(JobOutcome::Canceled));
         assert_eq!(canceled.color, palette::MUTED);
         assert_eq!(project_color("stillyard"), project_color("stillyard"));
+    }
+
+    #[test]
+    fn expanded_finished_family_is_visibly_a_tree() {
+        let mut parent = summary(
+            "final",
+            Some("succeeded"),
+            1_000,
+            Some(1_100),
+            Some(2_000),
+            None,
+            Some("stillyard"),
+        );
+        parent.command_preview = "managed parent".into();
+        let parent_id = parent.job_id;
+        let mut child = summary(
+            "final",
+            Some("succeeded"),
+            1_200,
+            Some(1_300),
+            Some(1_900),
+            None,
+            Some("stillyard"),
+        );
+        child.command_preview = "managed child".into();
+        let child_id = child.job_id;
+        let mut app = app_with(vec![parent, child]);
+        app.tree.order = vec![parent_id, child_id];
+        app.tree.depths.insert(parent_id, 0);
+        app.tree.depths.insert(child_id, 1);
+        app.tree.parents.insert(child_id, parent_id);
+        app.tree.children.insert(parent_id, vec![child_id]);
+        app.tree.expanded.insert(parent_id);
+        app.tree.buckets.insert(parent_id, Bucket::Finished);
+        app.tree.buckets.insert(child_id, Bucket::Finished);
+
+        let expanded = screen_text(&mut app, 136, 20);
+        assert!(
+            expanded.contains("▾ managed parent"),
+            "expanded finished parent has a disclosure marker:\n{expanded}"
+        );
+        assert!(
+            expanded.contains("├─ managed child"),
+            "expanded finished child remains adjacent to its parent:\n{expanded}"
+        );
+
+        app.tree.expanded.remove(&parent_id);
+        let collapsed = screen_text(&mut app, 136, 20);
+        assert!(
+            collapsed.contains("▸ managed parent"),
+            "collapsed parent has a disclosure marker:\n{collapsed}"
+        );
+        assert!(
+            !collapsed.contains("managed child"),
+            "only an explicit collapse hides the child:\n{collapsed}"
+        );
+    }
+
+    #[test]
+    fn completed_family_scroll_keeps_children_beside_selected_parent() {
+        assert_eq!(keep_selected_subtree_visible(0, 6, 20, 22), 17);
+        assert_eq!(keep_selected_subtree_visible(0, 6, 20, 30), 20);
+        assert_eq!(keep_selected_subtree_visible(18, 6, 20, 22), 18);
     }
 
     #[test]
