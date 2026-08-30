@@ -4,5 +4,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "schema/stillyard-config-v1.json",
         stillyard::config_schema_json()?,
     )?;
+    std::fs::write(
+        "schema/stillyard-managed-execution-v1.json",
+        stillyard::managed_execution_schema_json()?,
+    )?;
     Ok(())
 }

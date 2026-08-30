@@ -1,6 +1,35 @@
 use super::*;
 
 #[test]
+fn child_policy_resolution_failure_is_a_durable_typed_rejection() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut store =
+        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+            .unwrap();
+    let mut job = spec(temp.path());
+    let case_variant = PathBuf::from(temp.path().as_os_str().to_string_lossy().to_uppercase());
+    job.child_submission_policy = Some(crate::ChildSubmissionPolicy {
+        fences: crate::ChildFencePolicy {
+            shared_roots: vec![temp.path().to_path_buf(), case_variant],
+            ..crate::ChildFencePolicy::default()
+        },
+        ..crate::ChildSubmissionPolicy::default()
+    });
+    job.validate().unwrap();
+    let key = Uuid::now_v7();
+    let hash = normalized_payload_hash(&job).unwrap();
+
+    assert!(matches!(
+        store.submit(key, &hash, &job),
+        Err(StoreError::Rejected(_))
+    ));
+    assert!(matches!(
+        store.recover_submission(key, &hash).unwrap(),
+        RecoveryResult::Rejected { code, .. } if code == error_code::REJECTED
+    ));
+}
+
+#[test]
 fn staged_stdin_is_pre_received_immutable_and_idempotent() {
     let temp = tempfile::tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
@@ -60,7 +89,7 @@ fn staged_stdin_is_pre_received_immutable_and_idempotent() {
     let changed_hash = normalized_payload_hash_with_input(&job, Some(&changed)).unwrap();
     assert!(matches!(
         store.submit_with_stdin(key, &changed_hash, &job, Some(&changed)),
-        Err(StoreError::IdempotencyConflict)
+        Err(StoreError::IdempotencyConflict { .. })
     ));
 }
 

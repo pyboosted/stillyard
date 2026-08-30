@@ -5,8 +5,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand, ValueEnum, error::ErrorKind};
 use stillyard::{
-    BatchSpec, Client, JobId, JobOutcome, JobSnapshot, JobSpec, JobTreePage, LogStream,
-    RecoveryResult, SubmitOptions,
+    AttemptVerdict, BatchSpec, Client, EnsureOptions, EnsureOutcome, EnsureReport, EnsuredBatch,
+    EnsuredJob, ExitSource, JobId, JobOutcome, JobSnapshot, JobSpec, JobTreePage, LogStream,
+    RecoveryResult, SubmitOptions, WaitOutcome, WaitReport,
 };
 use uuid::Uuid;
 
@@ -32,6 +33,33 @@ enum Command {
         /// Use an isolated canonical store root instead of the per-user default.
         #[arg(long)]
         store: Option<PathBuf>,
+    },
+    /// Atomically submit or recover one Job/Batch without a shell-side state machine.
+    Ensure {
+        /// JSON JobSpec path, or '-' for stdin.
+        #[arg(long, required_unless_present = "batch", conflicts_with = "batch")]
+        spec: Option<PathBuf>,
+        /// Atomic BatchSpec JSON path, or '-' for stdin.
+        #[arg(long, conflicts_with = "spec")]
+        batch: Option<PathBuf>,
+        /// Stable logical operation identity.
+        #[arg(long)]
+        idempotency_key: Uuid,
+        /// Optional small atomic projection of the durable Submission receipt.
+        #[arg(long)]
+        result_file: Option<PathBuf>,
+        /// Wait until final or the client deadline; never cancels accepted work.
+        #[arg(long)]
+        wait: bool,
+        /// Replay committed canonical stdout/stderr for a final single Job.
+        #[arg(long, requires = "wait")]
+        passthrough: bool,
+        /// Emit no scheduler JSON; requires a result file.
+        #[arg(long, requires = "result_file")]
+        silent: bool,
+        /// Client-only waiting deadline.
+        #[arg(long, default_value_t = 86_400)]
+        deadline_seconds: u64,
     },
     /// Submit a JobSpec JSON document and print its receipt immediately.
     Submit {
@@ -229,6 +257,8 @@ enum SchemaCommand {
     Spec,
     /// Print the versioned host resource-capacity schema.
     Config,
+    /// Print typed ensure/wait/primary-result records.
+    ManagedExecution,
 }
 
 #[derive(Debug, Subcommand)]
@@ -272,6 +302,78 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         } => {
             let _ = background_child;
             stillyard::run_daemon_instance(store, endpoint)?;
+        }
+        Command::Ensure {
+            spec,
+            batch,
+            idempotency_key,
+            result_file,
+            wait,
+            passthrough,
+            silent,
+            deadline_seconds,
+        } => {
+            let deadline = deadline(deadline_seconds);
+            let selected_endpoint = endpoint.as_deref().ok_or_else(|| {
+                stillyard::Error::InvalidSpec(
+                    "stillyard ensure requires an explicit --endpoint".into(),
+                )
+            })?;
+            let client = connect_client(Some(selected_endpoint), deadline)?;
+            let mut options = EnsureOptions::new(idempotency_key);
+            if let Some(result_file) = result_file {
+                options = options.with_result_file(result_file);
+            }
+            if wait {
+                options = options.with_wait_for_completion();
+            }
+            if let Some(path) = batch {
+                if passthrough {
+                    return Err("--passthrough is valid only for a single Job".into());
+                }
+                let input = read_input(&path)?;
+                require_current_spec_version(&input)?;
+                let spec: BatchSpec = serde_json::from_slice(&input)?;
+                let outcome = client.ensure_batch(spec, &options, deadline, None)?;
+                let report = ensure_batch_report(outcome);
+                if !silent {
+                    print_json(&report)?;
+                }
+                exit_for_code(report.exit_code);
+            } else {
+                let path = spec.expect("clap requires --spec or --batch");
+                let input = read_input(&path)?;
+                require_current_spec_version(&input)?;
+                let spec: JobSpec = serde_json::from_slice(&input)?;
+                let mut outcome = client.ensure_job(spec, &options, deadline, None)?;
+                if passthrough {
+                    if let EnsureOutcome::Final(ensured) = &outcome {
+                        let streamed = client.wait_with_passthrough_outcome(
+                            ensured.receipt.job_id,
+                            &mut 0,
+                            &mut 0,
+                            &mut io::stdout(),
+                            &mut io::stderr(),
+                            deadline,
+                            None,
+                        )?;
+                        if let WaitOutcome::Final { snapshot, .. } = streamed {
+                            if let EnsureOutcome::Final(ensured) = &mut outcome {
+                                ensured.snapshot = Some(snapshot);
+                            }
+                        }
+                    }
+                }
+                let report = ensure_job_report(outcome);
+                if !silent {
+                    if passthrough {
+                        print_json_stderr(&report)?;
+                    } else {
+                        print_json(&report)?;
+                    }
+                }
+                exit_for_code(report.exit_code);
+            }
         }
         Command::Submit {
             spec,
@@ -515,8 +617,8 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         } => {
             let deadline = deadline(deadline_seconds);
             let client = connect_client(endpoint.as_deref(), deadline)?;
-            let snapshot = if passthrough {
-                client.wait_with_passthrough(
+            let outcome = if passthrough {
+                client.wait_with_passthrough_outcome(
                     job_id,
                     &mut 0,
                     &mut 0,
@@ -526,14 +628,15 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                     None,
                 )?
             } else {
-                client.wait(job_id, deadline, None)?
+                client.wait_outcome(job_id, deadline, None)
             };
+            let report = wait_report(outcome);
             if passthrough {
-                print_json_stderr(&snapshot)?;
+                print_json_stderr(&report)?;
             } else {
-                print_json(&snapshot)?;
+                print_json(&report)?;
             }
-            exit_for_snapshot(&snapshot);
+            exit_for_code(report.exit_code);
         }
         Command::Logs {
             job_id,
@@ -658,6 +761,9 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Command::Schema { command } => match command {
             SchemaCommand::Spec => print!("{}", stillyard::schema_json()?),
             SchemaCommand::Config => print!("{}", stillyard::config_schema_json()?),
+            SchemaCommand::ManagedExecution => {
+                print!("{}", stillyard::managed_execution_schema_json()?)
+            }
         },
     }
     Ok(())
@@ -980,18 +1086,97 @@ fn exit_for_snapshot(snapshot: &JobSnapshot) {
 }
 
 fn snapshot_exit_code(snapshot: &JobSnapshot) -> i32 {
+    snapshot_cli_exit(snapshot).1
+}
+
+fn snapshot_cli_exit(snapshot: &JobSnapshot) -> (ExitSource, i32) {
+    let final_primary_verdict = snapshot
+        .attempts
+        .last()
+        .and_then(|attempt| attempt.verdict)
+        .is_some_and(|verdict| {
+            matches!(
+                verdict,
+                AttemptVerdict::Succeeded | AttemptVerdict::ProcessFailed
+            )
+        });
+    if final_primary_verdict {
+        if let Some(code) = snapshot.root_exit_code {
+            if !scheduler_exit_code(code) {
+                return (ExitSource::Process, code);
+            }
+        }
+    }
+    (
+        ExitSource::Scheduler,
+        scheduler_snapshot_exit_code(snapshot),
+    )
+}
+
+fn scheduler_exit_code(code: i32) -> bool {
+    matches!(code, 0 | 20..=27 | 64 | 69 | 70)
+}
+
+fn scheduler_snapshot_exit_code(snapshot: &JobSnapshot) -> i32 {
     match snapshot.outcome {
         Some(JobOutcome::Succeeded) => 0,
-        Some(JobOutcome::Failed) => match snapshot.root_exit_code {
-            Some(code) if code != 0 => code,
-            Some(_) | None => 20,
-        },
+        Some(JobOutcome::Failed) => 20,
         Some(JobOutcome::TimedOut) => 21,
         Some(JobOutcome::Canceled) => 22,
         Some(JobOutcome::Interrupted) => 23,
         Some(JobOutcome::Skipped) => 24,
         None => 25,
         Some(_) => 70,
+    }
+}
+
+fn wait_report(outcome: WaitOutcome) -> WaitReport {
+    let (exit_source, exit_code) = match &outcome {
+        WaitOutcome::Pending { .. } => (ExitSource::Scheduler, 25),
+        WaitOutcome::Final { snapshot, .. } => snapshot_cli_exit(snapshot),
+        WaitOutcome::Unavailable { .. } => (ExitSource::Scheduler, 69),
+        WaitOutcome::GapOrUnknown { .. } => (ExitSource::Scheduler, 70),
+        _ => (ExitSource::Scheduler, 70),
+    };
+    WaitReport::new(outcome, exit_source, exit_code)
+}
+
+fn ensure_job_report(outcome: EnsureOutcome<EnsuredJob>) -> EnsureReport<EnsuredJob> {
+    let (exit_source, exit_code) = match &outcome {
+        EnsureOutcome::Accepted(_) => (ExitSource::Scheduler, 0),
+        EnsureOutcome::Pending(_) => (ExitSource::Scheduler, 25),
+        EnsureOutcome::Final(ensured) => ensured
+            .snapshot
+            .as_deref()
+            .map(snapshot_cli_exit)
+            .unwrap_or((ExitSource::Scheduler, 70)),
+        EnsureOutcome::Rejected(_) | EnsureOutcome::Conflict { .. } => (ExitSource::Scheduler, 27),
+        EnsureOutcome::Unknown => (ExitSource::Scheduler, 70),
+        _ => (ExitSource::Scheduler, 70),
+    };
+    EnsureReport::new(outcome, exit_source, exit_code)
+}
+
+fn ensure_batch_report(outcome: EnsureOutcome<EnsuredBatch>) -> EnsureReport<EnsuredBatch> {
+    let exit_code = match &outcome {
+        EnsureOutcome::Accepted(_) => 0,
+        EnsureOutcome::Pending(_) => 25,
+        EnsureOutcome::Final(ensured) => ensured
+            .snapshots
+            .iter()
+            .map(snapshot_exit_rank)
+            .max_by_key(|candidate| candidate.0)
+            .map_or(0, |candidate| candidate.1),
+        EnsureOutcome::Rejected(_) | EnsureOutcome::Conflict { .. } => 27,
+        EnsureOutcome::Unknown => 70,
+        _ => 70,
+    };
+    EnsureReport::new(outcome, ExitSource::Scheduler, exit_code)
+}
+
+fn exit_for_code(code: i32) {
+    if code != 0 {
+        std::process::exit(code);
     }
 }
 
@@ -1014,7 +1199,7 @@ fn exit_for_recovery(recovery: &RecoveryResult) {
         | RecoveryResult::Accepted(_)
         | RecoveryResult::AcceptedBatch(_) => 0,
         RecoveryResult::Rejected { .. }
-        | RecoveryResult::Conflict
+        | RecoveryResult::Conflict { .. }
         | RecoveryResult::NotReceived => 27,
         RecoveryResult::Unknown => 70,
         _ => 70,
@@ -1033,7 +1218,9 @@ fn error_exit_code(error: &(dyn std::error::Error + 'static)) -> i32 {
             | stillyard::Error::ViewStale { .. }
             | stillyard::Error::UnsupportedPlatform(_) => 69,
             stillyard::Error::DeadlineElapsed | stillyard::Error::Canceled => 25,
-            stillyard::Error::ManagedWaitRejected { .. } | stillyard::Error::Rejected { .. } => 27,
+            stillyard::Error::ManagedWaitRejected { .. }
+            | stillyard::Error::Rejected { .. }
+            | stillyard::Error::IdempotencyConflict { .. } => 27,
             stillyard::Error::NotFound { .. } => 70,
             _ => 70,
         };
@@ -1068,6 +1255,28 @@ mod tests {
             }),
             70
         );
+    }
+
+    #[test]
+    fn managed_execution_exit_namespace_keeps_success_scheduler_owned() {
+        assert!(scheduler_exit_code(0));
+        assert!(scheduler_exit_code(25));
+        assert!(!scheduler_exit_code(7));
+    }
+
+    #[test]
+    fn ensure_requires_an_explicit_endpoint() {
+        let cli = Cli::try_parse_from([
+            "stillyard",
+            "ensure",
+            "--spec",
+            "unused.json",
+            "--idempotency-key",
+            "00000000-0000-0000-0000-000000000001",
+        ])
+        .unwrap();
+        let error = execute(cli).unwrap_err();
+        assert_eq!(error_exit_code(error.as_ref()), 64);
     }
 
     #[test]

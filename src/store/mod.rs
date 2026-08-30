@@ -22,19 +22,20 @@ use crate::{
     DoctorHostSnapshot, DoctorIncidentPage, DoctorOverallStatus, DoctorSnapshot,
     DoctorStoreSnapshot, EffectiveChildSubmissionPolicy, Estimate, EventCursor, EventGap,
     ExitClassification, ForcedClearanceAudit, GpuProvenance, HostConfig, HostId, InvocationId,
-    InvocationRole, InvocationSnapshot, InvocationState, JobChildrenCursor, JobChildrenPage, JobId,
-    JobListCursor, JobListPage, JobOutcome, JobReceipt, JobSelector, JobSnapshot, JobSpec,
-    JobState, JobSummary, JobTreePage, JobTreeRootCursor, JobTreeSelector, LogChunk, LogStream,
-    MAX_COMPLETE_DOCTOR_BYTES, MAX_COMPLETE_DOCTOR_INCIDENTS, MAX_OBSERVATION_PAGE,
-    MAX_TREE_PAGE_NODES, MAX_TREE_SELECTOR_JOBS, ManagedParent, ManagedPolicyAdmissionSnapshot,
-    ObservationFrame, ProcessIdentity, ReconciliationResult, RecoveryResult, ResourceCapacities,
-    SchedulerEvent, SchedulerEventKind, StdinSpec, SubmissionId, SubmissionState,
-    TreeAttentionBucket, TreeObservationFrame,
+    InvocationRole, InvocationSnapshot, InvocationState, InvocationVerdict, JobChildrenCursor,
+    JobChildrenPage, JobId, JobListCursor, JobListPage, JobOutcome, JobReceipt, JobSelector,
+    JobSnapshot, JobSpec, JobState, JobSummary, JobTreePage, JobTreeRootCursor, JobTreeSelector,
+    LogChunk, LogStream, MAX_COMPLETE_DOCTOR_BYTES, MAX_COMPLETE_DOCTOR_INCIDENTS,
+    MAX_OBSERVATION_PAGE, MAX_TREE_PAGE_NODES, MAX_TREE_SELECTOR_JOBS, ManagedParent,
+    ManagedPolicyAdmissionSnapshot, ObservationFrame, PrimaryInvocationResult, ProcessIdentity,
+    ReconciliationResult, RecoveryResult, ResourceCapacities, SchedulerEvent, SchedulerEventKind,
+    StdinSpec, SubmissionId, SubmissionState, TerminationReason, TreeAttentionBucket,
+    TreeObservationFrame,
 };
 
 // Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
 // the current schema changes; daemon startup will replace the whole SQLite database.
-const STORE_SCHEMA_EPOCH: &str = "stillyard-managed-child-tree-r1-2026-08-29";
+const STORE_SCHEMA_EPOCH: &str = "stillyard-managed-execution-r1-2026-08-30";
 const MAX_EVENT_ROWS: u64 = 16_384;
 const SNAPSHOT_DIAGNOSTIC_BUDGET_BYTES: usize = 64 * 1024;
 const MAX_UPLOAD_CHUNK_BYTES: usize = 256 * 1024;
@@ -110,8 +111,13 @@ pub(crate) enum StoreError {
     Id(#[from] uuid::Error),
     #[error("not found: {0}")]
     NotFound(String),
-    #[error("idempotency conflict")]
-    IdempotencyConflict,
+    #[error(
+        "idempotency conflict: existing payload {existing_payload_hash}, requested payload {requested_payload_hash}"
+    )]
+    IdempotencyConflict {
+        existing_payload_hash: String,
+        requested_payload_hash: String,
+    },
     #[error("submission rejected: {0}")]
     Rejected(String),
     #[error("operation rejected ({code}): {detail}")]
@@ -384,6 +390,7 @@ pub(crate) struct PreparedJob {
     pub(crate) attempt_deadline_unix_millis: Option<i64>,
     pub(crate) host_id: Option<HostId>,
     pub(crate) boot_id: Option<BootId>,
+    pub(crate) primary_result: Option<PrimaryInvocationResult>,
 }
 
 #[derive(Clone, Debug)]

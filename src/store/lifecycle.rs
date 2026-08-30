@@ -125,9 +125,13 @@ impl Store {
             )));
         }
         transaction.execute(
-            "UPDATE invocations SET state = 'exited', root_exit_code = ?2
+            "UPDATE invocations SET state = 'exited', root_exit_code = ?2, exited_ms = ?3
              WHERE id = ?1 AND state = 'started'",
-            params![job.invocation_id.entity_uuid().to_string(), exit_code],
+            params![
+                job.invocation_id.entity_uuid().to_string(),
+                exit_code,
+                now_millis()
+            ],
         )?;
         if job.role == InvocationRole::Primary {
             transaction.execute(
@@ -171,6 +175,102 @@ impl Store {
         )?;
         transaction.commit()?;
         Ok(())
+    }
+
+    pub(crate) fn record_primary_result(
+        &mut self,
+        job: &PreparedJob,
+        verdict: InvocationVerdict,
+        termination: TerminationReason,
+    ) -> StoreResult<PrimaryInvocationResult> {
+        if job.role != InvocationRole::Primary {
+            return Err(StoreError::InvalidState(
+                "only the primary Invocation has a primary result".into(),
+            ));
+        }
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let existing: Option<String> = transaction.query_row(
+            "SELECT primary_result_json FROM attempts WHERE id = ?1",
+            [job.attempt_id.entity_uuid().to_string()],
+            |row| row.get(0),
+        )?;
+        if let Some(existing) = existing {
+            let existing: PrimaryInvocationResult = serde_json::from_str(&existing)?;
+            validate_primary_result_identity(&existing, job)?;
+            validate_primary_result_semantics(
+                existing.verdict,
+                existing.termination,
+                existing.root_exit_code,
+            )?;
+            if existing.verdict != verdict || existing.termination != termination {
+                return Err(StoreError::InvalidState(
+                    "durable primary result cannot be replaced".into(),
+                ));
+            }
+            transaction.commit()?;
+            return Ok(existing);
+        }
+        let (state, root_exit_code, started, exited, resolved, containment): (
+            String,
+            Option<i32>,
+            Option<i64>,
+            Option<i64>,
+            Option<i64>,
+            String,
+        ) = transaction.query_row(
+            "SELECT invocations.state, invocations.root_exit_code, invocations.started_ms,
+                    invocations.exited_ms, invocations.finished_ms, containments.state
+             FROM invocations JOIN containments ON containments.invocation_id = invocations.id
+             WHERE invocations.id = ?1 AND invocations.attempt_id = ?2
+               AND invocations.role = 'primary'",
+            params![
+                job.invocation_id.entity_uuid().to_string(),
+                job.attempt_id.entity_uuid().to_string(),
+            ],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
+        )?;
+        if state != "resolved" || containment != "empty" {
+            return Err(StoreError::InvalidState(
+                "primary result requires a resolved Invocation and empty Containment".into(),
+            ));
+        }
+        validate_primary_result_semantics(verdict, termination, root_exit_code)?;
+        let result = PrimaryInvocationResult {
+            schema_version: 1,
+            job_id: job.job_id,
+            attempt_id: job.attempt_id,
+            invocation_id: job.invocation_id,
+            verdict,
+            root_exit_code,
+            termination,
+            containment: ContainmentState::Empty,
+            started_unix_millis: started,
+            exited_unix_millis: exited,
+            resolved_unix_millis: resolved.ok_or_else(|| {
+                StoreError::InvalidState("resolved primary Invocation has no timestamp".into())
+            })?,
+        };
+        transaction.execute(
+            "UPDATE attempts SET primary_result_json = ?2 WHERE id = ?1
+             AND primary_result_json IS NULL",
+            params![
+                job.attempt_id.entity_uuid().to_string(),
+                serde_json::to_string(&result)?,
+            ],
+        )?;
+        transaction.commit()?;
+        Ok(result)
     }
 
     pub(crate) fn settle_attempt(
@@ -493,4 +593,56 @@ impl Store {
         transaction.commit()?;
         Ok(())
     }
+}
+
+fn validate_primary_result_identity(
+    result: &PrimaryInvocationResult,
+    job: &PreparedJob,
+) -> StoreResult<()> {
+    if result.schema_version != 1
+        || result.job_id != job.job_id
+        || result.attempt_id != job.attempt_id
+        || result.invocation_id != job.invocation_id
+        || result.containment != ContainmentState::Empty
+    {
+        return Err(StoreError::InvalidState(
+            "durable primary result identity or schema does not match the active primary Invocation"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn validate_primary_result_semantics(
+    verdict: InvocationVerdict,
+    termination: TerminationReason,
+    root_exit_code: Option<i32>,
+) -> StoreResult<()> {
+    let pair_is_valid = matches!(
+        (verdict, termination),
+        (InvocationVerdict::Succeeded, TerminationReason::Exited)
+            | (InvocationVerdict::ProcessFailed, TerminationReason::Exited)
+            | (
+                InvocationVerdict::StartFailed,
+                TerminationReason::StartFailed
+            )
+            | (InvocationVerdict::TimedOut, TerminationReason::Timeout)
+            | (InvocationVerdict::Interrupted, TerminationReason::Interrupt)
+            | (
+                InvocationVerdict::SafetyFailed,
+                TerminationReason::SafetyFailure
+            )
+            | (InvocationVerdict::Canceled, TerminationReason::Cancel)
+    );
+    let root_is_valid = match verdict {
+        InvocationVerdict::Succeeded => root_exit_code == Some(0),
+        InvocationVerdict::ProcessFailed => root_exit_code.is_some_and(|code| code != 0),
+        _ => true,
+    };
+    if !pair_is_valid || !root_is_valid {
+        return Err(StoreError::InvalidState(
+            "primary Invocation verdict, termination, and root exit are inconsistent".into(),
+        ));
+    }
+    Ok(())
 }

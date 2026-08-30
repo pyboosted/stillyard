@@ -17,15 +17,17 @@ use crate::protocol::{PROTOCOL_VERSION, Request, Response, StagedInputRef, error
 use crate::protocol::{read_frame, write_frame};
 use crate::{
     BatchReceipt, BatchSpec, CancellationToken, ClearContainmentResult, CompleteDoctorSnapshot,
-    ContainmentId, ContainmentIncidentCursor, DaemonSnapshot, DoctorSnapshot, Error, EventCursor,
-    JobChildrenCursor, JobChildrenPage, JobId, JobListCursor, JobListPage, JobReceipt, JobSelector,
-    JobSnapshot, JobSpec, JobTreePage, JobTreeRootCursor, JobTreeSelector, LogChunk, LogStream,
+    ContainmentId, ContainmentIncidentCursor, DaemonSnapshot, DoctorSnapshot, EnsureOptions,
+    EnsureOutcome, EnsuredBatch, EnsuredJob, Error, EventCursor, JobChildrenCursor,
+    JobChildrenPage, JobId, JobListCursor, JobListPage, JobReceipt, JobSelector, JobSnapshot,
+    JobSpec, JobTreePage, JobTreeRootCursor, JobTreeSelector, LogChunk, LogStream,
     MAX_COMPLETE_DOCTOR_BYTES, MAX_COMPLETE_DOCTOR_INCIDENTS, MAX_DOCTOR_PAGE,
-    MAX_OBSERVATION_PAGE, ManagedParent, ObservationFrame, RecoveryResult, Result,
-    SubmissionContext, SubmitOptions, TreeObservationFrame, WaitStreamItem,
+    MAX_OBSERVATION_PAGE, ManagedParent, ObservationFrame, PendingReason, RecoveryResult,
+    RejectReason, Result, SubmissionContext, SubmissionRef, SubmitOptions, TreeObservationFrame,
+    WaitOutcome, WaitStreamItem,
 };
 
-const RESULT_FILE_VERSION: u32 = 4;
+const RESULT_FILE_VERSION: u32 = 5;
 
 #[derive(Clone, Debug)]
 pub struct ClientBuilder {
@@ -69,6 +71,7 @@ impl ClientBuilder {
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<Client> {
+        let endpoint_explicit = self.endpoint.is_some();
         let managed_endpoint = std::env::var("STILLYARD_ENDPOINT").ok();
         let (endpoint, connect_only) =
             select_client_endpoint(self.endpoint, managed_endpoint.clone())?;
@@ -86,6 +89,7 @@ impl ClientBuilder {
             endpoint,
             daemon_executable,
             claimed_parent,
+            endpoint_explicit,
         };
         match client.ping(deadline, cancellation) {
             Ok(()) => Ok(client),
@@ -142,6 +146,7 @@ pub struct Client {
     endpoint: String,
     daemon_executable: PathBuf,
     claimed_parent: Option<ManagedParent>,
+    endpoint_explicit: bool,
 }
 
 pub struct ObservationStream {
@@ -201,12 +206,39 @@ impl Client {
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<JobReceipt> {
+        self.submit_inner(spec, options, false, None, deadline, cancellation)
+    }
+
+    fn submit_inner(
+        &self,
+        spec: JobSpec,
+        options: &SubmitOptions,
+        result_file_prepared: bool,
+        expected_payload_hash: Option<&str>,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<JobReceipt> {
         spec.validate()?;
         let stdin = inspect_stdin(&spec.stdin)?;
         let payload_hash = job_hash(&spec, stdin.as_ref().map(|(input, _)| input))?;
+        if expected_payload_hash.is_some_and(|expected| expected != payload_hash) {
+            return Err(Error::InvalidSpec(
+                "normalized Job payload changed after the ensure receipt was claimed".into(),
+            ));
+        }
         let context = self.submission_context(deadline, cancellation)?;
-        if let Some(path) = &options.result_file {
-            prepare_result_file(path, options, &payload_hash, &self.endpoint, context)?;
+        if !result_file_prepared {
+            if let Some(path) = &options.result_file {
+                prepare_result_file(
+                    path,
+                    options,
+                    &payload_hash,
+                    &self.endpoint,
+                    context,
+                    deadline,
+                    cancellation,
+                )?;
+            }
         }
         let stdin = match stdin {
             Some((input, path)) => {
@@ -247,6 +279,8 @@ impl Client {
                             receipt: None,
                         },
                         RecoveryResult::Accepted(receipt.clone()),
+                        deadline,
+                        cancellation,
                     )?;
                 }
                 Ok(receipt)
@@ -255,11 +289,18 @@ impl Client {
                 if let Some(path) = &options.result_file {
                     persist_submit_decision(
                         path,
-                        options.idempotency_key,
-                        &payload_hash,
-                        &self.endpoint,
-                        context,
+                        &ResultFileRecord {
+                            version: RESULT_FILE_VERSION,
+                            idempotency_key: options.idempotency_key,
+                            payload_hash: payload_hash.clone(),
+                            endpoint: self.endpoint.clone(),
+                            store_uuid: context.store_uuid,
+                            parent: context.parent,
+                            receipt: None,
+                        },
                         &response,
+                        deadline,
+                        cancellation,
                     )?;
                 }
                 response_error(response)
@@ -274,6 +315,18 @@ impl Client {
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<BatchReceipt> {
+        self.submit_batch_inner(spec, options, false, None, deadline, cancellation)
+    }
+
+    fn submit_batch_inner(
+        &self,
+        spec: BatchSpec,
+        options: &SubmitOptions,
+        result_file_prepared: bool,
+        expected_payload_hash: Option<&str>,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<BatchReceipt> {
         spec.validate()?;
         let mut inspected = Vec::new();
         let mut input_refs = BTreeMap::new();
@@ -284,9 +337,24 @@ impl Client {
             }
         }
         let payload_hash = batch_hash(&spec, &input_refs)?;
+        if expected_payload_hash.is_some_and(|expected| expected != payload_hash) {
+            return Err(Error::InvalidSpec(
+                "normalized Batch payload changed after the ensure receipt was claimed".into(),
+            ));
+        }
         let context = self.submission_context(deadline, cancellation)?;
-        if let Some(path) = &options.result_file {
-            prepare_result_file(path, options, &payload_hash, &self.endpoint, context)?;
+        if !result_file_prepared {
+            if let Some(path) = &options.result_file {
+                prepare_result_file(
+                    path,
+                    options,
+                    &payload_hash,
+                    &self.endpoint,
+                    context,
+                    deadline,
+                    cancellation,
+                )?;
+            }
         }
         let mut stdins = BTreeMap::new();
         for (name, input, path) in inspected {
@@ -332,6 +400,8 @@ impl Client {
                             receipt: None,
                         },
                         RecoveryResult::AcceptedBatch(receipt.clone()),
+                        deadline,
+                        cancellation,
                     )?;
                 }
                 Ok(receipt)
@@ -340,16 +410,536 @@ impl Client {
                 if let Some(path) = &options.result_file {
                     persist_submit_decision(
                         path,
-                        options.idempotency_key,
-                        &payload_hash,
-                        &self.endpoint,
-                        context,
+                        &ResultFileRecord {
+                            version: RESULT_FILE_VERSION,
+                            idempotency_key: options.idempotency_key,
+                            payload_hash: payload_hash.clone(),
+                            endpoint: self.endpoint.clone(),
+                            store_uuid: context.store_uuid,
+                            parent: context.parent,
+                            receipt: None,
+                        },
                         &response,
+                        deadline,
+                        cancellation,
                     )?;
                 }
                 response_error(response)
             }
         }
+    }
+
+    /// Atomically ensures one Job for the normalized payload and idempotency key.
+    ///
+    /// An existing result file is recovered first. Only an authenticated managed
+    /// `not_received` decision permits exact replay; `unknown` always fails closed.
+    pub fn ensure_job(
+        &self,
+        spec: JobSpec,
+        options: &EnsureOptions,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<EnsureOutcome<EnsuredJob>> {
+        if !self.endpoint_explicit {
+            return Err(Error::InvalidSpec(
+                "ensure_job requires an explicitly selected ClientBuilder endpoint".into(),
+            ));
+        }
+        spec.validate()?;
+        let operation_lock = match options
+            .result_file
+            .as_deref()
+            .map(|path| lock_ensure_operation(path, deadline, cancellation))
+            .transpose()
+        {
+            Ok(lock) => lock,
+            Err(Error::DeadlineElapsed | Error::Canceled | Error::Unavailable(_)) => {
+                return Ok(EnsureOutcome::Unknown);
+            }
+            Err(error) => return Err(error),
+        };
+        let inspected = inspect_stdin(&spec.stdin)?;
+        let payload_hash = job_hash(&spec, inspected.as_ref().map(|(input, _)| input))?;
+        let submit_options = ensure_submit_options(options);
+        let result_file_context = if options.result_file.is_some() {
+            match self.submission_context(deadline, cancellation) {
+                Ok(context) => Some(context),
+                Err(Error::DeadlineElapsed | Error::Canceled | Error::Unavailable(_)) => {
+                    return Ok(EnsureOutcome::Unknown);
+                }
+                Err(
+                    Error::Rejected { code, detail } | Error::ManagedWaitRejected { code, detail },
+                ) => {
+                    return Ok(EnsureOutcome::Rejected(RejectReason { code, detail }));
+                }
+                Err(error) => return Err(error),
+            }
+        } else {
+            None
+        };
+        let result_file_state = if let Some(path) = &options.result_file {
+            match prepare_ensure_result_file(
+                path,
+                options.idempotency_key,
+                &payload_hash,
+                &self.endpoint,
+                result_file_context.expect("result file context was resolved"),
+                deadline,
+                cancellation,
+            ) {
+                Ok(state) => Some(state),
+                Err(Error::DeadlineElapsed | Error::Canceled | Error::Unavailable(_)) => {
+                    return Ok(EnsureOutcome::Unknown);
+                }
+                Err(error) => return Err(error),
+            }
+        } else {
+            None
+        };
+        if matches!(
+            &result_file_state,
+            Some(EnsureResultFileState::PayloadMismatch { .. })
+        ) {
+            let context = result_file_context.expect("result file context was resolved");
+            return match self.recover_submission_with_store(
+                options.idempotency_key,
+                payload_hash,
+                context.parent,
+                deadline,
+                cancellation,
+            ) {
+                Ok((
+                    store_uuid,
+                    RecoveryResult::Conflict {
+                        existing_payload_hash,
+                        requested_payload_hash,
+                    },
+                )) if store_uuid == context.store_uuid => Ok(EnsureOutcome::Conflict {
+                    existing_payload_hash,
+                    requested_payload_hash,
+                }),
+                Ok(_) | Err(Error::DeadlineElapsed | Error::Canceled | Error::Unavailable(_)) => {
+                    Ok(EnsureOutcome::Unknown)
+                }
+                Err(
+                    Error::Rejected { code, detail } | Error::ManagedWaitRejected { code, detail },
+                ) => Ok(EnsureOutcome::Rejected(RejectReason { code, detail })),
+                Err(error) => Err(error),
+            };
+        }
+
+        if matches!(&result_file_state, Some(EnsureResultFileState::Existing)) {
+            let recovery = match self.recover_result_file(
+                options
+                    .result_file
+                    .as_deref()
+                    .expect("existing result file has a path"),
+                deadline,
+                cancellation,
+            ) {
+                Ok(recovery) => recovery,
+                Err(Error::DeadlineElapsed | Error::Canceled | Error::Unavailable(_)) => {
+                    return Ok(EnsureOutcome::Unknown);
+                }
+                Err(
+                    Error::Rejected { code, detail } | Error::ManagedWaitRejected { code, detail },
+                ) => {
+                    return Ok(EnsureOutcome::Rejected(RejectReason { code, detail }));
+                }
+                Err(error) => return Err(error),
+            };
+            match recovery {
+                RecoveryResult::NotReceived
+                    if result_file_context.is_some_and(|context| context.parent.is_some()) => {}
+                RecoveryResult::NotReceived => {
+                    drop(operation_lock);
+                    return Ok(EnsureOutcome::Unknown);
+                }
+                other => {
+                    drop(operation_lock);
+                    return self.ensure_job_from_recovery(other, options, deadline, cancellation);
+                }
+            }
+        }
+
+        let result_file_prepared = matches!(&result_file_state, Some(EnsureResultFileState::Fresh));
+        let submitted = self.submit_inner(
+            spec,
+            &submit_options,
+            result_file_prepared,
+            Some(&payload_hash),
+            deadline,
+            cancellation,
+        );
+        drop(operation_lock);
+        match submitted {
+            Ok(receipt) => self.finish_ensured_job(receipt, options, deadline, cancellation),
+            Err(Error::IdempotencyConflict {
+                existing_payload_hash,
+                requested_payload_hash,
+            }) => Ok(EnsureOutcome::Conflict {
+                existing_payload_hash,
+                requested_payload_hash,
+            }),
+            Err(Error::Rejected { code, detail })
+            | Err(Error::ManagedWaitRejected { code, detail }) => {
+                Ok(EnsureOutcome::Rejected(RejectReason { code, detail }))
+            }
+            Err(Error::DeadlineElapsed | Error::Canceled | Error::Unavailable(_)) => {
+                Ok(EnsureOutcome::Unknown)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Atomically ensures one all-or-nothing Batch for the normalized payload and key.
+    pub fn ensure_batch(
+        &self,
+        spec: BatchSpec,
+        options: &EnsureOptions,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<EnsureOutcome<EnsuredBatch>> {
+        if !self.endpoint_explicit {
+            return Err(Error::InvalidSpec(
+                "ensure_batch requires an explicitly selected ClientBuilder endpoint".into(),
+            ));
+        }
+        spec.validate()?;
+        let operation_lock = match options
+            .result_file
+            .as_deref()
+            .map(|path| lock_ensure_operation(path, deadline, cancellation))
+            .transpose()
+        {
+            Ok(lock) => lock,
+            Err(Error::DeadlineElapsed | Error::Canceled | Error::Unavailable(_)) => {
+                return Ok(EnsureOutcome::Unknown);
+            }
+            Err(error) => return Err(error),
+        };
+        let mut input_refs = BTreeMap::new();
+        for member in &spec.jobs {
+            if let Some((input, _)) = inspect_stdin(&member.spec.stdin)? {
+                input_refs.insert(member.name.clone(), input);
+            }
+        }
+        let payload_hash = batch_hash(&spec, &input_refs)?;
+        let submit_options = ensure_submit_options(options);
+        let result_file_context = if options.result_file.is_some() {
+            match self.submission_context(deadline, cancellation) {
+                Ok(context) => Some(context),
+                Err(Error::DeadlineElapsed | Error::Canceled | Error::Unavailable(_)) => {
+                    return Ok(EnsureOutcome::Unknown);
+                }
+                Err(
+                    Error::Rejected { code, detail } | Error::ManagedWaitRejected { code, detail },
+                ) => {
+                    return Ok(EnsureOutcome::Rejected(RejectReason { code, detail }));
+                }
+                Err(error) => return Err(error),
+            }
+        } else {
+            None
+        };
+        let result_file_state = if let Some(path) = &options.result_file {
+            match prepare_ensure_result_file(
+                path,
+                options.idempotency_key,
+                &payload_hash,
+                &self.endpoint,
+                result_file_context.expect("result file context was resolved"),
+                deadline,
+                cancellation,
+            ) {
+                Ok(state) => Some(state),
+                Err(Error::DeadlineElapsed | Error::Canceled | Error::Unavailable(_)) => {
+                    return Ok(EnsureOutcome::Unknown);
+                }
+                Err(error) => return Err(error),
+            }
+        } else {
+            None
+        };
+        if matches!(
+            &result_file_state,
+            Some(EnsureResultFileState::PayloadMismatch { .. })
+        ) {
+            let context = result_file_context.expect("result file context was resolved");
+            return match self.recover_submission_with_store(
+                options.idempotency_key,
+                payload_hash,
+                context.parent,
+                deadline,
+                cancellation,
+            ) {
+                Ok((
+                    store_uuid,
+                    RecoveryResult::Conflict {
+                        existing_payload_hash,
+                        requested_payload_hash,
+                    },
+                )) if store_uuid == context.store_uuid => Ok(EnsureOutcome::Conflict {
+                    existing_payload_hash,
+                    requested_payload_hash,
+                }),
+                Ok(_) | Err(Error::DeadlineElapsed | Error::Canceled | Error::Unavailable(_)) => {
+                    Ok(EnsureOutcome::Unknown)
+                }
+                Err(
+                    Error::Rejected { code, detail } | Error::ManagedWaitRejected { code, detail },
+                ) => Ok(EnsureOutcome::Rejected(RejectReason { code, detail })),
+                Err(error) => Err(error),
+            };
+        }
+
+        if matches!(&result_file_state, Some(EnsureResultFileState::Existing)) {
+            let recovery = match self.recover_result_file(
+                options
+                    .result_file
+                    .as_deref()
+                    .expect("existing result file has a path"),
+                deadline,
+                cancellation,
+            ) {
+                Ok(recovery) => recovery,
+                Err(Error::DeadlineElapsed | Error::Canceled | Error::Unavailable(_)) => {
+                    return Ok(EnsureOutcome::Unknown);
+                }
+                Err(
+                    Error::Rejected { code, detail } | Error::ManagedWaitRejected { code, detail },
+                ) => {
+                    return Ok(EnsureOutcome::Rejected(RejectReason { code, detail }));
+                }
+                Err(error) => return Err(error),
+            };
+            match recovery {
+                RecoveryResult::NotReceived
+                    if result_file_context.is_some_and(|context| context.parent.is_some()) => {}
+                RecoveryResult::NotReceived => {
+                    drop(operation_lock);
+                    return Ok(EnsureOutcome::Unknown);
+                }
+                other => {
+                    drop(operation_lock);
+                    return self.ensure_batch_from_recovery(other, options, deadline, cancellation);
+                }
+            }
+        }
+
+        let result_file_prepared = matches!(&result_file_state, Some(EnsureResultFileState::Fresh));
+        let submitted = self.submit_batch_inner(
+            spec,
+            &submit_options,
+            result_file_prepared,
+            Some(&payload_hash),
+            deadline,
+            cancellation,
+        );
+        drop(operation_lock);
+        match submitted {
+            Ok(receipt) => self.finish_ensured_batch(receipt, options, deadline, cancellation),
+            Err(Error::IdempotencyConflict {
+                existing_payload_hash,
+                requested_payload_hash,
+            }) => Ok(EnsureOutcome::Conflict {
+                existing_payload_hash,
+                requested_payload_hash,
+            }),
+            Err(Error::Rejected { code, detail })
+            | Err(Error::ManagedWaitRejected { code, detail }) => {
+                Ok(EnsureOutcome::Rejected(RejectReason { code, detail }))
+            }
+            Err(Error::DeadlineElapsed | Error::Canceled | Error::Unavailable(_)) => {
+                Ok(EnsureOutcome::Unknown)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    fn ensure_job_from_recovery(
+        &self,
+        mut recovery: RecoveryResult,
+        options: &EnsureOptions,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<EnsureOutcome<EnsuredJob>> {
+        while matches!(recovery, RecoveryResult::Received { .. }) && options.wait_for_completion {
+            if Instant::now() >= deadline {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+            recovery = match self.recover_result_file(
+                options
+                    .result_file
+                    .as_deref()
+                    .expect("recovery requires result file"),
+                deadline,
+                cancellation,
+            ) {
+                Ok(recovery) => recovery,
+                Err(Error::DeadlineElapsed | Error::Canceled) => break,
+                Err(Error::Unavailable(_)) => return Ok(EnsureOutcome::Unknown),
+                Err(error) => return Err(error),
+            };
+        }
+        match recovery {
+            RecoveryResult::Received { submission_id } => {
+                Ok(EnsureOutcome::Pending(SubmissionRef {
+                    submission_id,
+                    job_ids: Vec::new(),
+                    batch_id: None,
+                }))
+            }
+            RecoveryResult::Accepted(receipt) => {
+                self.finish_ensured_job(receipt, options, deadline, cancellation)
+            }
+            RecoveryResult::AcceptedBatch(_) => Err(Error::Protocol(
+                "idempotency key belongs to a Batch, not a Job".into(),
+            )),
+            RecoveryResult::Rejected { code, detail } => {
+                Ok(EnsureOutcome::Rejected(RejectReason { code, detail }))
+            }
+            RecoveryResult::Conflict {
+                existing_payload_hash,
+                requested_payload_hash,
+            } => Ok(EnsureOutcome::Conflict {
+                existing_payload_hash,
+                requested_payload_hash,
+            }),
+            RecoveryResult::Unknown | RecoveryResult::NotReceived => Ok(EnsureOutcome::Unknown),
+        }
+    }
+
+    fn ensure_batch_from_recovery(
+        &self,
+        mut recovery: RecoveryResult,
+        options: &EnsureOptions,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<EnsureOutcome<EnsuredBatch>> {
+        while matches!(recovery, RecoveryResult::Received { .. }) && options.wait_for_completion {
+            if Instant::now() >= deadline {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+            recovery = match self.recover_result_file(
+                options
+                    .result_file
+                    .as_deref()
+                    .expect("recovery requires result file"),
+                deadline,
+                cancellation,
+            ) {
+                Ok(recovery) => recovery,
+                Err(Error::DeadlineElapsed | Error::Canceled) => break,
+                Err(Error::Unavailable(_)) => return Ok(EnsureOutcome::Unknown),
+                Err(error) => return Err(error),
+            };
+        }
+        match recovery {
+            RecoveryResult::Received { submission_id } => {
+                Ok(EnsureOutcome::Pending(SubmissionRef {
+                    submission_id,
+                    job_ids: Vec::new(),
+                    batch_id: None,
+                }))
+            }
+            RecoveryResult::AcceptedBatch(receipt) => {
+                self.finish_ensured_batch(receipt, options, deadline, cancellation)
+            }
+            RecoveryResult::Accepted(_) => Err(Error::Protocol(
+                "idempotency key belongs to a Job, not a Batch".into(),
+            )),
+            RecoveryResult::Rejected { code, detail } => {
+                Ok(EnsureOutcome::Rejected(RejectReason { code, detail }))
+            }
+            RecoveryResult::Conflict {
+                existing_payload_hash,
+                requested_payload_hash,
+            } => Ok(EnsureOutcome::Conflict {
+                existing_payload_hash,
+                requested_payload_hash,
+            }),
+            RecoveryResult::Unknown | RecoveryResult::NotReceived => Ok(EnsureOutcome::Unknown),
+        }
+    }
+
+    fn finish_ensured_job(
+        &self,
+        receipt: JobReceipt,
+        options: &EnsureOptions,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<EnsureOutcome<EnsuredJob>> {
+        if receipt.job_state == crate::JobState::Final {
+            return Ok(
+                match self.wait_outcome(receipt.job_id, deadline, cancellation) {
+                    WaitOutcome::Final { snapshot, .. } => EnsureOutcome::Final(EnsuredJob {
+                        receipt,
+                        snapshot: Some(snapshot),
+                    }),
+                    WaitOutcome::Pending { .. } | WaitOutcome::Unavailable { .. } => {
+                        EnsureOutcome::Pending(submission_ref_for_job(&receipt))
+                    }
+                    WaitOutcome::GapOrUnknown { .. } => EnsureOutcome::Unknown,
+                },
+            );
+        }
+        if !options.wait_for_completion {
+            return Ok(EnsureOutcome::Accepted(EnsuredJob {
+                receipt,
+                snapshot: None,
+            }));
+        }
+        match self.wait_outcome(receipt.job_id, deadline, cancellation) {
+            WaitOutcome::Final { snapshot, .. } => Ok(EnsureOutcome::Final(EnsuredJob {
+                receipt,
+                snapshot: Some(snapshot),
+            })),
+            WaitOutcome::Pending { .. } => {
+                Ok(EnsureOutcome::Pending(submission_ref_for_job(&receipt)))
+            }
+            WaitOutcome::Unavailable { .. } => {
+                Ok(EnsureOutcome::Pending(submission_ref_for_job(&receipt)))
+            }
+            WaitOutcome::GapOrUnknown { .. } => Ok(EnsureOutcome::Unknown),
+        }
+    }
+
+    fn finish_ensured_batch(
+        &self,
+        receipt: BatchReceipt,
+        options: &EnsureOptions,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<EnsureOutcome<EnsuredBatch>> {
+        if !options.wait_for_completion {
+            let all_final = receipt
+                .jobs
+                .iter()
+                .all(|member| member.receipt.job_state == crate::JobState::Final);
+            if !all_final {
+                return Ok(EnsureOutcome::Accepted(EnsuredBatch {
+                    receipt,
+                    snapshots: Vec::new(),
+                }));
+            }
+        }
+        let mut snapshots = Vec::with_capacity(receipt.jobs.len());
+        for member in &receipt.jobs {
+            match self.wait_outcome(member.receipt.job_id, deadline, cancellation) {
+                WaitOutcome::Final { snapshot, .. } => snapshots.push(*snapshot),
+                WaitOutcome::Pending { .. } => {
+                    return Ok(EnsureOutcome::Pending(submission_ref_for_batch(&receipt)));
+                }
+                WaitOutcome::Unavailable { .. } => {
+                    return Ok(EnsureOutcome::Pending(submission_ref_for_batch(&receipt)));
+                }
+                WaitOutcome::GapOrUnknown { .. } => return Ok(EnsureOutcome::Unknown),
+            }
+        }
+        Ok(EnsureOutcome::Final(EnsuredBatch { receipt, snapshots }))
     }
 
     fn upload_stdin(
@@ -504,7 +1094,7 @@ impl Client {
                 record.store_uuid, store_uuid
             )));
         }
-        persist_recovery(path, &record, &recovery)?;
+        persist_recovery(path, &record, &recovery, deadline, cancellation)?;
         Ok(recovery)
     }
 
@@ -852,8 +1442,27 @@ impl Client {
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<JobSnapshot> {
+        match self.wait_outcome(job_id, deadline, cancellation) {
+            WaitOutcome::Final { snapshot, .. } => Ok(*snapshot),
+            WaitOutcome::Pending {
+                reason: PendingReason::ClientCanceled,
+            } => Err(Error::Canceled),
+            WaitOutcome::Pending { .. } => Err(Error::DeadlineElapsed),
+            WaitOutcome::Unavailable { detail } => Err(Error::Unavailable(detail)),
+            WaitOutcome::GapOrUnknown { detail } => Err(Error::Protocol(detail)),
+        }
+    }
+
+    /// Waits without conflating a client deadline with any primary process exit code.
+    #[must_use]
+    pub fn wait_outcome(
+        &self,
+        job_id: JobId,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> WaitOutcome {
         loop {
-            let response = self.request(
+            let response = match self.request(
                 Request::Wait {
                     job_id,
                     max_wait_millis: 1_000,
@@ -861,11 +1470,42 @@ impl Client {
                 },
                 deadline,
                 cancellation,
-            )?;
+            ) {
+                Ok(response) => response,
+                Err(Error::DeadlineElapsed) => {
+                    return WaitOutcome::Pending {
+                        reason: PendingReason::ClientDeadline,
+                    };
+                }
+                Err(Error::Canceled) => {
+                    return WaitOutcome::Pending {
+                        reason: PendingReason::ClientCanceled,
+                    };
+                }
+                Err(Error::Unavailable(detail)) => {
+                    return WaitOutcome::Unavailable { detail };
+                }
+                Err(error) => {
+                    return WaitOutcome::GapOrUnknown {
+                        detail: error.to_string(),
+                    };
+                }
+            };
             match response {
-                Response::Snapshot(snapshot) if snapshot.is_final() => return Ok(*snapshot),
+                Response::Snapshot(snapshot) if snapshot.is_final() => {
+                    let root_exit_code = snapshot.root_exit_code;
+                    return WaitOutcome::Final {
+                        snapshot,
+                        root_exit_code,
+                    };
+                }
                 Response::Snapshot(_) => continue,
-                response => return response_error(response),
+                response => {
+                    let detail = response_error::<()>(response)
+                        .expect_err("non-snapshot wait response is an error")
+                        .to_string();
+                    return WaitOutcome::GapOrUnknown { detail };
+                }
             }
         }
     }
@@ -881,6 +1521,36 @@ impl Client {
         deadline: Instant,
         cancellation: Option<&CancellationToken>,
     ) -> Result<JobSnapshot> {
+        match self.wait_with_passthrough_outcome(
+            job_id,
+            stdout_offset,
+            stderr_offset,
+            stdout,
+            stderr,
+            deadline,
+            cancellation,
+        )? {
+            WaitOutcome::Final { snapshot, .. } => Ok(*snapshot),
+            WaitOutcome::Pending {
+                reason: PendingReason::ClientCanceled,
+            } => Err(Error::Canceled),
+            WaitOutcome::Pending { .. } => Err(Error::DeadlineElapsed),
+            WaitOutcome::Unavailable { detail } => Err(Error::Unavailable(detail)),
+            WaitOutcome::GapOrUnknown { detail } => Err(Error::Protocol(detail)),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn wait_with_passthrough_outcome(
+        &self,
+        job_id: JobId,
+        stdout_offset: &mut u64,
+        stderr_offset: &mut u64,
+        stdout: &mut impl Write,
+        stderr: &mut impl Write,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<WaitOutcome> {
         loop {
             let snapshot = match self.request(
                 Request::Wait {
@@ -890,30 +1560,72 @@ impl Client {
                 },
                 deadline,
                 cancellation,
-            )? {
-                Response::Snapshot(snapshot) => *snapshot,
-                response => return response_error(response),
+            ) {
+                Err(Error::DeadlineElapsed) => {
+                    return Ok(WaitOutcome::Pending {
+                        reason: PendingReason::ClientDeadline,
+                    });
+                }
+                Err(Error::Canceled) => {
+                    return Ok(WaitOutcome::Pending {
+                        reason: PendingReason::ClientCanceled,
+                    });
+                }
+                Err(Error::Unavailable(detail)) => {
+                    return Ok(WaitOutcome::Unavailable { detail });
+                }
+                Err(error) => {
+                    return Ok(WaitOutcome::GapOrUnknown {
+                        detail: error.to_string(),
+                    });
+                }
+                Ok(response) => match response {
+                    Response::Snapshot(snapshot) => *snapshot,
+                    response => {
+                        return Ok(WaitOutcome::GapOrUnknown {
+                            detail: response_error::<()>(response)
+                                .expect_err("non-snapshot wait response is an error")
+                                .to_string(),
+                        });
+                    }
+                },
             };
-            let stdout_progress = self.passthrough_stream(
+            let stdout_progress = match self.passthrough_stream(
                 job_id,
                 LogStream::Stdout,
                 stdout_offset,
                 stdout,
                 deadline,
                 cancellation,
-            )?;
-            let stderr_progress = self.passthrough_stream(
+            ) {
+                Ok(progress) => progress,
+                Err(error) => match typed_wait_error(&error) {
+                    Some(outcome) => return Ok(outcome),
+                    None => return Err(error),
+                },
+            };
+            let stderr_progress = match self.passthrough_stream(
                 job_id,
                 LogStream::Stderr,
                 stderr_offset,
                 stderr,
                 deadline,
                 cancellation,
-            )?;
+            ) {
+                Ok(progress) => progress,
+                Err(error) => match typed_wait_error(&error) {
+                    Some(outcome) => return Ok(outcome),
+                    None => return Err(error),
+                },
+            };
             if passthrough_is_complete(&snapshot, stdout_progress, stderr_progress) {
                 stdout.flush()?;
                 stderr.flush()?;
-                return Ok(snapshot);
+                let root_exit_code = snapshot.root_exit_code;
+                return Ok(WaitOutcome::Final {
+                    snapshot: Box::new(snapshot),
+                    root_exit_code,
+                });
             }
         }
     }
@@ -1369,6 +2081,24 @@ fn passthrough_is_complete(
     passthrough_state_is_complete(snapshot.is_final(), snapshot.outcome, stdout, stderr)
 }
 
+fn typed_wait_error(error: &Error) -> Option<WaitOutcome> {
+    match error {
+        Error::DeadlineElapsed => Some(WaitOutcome::Pending {
+            reason: PendingReason::ClientDeadline,
+        }),
+        Error::Canceled => Some(WaitOutcome::Pending {
+            reason: PendingReason::ClientCanceled,
+        }),
+        Error::Unavailable(detail) => Some(WaitOutcome::Unavailable {
+            detail: detail.clone(),
+        }),
+        Error::NotFound { detail } | Error::Protocol(detail) => Some(WaitOutcome::GapOrUnknown {
+            detail: detail.clone(),
+        }),
+        _ => None,
+    }
+}
+
 fn passthrough_state_is_complete(
     is_final: bool,
     outcome: Option<crate::JobOutcome>,
@@ -1415,6 +2145,17 @@ fn inspect_stdin(stdin: &crate::StdinSpec) -> Result<Option<(StagedInputRef, Pat
 
 fn response_error<T>(response: Response) -> Result<T> {
     match response {
+        Response::Conflict {
+            existing_payload_hash,
+            requested_payload_hash,
+        } => Err(Error::IdempotencyConflict {
+            existing_payload_hash,
+            requested_payload_hash,
+        }),
+        Response::SubmissionRejected { code, message } => Err(Error::Rejected {
+            code,
+            detail: message,
+        }),
         Response::Error { code, message } if code == error_code::INVALID_SPEC => {
             Err(Error::InvalidSpec(message))
         }
@@ -1760,12 +2501,164 @@ fn claimed_managed_parent_for_endpoint(
     Ok(Some(parent))
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum EnsureResultFileState {
+    Fresh,
+    Existing,
+    PayloadMismatch { existing_payload_hash: String },
+}
+
+fn ensure_submit_options(options: &EnsureOptions) -> SubmitOptions {
+    SubmitOptions {
+        idempotency_key: options.idempotency_key,
+        result_file: options.result_file.clone(),
+        wait_for_completion: options.wait_for_completion,
+    }
+}
+
+fn submission_ref_for_job(receipt: &JobReceipt) -> SubmissionRef {
+    SubmissionRef {
+        submission_id: receipt.submission_id,
+        job_ids: vec![receipt.job_id],
+        batch_id: None,
+    }
+}
+
+fn submission_ref_for_batch(receipt: &BatchReceipt) -> SubmissionRef {
+    SubmissionRef {
+        submission_id: receipt.submission_id,
+        job_ids: receipt
+            .jobs
+            .iter()
+            .map(|member| member.receipt.job_id)
+            .collect(),
+        batch_id: Some(receipt.batch_id),
+    }
+}
+
+fn prepare_ensure_result_file(
+    path: &Path,
+    idempotency_key: uuid::Uuid,
+    payload_hash: &str,
+    endpoint: &str,
+    context: SubmissionContext,
+    deadline: Instant,
+    cancellation: Option<&CancellationToken>,
+) -> Result<EnsureResultFileState> {
+    let proposed = ResultFileRecord {
+        version: RESULT_FILE_VERSION,
+        idempotency_key,
+        payload_hash: payload_hash.to_owned(),
+        endpoint: endpoint.to_owned(),
+        store_uuid: context.store_uuid,
+        parent: context.parent,
+        receipt: None,
+    };
+    with_result_file_lock(path, deadline, cancellation, || {
+        match std::fs::File::open(path) {
+            Ok(file) => {
+                let existing: ResultFileRecord = serde_json::from_reader(file)?;
+                validate_result_file_operation(&existing, &proposed).map_err(|detail| {
+                    Error::InvalidSpec(format!(
+                        "result file {} belongs to a different ensure operation: {detail}",
+                        path.display()
+                    ))
+                })?;
+                if existing.payload_hash != proposed.payload_hash {
+                    return Ok(EnsureResultFileState::PayloadMismatch {
+                        existing_payload_hash: existing.payload_hash,
+                    });
+                }
+                Ok(EnsureResultFileState::Existing)
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                match write_json_new_atomically(path, &proposed) {
+                    Ok(()) => Ok(EnsureResultFileState::Fresh),
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                        let existing: ResultFileRecord =
+                            serde_json::from_reader(std::fs::File::open(path)?)?;
+                        validate_result_file_operation(&existing, &proposed).map_err(|detail| {
+                            Error::InvalidSpec(format!(
+                                "result file {} changed during atomic ensure: {detail}",
+                                path.display()
+                            ))
+                        })?;
+                        if existing.payload_hash != proposed.payload_hash {
+                            return Ok(EnsureResultFileState::PayloadMismatch {
+                                existing_payload_hash: existing.payload_hash,
+                            });
+                        }
+                        Ok(EnsureResultFileState::Existing)
+                    }
+                    Err(error) => Err(Error::Io(error)),
+                }
+            }
+            Err(error) => Err(Error::Io(error)),
+        }
+    })
+}
+
+fn lock_ensure_operation(
+    path: &Path,
+    deadline: Instant,
+    cancellation: Option<&CancellationToken>,
+) -> Result<std::fs::File> {
+    let parent = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => std::env::current_dir()?,
+    };
+    std::fs::create_dir_all(&parent)?;
+    crate::filesystem::require_fixed_local_ntfs(&parent)?;
+    let mut lock_name = path.as_os_str().to_os_string();
+    lock_name.push(".ensure.lock");
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(PathBuf::from(lock_name))?;
+    loop {
+        check_wait(deadline, cancellation)?;
+        match lock.try_lock_exclusive() {
+            Ok(()) => return Ok(lock),
+            Err(error) if lock_is_contended(&error) => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => return Err(Error::Io(error)),
+        }
+    }
+}
+
+fn validate_result_file_operation(
+    current: &ResultFileRecord,
+    expected: &ResultFileRecord,
+) -> std::result::Result<(), &'static str> {
+    if current.version != RESULT_FILE_VERSION || expected.version != RESULT_FILE_VERSION {
+        return Err("unsupported result-file version");
+    }
+    if current.idempotency_key != expected.idempotency_key
+        || !endpoints_equal(&current.endpoint, &expected.endpoint)
+        || current.store_uuid != expected.store_uuid
+        || current.parent != expected.parent
+    {
+        return Err("identity, key, endpoint, store, or managed parent differs");
+    }
+    Ok(())
+}
+
+fn lock_is_contended(error: &std::io::Error) -> bool {
+    error.kind() == std::io::ErrorKind::WouldBlock
+        || (cfg!(windows) && error.raw_os_error() == Some(33))
+}
+
 fn prepare_result_file(
     path: &Path,
     options: &SubmitOptions,
     payload_hash: &str,
     endpoint: &str,
     context: SubmissionContext,
+    deadline: Instant,
+    cancellation: Option<&CancellationToken>,
 ) -> Result<()> {
     let record = ResultFileRecord {
         version: RESULT_FILE_VERSION,
@@ -1776,19 +2669,25 @@ fn prepare_result_file(
         parent: context.parent,
         receipt: None,
     };
-    with_result_file_lock(path, || match write_json_new_atomically(path, &record) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            let existing: ResultFileRecord = serde_json::from_reader(std::fs::File::open(path)?)?;
-            validate_managed_resubmit(&existing, &record).map_err(|detail| {
-                Error::InvalidSpec(format!(
-                    "result file {} cannot authorize managed resubmission: {detail}",
-                    path.display()
-                ))
-            })
-        }
-        Err(error) => Err(Error::Io(error)),
-    })
+    with_result_file_lock(
+        path,
+        deadline,
+        cancellation,
+        || match write_json_new_atomically(path, &record) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                let existing: ResultFileRecord =
+                    serde_json::from_reader(std::fs::File::open(path)?)?;
+                validate_managed_resubmit(&existing, &record).map_err(|detail| {
+                    Error::InvalidSpec(format!(
+                        "result file {} cannot authorize managed resubmission: {detail}",
+                        path.display()
+                    ))
+                })
+            }
+            Err(error) => Err(Error::Io(error)),
+        },
+    )
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -1831,51 +2730,38 @@ fn persist_recovery(
     path: &Path,
     record: &ResultFileRecord,
     recovery: &RecoveryResult,
+    deadline: Instant,
+    cancellation: Option<&CancellationToken>,
 ) -> Result<()> {
     if matches!(recovery, RecoveryResult::Unknown) {
         return Ok(());
     }
-    persist_result_receipt(path, record, recovery.clone())
+    persist_result_receipt(path, record, recovery.clone(), deadline, cancellation)
 }
 
 fn persist_submit_decision(
     path: &Path,
-    idempotency_key: uuid::Uuid,
-    payload_hash: &str,
-    endpoint: &str,
-    context: SubmissionContext,
+    expected: &ResultFileRecord,
     response: &Response,
+    deadline: Instant,
+    cancellation: Option<&CancellationToken>,
 ) -> Result<()> {
     let decision = match response {
-        Response::Error { code, .. } if code == error_code::IDEMPOTENCY_CONFLICT => {
-            Some(RecoveryResult::Conflict)
-        }
-        Response::Error { code, message }
-            if code == error_code::BLOCKED_BY_ANCESTOR
-                || code == error_code::RESOURCE_CAPACITY
-                || code.starts_with("child_") =>
-        {
-            Some(RecoveryResult::Rejected {
-                code: code.clone(),
-                detail: message.clone(),
-            })
-        }
+        Response::Conflict {
+            existing_payload_hash,
+            requested_payload_hash,
+        } => Some(RecoveryResult::Conflict {
+            existing_payload_hash: existing_payload_hash.clone(),
+            requested_payload_hash: requested_payload_hash.clone(),
+        }),
+        Response::SubmissionRejected { code, message } => Some(RecoveryResult::Rejected {
+            code: code.clone(),
+            detail: message.clone(),
+        }),
         _ => None,
     };
     if let Some(decision) = decision {
-        persist_result_receipt(
-            path,
-            &ResultFileRecord {
-                version: RESULT_FILE_VERSION,
-                idempotency_key,
-                payload_hash: payload_hash.to_owned(),
-                endpoint: endpoint.to_owned(),
-                store_uuid: context.store_uuid,
-                parent: context.parent,
-                receipt: None,
-            },
-            decision,
-        )?;
+        persist_result_receipt(path, expected, decision, deadline, cancellation)?;
     }
     Ok(())
 }
@@ -1884,8 +2770,10 @@ fn persist_result_receipt(
     path: &Path,
     expected: &ResultFileRecord,
     receipt: RecoveryResult,
+    deadline: Instant,
+    cancellation: Option<&CancellationToken>,
 ) -> Result<()> {
-    with_result_file_lock(path, || {
+    with_result_file_lock(path, deadline, cancellation, || {
         let mut current: ResultFileRecord = serde_json::from_reader(std::fs::File::open(path)?)?;
         validate_result_file_identity(&current, expected).map_err(|detail| {
             Error::Protocol(format!(
@@ -1912,7 +2800,7 @@ fn persist_result_receipt(
                     | RecoveryResult::Accepted(_)
                     | RecoveryResult::AcceptedBatch(_)
                     | RecoveryResult::Rejected { .. }
-                    | RecoveryResult::Conflict
+                    | RecoveryResult::Conflict { .. }
             ),
             Some(existing) => existing == &receipt,
         };
@@ -1952,7 +2840,9 @@ fn same_terminal_decision(existing: &RecoveryResult, proposed: &RecoveryResult) 
                     })
         }
         (RecoveryResult::Rejected { .. }, RecoveryResult::Rejected { .. })
-        | (RecoveryResult::Conflict, RecoveryResult::Conflict) => existing == proposed,
+        | (RecoveryResult::Conflict { .. }, RecoveryResult::Conflict { .. }) => {
+            existing == proposed
+        }
         _ => false,
     }
 }
@@ -1975,7 +2865,12 @@ fn validate_result_file_identity(
     Ok(())
 }
 
-fn with_result_file_lock<T>(path: &Path, action: impl FnOnce() -> Result<T>) -> Result<T> {
+fn with_result_file_lock<T>(
+    path: &Path,
+    deadline: Instant,
+    cancellation: Option<&CancellationToken>,
+    action: impl FnOnce() -> Result<T>,
+) -> Result<T> {
     let parent = match path.parent() {
         Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
         _ => std::env::current_dir()?,
@@ -1990,7 +2885,16 @@ fn with_result_file_lock<T>(path: &Path, action: impl FnOnce() -> Result<T>) -> 
         .create(true)
         .truncate(false)
         .open(PathBuf::from(lock_name))?;
-    lock.lock_exclusive()?;
+    loop {
+        check_wait(deadline, cancellation)?;
+        match lock.try_lock_exclusive() {
+            Ok(()) => break,
+            Err(error) if lock_is_contended(&error) => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => return Err(Error::Io(error)),
+        }
+    }
     let result = action();
     let unlock = FileExt::unlock(&lock).map_err(Error::Io);
     match (result, unlock) {
@@ -2187,6 +3091,7 @@ mod tests {
             endpoint: "unused".into(),
             daemon_executable: PathBuf::from("unused"),
             claimed_parent: None,
+            endpoint_explicit: true,
         };
         assert!(matches!(
             client.doctor_complete(Instant::now(), None),
@@ -2328,7 +3233,16 @@ mod tests {
             store_uuid,
             parent: None,
         };
-        prepare_result_file(&path, &first, "first-hash", "pipe-a", context).unwrap();
+        prepare_result_file(
+            &path,
+            &first,
+            "first-hash",
+            "pipe-a",
+            context,
+            Instant::now() + Duration::from_secs(1),
+            None,
+        )
+        .unwrap();
         let before = std::fs::read(&path).unwrap();
 
         let second = SubmitOptions::new(uuid::Uuid::now_v7());
@@ -2341,7 +3255,9 @@ mod tests {
                 SubmissionContext {
                     store_uuid: uuid::Uuid::now_v7(),
                     parent: None,
-                }
+                },
+                Instant::now() + Duration::from_secs(1),
+                None,
             ),
             Err(Error::InvalidSpec(_))
         ));
@@ -2366,6 +3282,137 @@ mod tests {
     }
 
     #[test]
+    fn ensure_result_file_claim_is_atomic_and_reports_payload_conflict_without_overwrite() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("ensure.result.json");
+        let key = uuid::Uuid::now_v7();
+        let context = SubmissionContext {
+            store_uuid: uuid::Uuid::now_v7(),
+            parent: None,
+        };
+        assert_eq!(
+            prepare_ensure_result_file(
+                &path,
+                key,
+                "first",
+                "pipe-a",
+                context,
+                Instant::now() + Duration::from_secs(1),
+                None,
+            )
+            .unwrap(),
+            EnsureResultFileState::Fresh
+        );
+        let first = std::fs::read(&path).unwrap();
+        assert_eq!(
+            prepare_ensure_result_file(
+                &path,
+                key,
+                "first",
+                "pipe-a",
+                context,
+                Instant::now() + Duration::from_secs(1),
+                None,
+            )
+            .unwrap(),
+            EnsureResultFileState::Existing
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), first);
+        assert_eq!(
+            prepare_ensure_result_file(
+                &path,
+                key,
+                "second",
+                "pipe-a",
+                context,
+                Instant::now() + Duration::from_secs(1),
+                None,
+            )
+            .unwrap(),
+            EnsureResultFileState::PayloadMismatch {
+                existing_payload_hash: "first".into(),
+            }
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), first);
+        assert!(matches!(
+            prepare_ensure_result_file(
+                &path,
+                uuid::Uuid::now_v7(),
+                "first",
+                "pipe-a",
+                context,
+                Instant::now() + Duration::from_secs(1),
+                None,
+            ),
+            Err(Error::InvalidSpec(_))
+        ));
+        assert_eq!(std::fs::read(&path).unwrap(), first);
+    }
+
+    #[test]
+    fn ensure_result_file_lock_obeys_the_client_deadline() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("contended.result.json");
+        let mut lock_name = path.as_os_str().to_os_string();
+        lock_name.push(".lock");
+        let ready = temp.path().join("lock-ready");
+        let mut holder = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--ignored",
+                "--exact",
+                "client::tests::result_file_lock_holder_helper",
+                "--nocapture",
+            ])
+            .env("STILLYARD_TEST_LOCK_PATH", PathBuf::from(lock_name))
+            .env("STILLYARD_TEST_LOCK_READY", &ready)
+            .spawn()
+            .unwrap();
+        let ready_deadline = Instant::now() + Duration::from_secs(5);
+        while !ready.exists() {
+            assert!(
+                Instant::now() < ready_deadline,
+                "result-file lock helper did not become ready"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let context = SubmissionContext {
+            store_uuid: uuid::Uuid::now_v7(),
+            parent: None,
+        };
+        assert!(matches!(
+            prepare_ensure_result_file(
+                &path,
+                uuid::Uuid::now_v7(),
+                "payload",
+                "pipe-a",
+                context,
+                Instant::now() + Duration::from_millis(20),
+                None,
+            ),
+            Err(Error::DeadlineElapsed)
+        ));
+        let _ = holder.kill();
+        let _ = holder.wait();
+    }
+
+    #[test]
+    #[ignore = "launched as a cross-process result-file lock holder"]
+    fn result_file_lock_holder_helper() {
+        let lock_path = PathBuf::from(std::env::var_os("STILLYARD_TEST_LOCK_PATH").unwrap());
+        let ready = PathBuf::from(std::env::var_os("STILLYARD_TEST_LOCK_READY").unwrap());
+        let held = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(lock_path)
+            .unwrap();
+        held.lock_exclusive().unwrap();
+        std::fs::write(ready, b"ready").unwrap();
+        std::thread::sleep(Duration::from_secs(30));
+    }
+
+    #[test]
     fn unknown_recovery_preserves_the_last_durable_receipt() {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("operation.result.json");
@@ -2376,17 +3423,58 @@ mod tests {
             endpoint: "pipe-a".into(),
             store_uuid: uuid::Uuid::now_v7(),
             parent: None,
-            receipt: Some(RecoveryResult::Conflict),
+            receipt: Some(RecoveryResult::Conflict {
+                existing_payload_hash: "existing".into(),
+                requested_payload_hash: "requested".into(),
+            }),
         };
         write_json_atomically(&path, &record).unwrap();
         let before = std::fs::read(&path).unwrap();
-        persist_recovery(&path, &record, &RecoveryResult::Unknown).unwrap();
+        persist_recovery(
+            &path,
+            &record,
+            &RecoveryResult::Unknown,
+            Instant::now() + Duration::from_secs(1),
+            None,
+        )
+        .unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), before);
         assert!(matches!(
-            persist_recovery(&path, &record, &RecoveryResult::NotReceived),
+            persist_recovery(
+                &path,
+                &record,
+                &RecoveryResult::NotReceived,
+                Instant::now() + Duration::from_secs(1),
+                None,
+            ),
             Err(Error::Protocol(_))
         ));
         assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
+
+    #[test]
+    fn ensure_unknown_is_a_typed_fail_closed_outcome_without_transport_replay() {
+        let temp = tempfile::tempdir().unwrap();
+        let client = Client {
+            endpoint: "unused".into(),
+            daemon_executable: temp.path().join("must-not-run.exe"),
+            claimed_parent: None,
+            endpoint_explicit: true,
+        };
+        let options = EnsureOptions::new(uuid::Uuid::now_v7())
+            .with_result_file(temp.path().join("unknown.result.json"));
+        assert_eq!(
+            client
+                .ensure_job_from_recovery(
+                    RecoveryResult::Unknown,
+                    &options,
+                    Instant::now() + Duration::from_secs(1),
+                    None,
+                )
+                .unwrap(),
+            EnsureOutcome::Unknown
+        );
+        assert!(!client.daemon_executable.exists());
     }
 
     #[test]
@@ -2419,10 +3507,23 @@ mod tests {
             admission: None,
             daemon_generation: uuid::Uuid::nil(),
         });
-        persist_result_receipt(&path, &stale, accepted.clone()).unwrap();
+        persist_result_receipt(
+            &path,
+            &stale,
+            accepted.clone(),
+            Instant::now() + Duration::from_secs(1),
+            None,
+        )
+        .unwrap();
 
         assert!(matches!(
-            persist_recovery(&path, &stale, &RecoveryResult::Received { submission_id }),
+            persist_recovery(
+                &path,
+                &stale,
+                &RecoveryResult::Received { submission_id },
+                Instant::now() + Duration::from_secs(1),
+                None,
+            ),
             Err(Error::Protocol(_))
         ));
         let durable: ResultFileRecord =
@@ -2475,7 +3576,14 @@ mod tests {
             admission: None,
             daemon_generation: uuid::Uuid::nil(),
         });
-        persist_result_receipt(&path, &record, refreshed).unwrap();
+        persist_result_receipt(
+            &path,
+            &record,
+            refreshed,
+            Instant::now() + Duration::from_secs(1),
+            None,
+        )
+        .unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), before);
 
         let foreign = RecoveryResult::Accepted(JobReceipt {
@@ -2493,7 +3601,13 @@ mod tests {
             daemon_generation: uuid::Uuid::nil(),
         });
         assert!(matches!(
-            persist_result_receipt(&path, &record, foreign),
+            persist_result_receipt(
+                &path,
+                &record,
+                foreign,
+                Instant::now() + Duration::from_secs(1),
+                None,
+            ),
             Err(Error::Protocol(_))
         ));
         assert_eq!(std::fs::read(&path).unwrap(), before);
@@ -2560,7 +3674,14 @@ mod tests {
             member.receipt.queue_rank = None;
             member.receipt.estimate = crate::Estimate::unknown("final");
         }
-        persist_result_receipt(&path, &record, RecoveryResult::AcceptedBatch(refreshed)).unwrap();
+        persist_result_receipt(
+            &path,
+            &record,
+            RecoveryResult::AcceptedBatch(refreshed),
+            Instant::now() + Duration::from_secs(1),
+            None,
+        )
+        .unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), before);
 
         let mut foreign_batch = durable_batch.clone();
@@ -2572,7 +3693,13 @@ mod tests {
             crate::JobId::from_parts(store_uuid, uuid::Uuid::now_v7());
         for mutant in [foreign_batch, truncated, foreign_member] {
             assert!(matches!(
-                persist_result_receipt(&path, &record, RecoveryResult::AcceptedBatch(mutant)),
+                persist_result_receipt(
+                    &path,
+                    &record,
+                    RecoveryResult::AcceptedBatch(mutant),
+                    Instant::now() + Duration::from_secs(1),
+                    None,
+                ),
                 Err(Error::Protocol(_))
             ));
             assert_eq!(std::fs::read(&path).unwrap(), before);
@@ -2606,6 +3733,8 @@ mod tests {
                 store_uuid,
                 parent: Some(parent),
             },
+            Instant::now() + Duration::from_secs(1),
+            None,
         )
         .unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), before);
@@ -2623,6 +3752,8 @@ mod tests {
                     store_uuid,
                     parent: Some(parent),
                 },
+                Instant::now() + Duration::from_secs(1),
+                None,
             ),
             Err(Error::InvalidSpec(_))
         ));
@@ -2639,44 +3770,67 @@ mod tests {
                     store_uuid,
                     parent: Some(managed_parent(store_uuid)),
                 },
+                Instant::now() + Duration::from_secs(1),
+                None,
             ),
             Err(Error::InvalidSpec(_))
         ));
 
         persist_submit_decision(
             &path,
-            options.idempotency_key,
-            "payload",
-            "pipe-a",
-            SubmissionContext {
-                store_uuid,
-                parent: Some(parent),
+            &unknown,
+            &Response::Conflict {
+                existing_payload_hash: "existing".into(),
+                requested_payload_hash: "payload".into(),
             },
-            &Response::Error {
-                code: "idempotency_conflict".into(),
-                message: "conflict".into(),
-            },
+            Instant::now() + Duration::from_secs(1),
+            None,
         )
         .unwrap();
         let conflicted: ResultFileRecord =
             serde_json::from_reader(std::fs::File::open(&path).unwrap()).unwrap();
-        assert_eq!(conflicted.receipt, Some(RecoveryResult::Conflict));
+        assert_eq!(
+            conflicted.receipt,
+            Some(RecoveryResult::Conflict {
+                existing_payload_hash: "existing".into(),
+                requested_payload_hash: "payload".into(),
+            })
+        );
 
         unknown.receipt = None;
         write_json_atomically(&path, &unknown).unwrap();
         persist_submit_decision(
             &path,
-            options.idempotency_key,
-            "payload",
-            "pipe-a",
-            SubmissionContext {
-                store_uuid,
-                parent: Some(parent),
+            &unknown,
+            &Response::SubmissionRejected {
+                code: error_code::REJECTED.into(),
+                message: "resolved policy fence is unavailable".into(),
             },
-            &Response::Error {
+            Instant::now() + Duration::from_secs(1),
+            None,
+        )
+        .unwrap();
+        let rejected: ResultFileRecord =
+            serde_json::from_reader(std::fs::File::open(&path).unwrap()).unwrap();
+        assert_eq!(
+            rejected.receipt,
+            Some(RecoveryResult::Rejected {
+                code: error_code::REJECTED.into(),
+                detail: "resolved policy fence is unavailable".into(),
+            })
+        );
+
+        unknown.receipt = None;
+        write_json_atomically(&path, &unknown).unwrap();
+        persist_submit_decision(
+            &path,
+            &unknown,
+            &Response::SubmissionRejected {
                 code: "blocked_by_ancestor".into(),
                 message: "cargo_slots retained by parent".into(),
             },
+            Instant::now() + Duration::from_secs(1),
+            None,
         )
         .unwrap();
         let rejected: ResultFileRecord =
@@ -2693,17 +3847,13 @@ mod tests {
         write_json_atomically(&path, &unknown).unwrap();
         persist_submit_decision(
             &path,
-            options.idempotency_key,
-            "payload",
-            "pipe-a",
-            SubmissionContext {
-                store_uuid,
-                parent: Some(parent),
-            },
-            &Response::Error {
+            &unknown,
+            &Response::SubmissionRejected {
                 code: "child_claim_not_permitted".into(),
                 message: "cargo_slots=2 exceeds 1".into(),
             },
+            Instant::now() + Duration::from_secs(1),
+            None,
         )
         .unwrap();
         let rejected: ResultFileRecord =
@@ -2763,7 +3913,10 @@ mod tests {
             endpoint: "pipe-a".into(),
             store_uuid: uuid::Uuid::now_v7(),
             parent: None,
-            receipt: Some(RecoveryResult::Conflict),
+            receipt: Some(RecoveryResult::Conflict {
+                existing_payload_hash: "existing".into(),
+                requested_payload_hash: "requested".into(),
+            }),
         };
         write_json_atomically(&path, &record).unwrap();
         let before = std::fs::read(&path).unwrap();
@@ -2771,6 +3924,7 @@ mod tests {
             endpoint: "pipe-b".into(),
             daemon_executable: temp.path().join("unused.exe"),
             claimed_parent: None,
+            endpoint_explicit: true,
         };
         assert!(matches!(
             client.recover_result_file(&path, Instant::now() + Duration::from_secs(1), None,),
@@ -2799,6 +3953,7 @@ mod tests {
             endpoint,
             daemon_executable: temp.path().join("unused.exe"),
             claimed_parent: None,
+            endpoint_explicit: true,
         };
         assert!(matches!(
             client.recover_result_file(&path, Instant::now() + Duration::from_secs(1), None),
@@ -2814,6 +3969,7 @@ mod tests {
             endpoint: "unused".into(),
             daemon_executable: temp.path().join("unused.exe"),
             claimed_parent: None,
+            endpoint_explicit: true,
         };
         assert!(
             client

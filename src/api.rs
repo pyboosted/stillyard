@@ -364,6 +364,59 @@ pub struct SubmissionContext {
     pub parent: Option<ManagedParent>,
 }
 
+/// Durable identity of a managed submission, with any accepted execution identities known so far.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct SubmissionRef {
+    pub submission_id: SubmissionId,
+    #[serde(default)]
+    pub job_ids: Vec<JobId>,
+    pub batch_id: Option<BatchId>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct RejectReason {
+    pub code: String,
+    pub detail: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct EnsuredJob {
+    pub receipt: JobReceipt,
+    pub snapshot: Option<Box<JobSnapshot>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct EnsuredBatch {
+    pub receipt: BatchReceipt,
+    #[serde(default)]
+    pub snapshots: Vec<JobSnapshot>,
+}
+
+/// One fail-closed decision from [`crate::Client::ensure_job`] or
+/// [`crate::Client::ensure_batch`].
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(tag = "outcome", content = "value", rename_all = "snake_case")]
+pub enum EnsureOutcome<T> {
+    Accepted(T),
+    Pending(SubmissionRef),
+    Final(T),
+    Rejected(RejectReason),
+    Conflict {
+        existing_payload_hash: String,
+        requested_payload_hash: String,
+    },
+    Unknown,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct CancellationToken {
     canceled: Arc<AtomicBool>,
@@ -395,6 +448,38 @@ pub struct SubmitOptions {
     /// Managed callers are admitted only when that wait cannot depend on resources retained by
     /// the caller or its authenticated ancestors. Detached submissions leave this false.
     pub wait_for_completion: bool,
+}
+
+/// Options for one atomic ensure-or-recover operation.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct EnsureOptions {
+    pub idempotency_key: Uuid,
+    pub result_file: Option<PathBuf>,
+    pub wait_for_completion: bool,
+}
+
+impl EnsureOptions {
+    #[must_use]
+    pub fn new(idempotency_key: Uuid) -> Self {
+        Self {
+            idempotency_key,
+            result_file: None,
+            wait_for_completion: false,
+        }
+    }
+
+    #[must_use]
+    pub fn with_result_file(mut self, path: impl Into<PathBuf>) -> Self {
+        self.result_file = Some(path.into());
+        self
+    }
+
+    #[must_use]
+    pub fn with_wait_for_completion(mut self) -> Self {
+        self.wait_for_completion = true;
+        self
+    }
 }
 
 impl Default for SubmitOptions {
@@ -1112,6 +1197,136 @@ pub enum ExitClassification {
     Failed,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum InvocationVerdict {
+    Succeeded,
+    ProcessFailed,
+    StartFailed,
+    TimedOut,
+    Interrupted,
+    SafetyFailed,
+    Canceled,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum TerminationReason {
+    Exited,
+    StartFailed,
+    Timeout,
+    Interrupt,
+    Cancel,
+    SafetyFailure,
+}
+
+/// Immutable primary outcome recorded only after its Containment is proved empty.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct PrimaryInvocationResult {
+    pub schema_version: u32,
+    pub job_id: JobId,
+    pub attempt_id: AttemptId,
+    pub invocation_id: InvocationId,
+    pub verdict: InvocationVerdict,
+    pub root_exit_code: Option<i32>,
+    pub termination: TerminationReason,
+    pub containment: ContainmentState,
+    pub started_unix_millis: Option<i64>,
+    pub exited_unix_millis: Option<i64>,
+    pub resolved_unix_millis: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum PendingReason {
+    ClientDeadline,
+    ClientCanceled,
+    SubmissionReceived,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(tag = "outcome", rename_all = "snake_case")]
+pub enum WaitOutcome {
+    Pending {
+        reason: PendingReason,
+    },
+    Final {
+        snapshot: Box<JobSnapshot>,
+        root_exit_code: Option<i32>,
+    },
+    Unavailable {
+        detail: String,
+    },
+    GapOrUnknown {
+        detail: String,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum ExitSource {
+    Process,
+    Scheduler,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct WaitReport {
+    pub outcome: WaitOutcome,
+    pub exit_source: ExitSource,
+    pub exit_code: i32,
+}
+
+impl WaitReport {
+    #[must_use]
+    pub fn new(outcome: WaitOutcome, exit_source: ExitSource, exit_code: i32) -> Self {
+        Self {
+            outcome,
+            exit_source,
+            exit_code,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct EnsureReport<T> {
+    pub outcome: EnsureOutcome<T>,
+    pub exit_source: ExitSource,
+    pub exit_code: i32,
+}
+
+impl<T> EnsureReport<T> {
+    #[must_use]
+    pub fn new(outcome: EnsureOutcome<T>, exit_source: ExitSource, exit_code: i32) -> Self {
+        Self {
+            outcome,
+            exit_source,
+            exit_code,
+        }
+    }
+}
+
+/// Root type for the recorded managed-execution JSON Schema.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(untagged)]
+pub enum ManagedExecutionRecord {
+    EnsureJob(Box<EnsureReport<EnsuredJob>>),
+    EnsureBatch(EnsureReport<EnsuredBatch>),
+    Wait(WaitReport),
+    PrimaryInvocationResult(PrimaryInvocationResult),
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub struct InvocationSnapshot {
@@ -1145,6 +1360,8 @@ pub struct AttemptSnapshot {
     pub started_unix_millis: Option<i64>,
     pub deadline_unix_millis: Option<i64>,
     pub finished_unix_millis: Option<i64>,
+    #[serde(default)]
+    pub primary_result: Option<PrimaryInvocationResult>,
     #[serde(default)]
     pub admission: Option<AdmissionDecisionSnapshot>,
     pub invocations: Vec<InvocationSnapshot>,
@@ -1197,11 +1414,19 @@ impl JobSnapshot {
 // less direct for a modest stack saving while leaving its serialized representation unchanged.
 #[allow(clippy::large_enum_variant)]
 pub enum RecoveryResult {
-    Received { submission_id: SubmissionId },
+    Received {
+        submission_id: SubmissionId,
+    },
     Accepted(JobReceipt),
     AcceptedBatch(BatchReceipt),
-    Rejected { code: String, detail: String },
-    Conflict,
+    Rejected {
+        code: String,
+        detail: String,
+    },
+    Conflict {
+        existing_payload_hash: String,
+        requested_payload_hash: String,
+    },
     NotReceived,
     Unknown,
 }

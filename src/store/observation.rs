@@ -754,6 +754,16 @@ impl Store {
                     started_unix_millis: attempt_started,
                     deadline_unix_millis: attempt_deadline,
                     finished_unix_millis: attempt_finished,
+                    primary_result: self
+                        .connection
+                        .query_row(
+                            "SELECT primary_result_json FROM attempts WHERE id = ?1",
+                            [&attempt],
+                            |row| row.get::<_, Option<String>>(0),
+                        )?
+                        .as_deref()
+                        .map(serde_json::from_str)
+                        .transpose()?,
                     admission: self.admission_for_attempt(AttemptId::from_parts(
                         self.store_uuid,
                         Uuid::parse_str(&attempt)?,

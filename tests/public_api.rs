@@ -1,8 +1,9 @@
 use std::time::Instant;
 
 use stillyard::{
-    CancellationToken, Client, CompleteDoctorSnapshot, ContainmentId, ContainmentIncidentCursor,
-    DefaultInstance, DoctorSnapshot, JobChildrenCursor, JobId, JobSelector, JobTreeSelector,
+    BatchSpec, CancellationToken, Client, CompleteDoctorSnapshot, ContainmentId,
+    ContainmentIncidentCursor, DefaultInstance, DoctorSnapshot, EnsureOptions, JobChildrenCursor,
+    JobId, JobSelector, JobSpec, JobTreeSelector,
 };
 
 type ExternalConsumerSignature = for<'client, 'cancellation> fn(
@@ -11,17 +12,23 @@ type ExternalConsumerSignature = for<'client, 'cancellation> fn(
     ContainmentId,
     JobId,
     JobChildrenCursor,
+    JobSpec,
+    BatchSpec,
+    &'client EnsureOptions,
     Instant,
     Option<&'cancellation CancellationToken>,
 );
 
-#[allow(dead_code)]
+#[allow(clippy::too_many_arguments, dead_code)]
 fn external_consumer_compiles(
     client: &Client,
     cursor: Option<ContainmentIncidentCursor>,
     containment_id: ContainmentId,
     job_id: JobId,
     children_cursor: JobChildrenCursor,
+    job_spec: JobSpec,
+    batch_spec: BatchSpec,
+    ensure_options: &EnsureOptions,
     deadline: Instant,
     cancellation: Option<&CancellationToken>,
 ) {
@@ -59,6 +66,11 @@ fn external_consumer_compiles(
         deadline,
         cancellation,
     );
+    let _: stillyard::Result<stillyard::EnsureOutcome<stillyard::EnsuredJob>> =
+        client.ensure_job(job_spec, ensure_options, deadline, cancellation);
+    let _: stillyard::Result<stillyard::EnsureOutcome<stillyard::EnsuredBatch>> =
+        client.ensure_batch(batch_spec, ensure_options, deadline, cancellation);
+    let _: stillyard::WaitOutcome = client.wait_outcome(job_id, deadline, cancellation);
 }
 
 #[test]
@@ -68,6 +80,11 @@ fn public_methods_are_callable_from_an_external_crate() {
     assert!(coordinates.store_path.is_absolute());
     assert!(!coordinates.endpoint.is_empty());
     assert!(std::mem::size_of::<DoctorSnapshot>() > 0);
+    assert!(
+        stillyard::managed_execution_schema_json()
+            .unwrap()
+            .contains("PrimaryInvocationResult")
+    );
 }
 
 #[test]

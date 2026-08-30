@@ -12,7 +12,7 @@ use crate::{
     SubmissionContext, TreeObservationFrame,
 };
 
-pub(crate) const PROTOCOL_VERSION: u32 = 15;
+pub(crate) const PROTOCOL_VERSION: u32 = 16;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 pub(crate) mod error_code {
@@ -164,6 +164,14 @@ pub(crate) enum Response {
     Recovered {
         store_uuid: Uuid,
         recovery: crate::RecoveryResult,
+    },
+    Conflict {
+        existing_payload_hash: String,
+        requested_payload_hash: String,
+    },
+    SubmissionRejected {
+        code: String,
+        message: String,
     },
     Snapshot(Box<JobSnapshot>),
     Listed(JobListPage),

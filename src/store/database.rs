@@ -330,6 +330,7 @@ pub(super) fn create_current_schema(
              started_ms INTEGER,
              deadline_ms INTEGER,
              finished_ms INTEGER,
+             primary_result_json TEXT,
              UNIQUE(job_id, attempt_index)
          );
          CREATE TABLE admissions(
@@ -369,6 +370,7 @@ pub(super) fn create_current_schema(
              root_boot_id TEXT,
              root_creation_filetime_100ns INTEGER,
              root_exit_code INTEGER,
+             exited_ms INTEGER,
              executable_hash TEXT,
              daemon_generation TEXT,
              postcondition_index INTEGER,
@@ -599,6 +601,7 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
                 "started_ms",
                 "deadline_ms",
                 "finished_ms",
+                "primary_result_json",
             ] as &[_],
         ),
         (
@@ -638,6 +641,7 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
                 "root_host_id",
                 "root_boot_id",
                 "root_creation_filetime_100ns",
+                "exited_ms",
                 "exit_classification",
                 "stdout_tail",
                 "stderr_tail",

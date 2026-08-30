@@ -29,16 +29,19 @@ pub use api::{
     DOCTOR_SNAPSHOT_TTL_SECONDS, DaemonSnapshot, DetectorEvidenceSnapshot, DoctorBoundary,
     DoctorCheck, DoctorCheckStatus, DoctorCoverage, DoctorHostSnapshot, DoctorIncidentPage,
     DoctorOverallStatus, DoctorSnapshot, DoctorStoreSnapshot, EffectiveChildSubmissionPolicy,
-    Estimate, EstimateConfidence, EventCursor, EventGap, ExitClassification, ForcedClearanceAudit,
-    GpuProvenance, HostId, InvocationRole, InvocationSnapshot, InvocationState, JobChildrenCursor,
-    JobChildrenPage, JobListCursor, JobListPage, JobReceipt, JobSelector, JobSnapshot, JobSummary,
-    JobTreeNode, JobTreePage, JobTreeRootCursor, JobTreeSelector, LogChunk, LogStream,
-    MAX_COMPLETE_DOCTOR_BYTES, MAX_COMPLETE_DOCTOR_INCIDENTS, MAX_DOCTOR_PAGE,
-    MAX_OBSERVATION_PAGE, MAX_TREE_PAGE_NODES, MAX_TREE_SELECTOR_JOBS, MAX_WAIT_STREAM_JOBS,
-    ManagedParent, ManagedPolicyAdmissionSnapshot, ObservationCursorParseError, ObservationFrame,
-    ObservedOperandSnapshot, ProcessIdentity, ReconciliationResult, RecoveryResult, SchedulerEvent,
-    SchedulerEventKind, SubmissionContext, SubmitOptions, TreeAttentionBucket,
-    TreeObservationFrame, WaitStreamItem,
+    EnsureOptions, EnsureOutcome, EnsureReport, EnsuredBatch, EnsuredJob, Estimate,
+    EstimateConfidence, EventCursor, EventGap, ExitClassification, ExitSource,
+    ForcedClearanceAudit, GpuProvenance, HostId, InvocationRole, InvocationSnapshot,
+    InvocationState, InvocationVerdict, JobChildrenCursor, JobChildrenPage, JobListCursor,
+    JobListPage, JobReceipt, JobSelector, JobSnapshot, JobSummary, JobTreeNode, JobTreePage,
+    JobTreeRootCursor, JobTreeSelector, LogChunk, LogStream, MAX_COMPLETE_DOCTOR_BYTES,
+    MAX_COMPLETE_DOCTOR_INCIDENTS, MAX_DOCTOR_PAGE, MAX_OBSERVATION_PAGE, MAX_TREE_PAGE_NODES,
+    MAX_TREE_SELECTOR_JOBS, MAX_WAIT_STREAM_JOBS, ManagedExecutionRecord, ManagedParent,
+    ManagedPolicyAdmissionSnapshot, ObservationCursorParseError, ObservationFrame,
+    ObservedOperandSnapshot, PendingReason, PrimaryInvocationResult, ProcessIdentity,
+    ReconciliationResult, RecoveryResult, RejectReason, SchedulerEvent, SchedulerEventKind,
+    SubmissionContext, SubmissionRef, SubmitOptions, TerminationReason, TreeAttentionBucket,
+    TreeObservationFrame, WaitOutcome, WaitReport, WaitStreamItem,
 };
 pub use client::{Client, ClientBuilder, LogFollower, ObservationStream, WaitStream};
 pub use error::{Error, Result};
@@ -52,7 +55,7 @@ pub use spec::{
     DependencySpec, EnvironmentSpec, GpuProviderConfig, HostConfig, HostObservationConfig, JobSpec,
     Label, ObservedResourcePolicy, PostconditionSpec, ProcessRules, QuietDetector, QuietPolicy,
     ResourceCapacities, ResourceClaimLimits, ResourceClaims, RetryPolicy, SPEC_VERSION, StdinSpec,
-    SubmissionSpec, config_schema_json, schema_json,
+    SubmissionSpec, config_schema_json, managed_execution_schema_json, schema_json,
 };
 
 /// Runs the per-user daemon in the foreground.

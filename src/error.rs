@@ -19,6 +19,14 @@ pub enum Error {
     #[error("operation rejected ({code}): {detail}")]
     Rejected { code: String, detail: String },
 
+    #[error(
+        "idempotency conflict: existing payload {existing_payload_hash}, requested payload {requested_payload_hash}"
+    )]
+    IdempotencyConflict {
+        existing_payload_hash: String,
+        requested_payload_hash: String,
+    },
+
     #[error("view cursor is stale: {detail}")]
     ViewStale { detail: String },
 

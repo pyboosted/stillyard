@@ -528,6 +528,13 @@ fn quiet_wait_holds_no_lease_and_final_recheck_reuses_the_attempt_without_runnin
             Some(crate::ExitClassification::Accepted),
         )
         .unwrap();
+    store
+        .record_primary_result(
+            &final_primary,
+            InvocationVerdict::Succeeded,
+            TerminationReason::Exited,
+        )
+        .unwrap();
     let postcondition = store.prepare_postcondition(&final_primary, 0).unwrap();
     let indices: (u32, u32) = store
         .connection

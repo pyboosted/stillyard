@@ -39,11 +39,16 @@ use windows_sys::Win32::System::Threading::{
 };
 
 use crate::store::{PreparedJob, Store, StoreError};
-use crate::{AttemptVerdict, ExitClassification, InvocationRole, LogStream};
+use crate::{
+    AttemptVerdict, ExitClassification, InvocationRole, InvocationVerdict, LogStream,
+    TerminationReason,
+};
 
 #[cfg(test)]
 thread_local! {
     static FORCE_PRESTART_FAILURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static FORCE_IMAGE_MISMATCH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static FORCE_WAIT_JOB_EMPTY_FAILURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 struct OwnedHandle(HANDLE);
@@ -219,7 +224,10 @@ pub(super) fn run_with_wake(
         AttemptVerdict::ProcessFailed
     };
     if let Ok(mut locked) = store.lock() {
-        match locked.mark_invocation_resolved(job, Some(primary.0 as i32), None) {
+        match locked
+            .mark_invocation_resolved(job, Some(primary.0 as i32), None)
+            .and_then(|()| record_primary_result(&mut locked, job, verdict).map(|_| ()))
+        {
             Ok(()) => live_containments.clear(job.invocation_id),
             Err(error) => {
                 drop(locked);
@@ -423,6 +431,8 @@ fn finish_completed_invocation(
         if locked
             .mark_invocation_resolved(job, exit_code, classification)
             .is_ok()
+            && (job.role != InvocationRole::Primary
+                || record_primary_result(&mut locked, job, verdict).is_ok())
         {
             live_containments.clear(job.invocation_id);
             if let Err(error) = locked.settle_attempt(job, verdict) {
@@ -476,6 +486,8 @@ fn finish_failed_invocation(
             if locked
                 .mark_invocation_resolved(job, progress.exit_code, classification)
                 .is_ok()
+                && (job.role != InvocationRole::Primary
+                    || record_primary_result(&mut locked, job, verdict).is_ok())
             {
                 live_containments.clear(job.invocation_id);
                 if let Err(error) = locked.settle_attempt(job, verdict) {
@@ -505,6 +517,38 @@ fn persist_uncertain_cleanup(
     } else {
         store.mark_uncertain(job, progress.exit_code, "interrupted")
     }
+}
+
+fn record_primary_result(
+    store: &mut Store,
+    job: &PreparedJob,
+    verdict: AttemptVerdict,
+) -> crate::store::StoreResult<crate::PrimaryInvocationResult> {
+    let (invocation_verdict, termination) = match verdict {
+        AttemptVerdict::Succeeded => (InvocationVerdict::Succeeded, TerminationReason::Exited),
+        AttemptVerdict::ProcessFailed => {
+            (InvocationVerdict::ProcessFailed, TerminationReason::Exited)
+        }
+        AttemptVerdict::StartFailed => (
+            InvocationVerdict::StartFailed,
+            TerminationReason::StartFailed,
+        ),
+        AttemptVerdict::TimedOut => (InvocationVerdict::TimedOut, TerminationReason::Timeout),
+        AttemptVerdict::Interrupted => {
+            (InvocationVerdict::Interrupted, TerminationReason::Interrupt)
+        }
+        AttemptVerdict::SafetyFailed => (
+            InvocationVerdict::SafetyFailed,
+            TerminationReason::SafetyFailure,
+        ),
+        AttemptVerdict::Canceled => (InvocationVerdict::Canceled, TerminationReason::Cancel),
+        AttemptVerdict::PostconditionRetryable | AttemptVerdict::PostconditionFailed => {
+            return Err(StoreError::InvalidState(
+                "postcondition verdict cannot define the primary Invocation result".into(),
+            ));
+        }
+    };
+    store.record_primary_result(job, invocation_verdict, termination)
 }
 
 fn report_runner_error(job: &PreparedJob, error: &dyn std::error::Error) {
@@ -633,7 +677,10 @@ fn run_inner(
 
     let image_path = prestart_try!(process_image_path(process_handle.raw()));
     prestart_try!(validate_executable(&image_path));
-    if !prestart_try!(same_windows_path(&image_path, &job.spec.executable)) {
+    let image_matches = prestart_try!(same_windows_path(&image_path, &job.spec.executable));
+    #[cfg(test)]
+    let image_matches = image_matches && !FORCE_IMAGE_MISMATCH.replace(false);
+    if !image_matches {
         let error = std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!(
@@ -642,10 +689,7 @@ fn run_inner(
                 job.spec.executable.display()
             ),
         );
-        // SAFETY: the process is suspended inside this job and no user code can have run.
-        unsafe { TerminateJobObject(job_object.raw(), 70) };
-        progress.cleanup_proven = wait_job_empty(job_object.raw(), Duration::from_secs(30)).is_ok();
-        return Err(error.into());
+        prestart_try!(Err::<(), _>(error));
     }
     drop(executable_file);
     let root_identity = prestart_try!(match (&job.host_id, &job.boot_id) {
@@ -1174,6 +1218,12 @@ fn spawn_drain(
 }
 
 fn wait_job_empty(handle: HANDLE, timeout: Duration) -> std::io::Result<()> {
+    #[cfg(test)]
+    if FORCE_WAIT_JOB_EMPTY_FAILURE.replace(false) {
+        return Err(std::io::Error::other(
+            "forced Job Object empty-proof failure",
+        ));
+    }
     let deadline = Instant::now() + timeout;
     loop {
         let mut information: JOBOBJECT_BASIC_ACCOUNTING_INFORMATION = unsafe { zeroed() };
@@ -1299,6 +1349,12 @@ fn environment_block(job: &PreparedJob, endpoint: &str) -> std::io::Result<Vec<u
         "STILLYARD_DAEMON_ID".into(),
         job.job_id.store_uuid().to_string(),
     );
+    if let Some(primary_result) = &job.primary_result {
+        environment.insert(
+            "STILLYARD_PRIMARY_RESULT".into(),
+            serde_json::to_string(primary_result).map_err(std::io::Error::other)?,
+        );
+    }
     let mut pairs: Vec<_> = environment.into_iter().collect();
     pairs.sort_by_key(|(name, _)| name.to_uppercase());
     let mut block = Vec::new();
@@ -1762,6 +1818,72 @@ mod tests {
     }
 
     #[test]
+    fn primary_tree_is_empty_before_postcondition_receives_immutable_result() {
+        let temp = tempfile::tempdir().unwrap();
+        let powershell = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join("System32")
+            .join("WindowsPowerShell")
+            .join("v1.0")
+            .join("powershell.exe");
+        let pid_path = temp.path().join("grandchild.pid");
+        let result_path = temp.path().join("primary-result.json");
+        let primary_script = format!(
+            "$child = Start-Process -FilePath $PSHOME\\powershell.exe -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-Command', '$PID | Set-Content -LiteralPath \"{}\"; Start-Sleep -Seconds 30') -PassThru; while (-not (Test-Path -LiteralPath '{}')) {{ Start-Sleep -Milliseconds 10 }}; exit 25",
+            pid_path.display(),
+            pid_path.display(),
+        );
+        let postcondition_script = format!(
+            "$result = $env:STILLYARD_PRIMARY_RESULT | ConvertFrom-Json; $childPid = [int](Get-Content -LiteralPath '{}'); if (Get-Process -Id $childPid -ErrorAction SilentlyContinue) {{ exit 91 }}; $result | ConvertTo-Json -Compress | Set-Content -LiteralPath '{}'; if ($result.root_exit_code -ne 25 -or $result.verdict -ne 'process_failed' -or $result.containment -ne 'empty') {{ exit 92 }}; exit 0",
+            pid_path.display(),
+            result_path.display(),
+        );
+        let mut spec = job_spec(
+            temp.path(),
+            powershell.clone(),
+            vec![
+                "-NoLogo".into(),
+                "-NoProfile".into(),
+                "-NonInteractive".into(),
+                "-Command".into(),
+                primary_script,
+            ],
+        );
+        spec.postconditions.push(PostconditionSpec {
+            executable: powershell,
+            args: vec![
+                "-NoLogo".into(),
+                "-NoProfile".into(),
+                "-NonInteractive".into(),
+                "-Command".into(),
+                postcondition_script,
+            ],
+            working_directory: None,
+            accepted_exit_codes: vec![0],
+            retryable_exit_codes: Vec::new(),
+        });
+        let (job, store) = prepared(&spec, temp.path());
+        run(&job, &store, TEST_ENDPOINT);
+
+        let stored_result: crate::PrimaryInvocationResult =
+            serde_json::from_reader(std::fs::File::open(&result_path).unwrap()).unwrap();
+        assert_eq!(stored_result.job_id, job.job_id);
+        assert_eq!(stored_result.attempt_id, job.attempt_id);
+        assert_eq!(stored_result.invocation_id, job.invocation_id);
+        assert_eq!(stored_result.root_exit_code, Some(25));
+        assert_eq!(stored_result.verdict, InvocationVerdict::ProcessFailed);
+        assert_eq!(stored_result.containment, crate::ContainmentState::Empty);
+
+        let snapshot = store.lock().unwrap().status(job.job_id).unwrap();
+        assert_eq!(snapshot.outcome, Some(JobOutcome::Failed));
+        assert_eq!(snapshot.attempts[0].primary_result, Some(stored_result));
+        assert_eq!(snapshot.attempts[0].invocations.len(), 2);
+        assert_eq!(
+            snapshot.attempts[0].invocations[1].exit_classification,
+            Some(ExitClassification::Accepted)
+        );
+    }
+
+    #[test]
     fn timeout_kills_containment_and_releases_lease() {
         let temp = tempfile::tempdir().unwrap();
         let powershell = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
@@ -1771,7 +1893,7 @@ mod tests {
             .join("powershell.exe");
         let mut spec = job_spec(
             temp.path(),
-            powershell,
+            powershell.clone(),
             vec![
                 "-NoLogo".into(),
                 "-NoProfile".into(),
@@ -1781,6 +1903,20 @@ mod tests {
             ],
         );
         spec.timeout_seconds = Some(3);
+        let marker = temp.path().join("timeout-postcondition-ran.txt");
+        spec.postconditions.push(PostconditionSpec {
+            executable: powershell,
+            args: vec![
+                "-NoLogo".into(),
+                "-NoProfile".into(),
+                "-NonInteractive".into(),
+                "-Command".into(),
+                format!("Set-Content -LiteralPath '{}' -Value ran", marker.display()),
+            ],
+            working_directory: None,
+            accepted_exit_codes: vec![0],
+            retryable_exit_codes: Vec::new(),
+        });
         let (job, store) = prepared(&spec, temp.path());
         let started = Instant::now();
         run(&job, &store, TEST_ENDPOINT);
@@ -1789,6 +1925,14 @@ mod tests {
         assert_eq!(snapshot.state, JobState::Final);
         assert_eq!(snapshot.outcome, Some(JobOutcome::TimedOut));
         assert_eq!(snapshot.root_exit_code, Some(21));
+        assert!(!marker.exists(), "timeout must not launch a postcondition");
+        assert_eq!(
+            snapshot.attempts[0]
+                .primary_result
+                .as_ref()
+                .map(|result| result.verdict),
+            Some(InvocationVerdict::TimedOut)
+        );
     }
 
     #[test]
@@ -1801,7 +1945,7 @@ mod tests {
             .join("powershell.exe");
         let mut spec = job_spec(
             temp.path(),
-            powershell,
+            powershell.clone(),
             vec![
                 "-NoLogo".into(),
                 "-NoProfile".into(),
@@ -1815,6 +1959,20 @@ mod tests {
             backoff_seconds: 0,
             retryable: vec!["process_failed".into()],
         };
+        let marker = temp.path().join("cancel-postcondition-ran.txt");
+        spec.postconditions.push(PostconditionSpec {
+            executable: powershell,
+            args: vec![
+                "-NoLogo".into(),
+                "-NoProfile".into(),
+                "-NonInteractive".into(),
+                "-Command".into(),
+                format!("Set-Content -LiteralPath '{}' -Value ran", marker.display()),
+            ],
+            working_directory: None,
+            accepted_exit_codes: vec![0],
+            retryable_exit_codes: Vec::new(),
+        });
         let (job, store) = prepared(&spec, temp.path());
         let worker_store = Arc::clone(&store);
         let worker_job = job.clone();
@@ -1845,6 +2003,14 @@ mod tests {
         assert_eq!(
             snapshot.attempts[0].invocations[0].containment.state,
             crate::ContainmentState::Empty
+        );
+        assert!(!marker.exists(), "cancel must not launch a postcondition");
+        assert_eq!(
+            snapshot.attempts[0]
+                .primary_result
+                .as_ref()
+                .map(|result| result.verdict),
+            Some(InvocationVerdict::Canceled)
         );
     }
 
@@ -1955,6 +2121,13 @@ mod tests {
             locked.mark_root_exited(&primary, 0).unwrap();
             locked
                 .mark_invocation_resolved(&primary, Some(0), None)
+                .unwrap();
+            locked
+                .record_primary_result(
+                    &primary,
+                    InvocationVerdict::Succeeded,
+                    TerminationReason::Exited,
+                )
                 .unwrap();
         }
         let postcondition = store
@@ -2125,11 +2298,23 @@ mod tests {
         let command = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
             .join("System32")
             .join("cmd.exe");
-        let spec = job_spec(
+        let marker = temp.path().join("start-failure-postcondition-ran.txt");
+        let mut spec = job_spec(
             temp.path(),
-            command,
+            command.clone(),
             vec!["/D".into(), "/C".into(), "echo must-not-run".into()],
         );
+        spec.postconditions.push(PostconditionSpec {
+            executable: command,
+            args: vec![
+                "/D".into(),
+                "/C".into(),
+                format!("echo ran>\"{}\"", marker.display()),
+            ],
+            working_directory: None,
+            accepted_exit_codes: vec![0],
+            retryable_exit_codes: Vec::new(),
+        });
         let (job, store) = prepared(&spec, temp.path());
         FORCE_PRESTART_FAILURE.set(true);
         run(&job, &store, TEST_ENDPOINT);
@@ -2141,5 +2326,60 @@ mod tests {
         let logs = store.logs(job.job_id, LogStream::Stdout, 0, 1024).unwrap();
         assert!(logs.eof);
         assert!(logs.bytes.is_empty());
+        assert!(
+            !marker.exists(),
+            "start failure must not run postconditions"
+        );
+        assert_eq!(
+            snapshot.attempts[0]
+                .primary_result
+                .as_ref()
+                .map(|result| result.verdict),
+            Some(InvocationVerdict::StartFailed)
+        );
+    }
+
+    #[test]
+    fn image_mismatch_with_unproven_cleanup_transfers_boundary_to_reconciler() {
+        let temp = tempfile::tempdir().unwrap();
+        let command = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join("System32")
+            .join("cmd.exe");
+        let spec = job_spec(
+            temp.path(),
+            command,
+            vec!["/D".into(), "/C".into(), "exit 0".into()],
+        );
+        let (job, store) = prepared(&spec, temp.path());
+        let live_containments = LiveContainments::default();
+        let wake: super::super::ReconciliationWake = Arc::new(|| {});
+        let observation = crate::host_observation::HostObservationService::new(Default::default());
+        FORCE_IMAGE_MISMATCH.set(true);
+        FORCE_WAIT_JOB_EMPTY_FAILURE.set(true);
+
+        run_with_wake(
+            &job,
+            &store,
+            TEST_ENDPOINT,
+            &live_containments,
+            &observation,
+            &wake,
+        );
+
+        assert!(matches!(
+            live_containments
+                .inner
+                .lock()
+                .unwrap()
+                .get(&job.invocation_id),
+            Some(super::super::RegisteredContainment::Reconciler(_))
+        ));
+        let snapshot = store.lock().unwrap().status(job.job_id).unwrap();
+        assert_eq!(
+            snapshot.attempts[0].invocations[0].containment.state,
+            crate::ContainmentState::Uncertain
+        );
+        assert!(snapshot.attempts[0].primary_result.is_none());
+        live_containments.clear(job.invocation_id);
     }
 }

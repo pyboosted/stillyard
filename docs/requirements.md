@@ -1,6 +1,6 @@
 # Stillyard Product Requirements
 
-Status: Frozen implementation baseline v0.12 (2026-08-27)
+Status: Managed-execution amendment v0.13 (2026-08-30)
 
 Product name: Stillyard
 
@@ -20,7 +20,7 @@ The words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are normative.
 
 R-PKG-1 One Cargo workspace MUST produce one installable binary, `stillyard.exe` on Windows and `stillyard` on Linux, plus one public library crate named `stillyard`. No external database server, language runtime, container runtime, privileged helper, or installed system service is required.
 
-R-PKG-2 The public crate is a runtime-neutral client facade. It MUST expose owned types and blocking operations for connect/start, submit, submit-and-wait, submission recovery, inspect/list, cancel, wait, events, logs, daemon status, and administration. Every blocking operation accepts a deadline and optional cancellation token. Dropping a client operation never cancels a Job.
+R-PKG-2 The public crate is a runtime-neutral client facade. It MUST expose owned types and blocking operations for connect/start, submit, atomic ensure-or-recover for one Job or Batch, submission recovery, typed wait, inspect/list, cancel, events, logs, daemon status, and administration. Every blocking operation accepts a deadline and optional cancellation token. Dropping a client operation never cancels a Job.
 
 R-PKG-3 CLI and TUI MUST use only the public crate and local protocol. They MUST NOT read SQLite or private files directly. The daemon is the store's only writer and the only process that launches or contains user work.
 
@@ -78,7 +78,7 @@ R-STORE-6 The store UUID appears in every durable public ID and cursor. A foreig
 
 ## 6. Submission, batches, and idempotency
 
-R-SUB-1 A submit request contains a caller-selected or CLI-generated cryptographically random idempotency key, a normalized payload hash, and optional staged input hashes. Scope is `(store, owner, authenticated parent Job and Attempt or unmanaged, key)`. Same scope and hash returns the same Submission decision; another hash returns `idempotency_conflict`.
+R-SUB-1 A submit request contains a caller-selected or CLI-generated cryptographically random idempotency key, a normalized payload hash, and optional staged input hashes. Scope is `(store, owner, authenticated parent Job and Attempt or unmanaged, key)`. Same scope and hash returns the same Submission decision; another hash returns typed `idempotency_conflict` with both existing and requested payload hashes.
 
 R-SUB-2 File inputs are completely streamed, hashed, and staged before the `received` Submission transaction. Disconnect before that point leaves only bounded collectable temporary data and no Submission. After `received`, the daemon owns progress independently of the client and eventually commits `accepted` or `rejected`. Startup resumes every `received` Submission.
 
@@ -93,6 +93,8 @@ R-SUB-6 `--result-file` is an optional small atomic JSON receipt, not a second t
 R-SUB-7 Fresh `submit --result-file FILE` requires an absent file; `recover --result-file FILE` never itself creates work. A managed wrapper derives its key/path from parent Job, current Attempt, and operation identity; including Invocation is recommended provenance. A later parent Attempt therefore creates fresh child work. Within the same current Attempt, `received` or a later decision reattaches to the same Submission, while `not_received` permits the wrapper to restage and resubmit the exact same normalized payload and input hashes with the same key and result file. Concurrent completion of the original upload is harmless under R-SUB-1. `unknown` fails the current operation closed; it neither deletes the receipt nor retries, and a later parent Attempt uses its new key/path.
 
 R-SUB-8 A set target for wait, status, or cancel is a bounded immutable snapshot selected by explicit Job IDs, retained Batch ID, or an AND-set of exact labels over currently retained Jobs. JSON set-wait emits one settlement per member as it becomes final and then a worst-outcome aggregate ordered `succeeded < skipped < canceled < interrupted < timed_out < failed`; `--any` returns after the first final member without changing the rest. Passthrough is valid only for one Job. Missing explicit IDs/Batch reject; label discovery deliberately makes no completeness promise about already-evicted history.
+
+R-SUB-9 `Client::ensure_job`, `Client::ensure_batch`, and `stillyard ensure` own the complete submit/recover choice. Their caller supplies the complete immutable JobSpec/BatchSpec, stable idempotency key, explicit selected instance, client-only waiting deadline, optional result file, and the daemon-authenticated managed-parent context when present. Rust ensure rejects a Client whose endpoint was not explicitly selected, and CLI ensure requires `--endpoint`; ambient `STILLYARD_ENDPOINT` authenticates matching parent coordinates but never selects the ensure instance. They return `accepted`, `pending`, `final`, typed `rejected`, daemon-backed typed `conflict`, or `unknown`. A retained result file is recovered before any replay; a local payload mismatch queries the daemon and cannot manufacture or reverse a conflict. Only authenticated `not_received` permits exact replay, while `unknown`, missing/corrupt identity, a foreign store, or a changed managed parent fail closed. Both result-file locks obey the client deadline/cancellation token. Concurrent exact callers converge through R-SUB-1. A client deadline or disconnect never cancels accepted work. The result file remains only the atomic R-SUB-6 receipt projection; consumers do not publish a separate immutable spec file or implement a `Test-Path -> submit|recover` transaction.
 
 ## 7. Job specification and dependencies
 
@@ -152,9 +154,11 @@ R-RUN-4 If a live daemon cannot prove emptiness within the cleanup bound, Contai
 
 R-RUN-5 If the daemon crashes, Windows closure of the daemon-owned recorded Job handle with kill-on-close is proof of emptiness within the cooperative threat model; Linux uses the recorded cgroup proof in R-LINUX-2. A recovered creating Containment with no recorded root could not have released user code, but it settles `start_failed` only after the applicable platform proof; an absent or uninspectable boundary without such proof becomes uncertain and retains its Lease. Every started Invocation without a durable root exit becomes interrupted; the daemon waits boundedly for each recorded root identity to disappear. A still-matching root becomes uncertain. Stillyard does not invent success or launch a replacement primary during recovery.
 
-R-RUN-6 Postconditions run after primary cleanup, in specification order, using the still-held work Lease. Executable postcondition codes classify accepted, retryable, or failed. Cleanup uncertainty takes precedence over normal exit interpretation.
+R-RUN-6 Postconditions run after primary cleanup, in specification order, using the still-held work Lease. Before any postcondition release, the daemon durably records one immutable `PrimaryInvocationResult` containing schema version, matching Job/Attempt/Invocation IDs, primary verdict, optional root exit, termination reason, empty Containment proof, mandatory resolution time, and process start/exit times when those events exist. The same typed value appears in the public Attempt snapshot and in postcondition-only `STILLYARD_PRIMARY_RESULT` JSON. It contains no secret or private daemon path. Preparing a postcondition rechecks the document schema and identities, the primary's current empty Containment, and the same granted Attempt Lease; a persisted document alone cannot authorize release. Verdict/termination/root-exit combinations are validated before persistence. Executable postcondition codes classify accepted, retryable, or failed. Cleanup uncertainty takes precedence over normal exit interpretation, records no false empty result, starts no postcondition, and retains the Lease.
 
 R-RUN-7 `stop --drain` commits a cutoff that rejects later managed-child acceptance and stops new independent Attempt/probe starts. It may still start already-accepted Attempts, probes, and postconditions in the immutable target or dependency closure of an active managed wait owned by a live Attempt, so that Attempt can finish; all other queued work remains durable for the next daemon. `stop --force` additionally interrupts live Attempts but leaves independent queued Jobs intact. The daemon exits only after every live Containment is empty or uncertain and every transition is committed.
+
+R-RUN-8 The postcondition launch matrix is normative: primary exit 0 and primary nonzero exit run configured postconditions after R-RUN-6; start failure, timeout, interrupt, cancel, safety failure, and cleanup uncertainty run none. Cancel or timeout observed before the next postcondition release stops the sequence. Daemon recovery never launches a new postcondition for the interrupted Attempt: a postcondition already prepared/started is resolved under R-RUN-5, the Attempt settles interrupted, and any pre-crash `PrimaryInvocationResult` remains byte-equivalent in the snapshot. A crash after empty proof but before result persistence settles interrupted without fabricating a result or launching a postcondition. Retry, when configured for that final Attempt verdict, creates a new Attempt with a new primary result.
 
 ## 11. Managed children without a general wait graph
 
@@ -184,7 +188,7 @@ R-OBS-5 List and label watch are dynamic views over retained Jobs. Explicit Job 
 
 R-ENV-1 Every Invocation starts from a small documented clean environment plus explicit per-Job set/unset changes persisted in the accepted Job. A Job may set PATH; the daemon's ambient PATH, SSH variables, billing credentials, display variables, and unrelated environment are never inherited implicitly. Account and toolchain selection belong to the submitting consumer rather than host-local daemon presets.
 
-R-ENV-2 The daemon injects non-secret `STILLYARD_JOB_ID`, `STILLYARD_ATTEMPT`, `STILLYARD_INVOCATION_ID`, `STILLYARD_ROLE`, its effective `STILLYARD_ENDPOINT`, and daemon identity. These coordinates are server-reauthenticated and are not bearer authority. Managed coordinates are scoped to the endpoint that injected them: an explicit different endpoint does not present foreign-instance coordinates, while same-endpoint membership is always derived again by the selected daemon from the pipe peer's OS containment.
+R-ENV-2 The daemon injects non-secret `STILLYARD_JOB_ID`, `STILLYARD_ATTEMPT`, `STILLYARD_INVOCATION_ID`, `STILLYARD_ROLE`, its effective `STILLYARD_ENDPOINT`, and daemon identity. A postcondition additionally receives the immutable `STILLYARD_PRIMARY_RESULT` JSON from R-RUN-6; primaries and probes do not. These coordinates are server-reauthenticated and are not bearer authority. Managed coordinates are scoped to the endpoint that injected them: an explicit different endpoint does not present foreign-instance coordinates, while same-endpoint membership is always derived again by the selected daemon from the pipe peer's OS containment.
 
 R-ENV-3 Secrets are referenced by name, stored with the platform owner-protection facility, materialized only for permitted primary/postcondition launch, and never returned in scheduler logs, snapshots, events, or diagnostics. User program output remains an explicit confidentiality boundary.
 
@@ -198,6 +202,7 @@ The minimum CLI is:
 
 ```text
 stillyard submit (--spec FILE | --batch FILE) [--idempotency-key KEY] [--wait] [--silent] [--passthrough] [--result-file FILE] [--json]
+stillyard ensure (--spec FILE | --batch FILE) --idempotency-key KEY [--wait] [--silent] [--passthrough] [--result-file FILE]
 stillyard recover --result-file FILE [--wait]
 stillyard wait (JOB... | --batch ID | --label KEY=VALUE...) [--any] [--passthrough] [--json]
 stillyard status [JOB | --batch ID | --label KEY=VALUE...] [--json]
@@ -210,11 +215,12 @@ stillyard secret (set NAME | remove NAME | list) [--json]
 stillyard stop (--drain | --force | --local)
 stillyard doctor [clear-containment ID --force]
 stillyard schema spec
+stillyard schema managed-execution
 ```
 
 R-CLI-1 Human output is stable for operators; `--json` uses public crate types. Acceptance/receipt flushes before waiting. `--silent` emits no scheduler bytes and requires `--result-file`; passthrough child bytes are still child output.
 
-R-CLI-2 Exit codes are stable: 0 success, 20 failed, 21 timed out, 22 canceled, 23 interrupted, 24 skipped, 25 still pending/client deadline, 26 empty, 27 rejected/conflict/unsafe managed wait/`not_received`, 64 usage/spec, 69 daemon/store unavailable, and 70 Gap/unknown/internal. JSON distinguishes every exit-27 reason so a managed wrapper may apply R-SUB-7 only to authenticated `not_received`. Passthrough may return the real primary process exit only when it is unambiguous; JSON records whether an exit is native or scheduler-owned.
+R-CLI-2 Exit codes are stable: 0 success, 20 failed, 21 timed out, 22 canceled, 23 interrupted, 24 skipped, 25 still pending/client deadline, 26 empty, 27 rejected/conflict/unsafe managed wait/`not_received`, 64 usage/spec, 69 daemon/store unavailable, and 70 Gap/unknown/internal. `wait` and `ensure --wait` emit public `WaitReport`/`EnsureReport` JSON with `exit_source`, scheduler exit, and the final snapshot/root exit. A primary root exit is returned directly only for a final `succeeded`/`process_failed` Attempt and only when it does not collide with the scheduler namespace; root exit 25 therefore emits `root_exit_code: 25` but returns scheduler-owned 20, never pending. JSON distinguishes every exit-27 reason. Client wait deadline, cancellation, or disconnect is disposable and never cancels the Job.
 
 R-TUI-1 `watch` shows queue rank, estimate, lifecycle, blockers, claims, Conditions, parent/children, Attempts, running time, outcome, and live stdout/stderr tails. Detail view shows the complete public snapshot, Submission, Containment incidents, artifacts, and decisions.
 
@@ -258,6 +264,9 @@ Acceptance uses the shipped public crate and CLI path. Each row includes a negat
 | A-18 | Consumer fleet submits parallel reviewers as a Batch, gates later rounds on results/reset Jobs, runs nested cargo/GPU spikes without ancestor conflicts, replays the same managed operation after authenticated `not_received` but never after `unknown`, and collects logs/artifacts. Reset replaces slot contents while preserving the fenced root identity; the later reviewer depends on reset success and takes the same fence. Duplicate-spike, resubmit-after-evicted-history, recreated-reset-root, and reset-before-containment-clear mutants fail. |
 | A-19 | Five-minute idle measurement uses event waits, no helper process, below 0.5% of one logical CPU, at most two wakes/minute, and below 40 MiB private working set excluding mapped SQLite pages. A polling mutant fails. |
 | A-20 | Linux v0.2 independently passes platform-neutral and native containment/identity/detach scenarios, including same-path executable replacement with actual-target provenance and rejection of a non-`execve`-able target. Process-group-only-containment and stale-executable-provenance mutants fail. |
+| A-21 | Two concurrent `ensure` callers with one key and exact Job/Batch payload converge on one durable decision; a different payload returns both conflict hashes; received recovery reattaches; managed `not_received` permits only exact replay; `unknown` permits none; Batch remains all-or-nothing; managed scope changes with the parent Attempt; and result-file replacement/TOCTOU cannot alter identity. Check-then-submit, replay-after-unknown, partial-Batch, cross-Attempt-key, and result-file-overwrite mutants fail. |
+| A-22 | Typed wait returns pending at a client deadline without cancellation, later returns final, and terminal primary exit 25 is final with `root_exit_code=25` while CLI returns scheduler-owned failed rather than pending. Exit-code-only classification and disconnect-cancels-Job mutants fail. |
+| A-23 | A primary grandchild is absent before postcondition release; the same Attempt Lease remains granted; postcondition receives immutable typed root exit/verdict through `STILLYARD_PRIMARY_RESULT`; snapshot exposes the same value; uncertain cleanup records no false empty; and crash between primary exit/proof/postcondition selects only R-RUN-8 recovery. Postcondition-before-empty, released-Lease, private-store-read, mutable-result, and cleanup-timeout-means-empty mutants fail. |
 
 ## 17. Delivery order
 

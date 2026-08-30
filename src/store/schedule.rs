@@ -694,6 +694,7 @@ impl Store {
             attempt_deadline_unix_millis: attempt_deadline,
             host_id: self.startup_identity.host_id.clone(),
             boot_id: self.startup_identity.boot_id.clone(),
+            primary_result: None,
         })))
     }
 
@@ -709,15 +710,62 @@ impl Store {
         let invocation_id = InvocationId::new(self.store_uuid);
         let containment_id = ContainmentId::new(self.store_uuid);
         let transaction = self.connection.transaction()?;
-        let current: (String, String, Option<i64>) = transaction.query_row(
-            "SELECT jobs.state, jobs.attempt_id, attempts.deadline_ms
+        let current: (String, String, Option<i64>, Option<String>) = transaction.query_row(
+            "SELECT jobs.state, jobs.attempt_id, attempts.deadline_ms,
+                    attempts.primary_result_json
              FROM jobs JOIN attempts ON attempts.id = jobs.attempt_id WHERE jobs.id = ?1",
             [primary.job_id.entity_uuid().to_string()],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )?;
         if current.0 != "active" || current.1 != primary.attempt_id.entity_uuid().to_string() {
             return Err(StoreError::InvalidState(
                 "postcondition requires the current active Attempt".into(),
+            ));
+        }
+        let primary_result: PrimaryInvocationResult = current
+            .3
+            .as_deref()
+            .ok_or_else(|| {
+                StoreError::InvalidState(
+                    "postcondition requires a durable primary Invocation result".into(),
+                )
+            })
+            .and_then(|value| serde_json::from_str(value).map_err(Into::into))?;
+        if primary_result.schema_version != 1
+            || primary_result.job_id != primary.job_id
+            || primary_result.attempt_id != primary.attempt_id
+            || primary_result.invocation_id != primary.invocation_id
+            || primary_result.containment != ContainmentState::Empty
+        {
+            return Err(StoreError::InvalidState(
+                "postcondition requires a matching versioned primary result with empty Containment proof"
+                .into(),
+            ));
+        }
+        super::lifecycle::validate_primary_result_semantics(
+            primary_result.verdict,
+            primary_result.termination,
+            primary_result.root_exit_code,
+        )?;
+        let primary_containment: String = transaction.query_row(
+            "SELECT containments.state FROM containments
+             JOIN invocations ON invocations.id = containments.invocation_id
+             WHERE invocations.id = ?1 AND invocations.attempt_id = ?2
+               AND invocations.role = 'primary'",
+            params![
+                primary.invocation_id.entity_uuid().to_string(),
+                primary.attempt_id.entity_uuid().to_string(),
+            ],
+            |row| row.get(0),
+        )?;
+        let lease_granted: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM leases WHERE attempt_id = ?1 AND state = 'granted')",
+            [primary.attempt_id.entity_uuid().to_string()],
+            |row| row.get(0),
+        )?;
+        if primary_containment != "empty" || !lease_granted {
+            return Err(StoreError::InvalidState(
+                "postcondition release requires empty primary Containment and the same granted work Lease".into(),
             ));
         }
         let role_index: u32 = transaction.query_row(
@@ -789,6 +837,7 @@ impl Store {
             attempt_deadline_unix_millis: current.2,
             host_id: self.startup_identity.host_id.clone(),
             boot_id: self.startup_identity.boot_id.clone(),
+            primary_result: Some(primary_result),
         })
     }
 

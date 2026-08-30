@@ -26,6 +26,13 @@ fn postcondition_retry_keeps_one_job_and_exposes_ordered_attempts() {
     store
         .mark_invocation_resolved(&first, Some(0), None)
         .unwrap();
+    store
+        .record_primary_result(
+            &first,
+            InvocationVerdict::Succeeded,
+            TerminationReason::Exited,
+        )
+        .unwrap();
 
     let mut contender = spec(temp.path());
     contender.resources.cargo_slots = Some(1);
@@ -86,6 +93,13 @@ fn postcondition_retry_keeps_one_job_and_exposes_ordered_attempts() {
     assert_ne!(first.attempt_id, second.attempt_id);
     store
         .mark_invocation_resolved(&second, Some(0), None)
+        .unwrap();
+    store
+        .record_primary_result(
+            &second,
+            InvocationVerdict::Succeeded,
+            TerminationReason::Exited,
+        )
         .unwrap();
     let validator = store.prepare_postcondition(&second, 0).unwrap();
     store
@@ -333,6 +347,161 @@ fn root_exit_is_visible_before_containment_resolution() {
     assert_eq!(invocation.state, InvocationState::Exited);
     assert_eq!(invocation.root_exit_code, Some(0));
     assert_eq!(invocation.containment.state, ContainmentState::Live);
+}
+
+#[test]
+fn postcondition_release_requires_immutable_empty_primary_result_and_granted_lease() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut store =
+        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+            .unwrap();
+    let mut job = spec(temp.path());
+    job.resources.cargo_slots = Some(1);
+    job.postconditions.push(PostconditionSpec {
+        executable: temp.path().join("validate.exe"),
+        args: Vec::new(),
+        working_directory: None,
+        accepted_exit_codes: vec![0],
+        retryable_exit_codes: Vec::new(),
+    });
+    let hash = normalized_payload_hash(&job).unwrap();
+    let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+    let primary = store.prepare_job(receipt.job_id).unwrap().unwrap();
+    store.mark_started(&primary, 42, "test-hash").unwrap();
+    store.mark_root_exited(&primary, 25).unwrap();
+    store
+        .mark_invocation_resolved(&primary, Some(25), None)
+        .unwrap();
+    assert!(
+        store.prepare_postcondition(&primary, 0).is_err(),
+        "empty containment alone must not release a postcondition without the durable result"
+    );
+    assert!(
+        store
+            .record_primary_result(
+                &primary,
+                InvocationVerdict::Succeeded,
+                TerminationReason::Exited,
+            )
+            .is_err(),
+        "success cannot be recorded for a nonzero primary root exit"
+    );
+    assert!(
+        store
+            .record_primary_result(
+                &primary,
+                InvocationVerdict::ProcessFailed,
+                TerminationReason::Timeout,
+            )
+            .is_err(),
+        "verdict and termination must be a supported semantic pair"
+    );
+
+    let result = store
+        .record_primary_result(
+            &primary,
+            InvocationVerdict::ProcessFailed,
+            TerminationReason::Exited,
+        )
+        .unwrap();
+    assert_eq!(result.root_exit_code, Some(25));
+    assert_eq!(result.containment, ContainmentState::Empty);
+    assert!(
+        store
+            .record_primary_result(
+                &primary,
+                InvocationVerdict::Succeeded,
+                TerminationReason::Exited,
+            )
+            .is_err(),
+        "a recorded primary result must be immutable"
+    );
+
+    let mut invalid_results = Vec::new();
+    let mut invalid = result.clone();
+    invalid.schema_version += 1;
+    invalid_results.push(invalid);
+    let mut invalid = result.clone();
+    invalid.job_id = JobId::new(store.store_uuid);
+    invalid_results.push(invalid);
+    let mut invalid = result.clone();
+    invalid.attempt_id = AttemptId::new(store.store_uuid);
+    invalid_results.push(invalid);
+    let mut invalid = result.clone();
+    invalid.invocation_id = InvocationId::new(store.store_uuid);
+    invalid_results.push(invalid);
+    let mut invalid = result.clone();
+    invalid.verdict = InvocationVerdict::Succeeded;
+    invalid_results.push(invalid);
+    for invalid in invalid_results {
+        store
+            .connection
+            .execute(
+                "UPDATE attempts SET primary_result_json = ?2 WHERE id = ?1",
+                params![
+                    primary.attempt_id.entity_uuid().to_string(),
+                    serde_json::to_string(&invalid).unwrap(),
+                ],
+            )
+            .unwrap();
+        assert!(
+            store.prepare_postcondition(&primary, 0).is_err(),
+            "a mismatched primary-result schema or identity must not authorize release"
+        );
+    }
+    store
+        .connection
+        .execute(
+            "UPDATE attempts SET primary_result_json = ?2 WHERE id = ?1",
+            params![
+                primary.attempt_id.entity_uuid().to_string(),
+                serde_json::to_string(&result).unwrap(),
+            ],
+        )
+        .unwrap();
+
+    store
+        .connection
+        .execute(
+            "UPDATE containments SET state = 'live' WHERE id = ?1",
+            [primary.containment_id.entity_uuid().to_string()],
+        )
+        .unwrap();
+    assert!(
+        store.prepare_postcondition(&primary, 0).is_err(),
+        "the durable document must not substitute for the current empty proof"
+    );
+    store
+        .connection
+        .execute(
+            "UPDATE containments SET state = 'empty' WHERE id = ?1",
+            [primary.containment_id.entity_uuid().to_string()],
+        )
+        .unwrap();
+    store
+        .connection
+        .execute(
+            "UPDATE leases SET state = 'released' WHERE attempt_id = ?1",
+            [primary.attempt_id.entity_uuid().to_string()],
+        )
+        .unwrap();
+    assert!(
+        store.prepare_postcondition(&primary, 0).is_err(),
+        "postcondition must still execute under the same work Lease"
+    );
+    store
+        .connection
+        .execute(
+            "UPDATE leases SET state = 'granted' WHERE attempt_id = ?1",
+            [primary.attempt_id.entity_uuid().to_string()],
+        )
+        .unwrap();
+    let postcondition = store.prepare_postcondition(&primary, 0).unwrap();
+    assert_eq!(postcondition.primary_result, Some(result.clone()));
+    assert_eq!(
+        store.status(receipt.job_id).unwrap().attempts[0].primary_result,
+        Some(result)
+    );
 }
 
 #[test]

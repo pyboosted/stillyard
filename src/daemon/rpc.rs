@@ -61,42 +61,48 @@ pub(super) fn handle_request(
             expected_store_uuid,
             expected_parent,
             wait_for_completion,
-        } => submission_context(store, &scheduler.live_containments, peer)
-            .and_then(|context| {
-                if context.parent != expected_parent {
-                    return Err(StoreError::Rejected(
-                        "submission parent changed after client preflight".into(),
-                    ));
-                }
-                store
-                    .lock()
-                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-                    .and_then(|mut store| {
-                        if expected_store_uuid
-                            .is_some_and(|expected| expected != store.store_uuid())
-                        {
-                            return Err(StoreError::InvalidState(
-                                "store identity changed during submission".into(),
-                            ));
+        } => submission_context(store, &scheduler.live_containments, peer).and_then(|context| {
+            if context.parent != expected_parent {
+                return Err(StoreError::Rejected(
+                    "submission parent changed after client preflight".into(),
+                ));
+            }
+            store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                .and_then(|mut store| {
+                    if expected_store_uuid.is_some_and(|expected| expected != store.store_uuid()) {
+                        return Err(StoreError::InvalidState(
+                            "store identity changed during submission".into(),
+                        ));
+                    }
+                    let scope = context
+                        .parent
+                        .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed);
+                    match store.submit_with_stdin_scoped_for_wait(
+                        scope,
+                        idempotency_key,
+                        &payload_hash,
+                        &spec,
+                        stdin.as_ref(),
+                        wait_for_completion,
+                    ) {
+                        Ok(submitted) => {
+                            if submitted.should_schedule {
+                                scheduler.wake();
+                            }
+                            Ok(Response::Submitted(submitted.receipt))
                         }
-                        store.submit_with_stdin_scoped_for_wait(
-                            context
-                                .parent
-                                .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
+                        Err(error) => retained_submission_rejection(
+                            &store,
+                            scope,
                             idempotency_key,
                             &payload_hash,
-                            &spec,
-                            stdin.as_ref(),
-                            wait_for_completion,
-                        )
-                    })
-            })
-            .map(|submitted| {
-                if submitted.should_schedule {
-                    scheduler.wake();
-                }
-                Response::Submitted(submitted.receipt)
-            }),
+                            error,
+                        ),
+                    }
+                })
+        }),
         Request::SubmitBatch {
             idempotency_key,
             payload_hash,
@@ -105,42 +111,48 @@ pub(super) fn handle_request(
             expected_store_uuid,
             expected_parent,
             wait_for_completion,
-        } => submission_context(store, &scheduler.live_containments, peer)
-            .and_then(|context| {
-                if context.parent != expected_parent {
-                    return Err(StoreError::Rejected(
-                        "submission parent changed after client preflight".into(),
-                    ));
-                }
-                store
-                    .lock()
-                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-                    .and_then(|mut store| {
-                        if expected_store_uuid
-                            .is_some_and(|expected| expected != store.store_uuid())
-                        {
-                            return Err(StoreError::InvalidState(
-                                "store identity changed during submission".into(),
-                            ));
+        } => submission_context(store, &scheduler.live_containments, peer).and_then(|context| {
+            if context.parent != expected_parent {
+                return Err(StoreError::Rejected(
+                    "submission parent changed after client preflight".into(),
+                ));
+            }
+            store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                .and_then(|mut store| {
+                    if expected_store_uuid.is_some_and(|expected| expected != store.store_uuid()) {
+                        return Err(StoreError::InvalidState(
+                            "store identity changed during submission".into(),
+                        ));
+                    }
+                    let scope = context
+                        .parent
+                        .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed);
+                    match store.submit_batch_with_stdins_scoped_for_wait(
+                        scope,
+                        idempotency_key,
+                        &payload_hash,
+                        &spec,
+                        &stdins,
+                        wait_for_completion,
+                    ) {
+                        Ok(submitted) => {
+                            if submitted.should_schedule {
+                                scheduler.wake();
+                            }
+                            Ok(Response::BatchSubmitted(submitted.receipt))
                         }
-                        store.submit_batch_with_stdins_scoped_for_wait(
-                            context
-                                .parent
-                                .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
+                        Err(error) => retained_submission_rejection(
+                            &store,
+                            scope,
                             idempotency_key,
                             &payload_hash,
-                            &spec,
-                            &stdins,
-                            wait_for_completion,
-                        )
-                    })
-            })
-            .map(|submitted| {
-                if submitted.should_schedule {
-                    scheduler.wake();
-                }
-                Response::BatchSubmitted(submitted.receipt)
-            }),
+                            error,
+                        ),
+                    }
+                })
+        }),
         Request::Recover {
             idempotency_key,
             payload_hash,
@@ -385,9 +397,12 @@ pub(super) fn handle_request(
             code: error_code::NOT_FOUND.into(),
             message: error.to_string(),
         },
-        StoreError::IdempotencyConflict => Response::Error {
-            code: error_code::IDEMPOTENCY_CONFLICT.into(),
-            message: error.to_string(),
+        StoreError::IdempotencyConflict {
+            existing_payload_hash,
+            requested_payload_hash,
+        } => Response::Conflict {
+            existing_payload_hash,
+            requested_payload_hash,
         },
         StoreError::Rejected(_) => Response::Error {
             code: error_code::REJECTED.into(),
@@ -438,4 +453,20 @@ pub(super) fn handle_request(
             message: error.to_string(),
         },
     })
+}
+
+fn retained_submission_rejection(
+    store: &Store,
+    scope: SubmissionScope,
+    idempotency_key: uuid::Uuid,
+    payload_hash: &str,
+    original_error: StoreError,
+) -> std::result::Result<Response, StoreError> {
+    match store.recover_submission_scoped(scope, idempotency_key, payload_hash) {
+        Ok(crate::RecoveryResult::Rejected { code, detail }) => Ok(Response::SubmissionRejected {
+            code,
+            message: detail,
+        }),
+        _ => Err(original_error),
+    }
 }

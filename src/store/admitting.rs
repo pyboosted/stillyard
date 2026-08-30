@@ -306,6 +306,7 @@ impl Store {
             attempt_deadline_unix_millis: attempt_deadline,
             host_id: self.startup_identity.host_id.clone(),
             boot_id: self.startup_identity.boot_id.clone(),
+            primary_result: None,
         })))
     }
 }

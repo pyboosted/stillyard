@@ -10,12 +10,13 @@ state and logs, and exposes visible reasons while they wait.
 Stillyard is useful when independent processes need one scheduling authority without moving into
 containers, a CI service, or a remote worker platform.
 
-Current release: **0.1.0-alpha.10 for Windows 10 1809+ and Windows Server 2019+**.
+Current release: **0.1.0-alpha.11 for Windows 10 1809+ and Windows Server 2019+**.
 
 ## What works today
 
-- **Durable execution.** Submit one Job or an atomic Batch, receive an idempotent receipt, recover
-  an interrupted submission, wait for completion, and read canonical stdout and stderr.
+- **Durable execution.** Atomically ensure one Job or Batch from a stable key, receive a typed
+  accepted/pending/final/conflict decision, wait without exit-code ambiguity, and read canonical
+  stdout and stderr.
 - **Resource scheduling.** Declare CPU, RAM, Cargo slots, GPU slots, custom scalar resources,
   shared or exclusive path fences, and host-configured incompatible impacts.
 - **Observed admission.** RAM uses fresh physical and commit headroom. NVIDIA VRAM and GPU load
@@ -28,12 +29,12 @@ Current release: **0.1.0-alpha.10 for Windows 10 1809+ and Windows Server 2019+*
   clean it up; uncertain containment retains its resource Lease until safety is proven or an
   operator explicitly accepts the risk.
 - **Job lifecycle.** Success/failure dependencies, immutable file stdin, explicit environments,
-  bounded retries, executable postconditions, managed child submission, and safe managed waits
-  are supported.
+  bounded retries, executable postconditions with immutable primary results, managed child
+  submission, and safe managed waits are supported.
 - **Managed capability policy.** A primary may authorize bounded child claims, impacts, fences,
   observed/quiet admission, mandatory labels, and narrower delegation without reserving those
   capabilities in the parent's Lease. Denials are durable Submission decisions.
-- **Operator interfaces.** The CLI provides submit, recover, status, list, events, logs, wait,
+- **Operator interfaces.** The CLI provides ensure, submit, recover, status, list, events, logs, wait,
   cancel, daemon status, schema, doctor, and bounded tree commands. `stillyard watch` is an
   event-driven parent/child forest. The Rust crate exposes the same public protocol through a
   blocking client.
@@ -63,6 +64,12 @@ Submit it and stream its retained output:
 stillyard submit --spec .\hello.json --wait --passthrough
 ```
 
+For automation, use one operation that owns submit/recovery and reports typed exit provenance:
+
+```powershell
+stillyard --endpoint \\.\pipe\stillyard ensure --spec .\hello.json --idempotency-key 018f70d5-9b42-7f4e-8c38-4f86ca7bf5b1 --wait
+```
+
 Inspect the scheduler:
 
 ```powershell
@@ -79,6 +86,7 @@ JobSpec and host-config documents are strict and versioned. Print the authoritat
 ```powershell
 stillyard schema spec
 stillyard schema config
+stillyard schema managed-execution
 ```
 
 The same schemas are checked in under [`schema/`](schema/).

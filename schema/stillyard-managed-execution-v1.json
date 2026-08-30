@@ -1,0 +1,2332 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ManagedExecutionRecord",
+  "description": "Root type for the recorded managed-execution JSON Schema.",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/EnsureReport"
+    },
+    {
+      "$ref": "#/$defs/EnsureReport2"
+    },
+    {
+      "$ref": "#/$defs/WaitReport"
+    },
+    {
+      "$ref": "#/$defs/PrimaryInvocationResult"
+    }
+  ],
+  "$defs": {
+    "AdmissionDecisionSnapshot": {
+      "type": "object",
+      "properties": {
+        "blockers": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Blocker"
+          }
+        },
+        "deferral_count": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "detectors": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DetectorEvidenceSnapshot"
+          }
+        },
+        "evaluated_unix_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "final_sample": {
+          "type": "boolean"
+        },
+        "gpu_provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GpuProvenance"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observation_generation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "operands": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ObservedOperandSnapshot"
+          }
+        },
+        "state": {
+          "$ref": "#/$defs/AdmissionDecisionState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "final_sample",
+        "deferral_count"
+      ]
+    },
+    "AdmissionDecisionState": {
+      "type": "string",
+      "enum": [
+        "waiting",
+        "reserved",
+        "released",
+        "replanned",
+        "failed"
+      ]
+    },
+    "AttemptSnapshot": {
+      "type": "object",
+      "properties": {
+        "admission": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AdmissionDecisionSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "attempt_id": {
+          "type": "string"
+        },
+        "attempt_index": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "created_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "deadline_unix_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "finished_unix_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "invocations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InvocationSnapshot"
+          }
+        },
+        "primary_result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrimaryInvocationResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reason_code": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "started_unix_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttemptVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "attempt_id",
+        "attempt_index",
+        "created_unix_millis",
+        "invocations"
+      ]
+    },
+    "AttemptVerdict": {
+      "type": "string",
+      "enum": [
+        "succeeded",
+        "process_failed",
+        "start_failed",
+        "timed_out",
+        "interrupted",
+        "safety_failed",
+        "postcondition_retryable",
+        "postcondition_failed",
+        "canceled"
+      ]
+    },
+    "BatchJobReceipt": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "receipt": {
+          "$ref": "#/$defs/JobReceipt"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "receipt"
+      ]
+    },
+    "BatchReceipt": {
+      "type": "object",
+      "properties": {
+        "batch_id": {
+          "type": "string"
+        },
+        "daemon_generation": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "jobs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BatchJobReceipt"
+          }
+        },
+        "submission_id": {
+          "type": "string"
+        },
+        "submission_state": {
+          "$ref": "#/$defs/SubmissionState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "submission_id",
+        "batch_id",
+        "submission_state",
+        "jobs",
+        "daemon_generation"
+      ]
+    },
+    "Blocker": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "detail"
+      ]
+    },
+    "ChildFencePolicy": {
+      "type": "object",
+      "properties": {
+        "exclusive_roots": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "shared_roots": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChildSubmissionPolicy": {
+      "type": "object",
+      "properties": {
+        "allow_delegation": {
+          "type": "boolean",
+          "default": false
+        },
+        "allow_observed": {
+          "type": "boolean",
+          "default": false
+        },
+        "allow_quiet": {
+          "type": "boolean",
+          "default": false
+        },
+        "allowed_impacts": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "fences": {
+          "$ref": "#/$defs/ChildFencePolicy",
+          "default": {
+            "exclusive_roots": [],
+            "shared_roots": []
+          }
+        },
+        "max_claims": {
+          "$ref": "#/$defs/ResourceClaimLimits",
+          "default": {
+            "cargo_slots": null,
+            "cpu_units": null,
+            "custom": {},
+            "gpu_slots": null,
+            "ram_mb": null
+          }
+        },
+        "required_labels": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Label"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ConditionSpec": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "path_exists"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "path"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "path_absent"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "path"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "not_before"
+            },
+            "unix_millis": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "unix_millis"
+          ]
+        }
+      ]
+    },
+    "ContainmentIncidentSnapshot": {
+      "type": "object",
+      "properties": {
+        "attempt_id": {
+          "type": "string"
+        },
+        "containment_id": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "incident_id": {
+          "type": "string"
+        },
+        "incident_sequence": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "invocation_id": {
+          "type": "string"
+        },
+        "job_id": {
+          "type": "string"
+        },
+        "last_reconciled_unix_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "last_reconciliation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "opened_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "reason_code": {
+          "type": "string"
+        },
+        "resolution": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resolved_unix_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "retained_claims": {
+          "$ref": "#/$defs/ResourceClaims"
+        },
+        "root_identity": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "incident_id",
+        "incident_sequence",
+        "containment_id",
+        "job_id",
+        "attempt_id",
+        "invocation_id",
+        "state",
+        "reason_code",
+        "detail",
+        "opened_unix_millis",
+        "retained_claims"
+      ]
+    },
+    "ContainmentResolutionAudit": {
+      "type": "object",
+      "properties": {
+        "daemon_generation": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "forced": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ForcedClearanceAudit"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_reconciliation": {
+          "type": "string"
+        },
+        "lease_released": {
+          "type": "boolean"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "resolution": {
+          "type": "string"
+        },
+        "resolved_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "required": [
+        "resolved_unix_millis",
+        "daemon_generation",
+        "resolution",
+        "last_reconciliation",
+        "origin",
+        "lease_released"
+      ]
+    },
+    "ContainmentSnapshot": {
+      "type": "object",
+      "properties": {
+        "containment_id": {
+          "type": "string"
+        },
+        "incident": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContainmentIncidentSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "incident_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resolution": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "resolution_audit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContainmentResolutionAudit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "state": {
+          "type": "string"
+        },
+        "strength": {
+          "description": "`windows_job_object` in v0.1; kept explicit for Linux v0.2 provenance.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "containment_id",
+        "state",
+        "strength"
+      ]
+    },
+    "DetectorEvidenceSnapshot": {
+      "type": "object",
+      "properties": {
+        "detail": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "detector": {
+          "type": "string"
+        },
+        "observed": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "satisfied": {
+          "type": "boolean"
+        },
+        "threshold": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "detector",
+        "satisfied"
+      ]
+    },
+    "EffectiveChildSubmissionPolicy": {
+      "type": "object",
+      "properties": {
+        "allow_delegation": {
+          "type": "boolean",
+          "default": false
+        },
+        "allow_observed": {
+          "type": "boolean",
+          "default": false
+        },
+        "allow_quiet": {
+          "type": "boolean",
+          "default": false
+        },
+        "allowed_impacts": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "fences": {
+          "$ref": "#/$defs/ChildFencePolicy",
+          "default": {
+            "exclusive_roots": [],
+            "shared_roots": []
+          }
+        },
+        "max_claims": {
+          "$ref": "#/$defs/ResourceClaimLimits",
+          "default": {
+            "cargo_slots": null,
+            "cpu_units": null,
+            "custom": {},
+            "gpu_slots": null,
+            "ram_mb": null
+          }
+        },
+        "required_labels": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Label"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "EnsureOutcome": {
+      "description": "One fail-closed decision from [`crate::Client::ensure_job`] or\n[`crate::Client::ensure_batch`].",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "accepted"
+            },
+            "value": {
+              "$ref": "#/$defs/EnsuredJob"
+            }
+          },
+          "required": [
+            "outcome",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "pending"
+            },
+            "value": {
+              "$ref": "#/$defs/SubmissionRef"
+            }
+          },
+          "required": [
+            "outcome",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "final"
+            },
+            "value": {
+              "$ref": "#/$defs/EnsuredJob"
+            }
+          },
+          "required": [
+            "outcome",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "rejected"
+            },
+            "value": {
+              "$ref": "#/$defs/RejectReason"
+            }
+          },
+          "required": [
+            "outcome",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "conflict"
+            },
+            "value": {
+              "type": "object",
+              "properties": {
+                "existing_payload_hash": {
+                  "type": "string"
+                },
+                "requested_payload_hash": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "existing_payload_hash",
+                "requested_payload_hash"
+              ]
+            }
+          },
+          "required": [
+            "outcome",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "unknown"
+            }
+          },
+          "required": [
+            "outcome"
+          ]
+        }
+      ]
+    },
+    "EnsureOutcome2": {
+      "description": "One fail-closed decision from [`crate::Client::ensure_job`] or\n[`crate::Client::ensure_batch`].",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "accepted"
+            },
+            "value": {
+              "$ref": "#/$defs/EnsuredBatch"
+            }
+          },
+          "required": [
+            "outcome",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "pending"
+            },
+            "value": {
+              "$ref": "#/$defs/SubmissionRef"
+            }
+          },
+          "required": [
+            "outcome",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "final"
+            },
+            "value": {
+              "$ref": "#/$defs/EnsuredBatch"
+            }
+          },
+          "required": [
+            "outcome",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "rejected"
+            },
+            "value": {
+              "$ref": "#/$defs/RejectReason"
+            }
+          },
+          "required": [
+            "outcome",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "conflict"
+            },
+            "value": {
+              "type": "object",
+              "properties": {
+                "existing_payload_hash": {
+                  "type": "string"
+                },
+                "requested_payload_hash": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "existing_payload_hash",
+                "requested_payload_hash"
+              ]
+            }
+          },
+          "required": [
+            "outcome",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "unknown"
+            }
+          },
+          "required": [
+            "outcome"
+          ]
+        }
+      ]
+    },
+    "EnsureReport": {
+      "type": "object",
+      "properties": {
+        "exit_code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "exit_source": {
+          "$ref": "#/$defs/ExitSource"
+        },
+        "outcome": {
+          "$ref": "#/$defs/EnsureOutcome"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "exit_source",
+        "exit_code"
+      ]
+    },
+    "EnsureReport2": {
+      "type": "object",
+      "properties": {
+        "exit_code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "exit_source": {
+          "$ref": "#/$defs/ExitSource"
+        },
+        "outcome": {
+          "$ref": "#/$defs/EnsureOutcome2"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "exit_source",
+        "exit_code"
+      ]
+    },
+    "EnsuredBatch": {
+      "type": "object",
+      "properties": {
+        "receipt": {
+          "$ref": "#/$defs/BatchReceipt"
+        },
+        "snapshots": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/JobSnapshot"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "receipt"
+      ]
+    },
+    "EnsuredJob": {
+      "type": "object",
+      "properties": {
+        "receipt": {
+          "$ref": "#/$defs/JobReceipt"
+        },
+        "snapshot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JobSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "receipt"
+      ]
+    },
+    "EnvironmentSpec": {
+      "type": "object",
+      "properties": {
+        "set": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "unset": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Estimate": {
+      "type": "object",
+      "properties": {
+        "assumptions": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "confidence": {
+          "$ref": "#/$defs/EstimateConfidence"
+        },
+        "start_in_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "confidence"
+      ]
+    },
+    "EstimateConfidence": {
+      "type": "string",
+      "enum": [
+        "estimated",
+        "lower_bound_only",
+        "unknown"
+      ]
+    },
+    "ExitClassification": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "retryable",
+        "failed"
+      ]
+    },
+    "ExitSource": {
+      "type": "string",
+      "enum": [
+        "process",
+        "scheduler"
+      ]
+    },
+    "ForcedClearanceAudit": {
+      "type": "object",
+      "properties": {
+        "requested_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "requester": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "requested_unix_millis",
+        "requester"
+      ]
+    },
+    "GpuProvenance": {
+      "type": "object",
+      "properties": {
+        "driver_version": {
+          "type": "string"
+        },
+        "uuid": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "uuid",
+        "driver_version"
+      ]
+    },
+    "InvocationRole": {
+      "type": "string",
+      "enum": [
+        "primary",
+        "postcondition"
+      ]
+    },
+    "InvocationSnapshot": {
+      "type": "object",
+      "properties": {
+        "containment": {
+          "$ref": "#/$defs/ContainmentSnapshot"
+        },
+        "daemon_generation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "executable_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exit_classification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExitClassification"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "finished_unix_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "invocation_id": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/InvocationRole"
+        },
+        "role_index": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "root_exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32"
+        },
+        "root_identity": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true,
+          "default": null
+        },
+        "root_pid": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "started_unix_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "state": {
+          "$ref": "#/$defs/InvocationState"
+        },
+        "stderr_tail": {
+          "type": "string"
+        },
+        "stdout_tail": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "invocation_id",
+        "role",
+        "role_index",
+        "state",
+        "containment",
+        "stdout_tail",
+        "stderr_tail"
+      ]
+    },
+    "InvocationState": {
+      "type": "string",
+      "enum": [
+        "prepared",
+        "started",
+        "exited",
+        "resolved"
+      ]
+    },
+    "InvocationVerdict": {
+      "type": "string",
+      "enum": [
+        "succeeded",
+        "process_failed",
+        "start_failed",
+        "timed_out",
+        "interrupted",
+        "safety_failed",
+        "canceled"
+      ]
+    },
+    "JobOutcome": {
+      "type": "string",
+      "enum": [
+        "succeeded",
+        "failed",
+        "timed_out",
+        "interrupted",
+        "canceled",
+        "skipped"
+      ]
+    },
+    "JobReceipt": {
+      "type": "object",
+      "properties": {
+        "admission": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AdmissionDecisionSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "blockers": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Blocker"
+          }
+        },
+        "daemon_generation": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "estimate": {
+          "$ref": "#/$defs/Estimate"
+        },
+        "gpu_provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GpuProvenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "job_id": {
+          "type": "string"
+        },
+        "job_state": {
+          "$ref": "#/$defs/JobState"
+        },
+        "managed_policy_admission": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManagedPolicyAdmissionSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManagedParent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "queue_rank": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "submission_id": {
+          "type": "string"
+        },
+        "submission_state": {
+          "$ref": "#/$defs/SubmissionState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "submission_id",
+        "job_id",
+        "submission_state",
+        "job_state",
+        "estimate",
+        "daemon_generation"
+      ]
+    },
+    "JobSnapshot": {
+      "type": "object",
+      "properties": {
+        "accepted_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "admission": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AdmissionDecisionSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "attempt_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attempts": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/AttemptSnapshot"
+          }
+        },
+        "batch_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "batch_member": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "blockers": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Blocker"
+          }
+        },
+        "cancel_requested": {
+          "type": "boolean"
+        },
+        "containment_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "daemon_generation": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "finished_unix_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "gpu_provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GpuProvenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "invocation_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "job_id": {
+          "type": "string"
+        },
+        "managed_policy_admission": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManagedPolicyAdmissionSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JobOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManagedParent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "root_exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32"
+        },
+        "spec": {
+          "$ref": "#/$defs/JobSpec"
+        },
+        "started_unix_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "state": {
+          "$ref": "#/$defs/JobState"
+        },
+        "submission_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "job_id",
+        "submission_id",
+        "state",
+        "cancel_requested",
+        "accepted_unix_millis",
+        "spec",
+        "daemon_generation"
+      ]
+    },
+    "JobSpec": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "child_submission_policy": {
+          "description": "Maximum capabilities that authenticated managed descendants may request.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChildSubmissionPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "conditions": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ConditionSpec"
+          }
+        },
+        "environment": {
+          "$ref": "#/$defs/EnvironmentSpec",
+          "default": {
+            "set": {},
+            "unset": []
+          }
+        },
+        "executable": {
+          "type": "string"
+        },
+        "expected_duration_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "labels": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Label"
+          }
+        },
+        "observed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ObservedResourcePolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "postconditions": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PostconditionSpec"
+          }
+        },
+        "quiet": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuietPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resources": {
+          "$ref": "#/$defs/ResourceClaims",
+          "default": {
+            "cargo_slots": null,
+            "cpu_units": null,
+            "custom": {},
+            "exclusive_fences": [],
+            "gpu_slots": null,
+            "impacts": [],
+            "ram_mb": null,
+            "shared_fences": []
+          }
+        },
+        "retry": {
+          "$ref": "#/$defs/RetryPolicy",
+          "default": {
+            "backoff_seconds": 0,
+            "max_attempts": 1,
+            "retryable": []
+          }
+        },
+        "spec_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "stdin": {
+          "$ref": "#/$defs/StdinSpec",
+          "default": {
+            "kind": "eof"
+          }
+        },
+        "timeout_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "working_directory": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "spec_version",
+        "executable",
+        "working_directory"
+      ]
+    },
+    "JobState": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "active",
+        "finalizing",
+        "final"
+      ]
+    },
+    "Label": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "value"
+      ]
+    },
+    "ManagedParent": {
+      "description": "Server-authenticated identity of the primary Invocation that submitted child work.",
+      "type": "object",
+      "properties": {
+        "attempt_id": {
+          "type": "string"
+        },
+        "invocation_id": {
+          "type": "string"
+        },
+        "job_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "job_id",
+        "attempt_id",
+        "invocation_id"
+      ]
+    },
+    "ManagedPolicyAdmissionSnapshot": {
+      "type": "object",
+      "properties": {
+        "effective_policy": {
+          "$ref": "#/$defs/EffectiveChildSubmissionPolicy"
+        },
+        "evaluated_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "parent": {
+          "$ref": "#/$defs/ManagedParent"
+        },
+        "policy_ancestors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "parent",
+        "evaluated_unix_millis",
+        "effective_policy",
+        "policy_ancestors"
+      ]
+    },
+    "ObservedOperandSnapshot": {
+      "type": "object",
+      "properties": {
+        "configured_capacity": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "granted_debit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "name": {
+          "type": "string"
+        },
+        "observed": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "requested": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "safety_margin": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "satisfied": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "requested",
+        "safety_margin",
+        "satisfied"
+      ]
+    },
+    "ObservedResourcePolicy": {
+      "type": "object",
+      "properties": {
+        "cpu_utilization_percent_at_most": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "gpu_utilization_percent_at_most": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0
+          },
+          "default": {}
+        },
+        "max_sample_age_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "max_sample_age_seconds"
+      ]
+    },
+    "PendingReason": {
+      "type": "string",
+      "enum": [
+        "client_deadline",
+        "client_canceled",
+        "submission_received"
+      ]
+    },
+    "PostconditionSpec": {
+      "type": "object",
+      "properties": {
+        "accepted_exit_codes": {
+          "type": "array",
+          "default": [
+            0
+          ],
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "args": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "executable": {
+          "type": "string"
+        },
+        "retryable_exit_codes": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "working_directory": {
+          "description": "Defaults to the owning Job's working directory.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "executable"
+      ]
+    },
+    "PrimaryInvocationResult": {
+      "description": "Immutable primary outcome recorded only after its Containment is proved empty.",
+      "type": "object",
+      "properties": {
+        "attempt_id": {
+          "type": "string"
+        },
+        "containment": {
+          "type": "string"
+        },
+        "exited_unix_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "invocation_id": {
+          "type": "string"
+        },
+        "job_id": {
+          "type": "string"
+        },
+        "resolved_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "root_exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32"
+        },
+        "schema_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "started_unix_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "termination": {
+          "$ref": "#/$defs/TerminationReason"
+        },
+        "verdict": {
+          "$ref": "#/$defs/InvocationVerdict"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job_id",
+        "attempt_id",
+        "invocation_id",
+        "verdict",
+        "termination",
+        "containment",
+        "resolved_unix_millis"
+      ]
+    },
+    "QuietDetector": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "cpu_utilization"
+            },
+            "max_percent": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "max_percent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "gpu_uuid": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "gpu_utilization"
+            },
+            "max_percent": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "gpu_uuid",
+            "max_percent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "disk_utilization"
+            },
+            "max_percent": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "max_percent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "gpu_uuid": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "foreign_gpu_compute"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "gpu_uuid"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "blocked_processes"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "QuietPolicy": {
+      "type": "object",
+      "properties": {
+        "detectors": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/QuietDetector"
+          }
+        },
+        "max_sample_age_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "stable_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "wait_budget_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "stable_seconds",
+        "max_sample_age_seconds",
+        "wait_budget_seconds"
+      ]
+    },
+    "RejectReason": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "detail"
+      ]
+    },
+    "ResourceClaimLimits": {
+      "type": "object",
+      "properties": {
+        "cargo_slots": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "default": null,
+          "minimum": 0
+        },
+        "cpu_units": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "default": null,
+          "minimum": 0
+        },
+        "custom": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "default": {}
+        },
+        "gpu_slots": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "default": null,
+          "minimum": 0
+        },
+        "ram_mb": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "default": null,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "ResourceClaims": {
+      "type": "object",
+      "properties": {
+        "cargo_slots": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "cpu_units": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "custom": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "default": {}
+        },
+        "exclusive_fences": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "gpu_slots": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "impacts": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "ram_mb": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "shared_fences": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "RetryPolicy": {
+      "type": "object",
+      "properties": {
+        "backoff_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "max_attempts": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "retryable": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "max_attempts",
+        "backoff_seconds"
+      ]
+    },
+    "StdinSpec": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "eof"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "file"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "path"
+          ]
+        }
+      ]
+    },
+    "SubmissionRef": {
+      "description": "Durable identity of a managed submission, with any accepted execution identities known so far.",
+      "type": "object",
+      "properties": {
+        "batch_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "job_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "submission_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "submission_id"
+      ]
+    },
+    "SubmissionState": {
+      "type": "string",
+      "enum": [
+        "received",
+        "accepted",
+        "rejected"
+      ]
+    },
+    "TerminationReason": {
+      "type": "string",
+      "enum": [
+        "exited",
+        "start_failed",
+        "timeout",
+        "interrupt",
+        "cancel",
+        "safety_failure"
+      ]
+    },
+    "WaitOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "pending"
+            },
+            "reason": {
+              "$ref": "#/$defs/PendingReason"
+            }
+          },
+          "required": [
+            "outcome",
+            "reason"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "const": "final"
+            },
+            "root_exit_code": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32"
+            },
+            "snapshot": {
+              "$ref": "#/$defs/JobSnapshot"
+            }
+          },
+          "required": [
+            "outcome",
+            "snapshot"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "detail": {
+              "type": "string"
+            },
+            "outcome": {
+              "type": "string",
+              "const": "unavailable"
+            }
+          },
+          "required": [
+            "outcome",
+            "detail"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "detail": {
+              "type": "string"
+            },
+            "outcome": {
+              "type": "string",
+              "const": "gap_or_unknown"
+            }
+          },
+          "required": [
+            "outcome",
+            "detail"
+          ]
+        }
+      ]
+    },
+    "WaitReport": {
+      "type": "object",
+      "properties": {
+        "exit_code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "exit_source": {
+          "$ref": "#/$defs/ExitSource"
+        },
+        "outcome": {
+          "$ref": "#/$defs/WaitOutcome"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "exit_source",
+        "exit_code"
+      ]
+    }
+  }
+}

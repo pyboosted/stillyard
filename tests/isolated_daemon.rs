@@ -5,10 +5,11 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 use stillyard::{
-    Client, DaemonSnapshot, DoctorCheckStatus, DoctorSnapshot, EnvironmentSpec, Error,
+    BatchMember, BatchSpec, Client, DaemonSnapshot, DoctorCheckStatus, DoctorSnapshot,
+    EnsureOptions, EnsureOutcome, EnsureReport, EnsuredJob, EnvironmentSpec, Error, ExitSource,
     GpuProviderConfig, HostConfig, HostObservationConfig, JobId, JobSpec, LogStream, ProcessRules,
     QuietDetector, QuietPolicy, ResourceCapacities, ResourceClaims, RetryPolicy, SPEC_VERSION,
-    StdinSpec, SubmitOptions,
+    StdinSpec, SubmitOptions, WaitOutcome, WaitReport,
 };
 use uuid::Uuid;
 
@@ -127,6 +128,28 @@ where
     T::Err: std::fmt::Debug,
 {
     format!("{store}~{}", Uuid::now_v7()).parse().unwrap()
+}
+
+fn command_spec(root: &Path, command: &str) -> JobSpec {
+    JobSpec {
+        spec_version: SPEC_VERSION,
+        executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+        args: vec!["/d".into(), "/c".into(), command.into()],
+        working_directory: root.to_path_buf(),
+        stdin: StdinSpec::Eof,
+        environment: EnvironmentSpec::default(),
+        resources: ResourceClaims::default(),
+        observed: None,
+        conditions: Vec::new(),
+        retry: RetryPolicy::default(),
+        postconditions: Vec::new(),
+        labels: Vec::new(),
+        expected_duration_seconds: Some(1),
+        timeout_seconds: Some(30),
+        quiet: None,
+        artifacts: Vec::new(),
+        child_submission_policy: None,
+    }
 }
 
 fn seed_unresolved_incidents(store: &Path, count: u64) {
@@ -742,6 +765,301 @@ fn external_nvml_generation_change_never_releases_the_suspended_child() {
             .is_some_and(|admission| admission.deferral_count >= 1),
         "A-05 must prove a reserved suspended child reached final-sample deferral"
     );
+}
+
+#[test]
+fn ensure_concurrent_callers_converge_and_conflict_is_typed() {
+    let temp = tempfile::tempdir().unwrap();
+    let pinned = copied_daemon(temp.path());
+    let store = temp.path().join("ensure-store");
+    let endpoint = format!(r"\\.\pipe\stillyard-ensure-{}", Uuid::now_v7());
+    let _daemon = spawn_daemon(&pinned, &store, &endpoint);
+    let client = connect(&pinned, &endpoint);
+    let key = Uuid::now_v7();
+    let spec = command_spec(temp.path(), "ping -n 2 127.0.0.1 >nul");
+    let result_file = temp.path().join("concurrent-ensure.result.json");
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+    let callers = (0..2)
+        .map(|_| {
+            let client = client.clone();
+            let spec = spec.clone();
+            let barrier = std::sync::Arc::clone(&barrier);
+            let result_file = result_file.clone();
+            std::thread::spawn(move || {
+                barrier.wait();
+                client
+                    .ensure_job(
+                        spec,
+                        &EnsureOptions::new(key).with_result_file(result_file),
+                        Instant::now() + Duration::from_secs(10),
+                        None,
+                    )
+                    .unwrap()
+            })
+        })
+        .collect::<Vec<_>>();
+    barrier.wait();
+    let outcomes = callers
+        .into_iter()
+        .map(|caller| caller.join().unwrap())
+        .collect::<Vec<_>>();
+    let job_ids = outcomes
+        .iter()
+        .map(|outcome| match outcome {
+            EnsureOutcome::Accepted(ensured) | EnsureOutcome::Final(ensured) => {
+                ensured.receipt.job_id
+            }
+            other => panic!("unexpected concurrent ensure outcome: {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(job_ids[0], job_ids[1]);
+
+    let process_spec_path = temp.path().join("concurrent-process.json");
+    let process_spec = command_spec(temp.path(), "ping -n 5 127.0.0.1 >nul");
+    std::fs::write(
+        &process_spec_path,
+        serde_json::to_vec_pretty(&process_spec).unwrap(),
+    )
+    .unwrap();
+    let process_key = Uuid::now_v7().to_string();
+    let launch = |spec_path: &Path, key: &str| {
+        Command::new(&pinned)
+            .args(["--endpoint", &endpoint, "ensure", "--spec"])
+            .arg(spec_path)
+            .args(["--idempotency-key", key])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap()
+    };
+    let first_process = launch(&process_spec_path, &process_key);
+    let second_process = launch(&process_spec_path, &process_key);
+    let process_outcomes = [
+        first_process.wait_with_output().unwrap(),
+        second_process.wait_with_output().unwrap(),
+    ];
+    let process_jobs = process_outcomes.map(|output| {
+        let report: EnsureReport<EnsuredJob> = serde_json::from_slice(&output.stdout).unwrap();
+        match report.outcome {
+            EnsureOutcome::Accepted(ensured) | EnsureOutcome::Final(ensured) => {
+                ensured.receipt.job_id
+            }
+            other => panic!("unexpected process ensure outcome: {other:?}"),
+        }
+    });
+    assert_eq!(process_jobs[0], process_jobs[1]);
+
+    let competing_a = temp.path().join("competing-a.json");
+    let competing_b = temp.path().join("competing-b.json");
+    std::fs::write(
+        &competing_a,
+        serde_json::to_vec_pretty(&command_spec(temp.path(), "exit 0")).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        &competing_b,
+        serde_json::to_vec_pretty(&command_spec(temp.path(), "exit 9")).unwrap(),
+    )
+    .unwrap();
+    let competing_key = Uuid::now_v7().to_string();
+    let first_process = launch(&competing_a, &competing_key);
+    let second_process = launch(&competing_b, &competing_key);
+    let competing = [
+        first_process.wait_with_output().unwrap(),
+        second_process.wait_with_output().unwrap(),
+    ]
+    .map(|output| {
+        let report: EnsureReport<EnsuredJob> = serde_json::from_slice(&output.stdout).unwrap();
+        (output.status.code(), report.outcome)
+    });
+    assert_eq!(
+        competing
+            .iter()
+            .filter(|(_, outcome)| matches!(
+                outcome,
+                EnsureOutcome::Accepted(_) | EnsureOutcome::Final(_)
+            ))
+            .count(),
+        1
+    );
+    assert_eq!(
+        competing
+            .iter()
+            .filter(|(_, outcome)| matches!(outcome, EnsureOutcome::Conflict { .. }))
+            .count(),
+        1
+    );
+    assert!(competing.iter().any(|(code, _)| *code == Some(27)));
+
+    let conflict = client
+        .ensure_job(
+            command_spec(temp.path(), "exit 7"),
+            &EnsureOptions::new(key),
+            Instant::now() + Duration::from_secs(5),
+            None,
+        )
+        .unwrap();
+    assert!(matches!(
+        conflict,
+        EnsureOutcome::Conflict {
+            existing_payload_hash,
+            requested_payload_hash,
+        } if existing_payload_hash != requested_payload_hash
+    ));
+
+    let batch_key = Uuid::now_v7();
+    let batch = BatchSpec {
+        spec_version: SPEC_VERSION,
+        jobs: vec![
+            BatchMember {
+                name: "first".into(),
+                spec: command_spec(temp.path(), "exit 0"),
+                dependencies: Vec::new(),
+            },
+            BatchMember {
+                name: "second".into(),
+                spec: command_spec(temp.path(), "exit 0"),
+                dependencies: Vec::new(),
+            },
+        ],
+    };
+    let first_batch = client
+        .ensure_batch(
+            batch.clone(),
+            &EnsureOptions::new(batch_key),
+            Instant::now() + Duration::from_secs(5),
+            None,
+        )
+        .unwrap();
+    let replayed_batch = client
+        .ensure_batch(
+            batch,
+            &EnsureOptions::new(batch_key),
+            Instant::now() + Duration::from_secs(5),
+            None,
+        )
+        .unwrap();
+    let batch_id = |outcome: &EnsureOutcome<stillyard::EnsuredBatch>| match outcome {
+        EnsureOutcome::Accepted(ensured) | EnsureOutcome::Final(ensured) => {
+            ensured.receipt.batch_id
+        }
+        other => panic!("unexpected Batch ensure outcome: {other:?}"),
+    };
+    assert_eq!(batch_id(&first_batch), batch_id(&replayed_batch));
+}
+
+#[test]
+fn typed_wait_and_cli_keep_terminal_root_exit_25_distinct_from_pending() {
+    let temp = tempfile::tempdir().unwrap();
+    let pinned = copied_daemon(temp.path());
+    let store = temp.path().join("wait-store");
+    let endpoint = format!(r"\\.\pipe\stillyard-wait-{}", Uuid::now_v7());
+    let _daemon = spawn_daemon(&pinned, &store, &endpoint);
+    let client = connect(&pinned, &endpoint);
+
+    let slow = client
+        .submit(
+            command_spec(temp.path(), "ping -n 3 127.0.0.1 >nul"),
+            &SubmitOptions::new(Uuid::now_v7()),
+            Instant::now() + Duration::from_secs(5),
+            None,
+        )
+        .unwrap();
+    assert!(matches!(
+        client.wait_outcome(
+            slow.job_id,
+            Instant::now() + Duration::from_millis(20),
+            None,
+        ),
+        WaitOutcome::Pending { .. }
+    ));
+    assert!(matches!(
+        client.wait_outcome(slow.job_id, Instant::now() + Duration::from_secs(10), None,),
+        WaitOutcome::Final { .. }
+    ));
+
+    let spec_path = temp.path().join("exit-25.json");
+    std::fs::write(
+        &spec_path,
+        serde_json::to_vec_pretty(&command_spec(temp.path(), "exit 25")).unwrap(),
+    )
+    .unwrap();
+    let key = Uuid::now_v7().to_string();
+    let cli = Command::new(&pinned)
+        .args(["--endpoint", &endpoint, "ensure", "--spec"])
+        .arg(&spec_path)
+        .args([
+            "--idempotency-key",
+            &key,
+            "--wait",
+            "--deadline-seconds",
+            "10",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(cli.status.code(), Some(20));
+    let report: EnsureReport<EnsuredJob> = serde_json::from_slice(&cli.stdout).unwrap();
+    assert_eq!(report.exit_source, ExitSource::Scheduler);
+    assert_eq!(report.exit_code, 20);
+    let EnsureOutcome::Final(ensured) = report.outcome else {
+        panic!("terminal exit 25 was not final");
+    };
+    let job_id = ensured.receipt.job_id;
+    assert_eq!(
+        ensured.snapshot.expect("final snapshot").root_exit_code,
+        Some(25)
+    );
+
+    for (root_code, expected_source, expected_status) in
+        [(0, ExitSource::Scheduler, 0), (7, ExitSource::Process, 7)]
+    {
+        let spec_path = temp.path().join(format!("exit-{root_code}.json"));
+        std::fs::write(
+            &spec_path,
+            serde_json::to_vec_pretty(&command_spec(temp.path(), &format!("exit {root_code}")))
+                .unwrap(),
+        )
+        .unwrap();
+        let key = Uuid::now_v7().to_string();
+        let output = Command::new(&pinned)
+            .args(["--endpoint", &endpoint, "ensure", "--spec"])
+            .arg(&spec_path)
+            .args([
+                "--idempotency-key",
+                &key,
+                "--wait",
+                "--deadline-seconds",
+                "10",
+            ])
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(expected_status));
+        let report: EnsureReport<EnsuredJob> = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report.exit_source, expected_source);
+        assert!(matches!(
+            report.outcome,
+            EnsureOutcome::Final(EnsuredJob {
+                snapshot: Some(snapshot),
+                ..
+            }) if snapshot.root_exit_code == Some(root_code)
+        ));
+    }
+
+    let waited = Command::new(&pinned)
+        .args(["--endpoint", &endpoint, "wait", &job_id.to_string()])
+        .output()
+        .unwrap();
+    assert_eq!(waited.status.code(), Some(20));
+    let waited: WaitReport = serde_json::from_slice(&waited.stdout).unwrap();
+    assert_eq!(waited.exit_source, ExitSource::Scheduler);
+    assert_eq!(waited.exit_code, 20);
+    assert!(matches!(
+        waited.outcome,
+        WaitOutcome::Final {
+            root_exit_code: Some(25),
+            ..
+        }
+    ));
 }
 
 #[test]

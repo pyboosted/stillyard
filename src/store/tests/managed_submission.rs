@@ -122,7 +122,7 @@ fn managed_exact_replay_is_idempotent_and_commits_parentage() {
     let changed_hash = normalized_payload_hash(&changed).unwrap();
     assert!(matches!(
         store.submit_with_stdin_scoped(scope, key, &changed_hash, &changed, None),
-        Err(StoreError::IdempotencyConflict)
+        Err(StoreError::IdempotencyConflict { .. })
     ));
 }
 

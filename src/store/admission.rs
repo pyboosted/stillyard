@@ -148,7 +148,10 @@ impl Store {
             .optional()?
         {
             if stored_hash != payload_hash || kind != "job" {
-                return Err(StoreError::IdempotencyConflict);
+                return Err(StoreError::IdempotencyConflict {
+                    existing_payload_hash: stored_hash,
+                    requested_payload_hash: payload_hash,
+                });
             }
             if state == "accepted" {
                 let job_id = job_id.ok_or_else(|| {
@@ -335,7 +338,10 @@ impl Store {
             .optional()?
         {
             if stored_hash != payload_hash || kind != "batch" {
-                return Err(StoreError::IdempotencyConflict);
+                return Err(StoreError::IdempotencyConflict {
+                    existing_payload_hash: stored_hash,
+                    requested_payload_hash: payload_hash,
+                });
             }
             let submission_id =
                 SubmissionId::from_parts(self.store_uuid, Uuid::parse_str(&submission)?);
@@ -754,7 +760,10 @@ impl Store {
             };
         };
         if stored_hash != payload_hash {
-            return Ok(RecoveryResult::Conflict);
+            return Ok(RecoveryResult::Conflict {
+                existing_payload_hash: stored_hash,
+                requested_payload_hash: payload_hash.to_owned(),
+            });
         }
         let submission_id =
             SubmissionId::from_parts(self.store_uuid, Uuid::parse_str(&submission_id)?);
@@ -819,7 +828,7 @@ impl Store {
             Ok(policy) => policy,
             Err(error) => {
                 self.reject_received_with(submission_id, error_code::REJECTED, &error.to_string())?;
-                return Err(StoreError::InvalidSpec(error.to_string()));
+                return Err(StoreError::Rejected(error.to_string()));
             }
         };
         let accepted_ms = now_millis();

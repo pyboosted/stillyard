@@ -1171,6 +1171,13 @@ pub fn config_schema_json() -> Result<String> {
     Ok(json)
 }
 
+pub fn managed_execution_schema_json() -> Result<String> {
+    let schema = schema_for!(crate::ManagedExecutionRecord);
+    let mut json = serde_json::to_string_pretty(&schema)?;
+    json.push('\n');
+    Ok(json)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1184,6 +1191,10 @@ mod tests {
         assert_eq!(
             config_schema_json().unwrap(),
             include_str!("../schema/stillyard-config-v1.json")
+        );
+        assert_eq!(
+            managed_execution_schema_json().unwrap(),
+            include_str!("../schema/stillyard-managed-execution-v1.json")
         );
     }
 

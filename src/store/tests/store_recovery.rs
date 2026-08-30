@@ -46,7 +46,7 @@ fn same_key_different_payload_conflicts() {
     let second_hash = normalized_payload_hash(&second).unwrap();
     assert!(matches!(
         store.submit(key, &second_hash, &second),
-        Err(StoreError::IdempotencyConflict)
+        Err(StoreError::IdempotencyConflict { .. })
     ));
 }
 
@@ -62,10 +62,13 @@ fn recovery_never_creates_work_and_distinguishes_conflict() {
     let spec = spec(temp.path());
     let hash = normalized_payload_hash(&spec).unwrap();
     let submitted = store.submit(key, &hash, &spec).unwrap();
-    assert_eq!(
+    assert!(matches!(
         store.recover_submission(key, "other").unwrap(),
-        RecoveryResult::Conflict
-    );
+        RecoveryResult::Conflict {
+            existing_payload_hash,
+            requested_payload_hash
+        } if existing_payload_hash == hash && requested_payload_hash == "other"
+    ));
     match store.recover_submission(key, &hash).unwrap() {
         RecoveryResult::Accepted(receipt) => {
             assert_eq!(receipt.job_id, submitted.receipt.job_id);
@@ -221,6 +224,42 @@ fn restart_before_root_retains_boundary_until_reconciled() {
 }
 
 #[test]
+fn restart_after_empty_proof_before_primary_result_is_fail_closed() {
+    let temp = tempfile::tempdir().unwrap();
+    let paths = StorePaths::new(temp.path().to_path_buf());
+    let job_id = {
+        let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        let receipt = store
+            .submit(Uuid::now_v7(), &hash, &job_spec)
+            .unwrap()
+            .receipt;
+        let primary = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        store
+            .mark_started(&primary, u32::MAX, "primary-hash")
+            .unwrap();
+        store.mark_root_exited(&primary, 0).unwrap();
+        store
+            .mark_invocation_resolved(&primary, Some(0), None)
+            .unwrap();
+        receipt.job_id
+    };
+
+    let store =
+        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+            .unwrap();
+    let snapshot = store.status(job_id).unwrap();
+    assert_eq!(snapshot.outcome, Some(JobOutcome::Interrupted));
+    assert_eq!(snapshot.attempts[0].primary_result, None);
+    assert_eq!(
+        snapshot.attempts[0].invocations[0].containment.state,
+        ContainmentState::Empty
+    );
+    assert_eq!(snapshot.attempts[0].invocations.len(), 1);
+}
+
+#[test]
 fn restart_during_prepared_postcondition_retains_attempt_lease() {
     let temp = tempfile::tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
@@ -248,6 +287,13 @@ fn restart_during_prepared_postcondition_retains_attempt_lease() {
         store
             .mark_invocation_resolved(&primary, Some(0), None)
             .unwrap();
+        store
+            .record_primary_result(
+                &primary,
+                InvocationVerdict::Succeeded,
+                TerminationReason::Exited,
+            )
+            .unwrap();
         store.prepare_postcondition(&primary, 0).unwrap();
         receipt.job_id
     };
@@ -262,6 +308,13 @@ fn restart_during_prepared_postcondition_retains_attempt_lease() {
         Some(AttemptVerdict::Interrupted)
     );
     assert_eq!(snapshot.attempts[0].invocations.len(), 2);
+    let primary_result = snapshot.attempts[0]
+        .primary_result
+        .as_ref()
+        .expect("durable primary result survives daemon recovery");
+    assert_eq!(primary_result.root_exit_code, Some(0));
+    assert_eq!(primary_result.verdict, InvocationVerdict::Succeeded);
+    assert_eq!(primary_result.containment, ContainmentState::Empty);
     assert_eq!(
         snapshot.attempts[0].invocations[1].state,
         InvocationState::Resolved
@@ -309,6 +362,13 @@ fn restart_after_resolved_postcondition_releases_empty_attempt_lease() {
         store.mark_root_exited(&primary, 0).unwrap();
         store
             .mark_invocation_resolved(&primary, Some(0), None)
+            .unwrap();
+        store
+            .record_primary_result(
+                &primary,
+                InvocationVerdict::Succeeded,
+                TerminationReason::Exited,
+            )
             .unwrap();
         let validator = store.prepare_postcondition(&primary, 0).unwrap();
         store
@@ -359,6 +419,11 @@ fn uncertain_settlement_retains_lease_and_is_terminal() {
         .mark_uncertain(&prepared, None, "interrupted")
         .unwrap();
     assert!(store.managed_containment_candidates().unwrap().is_empty());
+    assert_eq!(
+        store.status(prepared.job_id).unwrap().attempts[0].primary_result,
+        None,
+        "uncertain cleanup must not fabricate an empty primary result"
+    );
     let (containment, lease): (String, String) = store
         .connection
         .query_row(
