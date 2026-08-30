@@ -6,6 +6,7 @@ pub(super) struct DaemonReactor {
     pub(super) endpoint: Arc<str>,
     pub(super) live_containments: crate::runner::LiveContainments,
     pub(super) reconciliation_observations: Mutex<crate::store::ReconciliationObservations>,
+    pub(super) doctor_snapshots: Mutex<crate::store::DoctorSnapshotCache>,
     pub(super) host_observation: Arc<crate::host_observation::HostObservationService>,
 }
 
@@ -125,6 +126,7 @@ impl DaemonReactor {
         store: SharedStore,
         endpoint: String,
         observation_config: crate::HostObservationConfig,
+        doctor_snapshots: crate::store::DoctorSnapshotCache,
     ) -> Arc<Self> {
         let scheduler = Arc::new(Self {
             signal: Arc::new((Mutex::new(false), Condvar::new())),
@@ -132,6 +134,7 @@ impl DaemonReactor {
             endpoint: Arc::from(endpoint),
             live_containments: crate::runner::LiveContainments::default(),
             reconciliation_observations: Mutex::new(Default::default()),
+            doctor_snapshots: Mutex::new(doctor_snapshots),
             host_observation: Arc::new(crate::host_observation::HostObservationService::new(
                 observation_config,
             )),

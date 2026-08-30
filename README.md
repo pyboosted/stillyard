@@ -10,7 +10,7 @@ state and logs, and exposes visible reasons while they wait.
 Stillyard is useful when independent processes need one scheduling authority without moving into
 containers, a CI service, or a remote worker platform.
 
-Current release: **0.1.0-alpha.9 for Windows 10 1809+ and Windows Server 2019+**.
+Current release: **0.1.0-alpha.10 for Windows 10 1809+ and Windows Server 2019+**.
 
 ## What works today
 

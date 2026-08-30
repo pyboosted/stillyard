@@ -898,13 +898,28 @@ pub struct ContainmentIncidentSnapshot {
     pub resolved_unix_millis: Option<i64>,
 }
 
+/// Maximum number of incidents retained in one snapshot-consistent doctor inventory.
+pub const MAX_COMPLETE_DOCTOR_INCIDENTS: u64 = 16_384;
+
+/// Maximum serialized incident payload retained for one complete doctor inventory.
+pub const MAX_COMPLETE_DOCTOR_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Maximum number of incidents returned by one doctor page.
+pub const MAX_DOCTOR_PAGE: u32 = 256;
+
+/// Lifetime of a generation-local doctor continuation snapshot.
+pub const DOCTOR_SNAPSHOT_TTL_SECONDS: u64 = 5 * 60;
+
+/// Opaque, store- and snapshot-scoped continuation for [`crate::Client::doctor`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]
 pub struct ContainmentIncidentCursor {
     pub(crate) store_uuid: Uuid,
-    pub(crate) incident_sequence: u64,
-    pub(crate) containment_id: ContainmentId,
+    pub(crate) daemon_generation: Uuid,
+    pub(crate) snapshot_uuid: Uuid,
+    pub(crate) token_uuid: Uuid,
+    pub(crate) offset: u64,
 }
 
 impl From<ContainmentIncidentCursor> for String {
@@ -925,10 +940,12 @@ impl fmt::Display for ContainmentIncidentCursor {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
-            "{}:{}:{}",
+            "v2:{}:{}:{}:{}:{}",
             self.store_uuid,
-            self.incident_sequence,
-            self.containment_id.entity_uuid()
+            self.daemon_generation,
+            self.snapshot_uuid,
+            self.token_uuid,
+            self.offset
         )
     }
 }
@@ -938,22 +955,31 @@ impl FromStr for ContainmentIncidentCursor {
 
     fn from_str(value: &str) -> std::result::Result<Self, Self::Err> {
         let mut parts = value.split(':');
+        if parts.next() != Some("v2") {
+            return Err(ObservationCursorParseError);
+        }
         let store_uuid = Uuid::parse_str(parts.next().ok_or(ObservationCursorParseError)?)
             .map_err(|_| ObservationCursorParseError)?;
-        let incident_sequence = parts
+        let daemon_generation = Uuid::parse_str(parts.next().ok_or(ObservationCursorParseError)?)
+            .map_err(|_| ObservationCursorParseError)?;
+        let snapshot_uuid = Uuid::parse_str(parts.next().ok_or(ObservationCursorParseError)?)
+            .map_err(|_| ObservationCursorParseError)?;
+        let token_uuid = Uuid::parse_str(parts.next().ok_or(ObservationCursorParseError)?)
+            .map_err(|_| ObservationCursorParseError)?;
+        let offset = parts
             .next()
             .ok_or(ObservationCursorParseError)?
             .parse()
-            .map_err(|_| ObservationCursorParseError)?;
-        let entity = Uuid::parse_str(parts.next().ok_or(ObservationCursorParseError)?)
             .map_err(|_| ObservationCursorParseError)?;
         if parts.next().is_some() {
             return Err(ObservationCursorParseError);
         }
         Ok(Self {
             store_uuid,
-            incident_sequence,
-            containment_id: ContainmentId::from_parts(store_uuid, entity),
+            daemon_generation,
+            snapshot_uuid,
+            token_uuid,
+            offset,
         })
     }
 }
@@ -1030,6 +1056,24 @@ pub struct DoctorSnapshot {
     #[serde(default)]
     pub coverage: Vec<DoctorCoverage>,
     pub incidents: DoctorIncidentPage,
+    pub boundaries: Vec<DoctorBoundary>,
+}
+
+/// A complete, bounded doctor inventory collected from one logical incident snapshot.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct CompleteDoctorSnapshot {
+    pub schema_version: u32,
+    pub observed_unix_millis: i64,
+    pub overall: DoctorOverallStatus,
+    pub daemon: DaemonSnapshot,
+    pub host: DoctorHostSnapshot,
+    pub store: DoctorStoreSnapshot,
+    pub checks: Vec<DoctorCheck>,
+    #[serde(default)]
+    pub coverage: Vec<DoctorCoverage>,
+    pub total_unresolved: u64,
+    pub incidents: Vec<ContainmentIncidentSnapshot>,
     pub boundaries: Vec<DoctorBoundary>,
 }
 
@@ -1270,8 +1314,10 @@ mod tests {
         let store_uuid = Uuid::now_v7();
         let cursor = ContainmentIncidentCursor {
             store_uuid,
-            incident_sequence: 37,
-            containment_id: ContainmentId::from_parts(store_uuid, Uuid::now_v7()),
+            daemon_generation: Uuid::now_v7(),
+            snapshot_uuid: Uuid::now_v7(),
+            token_uuid: Uuid::now_v7(),
+            offset: 37,
         };
         assert_eq!(
             cursor

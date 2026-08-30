@@ -1,12 +1,18 @@
 use super::*;
 
 fn observation_scheduler() -> Arc<DaemonReactor> {
+    let store_uuid = uuid::Uuid::now_v7();
+    let daemon_generation = uuid::Uuid::now_v7();
     Arc::new(DaemonReactor {
         signal: Arc::new((Mutex::new(false), Condvar::new())),
         events: Arc::new((Mutex::new(0), Condvar::new())),
         endpoint: Arc::from(r"\\.\pipe\stillyard-daemon-test"),
         live_containments: crate::runner::LiveContainments::default(),
         reconciliation_observations: Mutex::new(Default::default()),
+        doctor_snapshots: Mutex::new(crate::store::DoctorSnapshotCache::new(
+            store_uuid,
+            daemon_generation,
+        )),
         host_observation: Arc::new(crate::host_observation::HostObservationService::new(
             Default::default(),
         )),

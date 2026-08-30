@@ -25,6 +25,15 @@ pub enum Error {
     #[error("view unavailable: {detail}")]
     ViewUnavailable { detail: String },
 
+    #[error("doctor inventory exceeds the incident limit of {limit}")]
+    DoctorIncidentLimit { limit: u64 },
+
+    #[error("doctor inventory exceeds the serialized memory limit of {limit_bytes} bytes")]
+    DoctorMemoryLimit { limit_bytes: u64 },
+
+    #[error("the daemon's doctor snapshot cache is at capacity")]
+    DoctorSnapshotCapacity,
+
     #[error("{detail}")]
     NotFound { detail: String },
 

@@ -55,6 +55,7 @@ fn creating_and_started_records_capture_exact_identity() {
 fn clearance_is_idempotent_and_audited_through_status() {
     let temp = tempfile::tempdir().unwrap();
     let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let mut doctor_cache = DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation());
     let job_spec = spec(temp.path());
     let hash = normalized_payload_hash(&job_spec).unwrap();
     let receipt = store
@@ -65,7 +66,7 @@ fn clearance_is_idempotent_and_audited_through_status() {
     store
         .mark_uncertain(&prepared, None, "interrupted")
         .unwrap();
-    let before = store.doctor("test", None, None).unwrap();
+    let before = store.doctor("test", None, None, &mut doctor_cache).unwrap();
     assert_eq!(before.incidents.total_unresolved, 1);
     assert_eq!(
         before.incidents.incidents[0].containment_id,
@@ -108,7 +109,7 @@ fn clearance_is_idempotent_and_audited_through_status() {
     );
     assert!(
         store
-            .doctor("test", None, None)
+            .doctor("test", None, None, &mut doctor_cache)
             .unwrap()
             .incidents
             .incidents
@@ -301,7 +302,8 @@ fn doctor_reports_loaded_config_evidence() {
         probe_startup_identity(),
     )
     .unwrap();
-    let doctor = store.doctor("test", None, None).unwrap();
+    let mut doctor_cache = DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation());
+    let doctor = store.doctor("test", None, None, &mut doctor_cache).unwrap();
     assert_eq!(doctor.daemon.capacities, capacities());
     assert_eq!(doctor.daemon.config_sha256, expected_hash);
 }
@@ -402,9 +404,12 @@ fn foreign_host_binding_resets_the_whole_store() {
 }
 
 #[test]
-fn doctor_incidents_page_by_durable_sequence() {
+fn doctor_incidents_are_frozen_across_pages() {
     let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let paths = StorePaths::new(temp.path().to_path_buf());
+    let mut store = Store::open(paths.clone()).unwrap();
+    let mut doctor_cache = DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation());
+    let mut original = Vec::new();
     for _ in 0..3 {
         let job_spec = spec(temp.path());
         let hash = normalized_payload_hash(&job_spec).unwrap();
@@ -414,19 +419,236 @@ fn doctor_incidents_page_by_durable_sequence() {
             .receipt;
         let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
         store.mark_uncertain(&prepared, None, "fixture").unwrap();
+        original.push(prepared.containment_id);
     }
-    let first = store.doctor("test", None, Some(2)).unwrap();
+    let first = store
+        .doctor("test", None, Some(2), &mut doctor_cache)
+        .unwrap();
     assert_eq!(first.incidents.total_unresolved, 3);
     assert_eq!(first.incidents.incidents.len(), 2);
     assert!(first.incidents.truncated);
-    let second = store
-        .doctor("test", first.incidents.next_cursor, Some(2))
+
+    store
+        .connection
+        .execute(
+            "UPDATE containments SET state = 'cleared', resolution = 'forced_risk_acceptance',
+             resolved_ms = ?2 WHERE id = ?1",
+            params![original[2].entity_uuid().to_string(), now_millis()],
+        )
         .unwrap();
+    let replacement_spec = spec(temp.path());
+    let replacement_hash = normalized_payload_hash(&replacement_spec).unwrap();
+    let replacement_receipt = store
+        .submit(Uuid::now_v7(), &replacement_hash, &replacement_spec)
+        .unwrap()
+        .receipt;
+    let replacement = store
+        .prepare_job(replacement_receipt.job_id)
+        .unwrap()
+        .unwrap();
+    store
+        .mark_uncertain(&replacement, None, "replacement")
+        .unwrap();
+
+    let cursor = first.incidents.next_cursor;
+    let second = store
+        .doctor("test", cursor, Some(2), &mut doctor_cache)
+        .unwrap();
+    assert_eq!(second.incidents.total_unresolved, 3);
     assert_eq!(second.incidents.incidents.len(), 1);
     assert!(!second.incidents.truncated);
-    assert!(
-        first.incidents.incidents[1].incident_sequence
-            < second.incidents.incidents[0].incident_sequence
+    let old_inventory = first
+        .incidents
+        .incidents
+        .iter()
+        .chain(&second.incidents.incidents)
+        .map(|incident| incident.incident_id)
+        .collect::<Vec<_>>();
+    assert_eq!(old_inventory, original);
+    assert_eq!(
+        second.incidents.incidents[0].state,
+        ContainmentState::Uncertain
+    );
+
+    let current = store
+        .doctor("test", None, Some(10), &mut doctor_cache)
+        .unwrap();
+    let current_ids = current
+        .incidents
+        .incidents
+        .iter()
+        .map(|incident| incident.incident_id)
+        .collect::<Vec<_>>();
+    assert_eq!(current.incidents.total_unresolved, 3);
+    assert!(!current_ids.contains(&original[2]));
+    assert!(current_ids.contains(&replacement.containment_id));
+}
+
+#[test]
+fn doctor_rejects_foreign_unknown_tampered_and_expired_cursors() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let mut doctor_cache = DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation());
+    for _ in 0..2 {
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        let receipt = store
+            .submit(Uuid::now_v7(), &hash, &job_spec)
+            .unwrap()
+            .receipt;
+        let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        store.mark_uncertain(&prepared, None, "fixture").unwrap();
+    }
+    let first = store
+        .doctor("test", None, Some(1), &mut doctor_cache)
+        .unwrap();
+    let cursor = first.incidents.next_cursor.unwrap();
+
+    let foreign = ContainmentIncidentCursor {
+        store_uuid: Uuid::now_v7(),
+        ..cursor
+    };
+    assert!(matches!(
+        store.doctor("test", Some(foreign), Some(1), &mut doctor_cache),
+        Err(StoreError::DoctorCursorStale(_))
+    ));
+    let unknown = ContainmentIncidentCursor {
+        snapshot_uuid: Uuid::now_v7(),
+        token_uuid: Uuid::now_v7(),
+        ..cursor
+    };
+    assert!(matches!(
+        store.doctor("test", Some(unknown), Some(1), &mut doctor_cache),
+        Err(StoreError::DoctorCursorStale(_))
+    ));
+    let tampered = ContainmentIncidentCursor {
+        offset: cursor.offset + 1,
+        ..cursor
+    };
+    assert!(matches!(
+        store.doctor("test", Some(tampered), Some(1), &mut doctor_cache),
+        Err(StoreError::DoctorCursorStale(_))
+    ));
+
+    doctor_cache.expire(cursor.snapshot_uuid);
+    assert!(matches!(
+        store.doctor("test", Some(cursor), Some(1), &mut doctor_cache),
+        Err(StoreError::DoctorCursorStale(_))
+    ));
+}
+
+#[test]
+fn doctor_rejects_cursor_from_previous_daemon_generation() {
+    let temp = tempfile::tempdir().unwrap();
+    let paths = StorePaths::new(temp.path().to_path_buf());
+    let mut store = Store::open(paths.clone()).unwrap();
+    let mut cache = DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation());
+    for _ in 0..2 {
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        let receipt = store
+            .submit(Uuid::now_v7(), &hash, &job_spec)
+            .unwrap()
+            .receipt;
+        let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        store.mark_uncertain(&prepared, None, "fixture").unwrap();
+    }
+    let cursor = store
+        .doctor("test", None, Some(1), &mut cache)
+        .unwrap()
+        .incidents
+        .next_cursor
+        .unwrap();
+    drop(store);
+
+    let reopened = Store::open(paths).unwrap();
+    let mut restarted_cache =
+        DoctorSnapshotCache::new(reopened.store_uuid(), reopened.daemon_generation());
+    assert!(matches!(
+        reopened.doctor("test", Some(cursor), Some(1), &mut restarted_cache),
+        Err(StoreError::DoctorCursorStale(detail)) if detail.contains("generation")
+    ));
+}
+
+#[test]
+fn doctor_snapshot_stress_resists_parallel_incident_turnover() {
+    let temp = tempfile::tempdir().unwrap();
+    let paths = StorePaths::new(temp.path().to_path_buf());
+    let mut store = Store::open(paths.clone()).unwrap();
+    let mut doctor_cache = DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation());
+    for _ in 0..40 {
+        let job_spec = spec(temp.path());
+        let hash = normalized_payload_hash(&job_spec).unwrap();
+        let receipt = store
+            .submit(Uuid::now_v7(), &hash, &job_spec)
+            .unwrap()
+            .receipt;
+        let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+        store.mark_uncertain(&prepared, None, "fixture").unwrap();
+    }
+    let expected = store
+        .doctor(
+            "test",
+            None,
+            Some(crate::MAX_DOCTOR_PAGE),
+            &mut doctor_cache,
+        )
+        .unwrap()
+        .incidents
+        .incidents
+        .into_iter()
+        .map(|incident| incident.incident_id)
+        .collect::<Vec<_>>();
+    let first = store
+        .doctor("test", None, Some(3), &mut doctor_cache)
+        .unwrap();
+    let mut observed = first
+        .incidents
+        .incidents
+        .into_iter()
+        .map(|incident| incident.incident_id)
+        .collect::<Vec<_>>();
+    let mut cursor = first.incidents.next_cursor;
+
+    let database = paths.database.clone();
+    let turnover = std::thread::spawn(move || {
+        let connection = rusqlite::Connection::open(database).unwrap();
+        connection
+            .busy_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        for _ in 0..101 {
+            connection
+                .execute(
+                    "UPDATE containments
+                     SET state = CASE state WHEN 'uncertain' THEN 'cleared' ELSE 'uncertain' END",
+                    [],
+                )
+                .unwrap();
+            std::thread::yield_now();
+        }
+    });
+    while let Some(next) = cursor {
+        let page = store
+            .doctor("test", Some(next), Some(3), &mut doctor_cache)
+            .unwrap();
+        observed.extend(
+            page.incidents
+                .incidents
+                .into_iter()
+                .map(|incident| incident.incident_id),
+        );
+        cursor = page.incidents.next_cursor;
+        std::thread::yield_now();
+    }
+    turnover.join().unwrap();
+    assert_eq!(observed, expected);
+    assert_eq!(
+        observed
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        expected.len()
     );
 }
 
@@ -507,9 +729,14 @@ fn doctor_default_page_is_bounded_below_protocol_limit() {
         ReconciliationResult::BoundaryNotEmpty,
     );
     assert_eq!(store.connection.total_changes(), changes_before_observation);
-    let first = store
-        .doctor_with_reconciliation("test", None, None, &observations)
+    let mut doctor_cache = DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation());
+    let first_page = doctor_cache
+        .begin(
+            store.capture_doctor_incidents(&observations).unwrap(),
+            crate::MAX_DOCTOR_PAGE as usize,
+        )
         .unwrap();
+    let first = store.doctor_with_incident_page("test", first_page).unwrap();
     assert_eq!(first.incidents.total_unresolved, 257);
     assert_eq!(first.incidents.incidents.len(), 256);
     assert!(first.incidents.truncated);
@@ -529,9 +756,14 @@ fn doctor_default_page_is_bounded_below_protocol_limit() {
                 .is_none_or(|text| text.len() <= DOCTOR_DETAIL_MAX_BYTES)
     }));
     assert!(serde_json::to_vec(&first).unwrap().len() < 16 * 1024 * 1024);
-    let tail = store
-        .doctor_with_reconciliation("test", first.incidents.next_cursor, None, &observations)
+    let tail_page = doctor_cache
+        .next(
+            first.incidents.next_cursor.unwrap(),
+            crate::MAX_DOCTOR_PAGE as usize,
+        )
         .unwrap();
+    let tail = store.doctor_with_incident_page("test", tail_page).unwrap();
     assert_eq!(tail.incidents.incidents.len(), 1);
     assert!(!tail.incidents.truncated);
+    assert_eq!(store.connection.total_changes(), changes_before_observation);
 }

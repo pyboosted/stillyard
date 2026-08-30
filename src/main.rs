@@ -1137,7 +1137,13 @@ mod tests {
     fn doctor_cli_exposes_json_paging_and_explicit_force() {
         let store_uuid = Uuid::now_v7();
         let containment = format!("{}~{}", store_uuid, Uuid::now_v7());
-        let cursor = format!("{}:7:{}", store_uuid, Uuid::now_v7());
+        let cursor = format!(
+            "v2:{}:{}:{}:{}:7",
+            store_uuid,
+            Uuid::now_v7(),
+            Uuid::now_v7(),
+            Uuid::now_v7()
+        );
         let doctor = Cli::try_parse_from([
             "stillyard",
             "doctor",

@@ -10,16 +10,17 @@ use std::time::{Duration, Instant};
 use fs2::FileExt;
 use sha2::{Digest, Sha256};
 
-use crate::instance::{default_endpoint, default_store_root, endpoints_equal, validate_endpoint};
+use crate::instance::{default_endpoint, default_instance, endpoints_equal, validate_endpoint};
 use crate::payload::{MAX_CANCEL_JOBS, MAX_STDIN_BYTES, batch_hash, job_hash};
 use crate::protocol::{PROTOCOL_VERSION, Request, Response, StagedInputRef, error_code};
 #[cfg(windows)]
 use crate::protocol::{read_frame, write_frame};
 use crate::{
-    BatchReceipt, BatchSpec, CancellationToken, ClearContainmentResult, ContainmentId,
-    ContainmentIncidentCursor, DaemonSnapshot, DoctorSnapshot, Error, EventCursor,
+    BatchReceipt, BatchSpec, CancellationToken, ClearContainmentResult, CompleteDoctorSnapshot,
+    ContainmentId, ContainmentIncidentCursor, DaemonSnapshot, DoctorSnapshot, Error, EventCursor,
     JobChildrenCursor, JobChildrenPage, JobId, JobListCursor, JobListPage, JobReceipt, JobSelector,
     JobSnapshot, JobSpec, JobTreePage, JobTreeRootCursor, JobTreeSelector, LogChunk, LogStream,
+    MAX_COMPLETE_DOCTOR_BYTES, MAX_COMPLETE_DOCTOR_INCIDENTS, MAX_DOCTOR_PAGE,
     MAX_OBSERVATION_PAGE, ManagedParent, ObservationFrame, RecoveryResult, Result,
     SubmissionContext, SubmitOptions, TreeObservationFrame, WaitStreamItem,
 };
@@ -101,11 +102,11 @@ impl ClientBuilder {
                         "a managed child may not auto-start the daemon".into(),
                     ));
                 }
-                let default_endpoint = default_endpoint()?;
+                let default_instance = default_instance()?;
                 let mut daemon = start_daemon(
                     &client.daemon_executable,
-                    &default_store_root()?,
-                    &default_endpoint,
+                    &default_instance.store_path,
+                    &default_instance.endpoint,
                 )?;
                 let startup_deadline = deadline.min(Instant::now() + Duration::from_secs(10));
                 let mut child_exit = None;
@@ -1011,6 +1012,94 @@ impl Client {
         }
     }
 
+    /// Collects every incident from one snapshot-consistent, bounded doctor inventory.
+    ///
+    /// The traversal uses one monotonic deadline and fails instead of returning a partial result
+    /// when [`crate::MAX_COMPLETE_DOCTOR_INCIDENTS`] or [`crate::MAX_COMPLETE_DOCTOR_BYTES`] is
+    /// exceeded. Continuations expire after [`crate::DOCTOR_SNAPSHOT_TTL_SECONDS`].
+    pub fn doctor_complete(
+        &self,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<CompleteDoctorSnapshot> {
+        check_wait(deadline, cancellation)?;
+        let first = self.doctor(None, Some(MAX_DOCTOR_PAGE), deadline, cancellation)?;
+        let total_unresolved = first.incidents.total_unresolved;
+        if total_unresolved > MAX_COMPLETE_DOCTOR_INCIDENTS {
+            return Err(Error::DoctorIncidentLimit {
+                limit: MAX_COMPLETE_DOCTOR_INCIDENTS,
+            });
+        }
+
+        let store_uuid = first.store.store_uuid;
+        let mut cursor = first.incidents.next_cursor;
+        let snapshot_uuid = cursor.map(|cursor| cursor.snapshot_uuid);
+        let mut incidents = Vec::with_capacity(total_unresolved as usize);
+        let mut identities = std::collections::BTreeSet::new();
+        let mut prior_order = None;
+        let mut serialized_bytes = 0_u64;
+        append_complete_doctor_page(
+            &mut incidents,
+            &mut identities,
+            &mut prior_order,
+            &mut serialized_bytes,
+            first.incidents.incidents.iter().cloned(),
+        )?;
+        validate_doctor_page_cursor(first.incidents.truncated, cursor)?;
+
+        while let Some(next) = cursor {
+            check_wait(deadline, cancellation)?;
+            if next.store_uuid != store_uuid || Some(next.snapshot_uuid) != snapshot_uuid {
+                return Err(Error::Protocol(
+                    "doctor continuation changed snapshot identity".into(),
+                ));
+            }
+            let page = self.doctor(Some(next), Some(MAX_DOCTOR_PAGE), deadline, cancellation)?;
+            if page.store.store_uuid != store_uuid
+                || page.incidents.total_unresolved != total_unresolved
+            {
+                return Err(Error::Protocol(
+                    "doctor continuation changed store or snapshot total".into(),
+                ));
+            }
+            cursor = page.incidents.next_cursor;
+            validate_doctor_page_cursor(page.incidents.truncated, cursor)?;
+            append_complete_doctor_page(
+                &mut incidents,
+                &mut identities,
+                &mut prior_order,
+                &mut serialized_bytes,
+                page.incidents.incidents,
+            )?;
+            if incidents.len() as u64 > total_unresolved {
+                return Err(Error::Protocol(
+                    "doctor continuation exceeded its snapshot total".into(),
+                ));
+            }
+        }
+        if incidents.len() as u64 != total_unresolved {
+            return Err(Error::Protocol(format!(
+                "doctor snapshot declared {total_unresolved} incidents but returned {}",
+                incidents.len()
+            )));
+        }
+        check_wait(deadline, cancellation)?;
+
+        Ok(CompleteDoctorSnapshot {
+            schema_version: first.schema_version,
+            observed_unix_millis: first.observed_unix_millis,
+            overall: first.overall,
+            daemon: first.daemon,
+            host: first.host,
+            store: first.store,
+            checks: first.checks,
+            coverage: first.coverage,
+            total_unresolved,
+            incidents,
+            boundaries: first.boundaries,
+        })
+    }
+
     pub fn force_clear_containment(
         &self,
         containment_id: ContainmentId,
@@ -1354,12 +1443,80 @@ fn response_error<T>(response: Response) -> Result<T> {
         Response::Error { code, message } if code == error_code::TREE_CURSOR_STALE => {
             Err(Error::ViewStale { detail: message })
         }
+        Response::Error { code, message } if code == error_code::DOCTOR_CURSOR_STALE => {
+            Err(Error::ViewStale { detail: message })
+        }
+        Response::Error { code, .. } if code == error_code::DOCTOR_INCIDENT_LIMIT => {
+            Err(Error::DoctorIncidentLimit {
+                limit: crate::MAX_COMPLETE_DOCTOR_INCIDENTS,
+            })
+        }
+        Response::Error { code, .. } if code == error_code::DOCTOR_MEMORY_LIMIT => {
+            Err(Error::DoctorMemoryLimit {
+                limit_bytes: crate::MAX_COMPLETE_DOCTOR_BYTES,
+            })
+        }
+        Response::Error { code, .. } if code == error_code::DOCTOR_SNAPSHOT_CAPACITY => {
+            Err(Error::DoctorSnapshotCapacity)
+        }
         Response::Error { code, message } if code == error_code::TREE_SCAN_LIMIT => {
             Err(Error::ViewUnavailable { detail: message })
         }
         Response::Error { code, message } => Err(Error::Protocol(format!("{code}: {message}"))),
         _ => Err(Error::Protocol("unexpected response variant".into())),
     }
+}
+
+fn validate_doctor_page_cursor(
+    truncated: bool,
+    cursor: Option<ContainmentIncidentCursor>,
+) -> Result<()> {
+    if truncated != cursor.is_some() {
+        return Err(Error::Protocol(
+            "doctor page truncation and continuation cursor disagree".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn append_complete_doctor_page(
+    incidents: &mut Vec<crate::ContainmentIncidentSnapshot>,
+    identities: &mut std::collections::BTreeSet<ContainmentId>,
+    prior_order: &mut Option<(u64, ContainmentId)>,
+    serialized_bytes: &mut u64,
+    page: impl IntoIterator<Item = crate::ContainmentIncidentSnapshot>,
+) -> Result<()> {
+    for incident in page {
+        let order = (incident.incident_sequence, incident.incident_id);
+        if prior_order.is_some_and(|prior| prior >= order) {
+            return Err(Error::Protocol(
+                "doctor snapshot incidents are duplicated or out of order".into(),
+            ));
+        }
+        if !identities.insert(incident.incident_id) {
+            return Err(Error::Protocol(
+                "doctor snapshot returned an incident more than once".into(),
+            ));
+        }
+        *serialized_bytes = serialized_bytes
+            .checked_add(serde_json::to_vec(&incident)?.len() as u64)
+            .ok_or(Error::DoctorMemoryLimit {
+                limit_bytes: MAX_COMPLETE_DOCTOR_BYTES,
+            })?;
+        if *serialized_bytes > MAX_COMPLETE_DOCTOR_BYTES {
+            return Err(Error::DoctorMemoryLimit {
+                limit_bytes: MAX_COMPLETE_DOCTOR_BYTES,
+            });
+        }
+        *prior_order = Some(order);
+        incidents.push(incident);
+    }
+    if incidents.len() as u64 > MAX_COMPLETE_DOCTOR_INCIDENTS {
+        return Err(Error::DoctorIncidentLimit {
+            limit: MAX_COMPLETE_DOCTOR_INCIDENTS,
+        });
+    }
+    Ok(())
 }
 
 fn check_wait(deadline: Instant, cancellation: Option<&CancellationToken>) -> Result<()> {
@@ -1992,6 +2149,55 @@ mod tests {
             }),
             Err(Error::Protocol(detail)) if detail == "unknown_code: detail"
         ));
+        assert!(matches!(
+            response_error::<()>(Response::Error {
+                code: error_code::DOCTOR_CURSOR_STALE.into(),
+                message: "expired".into(),
+            }),
+            Err(Error::ViewStale { detail }) if detail == "expired"
+        ));
+        assert!(matches!(
+            response_error::<()>(Response::Error {
+                code: error_code::DOCTOR_INCIDENT_LIMIT.into(),
+                message: "too many".into(),
+            }),
+            Err(Error::DoctorIncidentLimit { limit })
+                if limit == MAX_COMPLETE_DOCTOR_INCIDENTS
+        ));
+        assert!(matches!(
+            response_error::<()>(Response::Error {
+                code: error_code::DOCTOR_MEMORY_LIMIT.into(),
+                message: "too large".into(),
+            }),
+            Err(Error::DoctorMemoryLimit { limit_bytes })
+                if limit_bytes == MAX_COMPLETE_DOCTOR_BYTES
+        ));
+        assert!(matches!(
+            response_error::<()>(Response::Error {
+                code: error_code::DOCTOR_SNAPSHOT_CAPACITY.into(),
+                message: "busy".into(),
+            }),
+            Err(Error::DoctorSnapshotCapacity)
+        ));
+    }
+
+    #[test]
+    fn doctor_complete_distinguishes_deadline_and_cancellation_before_connecting() {
+        let client = Client {
+            endpoint: "unused".into(),
+            daemon_executable: PathBuf::from("unused"),
+            claimed_parent: None,
+        };
+        assert!(matches!(
+            client.doctor_complete(Instant::now(), None),
+            Err(Error::DeadlineElapsed)
+        ));
+        let cancellation = CancellationToken::new();
+        cancellation.cancel();
+        assert!(matches!(
+            client.doctor_complete(Instant::now() + Duration::from_secs(1), Some(&cancellation)),
+            Err(Error::Canceled)
+        ));
     }
 
     #[test]
@@ -2062,6 +2268,14 @@ mod tests {
             select_client_endpoint(None, Some("inherited".into())).unwrap();
         assert_eq!(selected, "inherited");
         assert!(connect_only);
+    }
+
+    #[test]
+    fn unmanaged_client_selects_the_public_default_endpoint() {
+        let expected = default_instance().unwrap();
+        let (selected, connect_only) = select_client_endpoint(None, None).unwrap();
+        assert_eq!(selected, expected.endpoint);
+        assert!(!connect_only);
     }
 
     #[test]

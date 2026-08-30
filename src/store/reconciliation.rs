@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct ReconciliationObservations {
     entries: std::collections::BTreeMap<ContainmentId, (i64, ReconciliationResult)>,
 }

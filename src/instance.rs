@@ -6,13 +6,33 @@ use sha2::{Digest, Sha256};
 
 use crate::{Error, Result};
 
-pub(crate) fn default_store_root() -> Result<PathBuf> {
+/// Platform-default coordinates for the current user's Stillyard daemon.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DefaultInstance {
+    pub endpoint: String,
+    pub store_path: PathBuf,
+}
+
+/// Resolves the platform-default daemon coordinates for the current user.
+///
+/// This lookup neither connects to nor starts a daemon, and it ignores ambient Stillyard
+/// coordinates inherited through the process environment.
+pub fn default_instance() -> Result<DefaultInstance> {
+    let store_path = derive_default_store_path()?;
+    let endpoint = derive_default_endpoint(&store_path)?;
+    Ok(DefaultInstance {
+        endpoint,
+        store_path,
+    })
+}
+
+fn derive_default_store_path() -> Result<PathBuf> {
     let project = ProjectDirs::from("org", "stillyard", "Stillyard")
         .ok_or_else(|| Error::Unavailable("cannot resolve per-user data directory".into()))?;
     Ok(project.data_local_dir().to_path_buf())
 }
 
-pub(crate) fn default_endpoint() -> Result<String> {
+fn derive_default_endpoint(_store_path: &std::path::Path) -> Result<String> {
     #[cfg(windows)]
     let identity = current_user_sid_string()?;
     #[cfg(windows)]
@@ -20,10 +40,18 @@ pub(crate) fn default_endpoint() -> Result<String> {
     #[cfg(windows)]
     return Ok(format!(r"\\.\pipe\stillyard-v6-{}", &digest[..16]));
     #[cfg(not(windows))]
-    return Ok(default_store_root()?
+    return Ok(_store_path
         .join("stillyard-v6.sock")
         .to_string_lossy()
         .into_owned());
+}
+
+pub(crate) fn default_store_root() -> Result<PathBuf> {
+    Ok(default_instance()?.store_path)
+}
+
+pub(crate) fn default_endpoint() -> Result<String> {
+    Ok(default_instance()?.endpoint)
 }
 
 #[cfg_attr(not(windows), allow(dead_code))]

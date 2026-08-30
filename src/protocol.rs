@@ -12,7 +12,7 @@ use crate::{
     SubmissionContext, TreeObservationFrame,
 };
 
-pub(crate) const PROTOCOL_VERSION: u32 = 14;
+pub(crate) const PROTOCOL_VERSION: u32 = 15;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 pub(crate) mod error_code {
@@ -23,6 +23,10 @@ pub(crate) mod error_code {
     pub(crate) const REJECTED: &str = "rejected";
     pub(crate) const RESOURCE_CAPACITY: &str = "resource_capacity";
     pub(crate) const STORE_ERROR: &str = "store_error";
+    pub(crate) const DOCTOR_CURSOR_STALE: &str = "doctor_cursor_stale";
+    pub(crate) const DOCTOR_INCIDENT_LIMIT: &str = "doctor_incident_limit";
+    pub(crate) const DOCTOR_MEMORY_LIMIT: &str = "doctor_memory_limit";
+    pub(crate) const DOCTOR_SNAPSHOT_CAPACITY: &str = "doctor_snapshot_capacity";
     pub(crate) const TREE_CURSOR_STALE: &str = "tree_cursor_stale";
     pub(crate) const TREE_SCAN_LIMIT: &str = "tree_scan_limit";
 }

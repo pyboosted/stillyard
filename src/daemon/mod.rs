@@ -8,11 +8,16 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use fs2::FileExt;
 
 #[cfg(windows)]
-use crate::instance::{current_user_sid_string, resolve_endpoint, resolve_store_root};
+use crate::instance::{
+    current_user_sid_string, default_instance, resolve_endpoint, resolve_store_root,
+};
 #[cfg(windows)]
 use crate::protocol::{PROTOCOL_VERSION, Request, Response, read_frame, write_frame};
 #[cfg(windows)]
-use crate::store::{ManagedCandidate, Store, StoreError, StorePaths, SubmissionScope, open_lock};
+use crate::store::{
+    DoctorSnapshotCache, ManagedCandidate, Store, StoreError, StorePaths, SubmissionScope,
+    open_lock,
+};
 use crate::{Error, Result};
 
 #[cfg(windows)]
@@ -42,6 +47,13 @@ pub(crate) fn run(store_root: Option<PathBuf>, endpoint: Option<String>) -> Resu
     let store_root = store_root.or_else(|| std::env::var_os("STILLYARD_STORE").map(PathBuf::from));
     let endpoint = endpoint.or_else(|| std::env::var("STILLYARD_ENDPOINT").ok());
     validate_instance_tuple(store_root.is_some(), endpoint.is_some())?;
+    let (store_root, endpoint) = match (store_root, endpoint) {
+        (None, None) => {
+            let selected = default_instance()?;
+            (Some(selected.store_path), Some(selected.endpoint))
+        }
+        selected => selected,
+    };
     let store_root = resolve_store_root(store_root)?;
     let endpoint = resolve_endpoint(endpoint)?;
     let _endpoint_lease = acquire_endpoint_lease(&endpoint)?;
@@ -53,7 +65,18 @@ pub(crate) fn run(store_root: Option<PathBuf>, endpoint: Option<String>) -> Resu
         .map_err(|_| Error::Unavailable("store mutex poisoned".into()))?
         .host_config()
         .observation;
-    let scheduler = DaemonReactor::start(Arc::clone(&store), endpoint, observation_config);
+    let doctor_snapshots = {
+        let store = store
+            .lock()
+            .map_err(|_| Error::Unavailable("store mutex poisoned".into()))?;
+        DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation())
+    };
+    let scheduler = DaemonReactor::start(
+        Arc::clone(&store),
+        endpoint,
+        observation_config,
+        doctor_snapshots,
+    );
     let notifier = Arc::downgrade(&scheduler);
     store
         .lock()

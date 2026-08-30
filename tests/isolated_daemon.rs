@@ -129,6 +129,148 @@ where
     format!("{store}~{}", Uuid::now_v7()).parse().unwrap()
 }
 
+fn seed_unresolved_incidents(store: &Path, count: u64) {
+    let connection = rusqlite::Connection::open(store.join("stillyard.sqlite3")).unwrap();
+    connection
+        .pragma_update(None, "foreign_keys", true)
+        .unwrap();
+    let spec = JobSpec {
+        spec_version: SPEC_VERSION,
+        executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+        args: vec!["/d".into(), "/c".into(), "exit 0".into()],
+        working_directory: store.to_path_buf(),
+        stdin: StdinSpec::Eof,
+        environment: EnvironmentSpec::default(),
+        resources: ResourceClaims::default(),
+        observed: None,
+        conditions: Vec::new(),
+        retry: RetryPolicy::default(),
+        postconditions: Vec::new(),
+        labels: Vec::new(),
+        expected_duration_seconds: Some(1),
+        timeout_seconds: Some(10),
+        quiet: None,
+        artifacts: Vec::new(),
+        child_submission_policy: None,
+    };
+    let spec_json = serde_json::to_string(&spec).unwrap();
+    let transaction = connection.unchecked_transaction().unwrap();
+    for sequence in 1..=count {
+        let submission = Uuid::now_v7().to_string();
+        let job = Uuid::now_v7().to_string();
+        let attempt = Uuid::now_v7().to_string();
+        let invocation = Uuid::now_v7().to_string();
+        let containment = Uuid::now_v7().to_string();
+        transaction
+            .execute(
+                "INSERT INTO submissions(
+                    id, scope, idempotency_key, payload_hash, state, spec_json, kind, created_ms
+                 ) VALUES (?1, 'unmanaged', ?2, 'fixture', 'accepted', ?3, 'job', ?4)",
+                rusqlite::params![submission, Uuid::now_v7().to_string(), spec_json, sequence],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO jobs(
+                    id, submission_id, state, outcome, spec_json, claims_json,
+                    attempt_id, invocation_id, containment_id, accepted_ms, finished_ms
+                 ) VALUES (?1, ?2, 'final', 'interrupted', ?3, '{}', ?4, ?5, ?6, ?7, ?7)",
+                rusqlite::params![
+                    job,
+                    submission,
+                    spec_json,
+                    attempt,
+                    invocation,
+                    containment,
+                    sequence
+                ],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO attempts(
+                    id, job_id, state, attempt_index, verdict, created_ms, finished_ms
+                 ) VALUES (?1, ?2, 'settled', 1, 'interrupted', ?3, ?3)",
+                rusqlite::params![attempt, job, sequence],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO invocations(
+                    id, attempt_id, role, role_index, state, finished_ms
+                 ) VALUES (?1, ?2, 'primary', 0, 'resolved', ?3)",
+                rusqlite::params![invocation, attempt, sequence],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO containments(
+                    id, invocation_id, state, strength, incident_sequence, reason_code,
+                    detail, opened_ms, retained_claims_json
+                 ) VALUES (?1, ?2, 'uncertain', 'windows_job_object', ?3,
+                           'rpc_fixture', 'snapshot pagination fixture', ?3, '{}')",
+                rusqlite::params![containment, invocation, sequence],
+            )
+            .unwrap();
+    }
+    transaction.commit().unwrap();
+}
+
+#[test]
+fn doctor_complete_crosses_transport_pages_and_restart_rejects_old_cursor() {
+    let temp = tempfile::tempdir().unwrap();
+    let pinned = copied_daemon(temp.path());
+    let store = temp.path().join("store");
+    let endpoint = format!(r"\\.\pipe\stillyard-doctor-pages-{}", Uuid::now_v7());
+
+    let mut daemon = spawn_daemon(&pinned, &store, &endpoint);
+    let _ = connect(&pinned, &endpoint);
+    daemon.kill_and_wait();
+    seed_unresolved_incidents(&store, 257);
+
+    daemon = spawn_daemon(&pinned, &store, &endpoint);
+    let client = connect(&pinned, &endpoint);
+    let first = client
+        .doctor(
+            None,
+            Some(113),
+            Instant::now() + Duration::from_secs(10),
+            None,
+        )
+        .unwrap();
+    assert_eq!(first.incidents.total_unresolved, 257);
+    assert_eq!(first.incidents.incidents.len(), 113);
+    let old_cursor = first.incidents.next_cursor.unwrap();
+
+    let complete = client
+        .doctor_complete(Instant::now() + Duration::from_secs(10), None)
+        .unwrap();
+    assert_eq!(complete.total_unresolved, 257);
+    assert_eq!(complete.incidents.len(), 257);
+    assert_eq!(
+        complete
+            .incidents
+            .iter()
+            .map(|incident| incident.incident_id)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        257
+    );
+
+    daemon.kill_and_wait();
+    let _restarted_daemon = spawn_daemon(&pinned, &store, &endpoint);
+    let restarted = connect(&pinned, &endpoint);
+    assert!(matches!(
+        restarted.doctor(
+            Some(old_cursor),
+            Some(113),
+            Instant::now() + Duration::from_secs(10),
+            None,
+        ),
+        Err(Error::ViewStale { detail }) if detail.contains("generation")
+    ));
+}
+
 #[test]
 fn daemon_instance_tuple_accepts_mixed_sources_and_rejects_singletons() {
     let temp = tempfile::tempdir().unwrap();

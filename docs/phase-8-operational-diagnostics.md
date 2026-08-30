@@ -199,7 +199,7 @@ pub struct DoctorIncidentPage {
     pub next_cursor: Option<ContainmentIncidentCursor>,
 }
 
-pub struct ContainmentIncidentCursor { /* store UUID + durable incident sequence + Containment ID */ }
+pub struct ContainmentIncidentCursor { /* opaque store + daemon generation + snapshot + issued offset token */ }
 
 pub struct DoctorSnapshot {
     pub schema_version: u32, // 1 in alpha.8
@@ -262,7 +262,10 @@ for checking a consumer's required codes.
 `Client::doctor(cursor: Option<ContainmentIncidentCursor>, limit: Option<u32>, deadline,
 cancellation)` returns `DoctorSnapshot`; `None` limit means 256 and values clamp to 256.
 `ContainmentIncidentCursor` serializes as one opaque string, has a public parse/display round-trip,
-and follows the same store-scoping rules as the existing observation cursors.
+and is scoped to one store, daemon generation, and frozen incident snapshot. `Client::doctor_complete`
+drains that same snapshot under one monotonic deadline and returns either the full bounded inventory
+or a typed deadline, cancellation, count, memory, or cache-capacity error; it never returns a
+partial vector that looks complete.
 `Client::force_clear_containment(containment_id, deadline, cancellation)` returns a persisted
 `ClearContainmentResult`. A disconnect never makes the result ambiguous: retrying the same
 store-scoped Containment ID returns the original `prior_state`, audit, and `lease_released` value.
@@ -326,11 +329,23 @@ or raw configuration. `daemon.capacities` and `daemon.config_sha256` are the com
 consumer-facing configuration evidence. The canonical hash
 continues to cover the loaded non-secret `HostConfig` representation.
 
-The incident page contains at most 256 unresolved incidents and reports the full count,
-`truncated`, and a stable next cursor. Subsequent pages cannot be starved by an old unresolvable
-first page. Foreign-store, missing-row, future, or malformed cursors reject explicitly. Exact known
-IDs remain available through Job snapshots and are accepted directly by clearance. Resolved audit
-history is retained with its Job/Containment but is not copied into every doctor snapshot.
+The incident page contains at most 256 unresolved incidents and reports the snapshot-time count,
+`truncated`, and a stable next cursor. A multi-page inventory is captured once in one read-only
+SQLite transaction and retained as immutable, generation-local memory. Later pages never re-query
+membership or fields. Incidents opened after capture wait for a new snapshot; incidents resolved
+after capture remain in the old snapshot-time state. Foreign-store, prior-generation, unknown,
+expired, unissued-offset, and malformed cursors reject explicitly and never fall through to a new
+capture. Restart deliberately invalidates all outstanding cursors rather than persisting diagnostic
+copies. Exact known IDs remain available through Job snapshots and are accepted directly by
+clearance. Resolved audit history is retained with its Job/Containment but is not copied into every
+doctor snapshot.
+
+The cache uses a five-minute absolute monotonic TTL, at most 16,384 incidents and 64 MiB per
+snapshot, and global admission limits of 32 live snapshots and 128 MiB. Admission failure does
+not evict a live traversal; serving its final page releases it immediately. Diagnostic capture and
+paging never write or fsync SQLite. Capture uses
+a separate read-only connection, and continuation touches only the cache mutex, so neither path
+retains the scheduler's global Store mutex while walking or serializing the inventory.
 
 `incident_id` is the existing compatibility alias for its owning `containment_id`; they are equal in
 alpha.8 and do not create a tenth durable entity. `reason_code` is stable machine-readable data;
@@ -563,6 +578,24 @@ the public crate and CLI; store tests may construct fault states but cannot be t
     receives a new store UUID. Doctor reports the new epoch, boot, host, version, generation, and
     cooperative boundaries. Partial-migration, stale-ID-clear, pending-means-unbindable, and
     foreign-host-store-kept mutants fail.
+11. **Snapshot-consistent pagination.** A shipped-path RPC test drains more than 256 incidents via
+    `doctor_complete` with no duplicates or omissions. Store-level turnover tests replace an
+    incident with another at the same count and resolve/open incidents between pages; the old
+    traversal remains byte-for-byte membership-stable and a new traversal observes the changes.
+    Foreign, damaged, expired, unissued-offset, and prior-generation cursors fail explicitly.
+    Concurrent turnover cannot create same-count replacement, and cache/count/memory, deadline,
+    and cancellation failures remain distinguishable from a complete empty inventory. Doctor
+    capture produces no durable snapshot table, schema reset, SQLite write, or fsync.
+
+## Alpha.10 consumer-coordinate amendment
+
+The public crate exports `DefaultInstance { endpoint, store_path }` and `default_instance()`.
+This is a pure derivation for the current user's platform-default unmanaged instance: it does not
+connect, launch, or consult `STILLYARD_ENDPOINT`, `STILLYARD_STORE`, or inherited managed-job
+coordinates. Default client selection, default daemon startup, and the public function call the
+same internal derivation. Explicit endpoints remain connect-only and never opt into auto-start.
+External-consumer and client/daemon selection tests verify ambient-coordinate independence and the
+single shared derivation used by the public API, unmanaged default clients, and default daemons.
 
 Focused fleet review must attack the public API size, machine-readable compatibility, exact process
 and reboot proof, managed-caller authorization, clearance transaction, Attempt-wide Lease ownership,

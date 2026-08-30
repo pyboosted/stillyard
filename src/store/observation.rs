@@ -1009,56 +1009,35 @@ impl Store {
         endpoint: &str,
         cursor: Option<ContainmentIncidentCursor>,
         limit: Option<u32>,
+        cache: &mut DoctorSnapshotCache,
     ) -> StoreResult<DoctorSnapshot> {
-        self.doctor_with_reconciliation(
-            endpoint,
-            cursor,
-            limit,
-            &ReconciliationObservations::default(),
-        )
+        let page_limit = limit
+            .unwrap_or(crate::MAX_DOCTOR_PAGE)
+            .clamp(1, crate::MAX_DOCTOR_PAGE) as usize;
+        let incident_page = match cursor {
+            Some(cursor) => cache.next(cursor, page_limit)?,
+            None => cache.begin(
+                self.capture_doctor_incidents(&ReconciliationObservations::default())?,
+                page_limit,
+            )?,
+        };
+        self.doctor_with_incident_page(endpoint, incident_page)
     }
 
-    pub(crate) fn doctor_with_reconciliation(
+    pub(crate) fn capture_doctor_incidents(
         &self,
-        endpoint: &str,
-        cursor: Option<ContainmentIncidentCursor>,
-        limit: Option<u32>,
         observations: &ReconciliationObservations,
-    ) -> StoreResult<DoctorSnapshot> {
-        if let Some(cursor) = cursor {
-            if cursor.store_uuid != self.store_uuid
-                || cursor.containment_id.store_uuid() != self.store_uuid
-            {
-                return Err(StoreError::InvalidSpec(
-                    "containment incident cursor belongs to a foreign store".into(),
-                ));
-            }
-            let exists: bool = self.connection.query_row(
-                "SELECT EXISTS(SELECT 1 FROM containments
-                  WHERE id = ?1 AND incident_sequence = ?2)",
-                params![
-                    cursor.containment_id.entity_uuid().to_string(),
-                    cursor.incident_sequence,
-                ],
-                |row| row.get(0),
-            )?;
-            if !exists {
-                return Err(StoreError::InvalidSpec(
-                    "containment incident cursor is missing or malformed".into(),
-                ));
-            }
-        }
-        let page_limit = limit.unwrap_or(256).clamp(1, 256) as usize;
-        let total_unresolved: u64 = self.connection.query_row(
+    ) -> StoreResult<CapturedDoctorInventory> {
+        let transaction = self.connection.unchecked_transaction()?;
+        let total_unresolved: u64 = transaction.query_row(
             "SELECT COUNT(*) FROM containments WHERE state = 'uncertain'",
             [],
             |row| row.get(0),
         )?;
-        let after_sequence = cursor.map_or(0, |cursor| cursor.incident_sequence);
-        let after_id = cursor
-            .map(|cursor| cursor.containment_id.entity_uuid().to_string())
-            .unwrap_or_default();
-        let mut statement = self.connection.prepare(
+        if total_unresolved > MAX_COMPLETE_DOCTOR_INCIDENTS {
+            return Err(StoreError::DoctorIncidentLimit);
+        }
+        let mut statement = transaction.prepare(
             "SELECT containments.id, containments.incident_sequence, jobs.id, attempts.id,
                     invocations.id, containments.state, containments.reason_code,
                     containments.detail, containments.opened_ms,
@@ -1072,36 +1051,31 @@ impl Store {
              JOIN attempts ON attempts.id = invocations.attempt_id
              JOIN jobs ON jobs.id = attempts.job_id
              WHERE containments.state = 'uncertain'
-               AND (containments.incident_sequence > ?1
-                    OR (containments.incident_sequence = ?1 AND containments.id > ?2))
-             ORDER BY containments.incident_sequence, containments.id
-             LIMIT ?3",
+             ORDER BY containments.incident_sequence, containments.id",
         )?;
-        let rows = statement.query_map(
-            params![after_sequence, after_id, (page_limit + 1) as u32],
-            |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, u64>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, String>(4)?,
-                    row.get::<_, String>(5)?,
-                    row.get::<_, Option<String>>(6)?,
-                    row.get::<_, Option<String>>(7)?,
-                    row.get::<_, Option<i64>>(8)?,
-                    row.get::<_, Option<String>>(9)?,
-                    row.get::<_, Option<u32>>(10)?,
-                    row.get::<_, Option<String>>(11)?,
-                    row.get::<_, Option<String>>(12)?,
-                    row.get::<_, Option<i64>>(13)?,
-                    row.get::<_, Option<String>>(14)?,
-                    row.get::<_, Option<String>>(15)?,
-                    row.get::<_, Option<i64>>(16)?,
-                ))
-            },
-        )?;
-        let mut incidents = Vec::with_capacity(page_limit + 1);
+        let rows = statement.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, u64>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, Option<String>>(6)?,
+                row.get::<_, Option<String>>(7)?,
+                row.get::<_, Option<i64>>(8)?,
+                row.get::<_, Option<String>>(9)?,
+                row.get::<_, Option<u32>>(10)?,
+                row.get::<_, Option<String>>(11)?,
+                row.get::<_, Option<String>>(12)?,
+                row.get::<_, Option<i64>>(13)?,
+                row.get::<_, Option<String>>(14)?,
+                row.get::<_, Option<String>>(15)?,
+                row.get::<_, Option<i64>>(16)?,
+            ))
+        })?;
+        let mut inventory = Vec::with_capacity(total_unresolved as usize);
+        let mut serialized_bytes = 0_u64;
         for row in rows {
             let (
                 containment,
@@ -1125,7 +1099,7 @@ impl Store {
             let containment_id =
                 ContainmentId::from_parts(self.store_uuid, Uuid::parse_str(&containment)?);
             let observed_reconciliation = observations.get(&containment_id).cloned();
-            incidents.push(ContainmentIncidentSnapshot {
+            let incident = ContainmentIncidentSnapshot {
                 incident_id: containment_id,
                 incident_sequence: sequence,
                 containment_id,
@@ -1165,20 +1139,36 @@ impl Store {
                     .map(parse_containment_resolution)
                     .transpose()?,
                 resolved_unix_millis: resolved,
-            });
-        }
-        let has_more = incidents.len() > page_limit;
-        incidents.truncate(page_limit);
-        let next_cursor = has_more && !incidents.is_empty();
-        let next_cursor = next_cursor.then(|| {
-            let incident = incidents.last().expect("nonempty incident page");
-            ContainmentIncidentCursor {
-                store_uuid: self.store_uuid,
-                incident_sequence: incident.incident_sequence,
-                containment_id: incident.containment_id,
+            };
+            let json = serde_json::to_vec(&incident)?;
+            serialized_bytes = serialized_bytes
+                .checked_add(json.len() as u64)
+                .ok_or(StoreError::DoctorMemoryLimit)?;
+            if serialized_bytes > MAX_COMPLETE_DOCTOR_BYTES {
+                return Err(StoreError::DoctorMemoryLimit);
             }
-        });
+            inventory.push(incident);
+        }
+        if inventory.len() as u64 != total_unresolved {
+            return Err(StoreError::InvalidState(
+                "doctor inventory changed while creating its snapshot".into(),
+            ));
+        }
+        drop(statement);
+        transaction.commit()?;
 
+        Ok(CapturedDoctorInventory {
+            incidents: inventory,
+            serialized_bytes,
+        })
+    }
+
+    pub(crate) fn doctor_with_incident_page(
+        &self,
+        endpoint: &str,
+        incident_page: DoctorIncidentPage,
+    ) -> StoreResult<DoctorSnapshot> {
+        let total_unresolved = incident_page.total_unresolved;
         let journal_mode: String = self
             .connection
             .query_row("PRAGMA journal_mode", [], |row| row.get(0))?;
@@ -1331,12 +1321,7 @@ impl Store {
             },
             checks,
             coverage: Vec::new(),
-            incidents: DoctorIncidentPage {
-                total_unresolved,
-                incidents,
-                truncated: has_more,
-                next_cursor,
-            },
+            incidents: incident_page,
             boundaries: vec![
                 DoctorBoundary {
                     code: "cloned_host_identity".into(),

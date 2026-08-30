@@ -316,56 +316,65 @@ pub(super) fn handle_request(
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
             .and_then(|store| store.daemon_status(&scheduler.endpoint))
             .map(Response::DaemonStatus),
-        Request::Doctor { cursor, limit } => store
-            .lock()
-            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-            .and_then(|store| store.host_observation_requirements())
-            .and_then(|requirements| {
+        Request::Doctor { cursor, limit } => (|| {
+            let doctor_store = open_read_view(store)?;
+            let requirements = doctor_store.host_observation_requirements()?;
+            let page_limit = limit
+                .unwrap_or(crate::MAX_DOCTOR_PAGE)
+                .clamp(1, crate::MAX_DOCTOR_PAGE) as usize;
+            let incident_page = match cursor {
+                Some(cursor) => scheduler
+                    .doctor_snapshots
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("doctor snapshot mutex poisoned".into()))?
+                    .next(cursor, page_limit)?,
+                None => {
+                    let observations = scheduler
+                        .reconciliation_observations
+                        .lock()
+                        .map_err(|_| {
+                            StoreError::InvalidState("reconciliation mutex poisoned".into())
+                        })?
+                        .clone();
+                    let captured = doctor_store.capture_doctor_incidents(&observations)?;
+                    scheduler
+                        .doctor_snapshots
+                        .lock()
+                        .map_err(|_| {
+                            StoreError::InvalidState("doctor snapshot mutex poisoned".into())
+                        })?
+                        .begin(captured, page_limit)?
+                }
+            };
+            let mut snapshot =
+                doctor_store.doctor_with_incident_page(&scheduler.endpoint, incident_page)?;
+            {
                 let (detector_checks, detector_coverage) =
                     scheduler.host_observation.doctor_diagnostics(requirements);
-                scheduler
-                    .reconciliation_observations
-                    .lock()
-                    .map_err(|_| StoreError::InvalidState("reconciliation mutex poisoned".into()))
-                    .and_then(|observations| {
-                        store
-                            .lock()
-                            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-                            .and_then(|store| {
-                                store.doctor_with_reconciliation(
-                                    &scheduler.endpoint,
-                                    cursor,
-                                    limit,
-                                    &observations,
-                                )
-                            })
-                    })
-                    .map(|mut snapshot| {
-                        snapshot.checks.extend(detector_checks);
-                        snapshot.coverage.extend(detector_coverage);
-                        snapshot
-                            .checks
-                            .sort_by(|left, right| left.code.cmp(&right.code));
-                        snapshot.overall = if snapshot
-                            .checks
-                            .iter()
-                            .any(|check| check.status == crate::DoctorCheckStatus::Fail)
-                        {
-                            crate::DoctorOverallStatus::Unsafe
-                        } else if snapshot.checks.iter().any(|check| {
-                            matches!(
-                                check.status,
-                                crate::DoctorCheckStatus::Warning
-                                    | crate::DoctorCheckStatus::Unknown(_)
-                            )
-                        }) {
-                            crate::DoctorOverallStatus::AttentionRequired
-                        } else {
-                            crate::DoctorOverallStatus::Healthy
-                        };
-                        Response::Doctor(Box::new(snapshot))
-                    })
-            }),
+                snapshot.checks.extend(detector_checks);
+                snapshot.coverage.extend(detector_coverage);
+            }
+            snapshot
+                .checks
+                .sort_by(|left, right| left.code.cmp(&right.code));
+            snapshot.overall = if snapshot
+                .checks
+                .iter()
+                .any(|check| check.status == crate::DoctorCheckStatus::Fail)
+            {
+                crate::DoctorOverallStatus::Unsafe
+            } else if snapshot.checks.iter().any(|check| {
+                matches!(
+                    check.status,
+                    crate::DoctorCheckStatus::Warning | crate::DoctorCheckStatus::Unknown(_)
+                )
+            }) {
+                crate::DoctorOverallStatus::AttentionRequired
+            } else {
+                crate::DoctorOverallStatus::Healthy
+            };
+            Ok(Response::Doctor(Box::new(snapshot)))
+        })(),
         Request::ForceClearContainment { containment_id } => {
             force_clear_containment(store, scheduler, peer, containment_id)
                 .map(Response::ContainmentCleared)
@@ -404,9 +413,25 @@ pub(super) fn handle_request(
             code: error_code::TREE_CURSOR_STALE.into(),
             message: detail,
         },
+        StoreError::DoctorCursorStale(detail) => Response::Error {
+            code: error_code::DOCTOR_CURSOR_STALE.into(),
+            message: detail,
+        },
         StoreError::ViewUnavailable(detail) => Response::Error {
             code: error_code::TREE_SCAN_LIMIT.into(),
             message: detail,
+        },
+        StoreError::DoctorIncidentLimit => Response::Error {
+            code: error_code::DOCTOR_INCIDENT_LIMIT.into(),
+            message: error.to_string(),
+        },
+        StoreError::DoctorMemoryLimit => Response::Error {
+            code: error_code::DOCTOR_MEMORY_LIMIT.into(),
+            message: error.to_string(),
+        },
+        StoreError::DoctorSnapshotCapacity => Response::Error {
+            code: error_code::DOCTOR_SNAPSHOT_CAPACITY.into(),
+            message: error.to_string(),
         },
         _ => Response::Error {
             code: error_code::STORE_ERROR.into(),

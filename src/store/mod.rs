@@ -1,7 +1,7 @@
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use rusqlite::{
     Connection, OpenFlags, OptionalExtension, Transaction, TransactionBehavior, params,
@@ -18,13 +18,14 @@ use crate::{
     BatchId, BatchJobReceipt, BatchReceipt, BatchSpec, Blocker, BootId, ClearContainmentResult,
     ClearanceOrigin, ContainmentId, ContainmentIncidentCursor, ContainmentIncidentSnapshot,
     ContainmentResolution, ContainmentResolutionAudit, ContainmentSnapshot, ContainmentState,
-    DaemonSnapshot, DoctorBoundary, DoctorCheck, DoctorCheckStatus, DoctorHostSnapshot,
-    DoctorIncidentPage, DoctorOverallStatus, DoctorSnapshot, DoctorStoreSnapshot,
-    EffectiveChildSubmissionPolicy, Estimate, EventCursor, EventGap, ExitClassification,
-    ForcedClearanceAudit, GpuProvenance, HostConfig, HostId, InvocationId, InvocationRole,
-    InvocationSnapshot, InvocationState, JobChildrenCursor, JobChildrenPage, JobId, JobListCursor,
-    JobListPage, JobOutcome, JobReceipt, JobSelector, JobSnapshot, JobSpec, JobState, JobSummary,
-    JobTreePage, JobTreeRootCursor, JobTreeSelector, LogChunk, LogStream, MAX_OBSERVATION_PAGE,
+    DOCTOR_SNAPSHOT_TTL_SECONDS, DaemonSnapshot, DoctorBoundary, DoctorCheck, DoctorCheckStatus,
+    DoctorHostSnapshot, DoctorIncidentPage, DoctorOverallStatus, DoctorSnapshot,
+    DoctorStoreSnapshot, EffectiveChildSubmissionPolicy, Estimate, EventCursor, EventGap,
+    ExitClassification, ForcedClearanceAudit, GpuProvenance, HostConfig, HostId, InvocationId,
+    InvocationRole, InvocationSnapshot, InvocationState, JobChildrenCursor, JobChildrenPage, JobId,
+    JobListCursor, JobListPage, JobOutcome, JobReceipt, JobSelector, JobSnapshot, JobSpec,
+    JobState, JobSummary, JobTreePage, JobTreeRootCursor, JobTreeSelector, LogChunk, LogStream,
+    MAX_COMPLETE_DOCTOR_BYTES, MAX_COMPLETE_DOCTOR_INCIDENTS, MAX_OBSERVATION_PAGE,
     MAX_TREE_PAGE_NODES, MAX_TREE_SELECTOR_JOBS, ManagedParent, ManagedPolicyAdmissionSnapshot,
     ObservationFrame, ProcessIdentity, ReconciliationResult, RecoveryResult, ResourceCapacities,
     SchedulerEvent, SchedulerEventKind, StdinSpec, SubmissionId, SubmissionState,
@@ -37,6 +38,8 @@ const STORE_SCHEMA_EPOCH: &str = "stillyard-managed-child-tree-r1-2026-08-29";
 const MAX_EVENT_ROWS: u64 = 16_384;
 const SNAPSHOT_DIAGNOSTIC_BUDGET_BYTES: usize = 64 * 1024;
 const MAX_UPLOAD_CHUNK_BYTES: usize = 256 * 1024;
+const MAX_DOCTOR_SNAPSHOTS: usize = 32;
+const MAX_DOCTOR_SNAPSHOT_CACHE_BYTES: u64 = 128 * 1024 * 1024;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -123,11 +126,205 @@ pub(crate) enum StoreError {
     InvalidState(String),
     #[error("view cursor is stale: {0}")]
     ViewStale(String),
+    #[error("doctor cursor is stale: {0}")]
+    DoctorCursorStale(String),
     #[error("view unavailable: {0}")]
     ViewUnavailable(String),
+    #[error("doctor inventory exceeds the incident limit")]
+    DoctorIncidentLimit,
+    #[error("doctor inventory exceeds the serialized memory limit")]
+    DoctorMemoryLimit,
+    #[error("doctor snapshot cache capacity is exhausted")]
+    DoctorSnapshotCapacity,
 }
 
 pub(crate) type StoreResult<T> = std::result::Result<T, StoreError>;
+
+pub(crate) struct CapturedDoctorInventory {
+    incidents: Vec<ContainmentIncidentSnapshot>,
+    serialized_bytes: u64,
+}
+
+struct CachedDoctorSnapshot {
+    expires_at: Instant,
+    incidents: std::sync::Arc<[ContainmentIncidentSnapshot]>,
+    serialized_bytes: u64,
+    issued_offsets: std::collections::HashMap<u64, Uuid>,
+}
+
+/// Generation-local diagnostic state. It deliberately lives outside the durable Store and has
+/// its own mutex in the daemon so a paused viewer cannot retain the scheduler's writer mutex.
+pub(crate) struct DoctorSnapshotCache {
+    store_uuid: Uuid,
+    daemon_generation: Uuid,
+    snapshots: std::collections::HashMap<Uuid, CachedDoctorSnapshot>,
+    live_bytes: u64,
+}
+
+impl DoctorSnapshotCache {
+    pub(crate) fn new(store_uuid: Uuid, daemon_generation: Uuid) -> Self {
+        Self {
+            store_uuid,
+            daemon_generation,
+            snapshots: Default::default(),
+            live_bytes: 0,
+        }
+    }
+
+    fn sweep_expired(&mut self, now: Instant) {
+        let expired = self
+            .snapshots
+            .iter()
+            .filter_map(|(id, snapshot)| (snapshot.expires_at <= now).then_some(*id))
+            .collect::<Vec<_>>();
+        for id in expired {
+            if let Some(snapshot) = self.snapshots.remove(&id) {
+                self.live_bytes = self.live_bytes.saturating_sub(snapshot.serialized_bytes);
+            }
+        }
+    }
+
+    pub(crate) fn begin(
+        &mut self,
+        captured: CapturedDoctorInventory,
+        page_limit: usize,
+    ) -> StoreResult<DoctorIncidentPage> {
+        let total_unresolved = captured.incidents.len() as u64;
+        let first_len = captured.incidents.len().min(page_limit);
+        let incidents = captured.incidents[..first_len].to_vec();
+        if first_len == captured.incidents.len() {
+            return Ok(DoctorIncidentPage {
+                total_unresolved,
+                incidents,
+                truncated: false,
+                next_cursor: None,
+            });
+        }
+
+        self.sweep_expired(Instant::now());
+        if self.snapshots.len() >= MAX_DOCTOR_SNAPSHOTS
+            || self
+                .live_bytes
+                .checked_add(captured.serialized_bytes)
+                .is_none_or(|bytes| bytes > MAX_DOCTOR_SNAPSHOT_CACHE_BYTES)
+        {
+            return Err(StoreError::DoctorSnapshotCapacity);
+        }
+
+        let snapshot_uuid = Uuid::now_v7();
+        let offset = first_len as u64;
+        let token_uuid = Uuid::now_v7();
+        let mut issued_offsets = std::collections::HashMap::new();
+        issued_offsets.insert(offset, token_uuid);
+        self.live_bytes += captured.serialized_bytes;
+        self.snapshots.insert(
+            snapshot_uuid,
+            CachedDoctorSnapshot {
+                expires_at: Instant::now() + Duration::from_secs(DOCTOR_SNAPSHOT_TTL_SECONDS),
+                incidents: captured.incidents.into(),
+                serialized_bytes: captured.serialized_bytes,
+                issued_offsets,
+            },
+        );
+        Ok(DoctorIncidentPage {
+            total_unresolved,
+            incidents,
+            truncated: true,
+            next_cursor: Some(ContainmentIncidentCursor {
+                store_uuid: self.store_uuid,
+                daemon_generation: self.daemon_generation,
+                snapshot_uuid,
+                token_uuid,
+                offset,
+            }),
+        })
+    }
+
+    pub(crate) fn next(
+        &mut self,
+        cursor: ContainmentIncidentCursor,
+        page_limit: usize,
+    ) -> StoreResult<DoctorIncidentPage> {
+        if cursor.store_uuid != self.store_uuid {
+            return Err(StoreError::DoctorCursorStale(
+                "cursor belongs to a foreign store".into(),
+            ));
+        }
+        if cursor.daemon_generation != self.daemon_generation {
+            return Err(StoreError::DoctorCursorStale(
+                "cursor belongs to a previous daemon generation".into(),
+            ));
+        }
+        let now = Instant::now();
+        if self
+            .snapshots
+            .get(&cursor.snapshot_uuid)
+            .is_some_and(|snapshot| snapshot.expires_at <= now)
+        {
+            let expired = self.snapshots.remove(&cursor.snapshot_uuid).unwrap();
+            self.live_bytes = self.live_bytes.saturating_sub(expired.serialized_bytes);
+            return Err(StoreError::DoctorCursorStale("snapshot has expired".into()));
+        }
+        self.sweep_expired(now);
+        let snapshot = self
+            .snapshots
+            .get_mut(&cursor.snapshot_uuid)
+            .ok_or_else(|| {
+                StoreError::DoctorCursorStale(
+                    "snapshot is unavailable in this daemon generation".into(),
+                )
+            })?;
+        if cursor.offset == 0
+            || cursor.offset >= snapshot.incidents.len() as u64
+            || snapshot.issued_offsets.get(&cursor.offset) != Some(&cursor.token_uuid)
+        {
+            return Err(StoreError::DoctorCursorStale(
+                "snapshot cursor is malformed or was not issued".into(),
+            ));
+        }
+        let start = cursor.offset as usize;
+        let end = start
+            .saturating_add(page_limit)
+            .min(snapshot.incidents.len());
+        let incidents = snapshot.incidents[start..end].to_vec();
+        let offset = end as u64;
+        let truncated = end < snapshot.incidents.len();
+        let next_cursor = truncated.then(|| {
+            let token_uuid = *snapshot
+                .issued_offsets
+                .entry(offset)
+                .or_insert_with(Uuid::now_v7);
+            ContainmentIncidentCursor {
+                store_uuid: self.store_uuid,
+                daemon_generation: self.daemon_generation,
+                snapshot_uuid: cursor.snapshot_uuid,
+                token_uuid,
+                offset,
+            }
+        });
+        let page = DoctorIncidentPage {
+            total_unresolved: snapshot.incidents.len() as u64,
+            incidents,
+            truncated,
+            next_cursor,
+        };
+        if !truncated {
+            let completed = self
+                .snapshots
+                .remove(&cursor.snapshot_uuid)
+                .expect("served doctor snapshot remains resident until completion");
+            self.live_bytes = self.live_bytes.saturating_sub(completed.serialized_bytes);
+        }
+        Ok(page)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn expire(&mut self, snapshot_uuid: Uuid) {
+        if let Some(snapshot) = self.snapshots.get_mut(&snapshot_uuid) {
+            snapshot.expires_at = Instant::now();
+        }
+    }
+}
 
 pub(crate) struct SubmitResult {
     pub(crate) receipt: JobReceipt,
@@ -241,6 +438,10 @@ pub(crate) struct Store {
 impl Store {
     pub(crate) fn store_uuid(&self) -> Uuid {
         self.store_uuid
+    }
+
+    pub(crate) fn daemon_generation(&self) -> Uuid {
+        self.daemon_generation
     }
 
     /// Opens a read-only peer view so potentially broad operator queries never retain the

@@ -24,23 +24,25 @@ pub(crate) mod store;
 pub use api::{
     AdmissionDecisionSnapshot, AdmissionDecisionState, AttemptSnapshot, BatchJobReceipt,
     BatchReceipt, Blocker, BootId, CancellationToken, ClearContainmentResult, ClearanceOrigin,
-    ContainmentIncidentCursor, ContainmentIncidentSnapshot, ContainmentResolution,
-    ContainmentResolutionAudit, ContainmentSnapshot, ContainmentState, DaemonSnapshot,
-    DetectorEvidenceSnapshot, DoctorBoundary, DoctorCheck, DoctorCheckStatus, DoctorCoverage,
-    DoctorHostSnapshot, DoctorIncidentPage, DoctorOverallStatus, DoctorSnapshot,
-    DoctorStoreSnapshot, EffectiveChildSubmissionPolicy, Estimate, EstimateConfidence, EventCursor,
-    EventGap, ExitClassification, ForcedClearanceAudit, GpuProvenance, HostId, InvocationRole,
-    InvocationSnapshot, InvocationState, JobChildrenCursor, JobChildrenPage, JobListCursor,
-    JobListPage, JobReceipt, JobSelector, JobSnapshot, JobSummary, JobTreeNode, JobTreePage,
-    JobTreeRootCursor, JobTreeSelector, LogChunk, LogStream, MAX_OBSERVATION_PAGE,
-    MAX_TREE_PAGE_NODES, MAX_TREE_SELECTOR_JOBS, MAX_WAIT_STREAM_JOBS, ManagedParent,
-    ManagedPolicyAdmissionSnapshot, ObservationCursorParseError, ObservationFrame,
+    CompleteDoctorSnapshot, ContainmentIncidentCursor, ContainmentIncidentSnapshot,
+    ContainmentResolution, ContainmentResolutionAudit, ContainmentSnapshot, ContainmentState,
+    DOCTOR_SNAPSHOT_TTL_SECONDS, DaemonSnapshot, DetectorEvidenceSnapshot, DoctorBoundary,
+    DoctorCheck, DoctorCheckStatus, DoctorCoverage, DoctorHostSnapshot, DoctorIncidentPage,
+    DoctorOverallStatus, DoctorSnapshot, DoctorStoreSnapshot, EffectiveChildSubmissionPolicy,
+    Estimate, EstimateConfidence, EventCursor, EventGap, ExitClassification, ForcedClearanceAudit,
+    GpuProvenance, HostId, InvocationRole, InvocationSnapshot, InvocationState, JobChildrenCursor,
+    JobChildrenPage, JobListCursor, JobListPage, JobReceipt, JobSelector, JobSnapshot, JobSummary,
+    JobTreeNode, JobTreePage, JobTreeRootCursor, JobTreeSelector, LogChunk, LogStream,
+    MAX_COMPLETE_DOCTOR_BYTES, MAX_COMPLETE_DOCTOR_INCIDENTS, MAX_DOCTOR_PAGE,
+    MAX_OBSERVATION_PAGE, MAX_TREE_PAGE_NODES, MAX_TREE_SELECTOR_JOBS, MAX_WAIT_STREAM_JOBS,
+    ManagedParent, ManagedPolicyAdmissionSnapshot, ObservationCursorParseError, ObservationFrame,
     ObservedOperandSnapshot, ProcessIdentity, ReconciliationResult, RecoveryResult, SchedulerEvent,
     SchedulerEventKind, SubmissionContext, SubmitOptions, TreeAttentionBucket,
     TreeObservationFrame, WaitStreamItem,
 };
 pub use client::{Client, ClientBuilder, LogFollower, ObservationStream, WaitStream};
 pub use error::{Error, Result};
+pub use instance::{DefaultInstance, default_instance};
 pub use model::{
     AttemptId, AttemptVerdict, BatchId, ContainmentId, DurableIdParseError, InvocationId, JobId,
     JobOutcome, JobState, SubmissionId, SubmissionState,
