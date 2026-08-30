@@ -1,9 +1,10 @@
 use std::time::Instant;
 
 use stillyard::{
-    BatchSpec, CancellationToken, Client, CompleteDoctorSnapshot, ContainmentId,
-    ContainmentIncidentCursor, DefaultInstance, DoctorSnapshot, EnsureOptions, JobChildrenCursor,
-    JobId, JobSelector, JobSpec, JobTreeSelector,
+    BatchId, BatchReceipt, BatchSpec, CancellationToken, Client, CompleteDoctorSnapshot,
+    ContainmentId, ContainmentIncidentCursor, DefaultInstance, DoctorSnapshot, EnsureOptions,
+    EnsureOutcome, EnsuredBatch, EnsuredJob, JobChildrenCursor, JobId, JobReceipt, JobSelector,
+    JobSnapshot, JobSpec, JobTreeSelector, RejectReason, SubmissionId, SubmissionRef,
 };
 
 type ExternalConsumerSignature = for<'client, 'cancellation> fn(
@@ -71,6 +72,28 @@ fn external_consumer_compiles(
     let _: stillyard::Result<stillyard::EnsureOutcome<stillyard::EnsuredBatch>> =
         client.ensure_batch(batch_spec, ensure_options, deadline, cancellation);
     let _: stillyard::WaitOutcome = client.wait_outcome(job_id, deadline, cancellation);
+}
+
+#[allow(dead_code)]
+fn managed_execution_test_doubles_compile(
+    submission_id: SubmissionId,
+    job_id: JobId,
+    batch_id: BatchId,
+    job_receipt: JobReceipt,
+    batch_receipt: BatchReceipt,
+    job_snapshot: JobSnapshot,
+) {
+    let _: EnsureOutcome<EnsuredJob> = EnsureOutcome::Pending(
+        SubmissionRef::new(submission_id)
+            .with_job_ids([job_id])
+            .with_batch_id(batch_id),
+    );
+    let _: EnsureOutcome<EnsuredJob> =
+        EnsureOutcome::Rejected(RejectReason::new("fixture_rejected", "fixture detail"));
+    let _: EnsureOutcome<EnsuredJob> =
+        EnsureOutcome::Accepted(EnsuredJob::new(job_receipt).with_snapshot(job_snapshot.clone()));
+    let _: EnsureOutcome<EnsuredBatch> =
+        EnsureOutcome::Final(EnsuredBatch::new(batch_receipt).with_snapshots([job_snapshot]));
 }
 
 #[test]

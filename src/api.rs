@@ -375,12 +375,48 @@ pub struct SubmissionRef {
     pub batch_id: Option<BatchId>,
 }
 
+impl SubmissionRef {
+    /// Creates a Submission reference before any accepted Job or Batch identity is known.
+    #[must_use]
+    pub fn new(submission_id: SubmissionId) -> Self {
+        Self {
+            submission_id,
+            job_ids: Vec::new(),
+            batch_id: None,
+        }
+    }
+
+    /// Adds the accepted Job identities represented by this Submission.
+    #[must_use]
+    pub fn with_job_ids(mut self, job_ids: impl IntoIterator<Item = JobId>) -> Self {
+        self.job_ids = job_ids.into_iter().collect();
+        self
+    }
+
+    /// Adds the accepted Batch identity represented by this Submission.
+    #[must_use]
+    pub fn with_batch_id(mut self, batch_id: BatchId) -> Self {
+        self.batch_id = Some(batch_id);
+        self
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
 pub struct RejectReason {
     pub code: String,
     pub detail: String,
+}
+
+impl RejectReason {
+    #[must_use]
+    pub fn new(code: impl Into<String>, detail: impl Into<String>) -> Self {
+        Self {
+            code: code.into(),
+            detail: detail.into(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -391,6 +427,24 @@ pub struct EnsuredJob {
     pub snapshot: Option<Box<JobSnapshot>>,
 }
 
+impl EnsuredJob {
+    /// Creates an ensured Job value without a terminal snapshot.
+    #[must_use]
+    pub fn new(receipt: JobReceipt) -> Self {
+        Self {
+            receipt,
+            snapshot: None,
+        }
+    }
+
+    /// Adds the terminal snapshot when the ensure operation observed one.
+    #[must_use]
+    pub fn with_snapshot(mut self, snapshot: JobSnapshot) -> Self {
+        self.snapshot = Some(Box::new(snapshot));
+        self
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
@@ -398,6 +452,24 @@ pub struct EnsuredBatch {
     pub receipt: BatchReceipt,
     #[serde(default)]
     pub snapshots: Vec<JobSnapshot>,
+}
+
+impl EnsuredBatch {
+    /// Creates an ensured Batch value without terminal member snapshots.
+    #[must_use]
+    pub fn new(receipt: BatchReceipt) -> Self {
+        Self {
+            receipt,
+            snapshots: Vec::new(),
+        }
+    }
+
+    /// Adds terminal member snapshots in Batch receipt order.
+    #[must_use]
+    pub fn with_snapshots(mut self, snapshots: impl IntoIterator<Item = JobSnapshot>) -> Self {
+        self.snapshots = snapshots.into_iter().collect();
+        self
+    }
 }
 
 /// One fail-closed decision from [`crate::Client::ensure_job`] or
@@ -1473,6 +1545,46 @@ pub struct DaemonSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn managed_execution_value_constructors_use_safe_defaults() {
+        let store_uuid = Uuid::now_v7();
+        let submission_id = SubmissionId::from_parts(store_uuid, Uuid::now_v7());
+        let job_id = JobId::from_parts(store_uuid, Uuid::now_v7());
+        let batch_id = BatchId::from_parts(store_uuid, Uuid::now_v7());
+        let submission = SubmissionRef::new(submission_id);
+        assert!(submission.job_ids.is_empty());
+        assert_eq!(submission.batch_id, None);
+
+        let reason = RejectReason::new("fixture", "test double");
+        assert_eq!(reason.code, "fixture");
+        assert_eq!(reason.detail, "test double");
+
+        let job_receipt = JobReceipt {
+            submission_id,
+            job_id,
+            submission_state: SubmissionState::Accepted,
+            job_state: JobState::Pending,
+            blockers: Vec::new(),
+            queue_rank: None,
+            estimate: Estimate::unknown("fixture"),
+            parent: None,
+            managed_policy_admission: None,
+            gpu_provenance: None,
+            admission: None,
+            daemon_generation: Uuid::now_v7(),
+        };
+        assert!(EnsuredJob::new(job_receipt).snapshot.is_none());
+
+        let batch_receipt = BatchReceipt {
+            submission_id,
+            batch_id,
+            submission_state: SubmissionState::Accepted,
+            jobs: Vec::new(),
+            daemon_generation: Uuid::now_v7(),
+        };
+        assert!(EnsuredBatch::new(batch_receipt).snapshots.is_empty());
+    }
 
     #[test]
     fn cursors_have_stable_cli_round_trips() {

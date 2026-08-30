@@ -470,7 +470,7 @@ impl Client {
                 Err(
                     Error::Rejected { code, detail } | Error::ManagedWaitRejected { code, detail },
                 ) => {
-                    return Ok(EnsureOutcome::Rejected(RejectReason { code, detail }));
+                    return Ok(EnsureOutcome::Rejected(RejectReason::new(code, detail)));
                 }
                 Err(error) => return Err(error),
             }
@@ -523,7 +523,7 @@ impl Client {
                 }
                 Err(
                     Error::Rejected { code, detail } | Error::ManagedWaitRejected { code, detail },
-                ) => Ok(EnsureOutcome::Rejected(RejectReason { code, detail })),
+                ) => Ok(EnsureOutcome::Rejected(RejectReason::new(code, detail))),
                 Err(error) => Err(error),
             };
         }
@@ -544,7 +544,7 @@ impl Client {
                 Err(
                     Error::Rejected { code, detail } | Error::ManagedWaitRejected { code, detail },
                 ) => {
-                    return Ok(EnsureOutcome::Rejected(RejectReason { code, detail }));
+                    return Ok(EnsureOutcome::Rejected(RejectReason::new(code, detail)));
                 }
                 Err(error) => return Err(error),
             };
@@ -583,7 +583,7 @@ impl Client {
             }),
             Err(Error::Rejected { code, detail })
             | Err(Error::ManagedWaitRejected { code, detail }) => {
-                Ok(EnsureOutcome::Rejected(RejectReason { code, detail }))
+                Ok(EnsureOutcome::Rejected(RejectReason::new(code, detail)))
             }
             Err(Error::DeadlineElapsed | Error::Canceled | Error::Unavailable(_)) => {
                 Ok(EnsureOutcome::Unknown)
@@ -635,7 +635,7 @@ impl Client {
                 Err(
                     Error::Rejected { code, detail } | Error::ManagedWaitRejected { code, detail },
                 ) => {
-                    return Ok(EnsureOutcome::Rejected(RejectReason { code, detail }));
+                    return Ok(EnsureOutcome::Rejected(RejectReason::new(code, detail)));
                 }
                 Err(error) => return Err(error),
             }
@@ -688,7 +688,7 @@ impl Client {
                 }
                 Err(
                     Error::Rejected { code, detail } | Error::ManagedWaitRejected { code, detail },
-                ) => Ok(EnsureOutcome::Rejected(RejectReason { code, detail })),
+                ) => Ok(EnsureOutcome::Rejected(RejectReason::new(code, detail))),
                 Err(error) => Err(error),
             };
         }
@@ -709,7 +709,7 @@ impl Client {
                 Err(
                     Error::Rejected { code, detail } | Error::ManagedWaitRejected { code, detail },
                 ) => {
-                    return Ok(EnsureOutcome::Rejected(RejectReason { code, detail }));
+                    return Ok(EnsureOutcome::Rejected(RejectReason::new(code, detail)));
                 }
                 Err(error) => return Err(error),
             };
@@ -748,7 +748,7 @@ impl Client {
             }),
             Err(Error::Rejected { code, detail })
             | Err(Error::ManagedWaitRejected { code, detail }) => {
-                Ok(EnsureOutcome::Rejected(RejectReason { code, detail }))
+                Ok(EnsureOutcome::Rejected(RejectReason::new(code, detail)))
             }
             Err(Error::DeadlineElapsed | Error::Canceled | Error::Unavailable(_)) => {
                 Ok(EnsureOutcome::Unknown)
@@ -785,11 +785,7 @@ impl Client {
         }
         match recovery {
             RecoveryResult::Received { submission_id } => {
-                Ok(EnsureOutcome::Pending(SubmissionRef {
-                    submission_id,
-                    job_ids: Vec::new(),
-                    batch_id: None,
-                }))
+                Ok(EnsureOutcome::Pending(SubmissionRef::new(submission_id)))
             }
             RecoveryResult::Accepted(receipt) => {
                 self.finish_ensured_job(receipt, options, deadline, cancellation)
@@ -798,7 +794,7 @@ impl Client {
                 "idempotency key belongs to a Batch, not a Job".into(),
             )),
             RecoveryResult::Rejected { code, detail } => {
-                Ok(EnsureOutcome::Rejected(RejectReason { code, detail }))
+                Ok(EnsureOutcome::Rejected(RejectReason::new(code, detail)))
             }
             RecoveryResult::Conflict {
                 existing_payload_hash,
@@ -839,11 +835,7 @@ impl Client {
         }
         match recovery {
             RecoveryResult::Received { submission_id } => {
-                Ok(EnsureOutcome::Pending(SubmissionRef {
-                    submission_id,
-                    job_ids: Vec::new(),
-                    batch_id: None,
-                }))
+                Ok(EnsureOutcome::Pending(SubmissionRef::new(submission_id)))
             }
             RecoveryResult::AcceptedBatch(receipt) => {
                 self.finish_ensured_batch(receipt, options, deadline, cancellation)
@@ -852,7 +844,7 @@ impl Client {
                 "idempotency key belongs to a Job, not a Batch".into(),
             )),
             RecoveryResult::Rejected { code, detail } => {
-                Ok(EnsureOutcome::Rejected(RejectReason { code, detail }))
+                Ok(EnsureOutcome::Rejected(RejectReason::new(code, detail)))
             }
             RecoveryResult::Conflict {
                 existing_payload_hash,
@@ -875,10 +867,9 @@ impl Client {
         if receipt.job_state == crate::JobState::Final {
             return Ok(
                 match self.wait_outcome(receipt.job_id, deadline, cancellation) {
-                    WaitOutcome::Final { snapshot, .. } => EnsureOutcome::Final(EnsuredJob {
-                        receipt,
-                        snapshot: Some(snapshot),
-                    }),
+                    WaitOutcome::Final { snapshot, .. } => {
+                        EnsureOutcome::Final(EnsuredJob::new(receipt).with_snapshot(*snapshot))
+                    }
                     WaitOutcome::Pending { .. } | WaitOutcome::Unavailable { .. } => {
                         EnsureOutcome::Pending(submission_ref_for_job(&receipt))
                     }
@@ -887,16 +878,12 @@ impl Client {
             );
         }
         if !options.wait_for_completion {
-            return Ok(EnsureOutcome::Accepted(EnsuredJob {
-                receipt,
-                snapshot: None,
-            }));
+            return Ok(EnsureOutcome::Accepted(EnsuredJob::new(receipt)));
         }
         match self.wait_outcome(receipt.job_id, deadline, cancellation) {
-            WaitOutcome::Final { snapshot, .. } => Ok(EnsureOutcome::Final(EnsuredJob {
-                receipt,
-                snapshot: Some(snapshot),
-            })),
+            WaitOutcome::Final { snapshot, .. } => Ok(EnsureOutcome::Final(
+                EnsuredJob::new(receipt).with_snapshot(*snapshot),
+            )),
             WaitOutcome::Pending { .. } => {
                 Ok(EnsureOutcome::Pending(submission_ref_for_job(&receipt)))
             }
@@ -920,10 +907,7 @@ impl Client {
                 .iter()
                 .all(|member| member.receipt.job_state == crate::JobState::Final);
             if !all_final {
-                return Ok(EnsureOutcome::Accepted(EnsuredBatch {
-                    receipt,
-                    snapshots: Vec::new(),
-                }));
+                return Ok(EnsureOutcome::Accepted(EnsuredBatch::new(receipt)));
             }
         }
         let mut snapshots = Vec::with_capacity(receipt.jobs.len());
@@ -939,7 +923,9 @@ impl Client {
                 WaitOutcome::GapOrUnknown { .. } => return Ok(EnsureOutcome::Unknown),
             }
         }
-        Ok(EnsureOutcome::Final(EnsuredBatch { receipt, snapshots }))
+        Ok(EnsureOutcome::Final(
+            EnsuredBatch::new(receipt).with_snapshots(snapshots),
+        ))
     }
 
     fn upload_stdin(
@@ -2517,23 +2503,13 @@ fn ensure_submit_options(options: &EnsureOptions) -> SubmitOptions {
 }
 
 fn submission_ref_for_job(receipt: &JobReceipt) -> SubmissionRef {
-    SubmissionRef {
-        submission_id: receipt.submission_id,
-        job_ids: vec![receipt.job_id],
-        batch_id: None,
-    }
+    SubmissionRef::new(receipt.submission_id).with_job_ids([receipt.job_id])
 }
 
 fn submission_ref_for_batch(receipt: &BatchReceipt) -> SubmissionRef {
-    SubmissionRef {
-        submission_id: receipt.submission_id,
-        job_ids: receipt
-            .jobs
-            .iter()
-            .map(|member| member.receipt.job_id)
-            .collect(),
-        batch_id: Some(receipt.batch_id),
-    }
+    SubmissionRef::new(receipt.submission_id)
+        .with_job_ids(receipt.jobs.iter().map(|member| member.receipt.job_id))
+        .with_batch_id(receipt.batch_id)
 }
 
 fn prepare_ensure_result_file(
