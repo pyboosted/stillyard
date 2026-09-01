@@ -235,6 +235,7 @@ fn lifecycle_and_cancellation_transitions_emit_named_events() {
     store
         .mark_started(&prepared, 42, "observation-image-hash")
         .unwrap();
+    store.mark_root_exited(&prepared, 0).unwrap();
     store.cancel_jobs(&[receipt.job_id]).unwrap();
     let frame = store
         .observe(
@@ -253,6 +254,99 @@ fn lifecycle_and_cancellation_transitions_emit_named_events() {
     assert!(kinds.contains(&SchedulerEventKind::InvocationChanged));
     assert!(kinds.contains(&SchedulerEventKind::ContainmentChanged));
     assert!(kinds.contains(&SchedulerEventKind::CancellationRequested));
+    let invocation_events = events
+        .iter()
+        .filter(|event| event.kind == SchedulerEventKind::InvocationChanged)
+        .collect::<Vec<_>>();
+    assert_eq!(invocation_events.len(), 2);
+    assert_eq!(
+        invocation_events
+            .iter()
+            .map(|event| event.transition)
+            .collect::<Vec<_>>(),
+        vec![
+            Some(InvocationTransition::Started),
+            Some(InvocationTransition::Exited)
+        ]
+    );
+    assert!(invocation_events.iter().all(|event| {
+        event.attempt_id == Some(prepared.attempt_id)
+            && event.invocation_id == Some(prepared.invocation_id)
+    }));
+}
+
+#[test]
+fn invocation_event_identity_is_atomic_and_required() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let job = spec(temp.path());
+    let hash = normalized_payload_hash(&job).unwrap();
+    let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+    let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+    let error = store.connection.execute(
+        "INSERT INTO events(kind, job_id, committed_ms)
+         VALUES ('invocation_changed', ?1, ?2)",
+        params![receipt.job_id.entity_uuid().to_string(), now_millis()],
+    );
+    assert!(
+        error.is_err(),
+        "partial InvocationChanged must fail its CHECK"
+    );
+
+    let before = store.event_head().unwrap();
+    store
+        .mark_started(&prepared, 42, "observation-image-hash")
+        .unwrap();
+    let frame = store
+        .observe(
+            &JobSelector::Jobs {
+                job_ids: vec![receipt.job_id],
+            },
+            Some(before),
+            MAX_OBSERVATION_PAGE,
+        )
+        .unwrap();
+    let ObservationFrame::Events { events, .. } = frame else {
+        panic!("fresh transition must remain observable");
+    };
+    assert!(events.iter().any(|event| {
+        event.kind == SchedulerEventKind::InvocationChanged
+            && event.attempt_id == Some(prepared.attempt_id)
+            && event.invocation_id == Some(prepared.invocation_id)
+            && event.transition == Some(InvocationTransition::Started)
+    }));
+
+    let other_job = spec(temp.path());
+    let other_hash = normalized_payload_hash(&other_job).unwrap();
+    let other_receipt = store
+        .submit(Uuid::now_v7(), &other_hash, &other_job)
+        .unwrap()
+        .receipt;
+    let before_mismatch = store.event_head().unwrap();
+    store
+        .connection
+        .execute(
+            "INSERT INTO events(
+                 kind, job_id, attempt_id, invocation_id, transition, committed_ms
+             ) VALUES ('invocation_changed', ?1, ?2, ?3, 'started', ?4)",
+            params![
+                other_receipt.job_id.entity_uuid().to_string(),
+                prepared.attempt_id.entity_uuid().to_string(),
+                prepared.invocation_id.entity_uuid().to_string(),
+                now_millis()
+            ],
+        )
+        .unwrap();
+    let error = store
+        .observe(
+            &JobSelector::Jobs {
+                job_ids: vec![other_receipt.job_id],
+            },
+            Some(before_mismatch),
+            MAX_OBSERVATION_PAGE,
+        )
+        .unwrap_err();
+    assert!(matches!(error, StoreError::InvalidState(_)));
 }
 
 #[test]

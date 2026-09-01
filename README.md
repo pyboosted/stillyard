@@ -10,7 +10,7 @@ state and logs, and exposes visible reasons while they wait.
 Stillyard is useful when independent processes need one scheduling authority without moving into
 containers, a CI service, or a remote worker platform.
 
-Current release: **0.1.0-alpha.11 for Windows 10 1809+ and Windows Server 2019+**.
+Current release: **0.1.0-alpha.12 for Windows 10 1809+ and Windows Server 2019+**.
 
 ## What works today
 
@@ -38,6 +38,8 @@ Current release: **0.1.0-alpha.11 for Windows 10 1809+ and Windows Server 2019+*
   cancel, daemon status, schema, doctor, and bounded tree commands. `stillyard watch` is an
   event-driven parent/child forest. The Rust crate exposes the same public protocol through a
   blocking client.
+- **Invocation events.** `InvocationChanged` identifies its Attempt and Invocation and records the
+  provider-reported `started` or `exited` transition without requiring an immediate full snapshot.
 
 Resource declarations are admission reservations, not hard CPU, RAM, or GPU limits on a running
 process. Callers should declare every scarce resource or conflicting impact they rely on.

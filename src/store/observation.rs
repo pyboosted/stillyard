@@ -306,7 +306,8 @@ impl Store {
         let mut scanned = requested.sequence;
         if scanned < head.sequence {
             let mut statement = self.connection.prepare(
-                "SELECT sequence, kind, job_id, batch_id, committed_ms FROM events
+                "SELECT sequence, kind, job_id, batch_id, attempt_id, invocation_id,
+                        transition, committed_ms FROM events
                  WHERE sequence > ?1 ORDER BY sequence LIMIT ?2",
             )?;
             let rows = statement
@@ -316,14 +317,18 @@ impl Store {
                         row.get::<_, String>(1)?,
                         row.get::<_, String>(2)?,
                         row.get::<_, Option<String>>(3)?,
-                        row.get::<_, i64>(4)?,
+                        row.get::<_, Option<String>>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                        row.get::<_, Option<String>>(6)?,
+                        row.get::<_, i64>(7)?,
                     ))
                 })?
                 .collect::<std::result::Result<Vec<_>, _>>()?;
             if rows.is_empty() {
                 scanned = head.sequence;
             } else {
-                for (sequence, kind, job, batch, committed) in rows {
+                for (sequence, kind, job, batch, attempt, invocation, transition, committed) in rows
+                {
                     scanned = sequence;
                     let job_id = JobId::from_parts(self.store_uuid, Uuid::parse_str(&job)?);
                     let spec_json = if matches!(selector, JobSelector::Labels { .. }) {
@@ -343,12 +348,62 @@ impl Store {
                     )? {
                         continue;
                     }
+                    let kind = parse_scheduler_event_kind(&kind)?;
+                    let (attempt_id, invocation_id, transition) = match kind {
+                        SchedulerEventKind::InvocationChanged => {
+                            let (Some(attempt), Some(invocation), Some(transition)) =
+                                (attempt, invocation, transition)
+                            else {
+                                return Err(StoreError::InvalidState(
+                                    "InvocationChanged event has incomplete transition identity"
+                                        .into(),
+                                ));
+                            };
+                            let identity_matches_job = self.connection.query_row(
+                                "SELECT EXISTS(
+                                     SELECT 1 FROM invocations
+                                     JOIN attempts ON attempts.id = invocations.attempt_id
+                                     WHERE invocations.id = ?1
+                                       AND invocations.attempt_id = ?2
+                                       AND attempts.job_id = ?3
+                                 )",
+                                params![&invocation, &attempt, &job],
+                                |row| row.get::<_, bool>(0),
+                            )?;
+                            if !identity_matches_job {
+                                return Err(StoreError::InvalidState(
+                                    "InvocationChanged event identity does not belong to its Job"
+                                        .into(),
+                                ));
+                            }
+                            (
+                                Some(AttemptId::from_parts(
+                                    self.store_uuid,
+                                    Uuid::parse_str(&attempt)?,
+                                )),
+                                Some(InvocationId::from_parts(
+                                    self.store_uuid,
+                                    Uuid::parse_str(&invocation)?,
+                                )),
+                                Some(parse_invocation_transition(&transition)?),
+                            )
+                        }
+                        _ if attempt.is_none() && invocation.is_none() && transition.is_none() => {
+                            (None, None, None)
+                        }
+                        _ => {
+                            return Err(StoreError::InvalidState(
+                                "non-Invocation event carries Invocation transition identity"
+                                    .into(),
+                            ));
+                        }
+                    };
                     events.push(SchedulerEvent {
                         cursor: EventCursor {
                             store_uuid: self.store_uuid,
                             sequence,
                         },
-                        kind: parse_scheduler_event_kind(&kind)?,
+                        kind,
                         job_id,
                         batch_id: batch
                             .map(|value| {
@@ -356,6 +411,9 @@ impl Store {
                                     .map(|uuid| BatchId::from_parts(self.store_uuid, uuid))
                             })
                             .transpose()?,
+                        attempt_id,
+                        invocation_id,
+                        transition,
                         committed_unix_millis: committed,
                     });
                     if events.len() == wanted {

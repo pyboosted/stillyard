@@ -1,6 +1,6 @@
 # ManagedExecution public surface
 
-Status: implemented for `0.1.0-alpha.11`, local protocol 16, Windows v0.1.
+Status: implemented for `0.1.0-alpha.12`, local protocol 17, Windows v0.1.
 
 This amendment makes Stillyard the single owner of:
 

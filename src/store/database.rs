@@ -423,7 +423,21 @@ pub(super) fn create_current_schema(
              kind TEXT NOT NULL,
              job_id TEXT NOT NULL REFERENCES jobs(id),
              batch_id TEXT REFERENCES batches(id),
-             committed_ms INTEGER NOT NULL
+             attempt_id TEXT REFERENCES attempts(id),
+             invocation_id TEXT REFERENCES invocations(id),
+             transition TEXT,
+             committed_ms INTEGER NOT NULL,
+             CHECK (
+                 (kind = 'invocation_changed'
+                     AND attempt_id IS NOT NULL
+                     AND invocation_id IS NOT NULL
+                     AND transition IN ('started', 'exited'))
+                 OR
+                 (kind != 'invocation_changed'
+                     AND attempt_id IS NULL
+                     AND invocation_id IS NULL
+                     AND transition IS NULL)
+             )
          );
          CREATE INDEX events_job_sequence ON events(job_id, sequence);
          CREATE INDEX jobs_parent_accepted ON jobs(parent_job_id, accepted_ms, id);
@@ -484,16 +498,24 @@ pub(super) fn create_current_schema(
                  CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
              FROM jobs WHERE jobs.id = NEW.job_id;
          END;
-         CREATE TRIGGER invocations_event_insert AFTER INSERT ON invocations BEGIN
-             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+         CREATE TRIGGER invocations_event_insert AFTER INSERT ON invocations
+         WHEN NEW.state IN ('started', 'exited') BEGIN
+             INSERT INTO events(
+                 kind, job_id, batch_id, attempt_id, invocation_id, transition, committed_ms
+             )
              SELECT 'invocation_changed', attempts.job_id, jobs.batch_id,
+                 NEW.attempt_id, NEW.id, NEW.state,
                  CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
              FROM attempts JOIN jobs ON jobs.id = attempts.job_id
              WHERE attempts.id = NEW.attempt_id;
          END;
-         CREATE TRIGGER invocations_event_update AFTER UPDATE ON invocations BEGIN
-             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+         CREATE TRIGGER invocations_event_update AFTER UPDATE OF state ON invocations
+         WHEN OLD.state IS NOT NEW.state AND NEW.state IN ('started', 'exited') BEGIN
+             INSERT INTO events(
+                 kind, job_id, batch_id, attempt_id, invocation_id, transition, committed_ms
+             )
              SELECT 'invocation_changed', attempts.job_id, jobs.batch_id,
+                 NEW.attempt_id, NEW.id, NEW.state,
                  CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
              FROM attempts JOIN jobs ON jobs.id = attempts.job_id
              WHERE attempts.id = NEW.attempt_id;
@@ -668,7 +690,16 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
         ),
         (
             "events",
-            &["sequence", "kind", "job_id", "batch_id", "committed_ms"] as &[_],
+            &[
+                "sequence",
+                "kind",
+                "job_id",
+                "batch_id",
+                "attempt_id",
+                "invocation_id",
+                "transition",
+                "committed_ms",
+            ] as &[_],
         ),
     ] {
         let present = table_columns(connection, table)?;

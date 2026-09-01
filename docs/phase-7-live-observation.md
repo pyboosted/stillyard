@@ -1,7 +1,6 @@
 # Phase 7 — Live observation
 
-Status: Stillyard-side alpha.7 delivered and reviewed (2026-08-28); cross-repository `moot`
-adapter rollout remains its planned batch 04
+Status: implemented; amended by alpha.12 for identified Invocation transitions
 
 This increment makes the already durable scheduler observable as a live system. It adds one
 event-driven public observation path and the first useful terminal monitor without changing
@@ -31,6 +30,9 @@ without affecting work, and reconnect from a durable event cursor. The first ext
 - Public change kinds cover submission acceptance, lifecycle/Attempt/Invocation/Containment
   transition, cancellation request, scheduling eligibility change, and committed log extent.
   Consumers must treat unknown future kinds as a reason to refresh, not as an error.
+- In alpha.12, every `InvocationChanged` carries `attempt_id`, `invocation_id`, and `transition` equal
+  to `started` or `exited`. The event commits in the same transaction as that provider-reported
+  transition. Prepared/resolved-only changes do not fabricate start or exit evidence.
 - One event may invalidate queue rank, blockers, or estimates for Jobs other than its subject.
   A watcher therefore refreshes its bounded selected view after an event batch; the event stream is
   not a materialized copy of every derived snapshot field. A filtered frame may therefore contain
@@ -70,6 +72,9 @@ process. They may perform repeated deadline-bounded local protocol calls interna
 - An externally visible authoritative transition and its event commit atomically. A crash may leave
   the prior transition and no event, or the new transition and its event; it may not expose the new
   transition without the corresponding cursor advance.
+- The identified Invocation payload changes the strict nested event response, so alpha.12 uses
+  local protocol 17. It also changes the greenfield event table and therefore selects a new SQLite
+  schema epoch under the existing whole-store reset rule; there is no in-place migration.
 - Event history has a fixed alpha.7 row bound of 16,384. Pruning advances the durable oldest
   available sequence. General configurable Job/log/input retention remains later work.
 - A request before the oldest available sequence returns `Gap`; a wrong-store cursor also returns

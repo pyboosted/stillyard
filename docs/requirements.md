@@ -188,6 +188,8 @@ R-OBS-4 Receipt, snapshot, and final provenance include host, boot, Stillyard ve
 
 R-OBS-5 List and label watch are dynamic views over retained Jobs. Explicit Job IDs and retained Batch IDs provide exact membership; labels are convenient discovery and deliberately make no historical-completeness promise after retention.
 
+R-OBS-6 Every `InvocationChanged` event MUST identify its owning Attempt and Invocation and MUST name the provider-reported `started` or `exited` transition committed by that same lifecycle transaction. Preparing or resolving an Invocation without provider-reported start/exit does not fabricate one of these transitions. Other event kinds carry no Invocation-transition identity. A wire-shape change to this strict nested response requires a local protocol increment rather than exposing old clients to an event they cannot deserialize.
+
 ## 13. Environment, identity, and secrets
 
 R-ENV-1 Every Invocation starts from a small documented clean environment plus explicit per-Job set/unset changes persisted in the accepted Job. A Job may set PATH; the daemon's ambient PATH, SSH variables, billing credentials, display variables, and unrelated environment are never inherited implicitly. Account and toolchain selection belong to the submitting consumer rather than host-local daemon presets.

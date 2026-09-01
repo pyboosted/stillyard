@@ -179,6 +179,16 @@ pub(super) fn parse_scheduler_event_kind(value: &str) -> StoreResult<SchedulerEv
     }
 }
 
+pub(super) fn parse_invocation_transition(value: &str) -> StoreResult<InvocationTransition> {
+    match value {
+        "started" => Ok(InvocationTransition::Started),
+        "exited" => Ok(InvocationTransition::Exited),
+        other => Err(StoreError::InvalidState(format!(
+            "unknown invocation event transition {other}"
+        ))),
+    }
+}
+
 pub(super) fn outcome_string(outcome: JobOutcome) -> &'static str {
     match outcome {
         JobOutcome::Succeeded => "succeeded",

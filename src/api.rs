@@ -125,14 +125,34 @@ pub enum SchedulerEventKind {
     Unknown,
 }
 
+/// Provider-reported Invocation transition carried by an `InvocationChanged` event.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum InvocationTransition {
+    Started,
+    Exited,
+    /// A newer daemon committed a transition this client does not yet name.
+    #[serde(other)]
+    Unknown,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
-#[serde(deny_unknown_fields)]
 pub struct SchedulerEvent {
     pub cursor: EventCursor,
     pub kind: SchedulerEventKind,
     pub job_id: JobId,
     pub batch_id: Option<BatchId>,
+    /// Present for every `InvocationChanged` event and absent for other event kinds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attempt_id: Option<AttemptId>,
+    /// Present for every `InvocationChanged` event and absent for other event kinds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invocation_id: Option<InvocationId>,
+    /// Present for every `InvocationChanged` event and absent for other event kinds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transition: Option<InvocationTransition>,
     pub committed_unix_millis: i64,
 }
 
@@ -1629,6 +1649,37 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<SchedulerEventKind>("\"future_kind\"").unwrap(),
             SchedulerEventKind::Unknown
+        );
+    }
+
+    #[test]
+    fn scheduler_events_accept_additive_wire_evolution() {
+        let store_uuid = Uuid::now_v7();
+        let job_id = JobId::from_parts(store_uuid, Uuid::now_v7());
+        let old_payload = serde_json::json!({
+            "cursor": { "store_uuid": store_uuid, "sequence": 7 },
+            "kind": "job_changed",
+            "job_id": job_id,
+            "batch_id": null,
+            "committed_unix_millis": 42
+        });
+        let old_event: SchedulerEvent = serde_json::from_value(old_payload).unwrap();
+        assert_eq!(old_event.attempt_id, None);
+        assert_eq!(old_event.invocation_id, None);
+        assert_eq!(old_event.transition, None);
+
+        let mut future_payload = serde_json::to_value(&old_event).unwrap();
+        future_payload
+            .as_object_mut()
+            .unwrap()
+            .insert("future_field".into(), serde_json::json!({ "version": 18 }));
+        assert_eq!(
+            serde_json::from_value::<SchedulerEvent>(future_payload).unwrap(),
+            old_event
+        );
+        assert_eq!(
+            serde_json::from_str::<InvocationTransition>("\"future_transition\"").unwrap(),
+            InvocationTransition::Unknown
         );
     }
 
