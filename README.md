@@ -157,6 +157,10 @@ installed system Stillyard daemon:
 & .\scripts\run-stillyard-job.ps1 build-release
 ```
 
+The two MSRV definitions are checked-in templates. The launcher discovers the current checkout,
+user Rust installation, and x64 Visual Studio/Windows SDK environment before submitting a temporary
+JobSpec, so they do not need path edits in another Windows checkout.
+
 See [AGENTS.md](AGENTS.md) for the build invariant and [CONTRIBUTING.md](CONTRIBUTING.md) for
 repository conventions.
 

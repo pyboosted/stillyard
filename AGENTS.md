@@ -34,4 +34,6 @@ All new local validation commands and handoff evidence must name the Stillyard J
 
 Canonical definitions live under `.stillyard/jobs/`. They deliberately carry an explicit clean toolchain environment, `cargo_slots: 1`, the `cpu_heavy` impact, and `project=stillyard` labels. Update those definitions when the host toolchain or canonical repository path changes; do not reintroduce daemon-side environment profiles.
 
+`msrv-check.json.in` and `msrv-test.json.in` are portable templates, not directly-submittable JobSpecs. The launcher expands their `${...}` placeholders into a temporary JobSpec using the current checkout, user profile, Rust toolchain, and the Visual Studio/Windows SDK environment discovered through `vswhere` plus `VsDevCmd`. Do not replace those placeholders with reference-host paths.
+
 The system daemon configuration must provide at least one `cargo_slots` token. A queued Job is expected when another Cargo workload owns that token; bypassing the scheduler is not an acceptable workaround.
