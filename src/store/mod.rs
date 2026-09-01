@@ -575,13 +575,14 @@ impl Store {
     }
 
     fn finish_open(
-        connection: Connection,
+        mut connection: Connection,
         paths: StorePaths,
         config: HostConfig,
         startup_identity: StartupIdentity,
     ) -> StoreResult<Self> {
         configure_database(&connection)?;
         validate_retained_jobs(&connection, &config)?;
+        normalize_reservations_for_capacities(&mut connection, &config.resources, now_millis())?;
         let store_uuid = current_store_uuid(&connection)?;
         let config_sha256 = format!("{:x}", Sha256::digest(serde_json::to_vec(&config)?));
         let bound_host_id = meta_value(&connection, "bound_host_id")?.map(HostId);

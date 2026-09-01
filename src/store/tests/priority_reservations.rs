@@ -518,6 +518,112 @@ fn reservations_sum_to_capacity_and_non_scalar_changes_release_them() {
 }
 
 #[test]
+fn restart_capacity_shrink_keeps_only_the_scheduler_ordered_reservation_prefix() {
+    for (axis, cpu_claim, custom_claim) in
+        [("cpu_units", 2_u32, 0_u64), ("review_slots", 0_u32, 2_u64)]
+    {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = StorePaths::new(temp.path().to_path_buf());
+        let mut original_capacities = capacities();
+        original_capacities.cpu_units = 4;
+        original_capacities.custom.insert("review_slots".into(), 4);
+        let mut store =
+            Store::open_with_capacities(paths.clone(), original_capacities.clone()).unwrap();
+
+        let mut holder_spec = spec(temp.path());
+        if cpu_claim > 0 {
+            holder_spec.resources.cpu_units = Some(4);
+        }
+        if custom_claim > 0 {
+            holder_spec
+                .resources
+                .custom
+                .insert("review_slots".into(), 4);
+        }
+        let (_, holder_id) = submit_job(&mut store, &holder_spec);
+        let _holder = store.prepare_job(holder_id).unwrap().unwrap();
+
+        let mut low = spec(temp.path());
+        low.priority = crate::MIN_JOB_PRIORITY;
+        low.resources.cpu_units = (cpu_claim > 0).then_some(cpu_claim);
+        if custom_claim > 0 {
+            low.resources
+                .custom
+                .insert("review_slots".into(), custom_claim);
+        }
+        let (_, low_id) = submit_job(&mut store, &low);
+
+        let mut high = low.clone();
+        high.priority = crate::MAX_JOB_PRIORITY;
+        let (_, high_id) = submit_job(&mut store, &high);
+        assert!(store.prepare_next_job().unwrap().is_none());
+        assert!(store.status(low_id).unwrap().reservation.is_some());
+        let retained_reservation = store.status(high_id).unwrap().reservation.unwrap();
+        let event_before_restart = store.event_head().unwrap().sequence;
+        drop(store);
+
+        let mut reduced_capacities = original_capacities;
+        if cpu_claim > 0 {
+            reduced_capacities.cpu_units = 3;
+        } else {
+            reduced_capacities.custom.insert("review_slots".into(), 3);
+        }
+        let reopened = Store::open_with_capacities(paths, reduced_capacities).unwrap();
+
+        assert_eq!(
+            reopened.status(high_id).unwrap().reservation,
+            Some(retained_reservation),
+            "the later high-priority reservation must own the retained scheduler prefix for {axis}"
+        );
+        let dropped = reopened.status(low_id).unwrap();
+        assert!(dropped.reservation.is_none());
+        assert!(
+            dropped
+                .blockers
+                .iter()
+                .any(|blocker| blocker.code == "reservation_backoff"),
+            "the dropped {axis} reservation owner must receive durable backoff"
+        );
+        let reservation_not_before: Option<i64> = reopened
+            .connection
+            .query_row(
+                "SELECT reservation_not_before_ms FROM jobs WHERE id = ?1",
+                [low_id.entity_uuid().to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(reservation_not_before.unwrap() > now_millis());
+
+        let resources = reopened.daemon_status("test").unwrap().resources.unwrap();
+        let (capacity, reserved) = if cpu_claim > 0 {
+            (resources.cpu_units.capacity, resources.cpu_units.reserved)
+        } else {
+            (
+                resources.custom["review_slots"].capacity,
+                resources.custom["review_slots"].reserved,
+            )
+        };
+        assert_eq!(capacity, 3);
+        assert_eq!(reserved, 2);
+        assert!(reserved <= capacity);
+
+        let changed_events: u64 = reopened
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM events
+                 WHERE sequence > ?1 AND kind = 'job_changed' AND job_id = ?2",
+                params![event_before_restart, low_id.entity_uuid().to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(
+            changed_events > 0,
+            "dropping the {axis} reservation must emit job_changed"
+        );
+    }
+}
+
+#[test]
 fn reservation_deadline_survives_restart_expiry_yields_and_cancellation_cleans_up() {
     let temp = tempfile::tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());

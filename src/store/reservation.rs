@@ -146,6 +146,97 @@ impl Store {
     }
 }
 
+pub(super) fn normalize_reservations_for_capacities(
+    connection: &mut Connection,
+    capacities: &ResourceCapacities,
+    now: i64,
+) -> StoreResult<bool> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let changed = normalize_reservations_for_capacities_tx(&transaction, capacities, now)?;
+    if changed {
+        transaction.commit()?;
+    } else {
+        transaction.rollback()?;
+    }
+    Ok(changed)
+}
+
+fn normalize_reservations_for_capacities_tx(
+    transaction: &Transaction<'_>,
+    capacities: &ResourceCapacities,
+    now: i64,
+) -> StoreResult<bool> {
+    let mut reservations = {
+        let mut statement = transaction.prepare(
+            "SELECT reservations.job_id, reservations.claims_json,
+                    jobs.accepted_ms, jobs.rowid, jobs.spec_json
+             FROM reservations JOIN jobs ON jobs.id = reservations.job_id
+             WHERE reservations.hold_deadline_ms > ?1
+               AND jobs.state = 'pending' AND jobs.cancel_requested = 0",
+        )?;
+        let rows = statement.query_map([now], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, i64>(3)?,
+                row.get::<_, String>(4)?,
+            ))
+        })?;
+        rows.map(|row| {
+            let (job_id, claims_json, accepted_ms, rowid, spec_json) = row?;
+            let claims: ResolvedClaims = serde_json::from_str(&claims_json)?;
+            let spec: JobSpec = serde_json::from_str(&spec_json)?;
+            Ok((
+                ScheduleKey {
+                    effective_priority: effective_priority_at(spec.priority, accepted_ms, now),
+                    accepted_ms,
+                    rowid,
+                },
+                job_id,
+                claims,
+            ))
+        })
+        .collect::<StoreResult<Vec<_>>>()?
+    };
+    reservations.sort_by(|left, right| {
+        right
+            .0
+            .effective_priority
+            .cmp(&left.0.effective_priority)
+            .then(left.0.accepted_ms.cmp(&right.0.accepted_ms))
+            .then(left.0.rowid.cmp(&right.0.rowid))
+    });
+
+    let mut retained = Vec::new();
+    let mut suffix_start = None;
+    for (index, (_, _, claims)) in reservations.iter().enumerate() {
+        if claims.scalar_blockers(capacities, &retained).is_empty() {
+            retained.push(claims.clone());
+        } else {
+            suffix_start = Some(index);
+            break;
+        }
+    }
+    let Some(suffix_start) = suffix_start else {
+        return Ok(false);
+    };
+
+    let backoff = now.saturating_add(
+        i64::try_from(crate::SCALAR_RESERVATION_BACKOFF_MILLIS).unwrap_or(i64::MAX),
+    );
+    for (_, job_id, _) in &reservations[suffix_start..] {
+        transaction.execute(
+            "UPDATE jobs SET reservation_not_before_ms =
+                 MAX(COALESCE(reservation_not_before_ms, ?2), ?2)
+             WHERE id = ?1 AND state = 'pending'",
+            params![job_id, backoff],
+        )?;
+        release_reservation_tx(transaction, job_id)?;
+    }
+    Ok(true)
+}
+
 pub(super) fn expire_due_reservations_tx(
     transaction: &Transaction<'_>,
     now: i64,

@@ -65,6 +65,15 @@ Reservations may overlap granted Leases, so `granted + reserved <= capacity` is 
 invariant. A claim above full configured capacity remains visibly `resource_capacity`, never owns a
 reservation, and does not block later candidates.
 
+After every daemon start and host-config load, Stillyard normalizes still-active durable
+reservations against the newly loaded capacities in one SQLite immediate transaction. It orders
+them by the current scheduler key and retains the maximal complete prefix whose cumulative scalar
+vector fits every built-in and custom capacity. At the first non-fitting vector, the complete
+remaining suffix is released; every released owner receives the ordinary five-second reservation
+backoff, and the deletion emits `job_changed`. Reservation identities and deadlines in the retained
+prefix do not change. Thus a capacity decrease cannot make the authoritative snapshot publish
+`reserved > capacity`.
+
 ## Admission and atomic conversion
 
 An unreserved Job with a positive claim may use only:
