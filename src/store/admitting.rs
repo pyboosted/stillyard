@@ -1,4 +1,3 @@
-use super::schedule::condition_blockers_tx;
 use super::*;
 
 impl Store {
@@ -69,14 +68,31 @@ impl Store {
             transaction.rollback()?;
             return Ok(PrepareJob::Blocked);
         }
-        let condition_blockers = condition_blockers_tx(&transaction, &job_key)?;
-        if !condition_blockers.is_empty() {
-            if release_reservation_tx(&transaction, &job_key)? {
+        let condition_refresh = refresh_conditions_tx(
+            &transaction,
+            self.daemon_generation,
+            self.startup_identity.boot_id.as_ref(),
+            &job_key,
+            now,
+            self.observation_config.condition_rescan_interval_millis,
+            false,
+        )?;
+        if condition_refresh.deadline_expired {
+            transaction.commit()?;
+            return Ok(PrepareJob::StateChanged);
+        }
+        if !condition_refresh.blockers.is_empty() {
+            if release_reservation_tx(&transaction, &job_key)? || condition_refresh.state_changed {
                 transaction.commit()?;
                 return Ok(PrepareJob::StateChanged);
             }
             transaction.rollback()?;
-            return Ok(PrepareJob::Blocked);
+            return Ok(
+                match self.prepare_due_probe(job_id, &spec, now, observation)? {
+                    Some(probe) => PrepareJob::Ready(Box::new(probe)),
+                    None => PrepareJob::Blocked,
+                },
+            );
         }
 
         let claims: ResolvedClaims = serde_json::from_str(&claims_json)?;
@@ -238,6 +254,22 @@ impl Store {
             }
         }
 
+        let final_conditions = refresh_conditions_tx(
+            &transaction,
+            self.daemon_generation,
+            self.startup_identity.boot_id.as_ref(),
+            &job_key,
+            now_millis(),
+            self.observation_config.condition_rescan_interval_millis,
+            true,
+        )?;
+        if final_conditions.deadline_expired || !final_conditions.blockers.is_empty() {
+            release_reservation_tx(&transaction, &job_key)?;
+            pause_quiet_progress(&transaction, &attempt_key)?;
+            transaction.commit()?;
+            return Ok(PrepareJob::StateChanged);
+        }
+
         match scalar_disposition_tx(
             &transaction,
             store_uuid,
@@ -348,6 +380,7 @@ impl Store {
                 .map(|stdin| self.paths.blob_path(&stdin.sha256)),
             stdin,
             role: InvocationRole::Primary,
+            condition_id: None,
             attempt_deadline_unix_millis: attempt_deadline,
             host_id: self.startup_identity.host_id.clone(),
             boot_id: self.startup_identity.boot_id.clone(),
@@ -398,7 +431,7 @@ fn admission_state(
         .map_err(Into::into)
 }
 
-fn ensure_admitting_row(
+pub(super) fn ensure_admitting_row(
     transaction: &Transaction<'_>,
     attempt_key: &str,
     now: i64,

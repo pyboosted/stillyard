@@ -191,6 +191,17 @@ pub(super) fn run_with_wake(
     host_observation: &crate::host_observation::HostObservationService,
     reconciliation_wake: &super::ReconciliationWake,
 ) {
+    if job.role == InvocationRole::Probe {
+        run_probe_with_wake(
+            job,
+            store,
+            endpoint,
+            live_containments,
+            host_observation,
+            reconciliation_wake,
+        );
+        return;
+    }
     let mut progress = RunProgress {
         cleanup_proven: true,
         ..RunProgress::default()
@@ -382,6 +393,66 @@ pub(super) fn run_with_wake(
     }
 }
 
+fn run_probe_with_wake(
+    job: &PreparedJob,
+    store: &Arc<Mutex<Store>>,
+    endpoint: &str,
+    live_containments: &super::LiveContainments,
+    host_observation: &crate::host_observation::HostObservationService,
+    reconciliation_wake: &super::ReconciliationWake,
+) {
+    let mut progress = RunProgress {
+        cleanup_proven: true,
+        ..RunProgress::default()
+    };
+    match run_inner(
+        job,
+        store,
+        endpoint,
+        live_containments,
+        host_observation,
+        &mut progress,
+        reconciliation_wake,
+    ) {
+        Ok((exit_code, timed_out)) => {
+            let settled = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                .and_then(|mut locked| {
+                    locked.mark_invocation_resolved(job, Some(exit_code as i32), None)?;
+                    locked.settle_probe(job, Some(exit_code as i32), timed_out)
+                });
+            match settled {
+                Ok(()) => live_containments.clear(job.invocation_id),
+                Err(error) => report_runner_error(job, &error),
+            }
+        }
+        Err(error) => {
+            if progress.cleanup_proven {
+                let settled = store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                    .and_then(|mut locked| {
+                        locked.mark_invocation_resolved(job, progress.exit_code, None)?;
+                        locked.settle_probe(job, progress.exit_code, progress.timed_out)
+                    });
+                match settled {
+                    Ok(()) => live_containments.clear(job.invocation_id),
+                    Err(settle_error) => report_runner_error(job, &settle_error),
+                }
+            } else if !progress.uncertainty_persisted {
+                if let Ok(mut locked) = store.lock() {
+                    if let Err(persist_error) = locked.mark_probe_uncertain(job, progress.exit_code)
+                    {
+                        report_runner_error(job, &persist_error);
+                    }
+                }
+            }
+            report_runner_error(job, error.as_ref());
+        }
+    }
+}
+
 #[cfg(test)]
 fn run(job: &PreparedJob, store: &Arc<Mutex<Store>>, endpoint: &str) {
     let wake: super::ReconciliationWake = Arc::new(|| {});
@@ -403,7 +474,7 @@ fn pending_stop_verdict(
     if store
         .lock()
         .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
-        .cancel_requested(job.job_id)?
+        .invocation_stop_requested(job.job_id)?
     {
         return Ok(Some(AttemptVerdict::Canceled));
     }
@@ -512,7 +583,11 @@ fn persist_uncertain_cleanup(
     job: &PreparedJob,
     progress: &RunProgress,
 ) -> crate::store::StoreResult<()> {
-    if job.spec.quiet.is_some() && !progress.release_authorized {
+    if job.role == InvocationRole::Probe {
+        store.mark_probe_uncertain(job, progress.exit_code)
+    } else if (job.spec.quiet.is_some() || !job.spec.conditions.is_empty())
+        && !progress.release_authorized
+    {
         store.mark_pre_release_cleanup_uncertain(job, progress.exit_code)
     } else {
         store.mark_uncertain(job, progress.exit_code, "interrupted")
@@ -703,7 +778,7 @@ fn run_inner(
             "containment process identity is unavailable".into(),
         )),
     });
-    if job.spec.quiet.is_some() {
+    if job.spec.quiet.is_some() || !job.spec.conditions.is_empty() {
         let mut store = prestart_try!(
             store
                 .lock()
@@ -876,6 +951,54 @@ fn run_inner(
                     return Ok((0, false));
                 }
             }
+        } else if !job.spec.conditions.is_empty() {
+            let authorization = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                .authorize_condition_release(job)?;
+            match authorization {
+                crate::store::ReleaseAuthorization::Authorized {
+                    runtime_deadline_unix_millis: deadline,
+                    evidence_expires_monotonic_millis,
+                } => {
+                    let (_, monotonic_now) = crate::host_observation::observation_clock()?;
+                    if monotonic_now > evidence_expires_monotonic_millis {
+                        return Err(std::io::Error::other(
+                            "Condition release evidence expired before resume",
+                        )
+                        .into());
+                    }
+                    progress.release_authorized = true;
+                    runtime_deadline_unix_millis = deadline;
+                    // SAFETY: the primary remains suspended in its complete Job Object and the
+                    // authorizing transaction atomically rechecked every Condition.
+                    if unsafe { ResumeThread(thread_handle.raw()) } == u32::MAX {
+                        return Err(std::io::Error::last_os_error().into());
+                    }
+                    progress.user_code_released = true;
+                }
+                crate::store::ReleaseAuthorization::Deferred { reason } => {
+                    // SAFETY: no user code has run and the complete tree remains suspended.
+                    unsafe { TerminateJobObject(job_object.raw(), 70) };
+                    if unsafe { WaitForSingleObject(process_handle.raw(), 30_000) } != WAIT_OBJECT_0
+                    {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            "deferred suspended root did not exit within cleanup bound",
+                        )
+                        .into());
+                    }
+                    wait_job_empty(job_object.raw(), Duration::from_secs(30))?;
+                    progress.cleanup_proven = true;
+                    store
+                        .lock()
+                        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                        .replan_never_run(job, &reason)?;
+                    live_containments.clear(job.invocation_id);
+                    progress.pre_release_replanned = true;
+                    return Ok((0, false));
+                }
+            }
         } else {
             // SAFETY: the primary thread handle is valid and has not been resumed before.
             if unsafe { ResumeThread(thread_handle.raw()) } == u32::MAX {
@@ -923,7 +1046,7 @@ fn run_inner(
                 if store
                     .lock()
                     .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
-                    .cancel_requested(job.job_id)?
+                    .invocation_stop_requested(job.job_id)?
                 {
                     progress.canceled = true;
                     // SAFETY: job is valid and contains the complete Invocation tree.
@@ -1340,6 +1463,7 @@ fn environment_block(job: &PreparedJob, endpoint: &str) -> std::io::Result<Vec<u
         "STILLYARD_ROLE".into(),
         match job.role {
             InvocationRole::Primary => "primary",
+            InvocationRole::Probe => "probe",
             InvocationRole::Postcondition => "postcondition",
         }
         .into(),

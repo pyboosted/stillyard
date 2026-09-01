@@ -103,6 +103,27 @@ impl Store {
         let claims: ResolvedClaims = serde_json::from_str(&row.5)?;
         let active = active_claims_excluding_attempt(&transaction, job.attempt_id)?;
         let mut blockers = dependency_blockers_tx(&transaction, job.job_id)?.0;
+        let condition_refresh = refresh_conditions_tx(
+            &transaction,
+            self.daemon_generation,
+            self.startup_identity.boot_id.as_ref(),
+            &job.job_id.entity_uuid().to_string(),
+            now,
+            self.observation_config.condition_rescan_interval_millis,
+            true,
+        )?;
+        if condition_refresh.deadline_expired {
+            let outcome = condition_refresh
+                .blockers
+                .first()
+                .map(|blocker| blocker.detail.as_str())
+                .unwrap_or("deadline outcome=failed");
+            transaction.commit()?;
+            return Ok(ReleaseAuthorization::Deferred {
+                reason: format!("condition_deadline_expired:{outcome}"),
+            });
+        }
+        blockers.extend(condition_refresh.blockers);
         blockers.extend(claims.blockers(&capacities, &active, &impact_incompatibilities));
         let context = crate::host_observation::evaluate_admission(
             &spec,
@@ -133,7 +154,7 @@ impl Store {
         });
         blockers.dedup();
         if !blockers.is_empty() || !context.quiet_sample_satisfied {
-            transaction.rollback()?;
+            transaction.commit()?;
             return Ok(ReleaseAuthorization::Deferred {
                 reason: serde_json::to_string(&blockers)?,
             });
@@ -186,6 +207,119 @@ impl Store {
         Ok(ReleaseAuthorization::Authorized {
             runtime_deadline_unix_millis: runtime_deadline,
             evidence_expires_monotonic_millis: expires,
+        })
+    }
+
+    pub(crate) fn authorize_condition_release(
+        &mut self,
+        job: &PreparedJob,
+    ) -> StoreResult<ReleaseAuthorization> {
+        let capacities = self.capacities.clone();
+        let impact_incompatibilities = self.impact_incompatibilities.clone();
+        let now = now_millis();
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let row: (String, String, String, bool, String) = transaction.query_row(
+            "SELECT jobs.state, attempts.state, invocations.state,
+                    jobs.cancel_requested != 0, jobs.claims_json
+             FROM jobs JOIN attempts ON attempts.id = jobs.attempt_id
+             JOIN invocations ON invocations.id = jobs.invocation_id
+             WHERE jobs.id = ?1 AND attempts.id = ?2 AND invocations.id = ?3",
+            params![
+                job.job_id.entity_uuid().to_string(),
+                job.attempt_id.entity_uuid().to_string(),
+                job.invocation_id.entity_uuid().to_string(),
+            ],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )?;
+        if row.0 != "active" || row.1 != "starting" || row.2 != "prepared" {
+            return Err(StoreError::InvalidState(format!(
+                "Condition release cannot be authorized from {}/{}/{}",
+                row.0, row.1, row.2
+            )));
+        }
+        if row.3 {
+            transaction.rollback()?;
+            return Ok(ReleaseAuthorization::Deferred {
+                reason: "cancel_requested".into(),
+            });
+        }
+        let refresh = refresh_conditions_tx(
+            &transaction,
+            self.daemon_generation,
+            self.startup_identity.boot_id.as_ref(),
+            &job.job_id.entity_uuid().to_string(),
+            now,
+            self.observation_config.condition_rescan_interval_millis,
+            true,
+        )?;
+        if refresh.deadline_expired {
+            let outcome = refresh
+                .blockers
+                .first()
+                .map(|blocker| blocker.detail.as_str())
+                .unwrap_or("deadline outcome=failed");
+            transaction.commit()?;
+            return Ok(ReleaseAuthorization::Deferred {
+                reason: format!("condition_deadline_expired:{outcome}"),
+            });
+        }
+        let claims: ResolvedClaims = serde_json::from_str(&row.4)?;
+        let active = active_claims_excluding_attempt(&transaction, job.attempt_id)?;
+        let mut blockers = dependency_blockers_tx(&transaction, job.job_id)?.0;
+        blockers.extend(refresh.blockers);
+        blockers.extend(claims.blockers(&capacities, &active, &impact_incompatibilities));
+        blockers.sort_by(|left, right| {
+            left.code
+                .cmp(&right.code)
+                .then(left.detail.cmp(&right.detail))
+        });
+        blockers.dedup();
+        if !blockers.is_empty() {
+            transaction.commit()?;
+            return Ok(ReleaseAuthorization::Deferred {
+                reason: serde_json::to_string(&blockers)?,
+            });
+        }
+        let runtime_deadline = job.spec.timeout_seconds.map(|seconds| {
+            now.saturating_add(i64::try_from(seconds.saturating_mul(1_000)).unwrap_or(i64::MAX))
+        });
+        transaction.execute(
+            "UPDATE invocations SET state = 'started', started_ms = ?2
+             WHERE id = ?1 AND state = 'prepared'",
+            params![job.invocation_id.entity_uuid().to_string(), now],
+        )?;
+        transaction.execute(
+            "UPDATE attempts SET state = 'running', started_ms = ?2, deadline_ms = ?3
+             WHERE id = ?1 AND state = 'starting'",
+            params![
+                job.attempt_id.entity_uuid().to_string(),
+                now,
+                runtime_deadline,
+            ],
+        )?;
+        transaction.execute(
+            "UPDATE jobs SET started_ms = COALESCE(started_ms, ?2)
+             WHERE id = ?1 AND state = 'active'",
+            params![job.job_id.entity_uuid().to_string(), now],
+        )?;
+        transaction.commit()?;
+        let monotonic = crate::host_observation::observation_clock()
+            .map(|(_, monotonic)| monotonic)
+            .unwrap_or(0);
+        Ok(ReleaseAuthorization::Authorized {
+            runtime_deadline_unix_millis: runtime_deadline,
+            evidence_expires_monotonic_millis: monotonic
+                .saturating_add(self.observation_config.condition_rescan_interval_millis),
         })
     }
 
@@ -249,11 +383,34 @@ impl Store {
             .quiet
             .as_ref()
             .map(|quiet| quiet.wait_budget_seconds.saturating_mul(1_000))
-            .unwrap_or(0);
+            .unwrap_or(u64::MAX);
         let deferrals = row.4.saturating_add(1);
         let exhausted =
             deferrals >= self.observation_config.pre_release_max_deferrals || row.5 >= quiet_budget;
-        if row.3 {
+        let condition_deadline_outcome =
+            reason
+                .strip_prefix("condition_deadline_expired:")
+                .map(|detail| {
+                    if detail.contains("canceled") {
+                        ("canceled", "canceled")
+                    } else {
+                        ("safety_failed", "failed")
+                    }
+                });
+        if let Some((verdict, outcome)) = condition_deadline_outcome {
+            transaction.execute(
+                "UPDATE attempts SET state = 'settled', verdict = ?2,
+                    safety_reason = 'condition_deadline_expired', finished_ms = ?3
+                 WHERE id = ?1",
+                params![job.attempt_id.entity_uuid().to_string(), verdict, now],
+            )?;
+            transaction.execute(
+                "UPDATE jobs SET state = 'final', outcome = ?2,
+                    reason_code = 'condition_deadline_expired', finished_ms = ?3,
+                    retry_not_before_ms = NULL WHERE id = ?1",
+                params![job.job_id.entity_uuid().to_string(), outcome, now],
+            )?;
+        } else if row.3 {
             transaction.execute(
                 "UPDATE attempts SET state = 'settled', verdict = 'canceled',
                     finished_ms = ?2 WHERE id = ?1",
@@ -285,8 +442,16 @@ impl Store {
                     .any(|value| value == AttemptVerdict::SafetyFailed.as_str());
             transaction.execute(
                 "UPDATE attempts SET state = 'settled', verdict = 'safety_failed',
-                    safety_reason = 'quiet_unattainable', finished_ms = ?2 WHERE id = ?1",
-                params![job.attempt_id.entity_uuid().to_string(), now],
+                    safety_reason = ?2, finished_ms = ?3 WHERE id = ?1",
+                params![
+                    job.attempt_id.entity_uuid().to_string(),
+                    if spec.conditions.is_empty() {
+                        "quiet_unattainable"
+                    } else {
+                        "readiness_unstable"
+                    },
+                    now,
+                ],
             )?;
             if retry {
                 let not_before = now.saturating_add(
@@ -300,11 +465,24 @@ impl Store {
                         cancel_requested = 0 WHERE id = ?1",
                     params![job.job_id.entity_uuid().to_string(), not_before],
                 )?;
+                reset_conditions_for_retry_tx(
+                    &transaction,
+                    &job.job_id.entity_uuid().to_string(),
+                    not_before,
+                )?;
             } else {
                 transaction.execute(
-                    "UPDATE jobs SET state = 'final', outcome = 'failed', finished_ms = ?2,
-                        retry_not_before_ms = NULL WHERE id = ?1",
-                    params![job.job_id.entity_uuid().to_string(), now],
+                    "UPDATE jobs SET state = 'final', outcome = 'failed', reason_code = ?2,
+                        finished_ms = ?3, retry_not_before_ms = NULL WHERE id = ?1",
+                    params![
+                        job.job_id.entity_uuid().to_string(),
+                        if spec.conditions.is_empty() {
+                            "quiet_unattainable"
+                        } else {
+                            "readiness_unstable"
+                        },
+                        now,
+                    ],
                 )?;
             }
         } else {

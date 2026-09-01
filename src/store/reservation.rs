@@ -374,7 +374,7 @@ fn reservation_tx(
         .transpose()
 }
 
-fn reservation_claims_tx(
+pub(super) fn reservation_claims_tx(
     transaction: &Transaction<'_>,
     now: i64,
     excluded_job: Option<&str>,

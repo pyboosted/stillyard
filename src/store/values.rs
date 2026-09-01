@@ -46,6 +46,7 @@ pub(super) fn parse_attempt_verdict(verdict: &str) -> StoreResult<AttemptVerdict
 pub(super) fn parse_invocation_role(role: &str) -> StoreResult<InvocationRole> {
     match role {
         "primary" => Ok(InvocationRole::Primary),
+        "probe" => Ok(InvocationRole::Probe),
         "postcondition" => Ok(InvocationRole::Postcondition),
         other => Err(StoreError::InvalidState(format!(
             "unknown Invocation role {other}"

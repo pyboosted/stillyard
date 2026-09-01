@@ -855,6 +855,45 @@ fn policy_invalid_batch_names_the_member_and_is_atomic() {
 }
 
 #[test]
+fn managed_policy_applies_claim_impact_and_fence_limits_to_probes() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let parent = start_managed_parent(&mut store, temp.path(), true);
+    let scope = scope_for(&parent);
+    let mut child = spec(temp.path());
+    child.conditions.push(crate::ConditionSpec {
+        predicate: crate::ConditionPredicate::Probe {
+            probe: Box::new(crate::ProbeCondition {
+                executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+                args: vec!["/d".into(), "/c".into(), "exit 0".into()],
+                working_directory: temp.path().to_path_buf(),
+                environment: crate::EnvironmentSpec::default(),
+                resources: crate::ResourceClaims {
+                    shared_fences: vec![
+                        temp.path()
+                            .join("probe-fence")
+                            .to_string_lossy()
+                            .into_owned(),
+                    ],
+                    ..Default::default()
+                },
+                timeout_seconds: 5,
+                interval_seconds: 1,
+                accepted_exit_codes: vec![0],
+            }),
+        },
+        deadline: crate::ConditionDeadline::None,
+        on_deadline: crate::ConditionDeadlineOutcome::Failed,
+    });
+    let hash = normalized_payload_hash(&child).unwrap();
+    assert!(matches!(
+        store.submit_with_stdin_scoped(scope, Uuid::now_v7(), &hash, &child, None),
+        Err(StoreError::OperationRejected { code, detail })
+            if code == "child_fence_not_permitted" && detail.contains("probe shared fence")
+    ));
+}
+
+#[test]
 fn neutral_only_parent_does_not_inherit_priority_and_rejects_escalation_durably() {
     let temp = tempfile::tempdir().unwrap();
     let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();

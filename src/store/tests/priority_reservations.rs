@@ -456,12 +456,13 @@ fn reservations_sum_to_capacity_and_non_scalar_changes_release_them() {
     release_store
         .connection
         .execute(
-            "INSERT INTO conditions(id, job_id, state, spec_json)
-             VALUES (?1, ?2, 'waiting', ?3)",
+            "INSERT INTO conditions(
+                 id, job_id, condition_index, state, spec_json, deadline_ms, deadline_outcome
+             ) VALUES (?1, ?2, 0, 'waiting', ?3, NULL, 'failed')",
             params![
                 Uuid::now_v7().to_string(),
                 waiting_id.entity_uuid().to_string(),
-                r#"{"kind":"not_before","unix_millis":9223372036854775807}"#,
+                r#"{"predicate":{"kind":"not_before","unix_millis":9223372036854775807},"deadline":{"kind":"none"},"on_deadline":"failed"}"#,
             ],
         )
         .unwrap();
@@ -474,6 +475,14 @@ fn reservations_sum_to_capacity_and_non_scalar_changes_release_them() {
             .is_none(),
         "a changed Condition releases scalar protection immediately"
     );
+    release_store
+        .connection
+        .execute(
+            "DELETE FROM observations
+             WHERE condition_id IN (SELECT id FROM conditions WHERE job_id = ?1)",
+            [waiting_id.entity_uuid().to_string()],
+        )
+        .unwrap();
     release_store
         .connection
         .execute(

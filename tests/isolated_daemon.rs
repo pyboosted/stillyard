@@ -5,9 +5,11 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 use stillyard::{
-    BatchMember, BatchSpec, Client, DaemonSnapshot, DoctorCheckStatus, DoctorSnapshot,
-    EnsureOptions, EnsureOutcome, EnsureReport, EnsuredJob, EnvironmentSpec, Error, ExitSource,
-    GpuProviderConfig, HostConfig, HostObservationConfig, JobId, JobSpec, LogStream, ProcessRules,
+    BatchMember, BatchSpec, Client, ConditionDeadline, ConditionDeadlineOutcome,
+    ConditionObservationValue, ConditionPredicate, ConditionSpec, DaemonSnapshot,
+    DoctorCheckStatus, DoctorSnapshot, EnsureOptions, EnsureOutcome, EnsureReport, EnsuredJob,
+    EnvironmentSpec, Error, ExitClassification, ExitSource, GpuProviderConfig, HostConfig,
+    HostObservationConfig, InvocationRole, JobId, JobSpec, LogStream, ProbeCondition, ProcessRules,
     QuietDetector, QuietPolicy, ResourceCapacities, ResourceClaims, RetryPolicy, SPEC_VERSION,
     StdinSpec, SubmitOptions, WaitOutcome, WaitReport,
 };
@@ -151,6 +153,226 @@ fn command_spec(root: &Path, command: &str) -> JobSpec {
         artifacts: Vec::new(),
         child_submission_policy: None,
     }
+}
+
+#[test]
+fn probe_condition_runs_in_its_own_invocation_before_primary_release() {
+    let temp = tempfile::tempdir().unwrap();
+    let pinned = copied_daemon(temp.path());
+    let store = temp.path().join("condition-store");
+    let endpoint = format!(r"\\.\pipe\stillyard-condition-{}", Uuid::now_v7());
+    let _daemon = spawn_daemon(&pinned, &store, &endpoint);
+    let client = connect(&pinned, &endpoint);
+    let marker = temp.path().join("primary-ran.txt");
+    let mut spec = command_spec(temp.path(), &format!("echo primary>{}", marker.display()));
+    spec.conditions.push(ConditionSpec {
+        predicate: ConditionPredicate::Probe {
+            probe: Box::new(ProbeCondition {
+                executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+                args: vec!["/d".into(), "/c".into(), "echo probe-ready & exit 0".into()],
+                working_directory: temp.path().to_path_buf(),
+                environment: EnvironmentSpec::default(),
+                resources: ResourceClaims::default(),
+                timeout_seconds: 5,
+                interval_seconds: 1,
+                accepted_exit_codes: vec![0],
+            }),
+        },
+        deadline: ConditionDeadline::Relative { seconds: 10 },
+        on_deadline: ConditionDeadlineOutcome::Failed,
+    });
+    let receipt = client
+        .submit(
+            spec,
+            &SubmitOptions::new(Uuid::now_v7()),
+            Instant::now() + Duration::from_secs(5),
+            None,
+        )
+        .unwrap();
+    assert!(matches!(
+        client.wait_outcome(
+            receipt.job_id,
+            Instant::now() + Duration::from_secs(15),
+            None,
+        ),
+        WaitOutcome::Final { .. }
+    ));
+    let snapshot = client
+        .status(
+            receipt.job_id,
+            Instant::now() + Duration::from_secs(2),
+            None,
+        )
+        .unwrap();
+    assert_eq!(
+        snapshot.outcome,
+        Some(stillyard::JobOutcome::Succeeded),
+        "{snapshot:#?}"
+    );
+    assert!(marker.is_file(), "primary command was never released");
+    assert!(matches!(
+        snapshot.conditions[0]
+            .last_observation
+            .as_ref()
+            .map(|observation| &observation.value),
+        Some(ConditionObservationValue::Probe {
+            exit_code: Some(0),
+            timed_out: false,
+            accepted: true,
+        })
+    ));
+    let probe = snapshot.attempts[0]
+        .invocations
+        .iter()
+        .find(|invocation| invocation.role == InvocationRole::Probe)
+        .expect("probe Invocation is public");
+    assert_eq!(
+        probe.exit_classification,
+        Some(ExitClassification::Accepted)
+    );
+    assert!(probe.stdout_tail.contains("probe-ready"));
+    assert_eq!(
+        snapshot.attempts[0]
+            .invocations
+            .last()
+            .map(|invocation| invocation.role),
+        Some(InvocationRole::Primary)
+    );
+}
+
+#[test]
+fn path_condition_freshness_wakes_scheduler_and_rescans_without_manual_signal() {
+    let temp = tempfile::tempdir().unwrap();
+    let pinned = copied_daemon(temp.path());
+    let store = temp.path().join("path-condition-store");
+    let endpoint = format!(r"\\.\pipe\stillyard-path-condition-{}", Uuid::now_v7());
+    let _daemon = spawn_daemon(&pinned, &store, &endpoint);
+    let client = connect(&pinned, &endpoint);
+    let ready = temp.path().join("ready.flag");
+    let marker = temp.path().join("path-primary-ran.txt");
+    let mut spec = command_spec(temp.path(), &format!("echo primary>{}", marker.display()));
+    spec.conditions.push(ConditionSpec {
+        predicate: ConditionPredicate::PathExists {
+            path: ready.clone(),
+        },
+        deadline: ConditionDeadline::Relative { seconds: 5 },
+        on_deadline: ConditionDeadlineOutcome::Failed,
+    });
+    let receipt = client
+        .submit(
+            spec,
+            &SubmitOptions::new(Uuid::now_v7()),
+            Instant::now() + Duration::from_secs(5),
+            None,
+        )
+        .unwrap();
+    assert!(matches!(
+        receipt.conditions[0]
+            .last_observation
+            .as_ref()
+            .map(|observation| &observation.value),
+        Some(ConditionObservationValue::Path { exists: false })
+    ));
+    std::fs::write(&ready, b"ready").unwrap();
+    assert!(matches!(
+        client.wait_outcome(
+            receipt.job_id,
+            Instant::now() + Duration::from_secs(10),
+            None,
+        ),
+        WaitOutcome::Final { .. }
+    ));
+    let snapshot = client
+        .status(
+            receipt.job_id,
+            Instant::now() + Duration::from_secs(2),
+            None,
+        )
+        .unwrap();
+    assert_eq!(snapshot.outcome, Some(stillyard::JobOutcome::Succeeded));
+    assert!(marker.is_file());
+    assert!(matches!(
+        snapshot.conditions[0]
+            .last_observation
+            .as_ref()
+            .map(|observation| &observation.value),
+        Some(ConditionObservationValue::Path { exists: true })
+    ));
+}
+
+#[test]
+fn timed_out_probe_is_observable_and_condition_deadline_prevents_primary_release() {
+    let temp = tempfile::tempdir().unwrap();
+    let pinned = copied_daemon(temp.path());
+    let store = temp.path().join("probe-timeout-store");
+    let endpoint = format!(r"\\.\pipe\stillyard-probe-timeout-{}", Uuid::now_v7());
+    let _daemon = spawn_daemon(&pinned, &store, &endpoint);
+    let client = connect(&pinned, &endpoint);
+    let marker = temp.path().join("must-not-run.txt");
+    let mut spec = command_spec(temp.path(), &format!("echo forbidden>{}", marker.display()));
+    spec.conditions.push(ConditionSpec {
+        predicate: ConditionPredicate::Probe {
+            probe: Box::new(ProbeCondition {
+                executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+                args: vec![
+                    "/d".into(),
+                    "/c".into(),
+                    r"C:\Windows\System32\ping.exe -n 10 127.0.0.1 >nul".into(),
+                ],
+                working_directory: temp.path().to_path_buf(),
+                environment: EnvironmentSpec::default(),
+                resources: ResourceClaims::default(),
+                timeout_seconds: 1,
+                interval_seconds: 1,
+                accepted_exit_codes: vec![0],
+            }),
+        },
+        deadline: ConditionDeadline::Relative { seconds: 2 },
+        on_deadline: ConditionDeadlineOutcome::Failed,
+    });
+    let receipt = client
+        .submit(
+            spec,
+            &SubmitOptions::new(Uuid::now_v7()),
+            Instant::now() + Duration::from_secs(5),
+            None,
+        )
+        .unwrap();
+    assert!(matches!(
+        client.wait_outcome(
+            receipt.job_id,
+            Instant::now() + Duration::from_secs(10),
+            None,
+        ),
+        WaitOutcome::Final { .. }
+    ));
+    let snapshot = client
+        .status(
+            receipt.job_id,
+            Instant::now() + Duration::from_secs(2),
+            None,
+        )
+        .unwrap();
+    assert_eq!(snapshot.outcome, Some(stillyard::JobOutcome::Failed));
+    assert_eq!(
+        snapshot.reason_code.as_deref(),
+        Some("condition_deadline_expired")
+    );
+    assert!(!marker.exists(), "primary ran after Condition deadline");
+    assert!(
+        matches!(
+            snapshot.conditions[0]
+                .last_observation
+                .as_ref()
+                .map(|observation| &observation.value),
+            Some(ConditionObservationValue::Probe {
+                timed_out: true,
+                accepted: false,
+                ..
+            })
+        ),
+        "{snapshot:#?}"
+    );
 }
 
 fn seed_unresolved_incidents(store: &Path, count: u64) {

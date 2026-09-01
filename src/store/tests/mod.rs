@@ -67,6 +67,7 @@ fn stage_bytes(store: &Store, bytes: &[u8]) -> StagedInputRef {
 
 mod admission_safety;
 mod attempt_lifecycle;
+mod conditions;
 mod containment_safety;
 mod input_submission;
 mod managed_submission;

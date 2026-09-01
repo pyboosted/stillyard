@@ -1,3 +1,4 @@
+use super::admitting::ensure_admitting_row;
 use super::*;
 
 impl Store {
@@ -348,6 +349,38 @@ impl Store {
                 "dependency completion is not estimated without walking its full predecessor closure",
             ));
         }
+        if blockers.iter().any(|blocker| {
+            matches!(
+                blocker.code.as_str(),
+                "condition_waiting" | "condition_failed" | "condition_deadline_expired"
+            )
+        }) {
+            let job_key = self.local_id(job_id)?;
+            let mut statement = self.connection.prepare(
+                "SELECT spec_json FROM conditions
+                 WHERE job_id = ?1 AND state != 'satisfied' ORDER BY condition_index",
+            )?;
+            let rows = statement.query_map([job_key], |row| row.get::<_, String>(0))?;
+            let now = now_millis();
+            let mut lower_bound = 0_u64;
+            for row in rows {
+                let condition: crate::ConditionSpec = serde_json::from_str(&row?)?;
+                let ConditionPredicate::NotBefore { unix_millis } = condition.predicate else {
+                    return Ok(Estimate::unknown(
+                        "filesystem transitions and executable probes have no honest completion ETA",
+                    ));
+                };
+                lower_bound = lower_bound
+                    .max(u64::try_from(unix_millis.saturating_sub(now)).unwrap_or_default());
+            }
+            return Ok(Estimate {
+                confidence: crate::EstimateConfidence::LowerBoundOnly,
+                start_in_millis: Some(lower_bound),
+                assumptions: vec![
+                    "not-before Conditions provide only a lower bound; resource, priority, and later readiness checks may delay launch".into(),
+                ],
+            });
+        }
         let claims_json: String = self.connection.query_row(
             "SELECT claims_json FROM jobs WHERE id = ?1",
             [self.local_id(job_id)?],
@@ -545,7 +578,6 @@ impl Store {
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
         let store_uuid = self.store_uuid;
-        let attempt_id = AttemptId::new(self.store_uuid);
         let invocation_id = InvocationId::new(self.store_uuid);
         let containment_id = ContainmentId::new(self.store_uuid);
         let lease_id = Uuid::now_v7();
@@ -555,7 +587,7 @@ impl Store {
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let row = transaction
             .query_row(
-                "SELECT spec_json, claims_json, stdin_hash, stdin_len
+                "SELECT spec_json, claims_json, stdin_hash, stdin_len, attempt_id
                  FROM jobs WHERE id = ?1 AND state = 'pending'
                    AND COALESCE(retry_not_before_ms, 0) <= ?2",
                 params![job_key, now],
@@ -565,14 +597,16 @@ impl Store {
                         row.get::<_, String>(1)?,
                         row.get::<_, Option<String>>(2)?,
                         row.get::<_, Option<u64>>(3)?,
+                        row.get::<_, Option<String>>(4)?,
                     ))
                 },
             )
             .optional()?;
-        let Some((spec_json, claims_json, stdin_hash, stdin_len)) = row else {
+        let Some((spec_json, claims_json, stdin_hash, stdin_len, attempt_key)) = row else {
             transaction.rollback()?;
             return Ok(PrepareJob::Blocked);
         };
+        let spec: JobSpec = serde_json::from_str(&spec_json)?;
         let (dependency_blockers, impossible) = dependency_blockers_tx(&transaction, job_id)?;
         if impossible {
             transaction.execute(
@@ -591,17 +625,33 @@ impl Store {
             transaction.rollback()?;
             return Ok(PrepareJob::Blocked);
         }
-        let condition_blockers = condition_blockers_tx(&transaction, &job_key)?;
-        if !condition_blockers.is_empty() {
-            if release_reservation_tx(&transaction, &job_key)? {
+        let condition_refresh = refresh_conditions_tx(
+            &transaction,
+            self.daemon_generation,
+            self.startup_identity.boot_id.as_ref(),
+            &job_key,
+            now,
+            self.observation_config.condition_rescan_interval_millis,
+            false,
+        )?;
+        if condition_refresh.deadline_expired {
+            transaction.commit()?;
+            return Ok(PrepareJob::StateChanged);
+        }
+        if !condition_refresh.blockers.is_empty() {
+            if release_reservation_tx(&transaction, &job_key)? || condition_refresh.state_changed {
                 transaction.commit()?;
                 return Ok(PrepareJob::StateChanged);
             }
             transaction.rollback()?;
-            return Ok(PrepareJob::Blocked);
+            return Ok(
+                match self.prepare_due_probe(job_id, &spec, now, observation)? {
+                    Some(probe) => PrepareJob::Ready(Box::new(probe)),
+                    None => PrepareJob::Blocked,
+                },
+            );
         }
         let claims: ResolvedClaims = serde_json::from_str(&claims_json)?;
-        let spec: JobSpec = serde_json::from_str(&spec_json)?;
         let active = active_claims_tx(&transaction)?;
         if !claims
             .non_scalar_blockers(&active, &impact_incompatibilities)
@@ -613,6 +663,20 @@ impl Store {
             }
             transaction.rollback()?;
             return Ok(PrepareJob::Blocked);
+        }
+        let final_conditions = refresh_conditions_tx(
+            &transaction,
+            self.daemon_generation,
+            self.startup_identity.boot_id.as_ref(),
+            &job_key,
+            now_millis(),
+            self.observation_config.condition_rescan_interval_millis,
+            true,
+        )?;
+        if final_conditions.deadline_expired || !final_conditions.blockers.is_empty() {
+            release_reservation_tx(&transaction, &job_key)?;
+            transaction.commit()?;
+            return Ok(PrepareJob::StateChanged);
         }
         match scalar_disposition_tx(
             &transaction,
@@ -645,11 +709,40 @@ impl Store {
         validate_input_shape(&spec, stdin.as_ref())?;
         let log_directory = self.paths.logs.join(job_id.entity_uuid().to_string());
         std::fs::create_dir_all(&log_directory)?;
-        let attempt_index: u32 = transaction.query_row(
-            "SELECT COALESCE(MAX(attempt_index), 0) + 1 FROM attempts WHERE job_id = ?1",
-            [job_id.entity_uuid().to_string()],
-            |row| row.get(0),
-        )?;
+        let attempt_id = match attempt_key {
+            Some(key) => {
+                let state: String = transaction.query_row(
+                    "SELECT state FROM attempts WHERE id = ?1",
+                    [&key],
+                    |row| row.get(0),
+                )?;
+                if !matches!(state.as_str(), "planned" | "admitting") {
+                    return Err(StoreError::InvalidState(format!(
+                        "primary preparation requires planned/admitting Attempt, found {state}"
+                    )));
+                }
+                AttemptId::from_parts(self.store_uuid, Uuid::parse_str(&key)?)
+            }
+            None => {
+                let attempt_id = AttemptId::new(self.store_uuid);
+                let attempt_index: u32 = transaction.query_row(
+                    "SELECT COALESCE(MAX(attempt_index), 0) + 1 FROM attempts WHERE job_id = ?1",
+                    [job_id.entity_uuid().to_string()],
+                    |row| row.get(0),
+                )?;
+                transaction.execute(
+                    "INSERT INTO attempts(id, job_id, state, attempt_index, created_ms)
+                     VALUES (?1, ?2, 'planned', ?3, ?4)",
+                    params![
+                        attempt_id.entity_uuid().to_string(),
+                        job_id.entity_uuid().to_string(),
+                        attempt_index,
+                        now,
+                    ],
+                )?;
+                attempt_id
+            }
+        };
         transaction.execute(
             "UPDATE jobs SET state = 'active', attempt_id = ?2, invocation_id = ?3,
                 containment_id = ?4, stdout_len = 0, stderr_len = 0,
@@ -662,29 +755,42 @@ impl Store {
                 containment_id.entity_uuid().to_string(),
             ],
         )?;
-        let attempt_started = now;
-        let attempt_deadline = spec.timeout_seconds.map(|seconds| {
-            attempt_started
-                .saturating_add(i64::try_from(seconds.saturating_mul(1000)).unwrap_or(i64::MAX))
+        let attempt_started = spec.conditions.is_empty().then_some(now);
+        let attempt_deadline = attempt_started.and_then(|started| {
+            spec.timeout_seconds.map(|seconds| {
+                started
+                    .saturating_add(i64::try_from(seconds.saturating_mul(1000)).unwrap_or(i64::MAX))
+            })
         });
+        if !spec.conditions.is_empty() {
+            ensure_admitting_row(
+                &transaction,
+                &attempt_id.entity_uuid().to_string(),
+                now,
+                self.observation_config.admission_wall_clock_limit_seconds,
+            )?;
+        }
         transaction.execute(
-            "INSERT INTO attempts(
-                id, job_id, state, attempt_index, created_ms, started_ms, deadline_ms
-             ) VALUES (?1, ?2, 'starting', ?3, ?4, ?4, ?5)",
+            "UPDATE attempts SET state = 'starting', started_ms = ?2, deadline_ms = ?3
+             WHERE id = ?1 AND state IN ('planned', 'admitting')",
             params![
                 attempt_id.entity_uuid().to_string(),
-                job_id.entity_uuid().to_string(),
-                attempt_index,
                 attempt_started,
                 attempt_deadline,
             ],
         )?;
+        let role_index: u32 = transaction.query_row(
+            "SELECT COALESCE(MAX(role_index), -1) + 1 FROM invocations WHERE attempt_id = ?1",
+            [attempt_id.entity_uuid().to_string()],
+            |row| row.get(0),
+        )?;
         transaction.execute(
-            "INSERT INTO invocations(id, attempt_id, role, state)
-             VALUES (?1, ?2, 'primary', 'prepared')",
+            "INSERT INTO invocations(id, attempt_id, role, role_index, state)
+             VALUES (?1, ?2, 'primary', ?3, 'prepared')",
             params![
                 invocation_id.entity_uuid().to_string(),
-                attempt_id.entity_uuid().to_string()
+                attempt_id.entity_uuid().to_string(),
+                role_index,
             ],
         )?;
         transaction.execute(
@@ -722,6 +828,7 @@ impl Store {
                 .map(|stdin| self.paths.blob_path(&stdin.sha256)),
             stdin,
             role: InvocationRole::Primary,
+            condition_id: None,
             attempt_deadline_unix_millis: attempt_deadline,
             host_id: self.startup_identity.host_id.clone(),
             boot_id: self.startup_identity.boot_id.clone(),
@@ -865,6 +972,7 @@ impl Store {
             stdin: None,
             stdin_path: None,
             role: InvocationRole::Postcondition,
+            condition_id: None,
             attempt_deadline_unix_millis: current.2,
             host_id: self.startup_identity.host_id.clone(),
             boot_id: self.startup_identity.boot_id.clone(),
@@ -975,6 +1083,20 @@ impl Store {
                     .custom
                     .keys()
                     .any(|name| name.starts_with("vram_mb:"));
+            for probe in spec.conditions.iter().filter_map(|condition| {
+                let ConditionPredicate::Probe { probe } = &condition.predicate else {
+                    return None;
+                };
+                Some(probe)
+            }) {
+                required.memory |= probe.resources.ram_mb.unwrap_or(0) > 0;
+                required.gpu |= probe.resources.gpu_slots.unwrap_or(0) > 0
+                    || probe
+                        .resources
+                        .custom
+                        .keys()
+                        .any(|name| name.starts_with("vram_mb:"));
+            }
             if let Some(observed) = &spec.observed {
                 required.cpu |= observed.cpu_utilization_percent_at_most.is_some();
                 required.gpu |= !observed.gpu_utilization_percent_at_most.is_empty();
@@ -1012,6 +1134,24 @@ impl Store {
                  UNION ALL
                  SELECT hold_deadline_ms AS deadline FROM reservations
                  WHERE hold_deadline_ms > ?1
+                 UNION ALL
+                 SELECT conditions.deadline_ms AS deadline FROM conditions
+                 JOIN jobs ON jobs.id = conditions.job_id
+                 WHERE jobs.state = 'pending' AND conditions.deadline_ms > ?1
+                 UNION ALL
+                 SELECT observations.fresh_until_ms AS deadline FROM observations
+                 JOIN conditions ON conditions.id = observations.condition_id
+                 JOIN jobs ON jobs.id = conditions.job_id
+                 WHERE jobs.state = 'pending' AND observations.fresh_until_ms > ?1
+                   AND observations.id = (
+                       SELECT latest.id FROM observations latest
+                       WHERE latest.condition_id = conditions.id
+                       ORDER BY latest.rowid DESC LIMIT 1
+                   )
+                 UNION ALL
+                 SELECT conditions.next_probe_ms AS deadline FROM conditions
+                 JOIN jobs ON jobs.id = conditions.job_id
+                 WHERE jobs.state = 'pending' AND conditions.next_probe_ms > ?1
              )",
             [scheduling_pass_started],
             |row| row.get(0),

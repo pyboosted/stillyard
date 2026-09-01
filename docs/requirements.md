@@ -1,6 +1,6 @@
 # Stillyard Product Requirements
 
-Status: Managed-execution amendment v0.13 (2026-08-30)
+Status: Conditions and readiness amendment v0.14 (2026-09-01)
 
 Product name: Stillyard
 

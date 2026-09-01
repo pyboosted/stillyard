@@ -470,6 +470,8 @@ impl Store {
             .collect();
         let store_uuid = self.store_uuid;
         let daemon_generation = self.daemon_generation;
+        let boot_id = self.startup_identity.boot_id.clone();
+        let condition_freshness = self.observation_config.condition_rescan_interval_millis;
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
         let transaction = self.connection.transaction()?;
@@ -570,6 +572,18 @@ impl Store {
                     admission.as_ref().map(serde_json::to_string).transpose()?,
                     accepted_ms,
                 ],
+            )?;
+            insert_conditions_tx(
+                &transaction,
+                *job_id,
+                &accepted_spec.conditions,
+                ConditionAcceptance {
+                    store_uuid,
+                    daemon_generation,
+                    boot_id: boot_id.as_ref(),
+                    accepted_ms,
+                    freshness_millis: condition_freshness,
+                },
             )?;
         }
         for (member, (successor, _, _, _, _)) in spec.jobs.iter().zip(&jobs) {
@@ -834,6 +848,8 @@ impl Store {
         let accepted_ms = now_millis();
         let store_uuid = self.store_uuid;
         let daemon_generation = self.daemon_generation;
+        let boot_id = self.startup_identity.boot_id.clone();
+        let condition_freshness = self.observation_config.condition_rescan_interval_millis;
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
         let transaction = self.connection.transaction()?;
@@ -911,6 +927,18 @@ impl Store {
                 accepted_ms,
             ],
         )?;
+        insert_conditions_tx(
+            &transaction,
+            job_id,
+            &accepted_spec.conditions,
+            ConditionAcceptance {
+                store_uuid,
+                daemon_generation,
+                boot_id: boot_id.as_ref(),
+                accepted_ms,
+                freshness_millis: condition_freshness,
+            },
+        )?;
         if wait_for_completion {
             if let Err(error) = validate_managed_wait_targets(
                 &transaction,
@@ -947,11 +975,12 @@ impl Store {
         submission_id: SubmissionId,
         job_id: JobId,
     ) -> StoreResult<JobReceipt> {
-        let (state, accepted_ms, spec_json): (String, i64, String) = self.connection.query_row(
-            "SELECT state, accepted_ms, spec_json FROM jobs WHERE id = ?1",
-            [self.local_id(job_id)?],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )?;
+        let (state, accepted_ms, spec_json, reason_code): (String, i64, String, Option<String>) =
+            self.connection.query_row(
+                "SELECT state, accepted_ms, spec_json, reason_code FROM jobs WHERE id = ?1",
+                [self.local_id(job_id)?],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )?;
         let spec: JobSpec = serde_json::from_str(&spec_json)?;
         let now = now_millis();
         let queue_rank = if state == "pending" {
@@ -980,6 +1009,7 @@ impl Store {
             job_id,
             submission_state: SubmissionState::Accepted,
             job_state: parse_job_state(&state)?,
+            reason_code,
             accepted_unix_millis: accepted_ms,
             priority: spec.priority,
             effective_priority: (state == "pending")
@@ -987,6 +1017,7 @@ impl Store {
             blockers,
             queue_rank,
             reservation: self.reservation_for_job(job_id)?,
+            conditions: self.condition_snapshots(job_id)?,
             estimate,
             parent,
             managed_policy_admission,
@@ -1267,6 +1298,56 @@ fn evaluate_managed_policy(
             ));
         }
         validate_claims_against_limit(spec, &policy.max_claims, *ancestor_id)?;
+        for condition in &spec.conditions {
+            if let ConditionPredicate::Probe { probe } = &condition.predicate {
+                validate_resource_claims_against_limit(
+                    &probe.resources,
+                    &policy.max_claims,
+                    *ancestor_id,
+                )?;
+                for impact in &probe.resources.impacts {
+                    if !policy.allowed_impacts.contains(impact) {
+                        return Err(policy_rejection(
+                            "child_impact_not_permitted",
+                            format!(
+                                "probe impact {impact:?} is denied by policy ancestor {ancestor_id}"
+                            ),
+                        ));
+                    }
+                }
+                for fence in &probe.resources.shared_fences {
+                    if !resolved.allows_shared(Path::new(fence)).map_err(|error| {
+                        StoreError::InvalidSpec(format!(
+                            "cannot resolve requested probe shared fence while checking policy ancestor {ancestor_id}: {error}"
+                        ))
+                    })? {
+                        return Err(policy_rejection(
+                            "child_fence_not_permitted",
+                            format!(
+                                "probe shared fence {fence:?} is denied by policy ancestor {ancestor_id}"
+                            ),
+                        ));
+                    }
+                }
+                for fence in &probe.resources.exclusive_fences {
+                    if !resolved
+                        .allows_exclusive(Path::new(fence))
+                        .map_err(|error| {
+                            StoreError::InvalidSpec(format!(
+                                "cannot resolve requested probe exclusive fence while checking policy ancestor {ancestor_id}: {error}"
+                            ))
+                        })?
+                    {
+                        return Err(policy_rejection(
+                            "child_fence_not_permitted",
+                            format!(
+                                "probe exclusive fence {fence:?} is denied by policy ancestor {ancestor_id}"
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
         for impact in &spec.resources.impacts {
             if !policy.allowed_impacts.contains(impact) {
                 return Err(policy_rejection(
@@ -1425,21 +1506,29 @@ fn validate_claims_against_limit(
     limits: &crate::ResourceClaimLimits,
     ancestor_id: JobId,
 ) -> StoreResult<()> {
+    validate_resource_claims_against_limit(&spec.resources, limits, ancestor_id)
+}
+
+fn validate_resource_claims_against_limit(
+    resources: &crate::ResourceClaims,
+    limits: &crate::ResourceClaimLimits,
+    ancestor_id: JobId,
+) -> StoreResult<()> {
     for (name, requested, permitted) in [
         (
             "cpu_units",
-            spec.resources.cpu_units.map(u64::from),
+            resources.cpu_units.map(u64::from),
             limits.cpu_units.map(u64::from),
         ),
-        ("ram_mb", spec.resources.ram_mb, limits.ram_mb),
+        ("ram_mb", resources.ram_mb, limits.ram_mb),
         (
             "cargo_slots",
-            spec.resources.cargo_slots.map(u64::from),
+            resources.cargo_slots.map(u64::from),
             limits.cargo_slots.map(u64::from),
         ),
         (
             "gpu_slots",
-            spec.resources.gpu_slots.map(u64::from),
+            resources.gpu_slots.map(u64::from),
             limits.gpu_slots.map(u64::from),
         ),
     ] {
@@ -1452,7 +1541,7 @@ fn validate_claims_against_limit(
             ));
         }
     }
-    for (name, requested) in &spec.resources.custom {
+    for (name, requested) in &resources.custom {
         let canonical_name = crate::spec::canonical_custom_resource_name(name)
             .map_err(|error| StoreError::InvalidSpec(error.to_string()))?;
         if limits
@@ -1654,15 +1743,17 @@ pub(super) fn validate_managed_wait_targets(
                 parent.job_id
             )));
         }
-        let (state, claims_json, display_name) = connection
+        let (state, claims_json, display_name, spec_json) = connection
             .query_row(
-                "SELECT state, claims_json, COALESCE(batch_member, id) FROM jobs WHERE id = ?1",
+                "SELECT state, claims_json, COALESCE(batch_member, id), spec_json
+                 FROM jobs WHERE id = ?1",
                 [&job_key],
                 |row| {
                     Ok((
                         row.get::<_, String>(0)?,
                         row.get::<_, String>(1)?,
                         row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
                     ))
                 },
             )
@@ -1672,7 +1763,17 @@ pub(super) fn validate_managed_wait_targets(
             continue;
         }
         let claims: ResolvedClaims = serde_json::from_str(&claims_json)?;
-        waited_claims.push((job_id, display_name, claims));
+        waited_claims.push((job_id, display_name.clone(), claims));
+        let spec: JobSpec = serde_json::from_str(&spec_json)?;
+        for condition in spec.conditions {
+            if let ConditionPredicate::Probe { probe } = condition.predicate {
+                waited_claims.push((
+                    job_id,
+                    format!("{display_name} probe"),
+                    ResolvedClaims::resolve(&probe.resources)?,
+                ));
+            }
+        }
         let mut statement = connection.prepare(
             "SELECT dependencies.predecessor_id
              FROM dependencies

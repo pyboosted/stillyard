@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HostConfig",
+  "type": "object",
+  "properties": {
+    "impact_incompatibilities": {
+      "description": "Directed declarations interpreted symmetrically by admission.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "default": {}
+    },
+    "observation": {
+      "$ref": "#/$defs/HostObservationConfig",
+      "default": {
+        "admission_wall_clock_limit_seconds": 3600,
+        "condition_rescan_interval_millis": 1000,
+        "generation_max_cadence_gap_millis": 2500,
+        "gpu_provider": "nvml",
+        "gpu_slot_uuid": null,
+        "memory_max_sample_age_millis": 2500,
+        "pre_release_backoff_millis": 1000,
+        "pre_release_max_deferrals": 16,
+        "process_rules": {
+          "block": [],
+          "ignore": [
+            "dwm.exe",
+            "LogonUI.exe"
+          ]
+        },
+        "quiet_max_sample_gap_millis": 2000,
+        "ram_safety_margin_mb": 0,
+        "sample_interval_millis": 1000,
+        "vram_safety_margin_mb": 0
+      }
+    },
+    "resources": {
+      "$ref": "#/$defs/ResourceCapacities",
+      "default": {
+        "cargo_slots": 0,
+        "cpu_units": 0,
+        "custom": {},
+        "gpu_slots": 0,
+        "ram_mb": 0
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "GpuProviderConfig": {
+      "type": "string",
+      "enum": [
+        "nvml",
+        "disabled"
+      ]
+    },
+    "HostObservationConfig": {
+      "type": "object",
+      "properties": {
+        "admission_wall_clock_limit_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "default": 3600,
+          "minimum": 0
+        },
+        "condition_rescan_interval_millis": {
+          "description": "Maximum age of filesystem/clock Condition evidence before an authoritative rescan.",
+          "type": "integer",
+          "format": "uint64",
+          "default": 1000,
+          "minimum": 0
+        },
+        "generation_max_cadence_gap_millis": {
+          "type": "integer",
+          "format": "uint64",
+          "default": 2500,
+          "minimum": 0
+        },
+        "gpu_provider": {
+          "$ref": "#/$defs/GpuProviderConfig",
+          "default": "nvml"
+        },
+        "gpu_slot_uuid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "memory_max_sample_age_millis": {
+          "type": "integer",
+          "format": "uint64",
+          "default": 2500,
+          "minimum": 0
+        },
+        "pre_release_backoff_millis": {
+          "type": "integer",
+          "format": "uint64",
+          "default": 1000,
+          "minimum": 0
+        },
+        "pre_release_max_deferrals": {
+          "type": "integer",
+          "format": "uint32",
+          "default": 16,
+          "minimum": 0
+        },
+        "process_rules": {
+          "$ref": "#/$defs/ProcessRules",
+          "default": {
+            "block": [],
+            "ignore": [
+              "dwm.exe",
+              "LogonUI.exe"
+            ]
+          }
+        },
+        "quiet_max_sample_gap_millis": {
+          "type": "integer",
+          "format": "uint64",
+          "default": 2000,
+          "minimum": 0
+        },
+        "ram_safety_margin_mb": {
+          "type": "integer",
+          "format": "uint64",
+          "default": 0,
+          "minimum": 0
+        },
+        "sample_interval_millis": {
+          "type": "integer",
+          "format": "uint64",
+          "default": 1000,
+          "minimum": 0
+        },
+        "vram_safety_margin_mb": {
+          "type": "integer",
+          "format": "uint64",
+          "default": 0,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProcessRules": {
+      "type": "object",
+      "properties": {
+        "block": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "ignore": {
+          "type": "array",
+          "default": [
+            "dwm.exe",
+            "LogonUI.exe"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ResourceCapacities": {
+      "description": "Scalar capacities configured by the owner for one host-local daemon.",
+      "type": "object",
+      "properties": {
+        "cargo_slots": {
+          "type": "integer",
+          "format": "uint32",
+          "default": 0,
+          "minimum": 0
+        },
+        "cpu_units": {
+          "type": "integer",
+          "format": "uint32",
+          "default": 0,
+          "minimum": 0
+        },
+        "custom": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "default": {}
+        },
+        "gpu_slots": {
+          "type": "integer",
+          "format": "uint32",
+          "default": 0,
+          "minimum": 0
+        },
+        "ram_mb": {
+          "type": "integer",
+          "format": "uint64",
+          "default": 0,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

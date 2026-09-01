@@ -292,6 +292,7 @@ pub(super) fn create_current_schema(
              batch_index INTEGER,
              state TEXT NOT NULL,
              outcome TEXT,
+             reason_code TEXT,
              spec_json TEXT NOT NULL,
              claims_json TEXT NOT NULL DEFAULT '{{}}',
              stdin_hash TEXT,
@@ -375,6 +376,7 @@ pub(super) fn create_current_schema(
              executable_hash TEXT,
              daemon_generation TEXT,
              postcondition_index INTEGER,
+             condition_id TEXT REFERENCES conditions(id),
              started_ms INTEGER,
              finished_ms INTEGER,
              exit_classification TEXT,
@@ -404,18 +406,31 @@ pub(super) fn create_current_schema(
          CREATE TABLE conditions(
              id TEXT PRIMARY KEY,
              job_id TEXT NOT NULL REFERENCES jobs(id),
+             condition_index INTEGER NOT NULL,
              state TEXT NOT NULL,
-             spec_json TEXT NOT NULL
+             spec_json TEXT NOT NULL,
+             deadline_ms INTEGER,
+             deadline_outcome TEXT NOT NULL,
+             transition_armed INTEGER NOT NULL DEFAULT 0,
+             next_probe_ms INTEGER,
+             probe_invocation_id TEXT REFERENCES invocations(id),
+             UNIQUE(job_id, condition_index)
          );
          CREATE TABLE observations(
              id TEXT PRIMARY KEY,
              condition_id TEXT NOT NULL REFERENCES conditions(id),
              observed_ms INTEGER NOT NULL,
+             observed_monotonic_ms INTEGER NOT NULL,
+             boot_id TEXT,
+             daemon_generation TEXT NOT NULL,
+             fresh_until_ms INTEGER NOT NULL,
+             source TEXT NOT NULL,
              value_json TEXT NOT NULL
          );
          CREATE TABLE leases(
              id TEXT PRIMARY KEY,
              attempt_id TEXT NOT NULL REFERENCES attempts(id),
+             invocation_id TEXT REFERENCES invocations(id),
              state TEXT NOT NULL,
              claims_json TEXT NOT NULL
          );
@@ -453,6 +468,9 @@ pub(super) fn create_current_schema(
          CREATE INDEX jobs_state_accepted ON jobs(state, accepted_ms, id);
          CREATE INDEX jobs_accepted_order ON jobs(accepted_ms, id);
          CREATE INDEX reservations_hold_deadline ON reservations(hold_deadline_ms, job_id);
+         CREATE INDEX conditions_job_state ON conditions(job_id, state, condition_index);
+         CREATE INDEX conditions_deadline ON conditions(deadline_ms, state);
+         CREATE INDEX conditions_probe_due ON conditions(next_probe_ms, state);
          CREATE TRIGGER events_prune AFTER INSERT ON events BEGIN
              DELETE FROM events WHERE sequence <= NEW.sequence - {MAX_EVENT_ROWS};
          END;
@@ -464,6 +482,7 @@ pub(super) fn create_current_schema(
          CREATE TRIGGER jobs_event_update AFTER UPDATE ON jobs
          WHEN OLD.state IS NOT NEW.state
            OR OLD.outcome IS NOT NEW.outcome
+           OR OLD.reason_code IS NOT NEW.reason_code
            OR OLD.spec_json IS NOT NEW.spec_json
            OR OLD.claims_json IS NOT NEW.claims_json
            OR OLD.stdin_hash IS NOT NEW.stdin_hash
@@ -554,6 +573,25 @@ pub(super) fn create_current_schema(
              JOIN jobs ON jobs.id = attempts.job_id
              WHERE invocations.id = NEW.invocation_id;
          END;
+         CREATE TRIGGER conditions_event_insert AFTER INSERT ON conditions BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             SELECT 'job_changed', NEW.job_id, jobs.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
+             FROM jobs WHERE jobs.id = NEW.job_id;
+         END;
+         CREATE TRIGGER conditions_event_update AFTER UPDATE ON conditions BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             SELECT 'job_changed', NEW.job_id, jobs.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
+             FROM jobs WHERE jobs.id = NEW.job_id;
+         END;
+         CREATE TRIGGER observations_event_insert AFTER INSERT ON observations BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             SELECT 'job_changed', conditions.job_id, jobs.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
+             FROM conditions JOIN jobs ON jobs.id = conditions.job_id
+             WHERE conditions.id = NEW.condition_id;
+         END;
          CREATE TRIGGER reservations_event_insert AFTER INSERT ON reservations BEGIN
              INSERT INTO events(kind, job_id, batch_id, committed_ms)
              SELECT 'job_changed', NEW.job_id, jobs.batch_id,
@@ -627,6 +665,7 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
                 "batch_id",
                 "batch_member",
                 "batch_index",
+                "reason_code",
                 "claims_json",
                 "stdin_hash",
                 "stdin_len",
@@ -689,6 +728,7 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
             &[
                 "role_index",
                 "postcondition_index",
+                "condition_id",
                 "daemon_generation",
                 "root_host_id",
                 "root_boot_id",
@@ -699,6 +739,28 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
                 "stderr_tail",
             ] as &[_],
         ),
+        (
+            "conditions",
+            &[
+                "condition_index",
+                "deadline_ms",
+                "deadline_outcome",
+                "transition_armed",
+                "next_probe_ms",
+                "probe_invocation_id",
+            ] as &[_],
+        ),
+        (
+            "observations",
+            &[
+                "observed_monotonic_ms",
+                "boot_id",
+                "daemon_generation",
+                "fresh_until_ms",
+                "source",
+            ] as &[_],
+        ),
+        ("leases", &["invocation_id"] as &[_]),
         (
             "containments",
             &[
@@ -766,6 +828,9 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
         "invocations_event_update",
         "containments_event_insert",
         "containments_event_update",
+        "conditions_event_insert",
+        "conditions_event_update",
+        "observations_event_insert",
         "reservations_event_insert",
         "reservations_event_delete",
     ] {
@@ -785,6 +850,9 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
         "jobs_state_accepted",
         "jobs_accepted_order",
         "reservations_hold_deadline",
+        "conditions_job_state",
+        "conditions_deadline",
+        "conditions_probe_due",
     ] {
         let exists = connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?1)",

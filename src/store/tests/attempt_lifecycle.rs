@@ -178,7 +178,7 @@ fn plain_cancel_covers_queued_active_and_backoff_without_successors() {
     let canceling = store.cancel_jobs(&[active]).unwrap();
     assert_eq!(canceling[0].state, JobState::Active);
     assert!(canceling[0].cancel_requested);
-    assert!(store.cancel_requested(active).unwrap());
+    assert!(store.invocation_stop_requested(active).unwrap());
     store
         .mark_invocation_resolved(&prepared, Some(1), None)
         .unwrap();

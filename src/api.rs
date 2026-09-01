@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    AttemptId, AttemptVerdict, BatchId, ChildFencePolicy, ContainmentId, InvocationId, JobId,
-    JobOutcome, JobSpec, JobState, Label, ReservationId, ResourceClaimLimits, ResourceClaims,
-    SubmissionId, SubmissionState,
+    AttemptId, AttemptVerdict, BatchId, ChildFencePolicy, ConditionId, ConditionSpec,
+    ContainmentId, InvocationId, JobId, JobOutcome, JobSpec, JobState, Label, ObservationId,
+    ReservationId, ResourceClaimLimits, ResourceClaims, SubmissionId, SubmissionState,
 };
 
 pub const MAX_OBSERVATION_PAGE: u32 = 1_024;
@@ -39,6 +39,70 @@ pub struct ScalarReservation {
     pub claims: ScalarResourceClaims,
     pub created_unix_millis: i64,
     pub hold_deadline_unix_millis: i64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum ConditionState {
+    Waiting,
+    Satisfied,
+    Failed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum ConditionObservationSource {
+    FilesystemRescan,
+    Clock,
+    Probe,
+    Invalidation,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ConditionObservationValue {
+    Path {
+        exists: bool,
+    },
+    Time {
+        reached: bool,
+    },
+    Probe {
+        exit_code: Option<i32>,
+        timed_out: bool,
+        accepted: bool,
+    },
+    Invalidated {
+        reason: String,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct ConditionObservationSnapshot {
+    pub observation_id: ObservationId,
+    pub value: ConditionObservationValue,
+    pub observed_unix_millis: i64,
+    pub observed_monotonic_millis: u64,
+    pub boot_id: Option<BootId>,
+    pub daemon_generation: Uuid,
+    pub fresh_until_unix_millis: i64,
+    pub source: ConditionObservationSource,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct ConditionSnapshot {
+    pub condition_id: ConditionId,
+    pub condition_index: u32,
+    pub state: ConditionState,
+    pub spec: ConditionSpec,
+    pub deadline_unix_millis: Option<i64>,
+    pub last_observation: Option<ConditionObservationSnapshot>,
+    pub probe_invocation_id: Option<InvocationId>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -191,6 +255,8 @@ pub struct JobSummary {
     pub parent: Option<ManagedParent>,
     pub state: JobState,
     pub outcome: Option<JobOutcome>,
+    #[serde(default)]
+    pub reason_code: Option<String>,
     pub accepted_unix_millis: i64,
     pub priority: i8,
     pub effective_priority: Option<i64>,
@@ -198,6 +264,8 @@ pub struct JobSummary {
     pub finished_unix_millis: Option<i64>,
     pub queue_rank: Option<u64>,
     pub reservation: Option<ScalarReservation>,
+    #[serde(default)]
+    pub conditions: Vec<ConditionSnapshot>,
     pub estimate: Estimate,
     pub claims: ResourceClaims,
     /// Operator-declared labels copied from the accepted spec, e.g. `project=…` and `gate=…`,
@@ -742,6 +810,8 @@ pub struct JobReceipt {
     pub job_id: JobId,
     pub submission_state: SubmissionState,
     pub job_state: JobState,
+    #[serde(default)]
+    pub reason_code: Option<String>,
     pub accepted_unix_millis: i64,
     pub priority: i8,
     pub effective_priority: Option<i64>,
@@ -749,6 +819,8 @@ pub struct JobReceipt {
     pub blockers: Vec<Blocker>,
     pub queue_rank: Option<u64>,
     pub reservation: Option<ScalarReservation>,
+    #[serde(default)]
+    pub conditions: Vec<ConditionSnapshot>,
     pub estimate: Estimate,
     pub parent: Option<ManagedParent>,
     #[serde(default)]
@@ -784,6 +856,7 @@ pub struct BatchReceipt {
 #[serde(rename_all = "snake_case")]
 pub enum InvocationRole {
     Primary,
+    Probe,
     Postcondition,
 }
 
@@ -1499,6 +1572,8 @@ pub struct JobSnapshot {
     pub batch_member: Option<String>,
     pub state: JobState,
     pub outcome: Option<JobOutcome>,
+    #[serde(default)]
+    pub reason_code: Option<String>,
     pub attempt_id: Option<AttemptId>,
     pub invocation_id: Option<InvocationId>,
     pub containment_id: Option<ContainmentId>,
@@ -1509,6 +1584,8 @@ pub struct JobSnapshot {
     pub effective_priority: Option<i64>,
     pub queue_rank: Option<u64>,
     pub reservation: Option<ScalarReservation>,
+    #[serde(default)]
+    pub conditions: Vec<ConditionSnapshot>,
     pub started_unix_millis: Option<i64>,
     pub finished_unix_millis: Option<i64>,
     pub spec: JobSpec,
@@ -1644,12 +1721,14 @@ mod tests {
             job_id,
             submission_state: SubmissionState::Accepted,
             job_state: JobState::Pending,
+            reason_code: None,
             accepted_unix_millis: 0,
             priority: crate::NEUTRAL_JOB_PRIORITY,
             effective_priority: Some(0),
             blockers: Vec::new(),
             queue_rank: None,
             reservation: None,
+            conditions: Vec::new(),
             estimate: Estimate::unknown("fixture"),
             parent: None,
             managed_policy_admission: None,

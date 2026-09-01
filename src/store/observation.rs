@@ -59,7 +59,7 @@ impl Store {
                     containment_id, root_exit_code, accepted_ms, started_ms, finished_ms,
                     spec_json, batch_id, batch_member,
                     parent_job_id, parent_attempt_id, parent_invocation_id,
-                    cancel_requested != 0, managed_policy_admission_json
+                    cancel_requested != 0, managed_policy_admission_json, reason_code
                  FROM jobs WHERE id = ?1",
                 [self.local_id(job_id)?],
                 |row| {
@@ -89,6 +89,7 @@ impl Store {
                         row.get::<_, Option<String>>(15)?,
                         row.get::<_, bool>(16)?,
                         row.get::<_, Option<String>>(17)?,
+                        row.get::<_, Option<String>>(18)?,
                     ))
                 },
             )
@@ -114,6 +115,7 @@ impl Store {
                     parent_invocation,
                     cancel_requested,
                     managed_policy_admission_json,
+                    reason_code,
                 )| {
                     let parsed_state = parse_job_state(&state)?;
                     let spec: JobSpec = serde_json::from_str(&spec_json)?;
@@ -133,6 +135,7 @@ impl Store {
                         batch_member,
                         state: parsed_state,
                         outcome: outcome.map(|value| parse_outcome(&value)).transpose()?,
+                        reason_code,
                         attempt_id: attempt_id
                             .map(|value| {
                                 Uuid::parse_str(&value)
@@ -163,6 +166,7 @@ impl Store {
                             None
                         },
                         reservation: self.reservation_for_job(job_id)?,
+                        conditions: self.condition_snapshots(job_id)?,
                         started_unix_millis: started_ms,
                         finished_unix_millis: finished_ms,
                         spec,
@@ -624,9 +628,11 @@ impl Store {
             invocation,
             stdout,
             stderr,
+            reason_code,
         ) = self.connection.query_row(
             "SELECT state, outcome, accepted_ms, started_ms, finished_ms, spec_json,
-                    batch_id, batch_member, attempt_id, invocation_id, stdout_len, stderr_len
+                    batch_id, batch_member, attempt_id, invocation_id, stdout_len, stderr_len,
+                    reason_code
              FROM jobs WHERE id = ?1",
             [self.local_id(job_id)?],
             |row| {
@@ -643,6 +649,7 @@ impl Store {
                     row.get::<_, Option<String>>(9)?,
                     row.get::<_, u64>(10)?,
                     row.get::<_, u64>(11)?,
+                    row.get::<_, Option<String>>(12)?,
                 ))
             },
         )?;
@@ -676,6 +683,7 @@ impl Store {
             parent: self.parent_for_job(job_id)?,
             state,
             outcome: outcome.map(|value| parse_outcome(&value)).transpose()?,
+            reason_code,
             accepted_unix_millis: accepted,
             priority: spec.priority,
             effective_priority: (state == JobState::Pending)
@@ -684,6 +692,7 @@ impl Store {
             finished_unix_millis: finished,
             queue_rank,
             reservation: self.reservation_for_job(job_id)?,
+            conditions: self.condition_snapshots(job_id)?,
             estimate,
             claims: spec.resources,
             labels: spec.labels,

@@ -346,8 +346,21 @@ impl Store {
         }
         let attempt_id = candidate.attempt_id.entity_uuid().to_string();
         let target_id = candidate.containment_id.entity_uuid().to_string();
-        let lease_released =
-            attempt_lease_release_eligible_after_target(&transaction, &attempt_id, &target_id)?;
+        let (invocation_role, condition_key): (String, Option<String>) = transaction.query_row(
+            "SELECT role, condition_id FROM invocations WHERE id = ?1",
+            [candidate.invocation_id.entity_uuid().to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        let lease_released = if invocation_role == "probe" {
+            transaction.query_row(
+                "SELECT EXISTS(SELECT 1 FROM leases
+                 WHERE invocation_id = ?1 AND state = 'granted')",
+                [candidate.invocation_id.entity_uuid().to_string()],
+                |row| row.get(0),
+            )?
+        } else {
+            attempt_lease_release_eligible_after_target(&transaction, &attempt_id, &target_id)?
+        };
         let audit = ContainmentResolutionAudit {
             resolved_unix_millis: now_millis(),
             daemon_generation: self.daemon_generation,
@@ -372,11 +385,48 @@ impl Store {
             ],
         )?;
         if lease_released {
-            transaction.execute(
-                "UPDATE leases SET state = 'released'
-                 WHERE attempt_id = ?1 AND state = 'granted'",
-                [&attempt_id],
-            )?;
+            if invocation_role == "probe" {
+                transaction.execute(
+                    "UPDATE leases SET state = 'released'
+                     WHERE invocation_id = ?1 AND state = 'granted'",
+                    [candidate.invocation_id.entity_uuid().to_string()],
+                )?;
+                if let Some(condition_key) = condition_key {
+                    let spec_json: String = transaction.query_row(
+                        "SELECT spec_json FROM conditions WHERE id = ?1",
+                        [&condition_key],
+                        |row| row.get(0),
+                    )?;
+                    let spec: crate::ConditionSpec = serde_json::from_str(&spec_json)?;
+                    let ConditionPredicate::Probe { probe } = spec.predicate else {
+                        return Err(StoreError::InvalidState(
+                            "probe Invocation references a non-probe Condition".into(),
+                        ));
+                    };
+                    let next_probe = now_millis().saturating_add(
+                        i64::try_from(probe.interval_seconds.saturating_mul(1_000))
+                            .unwrap_or(i64::MAX),
+                    );
+                    transaction.execute(
+                        "UPDATE conditions
+                         SET state = CASE WHEN state = 'failed' THEN state ELSE 'waiting' END,
+                             probe_invocation_id = NULL,
+                             next_probe_ms = CASE
+                                 WHEN EXISTS(
+                                     SELECT 1 FROM jobs
+                                     WHERE jobs.id = conditions.job_id AND jobs.state = 'pending'
+                                 ) THEN ?2 ELSE NULL END
+                         WHERE id = ?1",
+                        params![condition_key, next_probe],
+                    )?;
+                }
+            } else {
+                transaction.execute(
+                    "UPDATE leases SET state = 'released'
+                     WHERE attempt_id = ?1 AND state = 'granted'",
+                    [&attempt_id],
+                )?;
+            }
         }
         transaction.commit()?;
         Ok(Some(ClearContainmentResult {

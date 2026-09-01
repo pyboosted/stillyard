@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
 
-pub const SPEC_VERSION: u32 = 3;
+pub const SPEC_VERSION: u32 = 4;
 
 /// Least urgent explicit Job priority accepted by Stillyard.
 pub const MIN_JOB_PRIORITY: i8 = -3;
@@ -137,8 +137,20 @@ impl JobSpec {
         if self.postconditions.len() > 32 {
             return Err(Error::InvalidSpec("more than 32 postconditions".into()));
         }
-        let lifecycle_invocations = u64::from(self.retry.max_attempts)
-            .saturating_mul(u64::try_from(self.postconditions.len() + 1).unwrap_or(u64::MAX));
+        if self.conditions.len() > 32 {
+            return Err(Error::InvalidSpec("more than 32 Conditions".into()));
+        }
+        for condition in &self.conditions {
+            condition.validate()?;
+        }
+        let probes_per_attempt = self
+            .conditions
+            .iter()
+            .filter(|condition| matches!(&condition.predicate, ConditionPredicate::Probe { .. }))
+            .count();
+        let lifecycle_invocations = u64::from(self.retry.max_attempts).saturating_mul(
+            u64::try_from(self.postconditions.len() + probes_per_attempt + 1).unwrap_or(u64::MAX),
+        );
         if lifecycle_invocations > 256 {
             return Err(Error::InvalidSpec(
                 "retry attempts times Invocations per Attempt exceeds 256".into(),
@@ -147,9 +159,9 @@ impl JobSpec {
         for postcondition in &self.postconditions {
             postcondition.validate(self)?;
         }
-        if !self.conditions.is_empty() || !self.artifacts.is_empty() {
+        if !self.artifacts.is_empty() {
             return Err(Error::InvalidSpec(
-                "staged/EOF stdin, explicit environment, resource admission, retries, postconditions, observed thresholds, and quiet admission do not support Conditions/artifacts".into(),
+                "staged/EOF stdin, explicit environment, resource admission, retries, postconditions, observed thresholds, quiet admission, and Conditions do not support artifacts".into(),
             ));
         }
         Ok(())
@@ -161,6 +173,19 @@ impl JobSpec {
             if name.starts_with("vram_mb:") {
                 let (_, uuid) = split_vram_key(name)?;
                 uuids.insert(canonical_gpu_uuid(uuid)?);
+            }
+        }
+        for probe in self.conditions.iter().filter_map(|condition| {
+            let ConditionPredicate::Probe { probe } = &condition.predicate else {
+                return None;
+            };
+            Some(probe)
+        }) {
+            for name in probe.resources.custom.keys() {
+                if name.starts_with("vram_mb:") {
+                    let (_, uuid) = split_vram_key(name)?;
+                    uuids.insert(canonical_gpu_uuid(uuid)?);
+                }
             }
         }
         if let Some(observed) = &self.observed {
@@ -182,26 +207,28 @@ impl JobSpec {
     }
 
     pub(crate) fn requires_host_observation(&self) -> bool {
-        self.resources.ram_mb.is_some()
-            || self.resources.gpu_slots.is_some()
-            || self
-                .resources
-                .custom
-                .keys()
-                .any(|name| name.starts_with("vram_mb:"))
+        resource_claims_require_host_observation(&self.resources)
+            || self.conditions.iter().any(|condition| {
+                matches!(
+                    &condition.predicate,
+                    ConditionPredicate::Probe { probe }
+                        if resource_claims_require_host_observation(&probe.resources)
+                )
+            })
             || self.observed.is_some()
             || self.quiet.is_some()
     }
 
     pub(crate) fn minimum_observation_age_millis(&self, host: &HostConfig) -> Option<u64> {
         let mut ages = Vec::new();
-        if self.resources.ram_mb.is_some()
-            || self.resources.gpu_slots.is_some()
-            || self
-                .resources
-                .custom
-                .keys()
-                .any(|name| name.starts_with("vram_mb:"))
+        if resource_claims_require_host_observation(&self.resources)
+            || self.conditions.iter().any(|condition| {
+                matches!(
+                    &condition.predicate,
+                    ConditionPredicate::Probe { probe }
+                        if resource_claims_require_host_observation(&probe.resources)
+                )
+            })
         {
             ages.push(host.observation.memory_max_sample_age_millis);
         }
@@ -213,6 +240,15 @@ impl JobSpec {
         }
         ages.into_iter().min()
     }
+}
+
+fn resource_claims_require_host_observation(resources: &ResourceClaims) -> bool {
+    resources.ram_mb.is_some()
+        || resources.gpu_slots.is_some()
+        || resources
+            .custom
+            .keys()
+            .any(|name| name.starts_with("vram_mb:"))
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -744,11 +780,154 @@ fn is_builtin_resource(name: &str) -> bool {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConditionSpec {
+    pub predicate: ConditionPredicate,
+    /// Acceptance-anchored deadline; `none` is explicit and never synthesized by the daemon.
+    pub deadline: ConditionDeadline,
+    #[serde(default)]
+    pub on_deadline: ConditionDeadlineOutcome,
+}
+
+impl ConditionSpec {
+    fn validate(&self) -> Result<()> {
+        match &self.deadline {
+            ConditionDeadline::None => {}
+            ConditionDeadline::Relative { seconds } if (1..=31_536_000).contains(seconds) => {}
+            ConditionDeadline::Absolute { unix_millis } if *unix_millis > 0 => {}
+            _ => return Err(Error::InvalidSpec("invalid Condition deadline".into())),
+        }
+        match &self.predicate {
+            ConditionPredicate::PathTransition { from, to, .. } if from == to => {
+                return Err(Error::InvalidSpec(
+                    "path transition must change between absent and present".into(),
+                ));
+            }
+            ConditionPredicate::PathExists { path }
+            | ConditionPredicate::PathAbsent { path }
+            | ConditionPredicate::PathTransition { path, .. } => validate_condition_path(path)?,
+            ConditionPredicate::NotBefore { unix_millis } if *unix_millis <= 0 => {
+                return Err(Error::InvalidSpec(
+                    "not_before unix_millis must be positive".into(),
+                ));
+            }
+            ConditionPredicate::NotBefore { .. } => {}
+            ConditionPredicate::Probe { probe } => probe.validate()?,
+        }
+        Ok(())
+    }
+}
+
+fn validate_condition_path(path: &PathBuf) -> Result<()> {
+    if !path.is_absolute()
+        || path.as_os_str().is_empty()
+        || path.as_os_str().to_string_lossy().contains('\0')
+        || serde_json::to_vec(path)?.len() > 4096
+    {
+        return Err(Error::InvalidSpec(
+            "Condition path must be a bounded absolute path without NUL".into(),
+        ));
+    }
+    Ok(())
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum ConditionSpec {
-    PathExists { path: PathBuf },
-    PathAbsent { path: PathBuf },
-    NotBefore { unix_millis: i64 },
+pub enum ConditionPredicate {
+    PathExists {
+        path: PathBuf,
+    },
+    PathAbsent {
+        path: PathBuf,
+    },
+    PathTransition {
+        path: PathBuf,
+        from: PathConditionState,
+        to: PathConditionState,
+    },
+    NotBefore {
+        unix_millis: i64,
+    },
+    Probe {
+        probe: Box<ProbeCondition>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PathConditionState {
+    Absent,
+    Present,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ConditionDeadline {
+    None,
+    Relative { seconds: u64 },
+    Absolute { unix_millis: i64 },
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ConditionDeadlineOutcome {
+    #[default]
+    Failed,
+    Canceled,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProbeCondition {
+    pub executable: PathBuf,
+    #[serde(default)]
+    pub args: Vec<String>,
+    pub working_directory: PathBuf,
+    #[serde(default)]
+    pub environment: EnvironmentSpec,
+    #[serde(default)]
+    pub resources: ResourceClaims,
+    pub timeout_seconds: u64,
+    pub interval_seconds: u64,
+    pub accepted_exit_codes: Vec<i32>,
+}
+
+impl ProbeCondition {
+    fn validate(&self) -> Result<()> {
+        if !self.executable.is_absolute()
+            || !self.working_directory.is_absolute()
+            || self.executable.as_os_str().to_string_lossy().contains('\0')
+            || self
+                .working_directory
+                .as_os_str()
+                .to_string_lossy()
+                .contains('\0')
+            || self.args.iter().any(|argument| argument.contains('\0'))
+        {
+            return Err(Error::InvalidSpec(
+                "probe executable and working_directory must be absolute and contain no NUL".into(),
+            ));
+        }
+        if !(1..=3_600).contains(&self.timeout_seconds)
+            || !(1..=86_400).contains(&self.interval_seconds)
+            || self.accepted_exit_codes.is_empty()
+            || self.accepted_exit_codes.len() > 256
+        {
+            return Err(Error::InvalidSpec("invalid probe bounds".into()));
+        }
+        let mut exits = BTreeSet::new();
+        if self
+            .accepted_exit_codes
+            .iter()
+            .any(|code| !exits.insert(*code))
+        {
+            return Err(Error::InvalidSpec(
+                "duplicate accepted probe exit code".into(),
+            ));
+        }
+        self.environment.validate()?;
+        self.resources.validate()
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -867,6 +1046,8 @@ pub struct HostObservationConfig {
     pub pre_release_max_deferrals: u32,
     pub pre_release_backoff_millis: u64,
     pub admission_wall_clock_limit_seconds: u64,
+    /// Maximum age of filesystem/clock Condition evidence before an authoritative rescan.
+    pub condition_rescan_interval_millis: u64,
     pub gpu_provider: GpuProviderConfig,
 }
 
@@ -884,6 +1065,7 @@ impl Default for HostObservationConfig {
             pre_release_max_deferrals: 16,
             pre_release_backoff_millis: 1_000,
             admission_wall_clock_limit_seconds: 3_600,
+            condition_rescan_interval_millis: 1_000,
             gpu_provider: GpuProviderConfig::Nvml,
         }
     }
@@ -898,6 +1080,7 @@ impl HostObservationConfig {
             || !(1..=64).contains(&self.pre_release_max_deferrals)
             || !(100..=60_000).contains(&self.pre_release_backoff_millis)
             || !(1..=86_400).contains(&self.admission_wall_clock_limit_seconds)
+            || !(100..=60_000).contains(&self.condition_rescan_interval_millis)
         {
             return Err(Error::InvalidSpec("invalid host observation bounds".into()));
         }
@@ -1225,15 +1408,15 @@ mod tests {
     fn schema_is_stable_within_one_build() {
         assert_eq!(
             schema_json().unwrap(),
-            include_str!("../schema/stillyard-spec-v3.json")
+            include_str!("../schema/stillyard-spec-v4.json")
         );
         assert_eq!(
             config_schema_json().unwrap(),
-            include_str!("../schema/stillyard-config-v1.json")
+            include_str!("../schema/stillyard-config-v2.json")
         );
         assert_eq!(
             managed_execution_schema_json().unwrap(),
-            include_str!("../schema/stillyard-managed-execution-v2.json")
+            include_str!("../schema/stillyard-managed-execution-v3.json")
         );
     }
 
@@ -1269,7 +1452,7 @@ mod tests {
     fn supported_claim_and_impact_validate() {
         let mut job: JobSpec = serde_json::from_str(
             r#"{
-                "spec_version": 3,
+                "spec_version": 4,
                 "executable": "tool.exe",
                 "working_directory": ".",
                 "resources": { "gpu_slots": 1 }
@@ -1300,7 +1483,7 @@ mod tests {
         let root = std::env::current_dir().unwrap();
         let mut job: JobSpec = serde_json::from_str(&format!(
             r#"{{
-                "spec_version": 3,
+                "spec_version": 4,
                 "executable": {},
                 "working_directory": {},
                 "retry": {{ "max_attempts": 100, "backoff_seconds": 0 }}
@@ -1327,7 +1510,7 @@ mod tests {
         let root = std::env::current_dir().unwrap();
         let mut job: JobSpec = serde_json::from_str(&format!(
             r#"{{
-                "spec_version": 3,
+                "spec_version": 4,
                 "executable": {},
                 "working_directory": {},
                 "retry": {{ "max_attempts": 100, "backoff_seconds": 0 }}
@@ -1359,11 +1542,11 @@ mod tests {
     }
 
     #[test]
-    fn version_three_rejects_duplicate_label_keys_and_invalid_policy_shapes() {
+    fn version_four_rejects_duplicate_label_keys_and_invalid_policy_shapes() {
         let root = std::env::current_dir().unwrap();
         let mut job: JobSpec = serde_json::from_str(&format!(
             r#"{{
-                "spec_version": 3,
+                "spec_version": 4,
                 "executable": {},
                 "working_directory": {}
             }}"#,

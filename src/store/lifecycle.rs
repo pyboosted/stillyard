@@ -52,7 +52,12 @@ impl Store {
             [job.job_id.entity_uuid().to_string()],
             |row| row.get(0),
         )?;
-        if state != "active" {
+        let state_allowed = if job.role == InvocationRole::Probe {
+            state == "pending"
+        } else {
+            state == "active"
+        };
+        if !state_allowed {
             return Err(StoreError::InvalidState(format!(
                 "job {} cannot start from {state}",
                 job.job_id
@@ -78,14 +83,18 @@ impl Store {
             "UPDATE containments SET state = 'live' WHERE id = ?1",
             [job.containment_id.entity_uuid().to_string()],
         )?;
-        transaction.execute(
-            "UPDATE attempts SET state = 'running' WHERE id = ?1",
-            [job.attempt_id.entity_uuid().to_string()],
-        )?;
-        transaction.execute(
-            "UPDATE jobs SET started_ms = COALESCE(started_ms, ?2) WHERE id = ?1",
-            params![job.job_id.entity_uuid().to_string(), started],
-        )?;
+        if job.role != InvocationRole::Probe {
+            transaction.execute(
+                "UPDATE attempts SET state = 'running' WHERE id = ?1",
+                [job.attempt_id.entity_uuid().to_string()],
+            )?;
+        }
+        if job.role == InvocationRole::Primary {
+            transaction.execute(
+                "UPDATE jobs SET started_ms = COALESCE(started_ms, ?2) WHERE id = ?1",
+                params![job.job_id.entity_uuid().to_string(), started],
+            )?;
+        }
         transaction.commit()?;
         Ok(())
     }
@@ -118,7 +127,12 @@ impl Store {
             [job.job_id.entity_uuid().to_string()],
             |row| row.get(0),
         )?;
-        if state != "active" {
+        let state_allowed = if job.role == InvocationRole::Probe {
+            matches!(state.as_str(), "pending" | "final")
+        } else {
+            state == "active"
+        };
+        if !state_allowed {
             return Err(StoreError::InvalidState(format!(
                 "job {} cannot record root exit from {state}",
                 job.job_id
@@ -328,6 +342,11 @@ impl Store {
                  WHERE id = ?1",
                 params![job.job_id.entity_uuid().to_string(), not_before],
             )?;
+            reset_conditions_for_retry_tx(
+                &transaction,
+                &job.job_id.entity_uuid().to_string(),
+                not_before,
+            )?;
         } else {
             let effective_verdict = if cancel_requested {
                 AttemptVerdict::Canceled
@@ -357,10 +376,10 @@ impl Store {
         Ok(retry)
     }
 
-    pub(crate) fn cancel_requested(&self, job_id: JobId) -> StoreResult<bool> {
+    pub(crate) fn invocation_stop_requested(&self, job_id: JobId) -> StoreResult<bool> {
         self.connection
             .query_row(
-                "SELECT cancel_requested != 0 FROM jobs WHERE id = ?1",
+                "SELECT cancel_requested != 0 OR state = 'final' FROM jobs WHERE id = ?1",
                 [self.local_id(job_id)?],
                 |row| row.get(0),
             )

@@ -4,11 +4,13 @@ impl Store {
     pub(super) fn recover_interrupted(&mut self) -> StoreResult<()> {
         let interrupted = {
             let mut statement = self.connection.prepare(
-                "SELECT containments.id, containments.state, jobs.spec_json
+                "SELECT containments.id, containments.state, invocations.role,
+                        jobs.spec_json, conditions.spec_json
                  FROM containments
                  JOIN invocations ON invocations.id = containments.invocation_id
                  JOIN attempts ON attempts.id = invocations.attempt_id
                  JOIN jobs ON jobs.id = attempts.job_id
+                 LEFT JOIN conditions ON conditions.id = invocations.condition_id
                  WHERE containments.state IN ('creating', 'live')
                  ORDER BY containments.rowid",
             )?;
@@ -17,6 +19,8 @@ impl Store {
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
                 ))
             })?;
             rows.collect::<std::result::Result<Vec<_>, _>>()?
@@ -35,10 +39,24 @@ impl Store {
             [],
             |row| row.get(0),
         )?;
-        for (containment_id, prior_state, spec_json) in interrupted {
+        for (containment_id, prior_state, role, spec_json, condition_json) in interrupted {
             incident_sequence = incident_sequence.saturating_add(1);
-            let retained_claims =
-                serde_json::to_string(&serde_json::from_str::<JobSpec>(&spec_json)?.resources)?;
+            let retained_claims = if role == "probe" {
+                let condition: crate::ConditionSpec =
+                    serde_json::from_str(condition_json.as_deref().ok_or_else(|| {
+                        StoreError::InvalidState(
+                            "interrupted probe Invocation has no durable Condition".into(),
+                        )
+                    })?)?;
+                let ConditionPredicate::Probe { probe } = condition.predicate else {
+                    return Err(StoreError::InvalidState(
+                        "interrupted probe Invocation references a non-probe Condition".into(),
+                    ));
+                };
+                serde_json::to_string(&probe.resources)?
+            } else {
+                serde_json::to_string(&serde_json::from_str::<JobSpec>(&spec_json)?.resources)?
+            };
             let (reason, detail) = if prior_state == "creating" {
                 (
                     "daemon_restart_before_resume",

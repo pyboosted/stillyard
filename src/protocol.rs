@@ -12,7 +12,7 @@ use crate::{
     SubmissionContext, TreeObservationFrame,
 };
 
-pub(crate) const PROTOCOL_VERSION: u32 = 18;
+pub(crate) const PROTOCOL_VERSION: u32 = 19;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 pub(crate) mod error_code {

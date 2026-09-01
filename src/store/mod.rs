@@ -16,26 +16,29 @@ use crate::resources::{ResolvedChildSubmissionPolicy, ResolvedClaims};
 use crate::{
     AdmissionDecisionSnapshot, AdmissionDecisionState, AttemptId, AttemptSnapshot, AttemptVerdict,
     BatchId, BatchJobReceipt, BatchReceipt, BatchSpec, Blocker, BootId, ClearContainmentResult,
-    ClearanceOrigin, ContainmentId, ContainmentIncidentCursor, ContainmentIncidentSnapshot,
-    ContainmentResolution, ContainmentResolutionAudit, ContainmentSnapshot, ContainmentState,
-    DOCTOR_SNAPSHOT_TTL_SECONDS, DaemonSnapshot, DoctorBoundary, DoctorCheck, DoctorCheckStatus,
-    DoctorHostSnapshot, DoctorIncidentPage, DoctorOverallStatus, DoctorSnapshot,
-    DoctorStoreSnapshot, EffectiveChildSubmissionPolicy, Estimate, EventCursor, EventGap,
-    ExitClassification, ForcedClearanceAudit, GpuProvenance, HostConfig, HostId, InvocationId,
-    InvocationRole, InvocationSnapshot, InvocationState, InvocationTransition, InvocationVerdict,
+    ClearanceOrigin, ConditionDeadline, ConditionDeadlineOutcome, ConditionId,
+    ConditionObservationSnapshot, ConditionObservationSource, ConditionObservationValue,
+    ConditionPredicate, ConditionSnapshot, ConditionState, ContainmentId,
+    ContainmentIncidentCursor, ContainmentIncidentSnapshot, ContainmentResolution,
+    ContainmentResolutionAudit, ContainmentSnapshot, ContainmentState, DOCTOR_SNAPSHOT_TTL_SECONDS,
+    DaemonSnapshot, DoctorBoundary, DoctorCheck, DoctorCheckStatus, DoctorHostSnapshot,
+    DoctorIncidentPage, DoctorOverallStatus, DoctorSnapshot, DoctorStoreSnapshot,
+    EffectiveChildSubmissionPolicy, Estimate, EventCursor, EventGap, ExitClassification,
+    ForcedClearanceAudit, GpuProvenance, HostConfig, HostId, InvocationId, InvocationRole,
+    InvocationSnapshot, InvocationState, InvocationTransition, InvocationVerdict,
     JobChildrenCursor, JobChildrenPage, JobId, JobListCursor, JobListPage, JobOutcome, JobReceipt,
     JobSelector, JobSnapshot, JobSpec, JobState, JobSummary, JobTreePage, JobTreeRootCursor,
     JobTreeSelector, LogChunk, LogStream, MAX_COMPLETE_DOCTOR_BYTES, MAX_COMPLETE_DOCTOR_INCIDENTS,
     MAX_OBSERVATION_PAGE, MAX_TREE_PAGE_NODES, MAX_TREE_SELECTOR_JOBS, ManagedParent,
-    ManagedPolicyAdmissionSnapshot, ObservationFrame, PrimaryInvocationResult, ProcessIdentity,
-    ReconciliationResult, RecoveryResult, ResourceCapacities, SchedulerEvent, SchedulerEventKind,
-    StdinSpec, SubmissionId, SubmissionState, TerminationReason, TreeAttentionBucket,
-    TreeObservationFrame,
+    ManagedPolicyAdmissionSnapshot, ObservationFrame, ObservationId, PrimaryInvocationResult,
+    ProcessIdentity, ReconciliationResult, RecoveryResult, ResourceCapacities, SchedulerEvent,
+    SchedulerEventKind, StdinSpec, SubmissionId, SubmissionState, TerminationReason,
+    TreeAttentionBucket, TreeObservationFrame,
 };
 
 // Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
 // the current schema changes; daemon startup will replace the whole SQLite database.
-const STORE_SCHEMA_EPOCH: &str = "stillyard-priority-reservations-r1-2026-09-01";
+const STORE_SCHEMA_EPOCH: &str = "stillyard-conditions-r1-2026-09-01";
 const MAX_EVENT_ROWS: u64 = 16_384;
 const SNAPSHOT_DIAGNOSTIC_BUDGET_BYTES: usize = 64 * 1024;
 const MAX_UPLOAD_CHUNK_BYTES: usize = 256 * 1024;
@@ -387,6 +390,7 @@ pub(crate) struct PreparedJob {
     pub(crate) stdin: Option<StagedInputRef>,
     pub(crate) stdin_path: Option<PathBuf>,
     pub(crate) role: InvocationRole,
+    pub(crate) condition_id: Option<ConditionId>,
     pub(crate) attempt_deadline_unix_millis: Option<i64>,
     pub(crate) host_id: Option<HostId>,
     pub(crate) boot_id: Option<BootId>,
@@ -671,6 +675,7 @@ fn validate_retained_jobs(connection: &Connection, config: &HostConfig) -> Store
 
 mod admission;
 mod admitting;
+mod condition;
 mod database;
 mod input;
 mod lease;
@@ -685,6 +690,7 @@ mod tree;
 mod values;
 
 use admission::*;
+use condition::*;
 use database::{
     bind_unbound_store, configure_database, create_current_schema, current_store_uuid,
     host_binding_is_acceptable, is_database_corruption, load_host_config, meta_value,

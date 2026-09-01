@@ -10,7 +10,7 @@ state and logs, and exposes visible reasons while they wait.
 Stillyard is useful when independent processes need one scheduling authority without moving into
 containers, a CI service, or a remote worker platform.
 
-Current release: **0.1.0-alpha.13 for Windows 10 1809+ and Windows Server 2019+**.
+Current release: **0.1.0-alpha.14 for Windows 10 1809+ and Windows Server 2019+**.
 
 ## What works today
 
@@ -34,6 +34,10 @@ Current release: **0.1.0-alpha.13 for Windows 10 1809+ and Windows Server 2019+*
 - **Job lifecycle.** Success/failure dependencies, immutable file stdin, explicit environments,
   bounded retries, executable postconditions with immutable primary results, managed child
   submission, and safe managed waits are supported.
+- **External readiness.** An AND-set of path levels, acceptance-anchored path transitions,
+  not-before times, and contained executable probes can gate launch. Evidence is durably
+  attributed and authoritatively rescanned immediately before the born-suspended primary is
+  released; deadlines and finite anti-livelock deferrals survive restart.
 - **Managed capability policy.** A primary may authorize bounded child claims, impacts, fences,
   observed/quiet admission, mandatory labels, and narrower delegation without reserving those
   capabilities in the parent's Lease. Denials are durable Submission decisions.
@@ -56,7 +60,7 @@ Create `hello.json`:
 
 ```json
 {
-  "spec_version": 3,
+  "spec_version": 4,
   "priority": 0,
   "executable": "C:\\Windows\\System32\\cmd.exe",
   "args": ["/d", "/c", "echo hello from Stillyard"],
@@ -135,7 +139,7 @@ configuration identity, and unresolved containment incidents.
 ## Boundaries
 
 Stillyard currently supports one host-local, per-user Windows daemon. It has no network listener,
-distributed placement, container runtime, Linux runner, secrets, artifacts, external Conditions,
+distributed placement, container runtime, Linux runner, secrets, artifacts,
 cascade cancellation, or drain mode. Explicit isolated daemon instances exist for tests and
 special-purpose tools; custom endpoints are connect-only.
 
@@ -150,7 +154,8 @@ and quiet admission is recorded in the
 alpha.9 managed-policy and tree contract is recorded in the
 [frozen implementation brief](docs/managed-child-policy-and-tree-views.md). Priority, aging, and
 reservation semantics are normative in the
-[R-RES-6 contract](docs/priority-aging-reservations.md).
+[R-RES-6 contract](docs/priority-aging-reservations.md). External readiness is normative in the
+[R-COND-1..5 contract](docs/conditions-and-readiness.md).
 
 ## Developing Stillyard
 
