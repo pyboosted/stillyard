@@ -81,6 +81,10 @@ stillyard tree JOB_ID
 stillyard watch
 ```
 
+`daemon-status` includes authoritative `{ capacity, granted, reserved }` accounting for every
+built-in and configured custom scalar. Granted totals include retained uncertain-containment
+Leases; reserved totals use the scheduler's atomic FIFO queue reservations.
+
 JobSpec and host-config documents are strict and versioned. Print the authoritative schemas with:
 
 ```powershell

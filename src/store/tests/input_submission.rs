@@ -514,6 +514,76 @@ fn complete_leases_serialize_conflicts_but_allow_orthogonal_work() {
 }
 
 #[test]
+fn daemon_status_reports_grants_and_atomic_fifo_reservations() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut store =
+        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+            .unwrap();
+    let mut first = spec(temp.path());
+    first.resources.cpu_units = Some(3);
+    first.resources.custom.insert("review_slots".into(), 1);
+    let mut non_fitting = spec(temp.path());
+    non_fitting.resources.cpu_units = Some(2);
+    non_fitting
+        .resources
+        .custom
+        .insert("review_slots".into(), 1);
+    let mut cargo = spec(temp.path());
+    cargo.resources.cargo_slots = Some(1);
+    let mut remaining_custom = spec(temp.path());
+    remaining_custom
+        .resources
+        .custom
+        .insert("review_slots".into(), 1);
+    let batch = BatchSpec {
+        spec_version: SPEC_VERSION,
+        jobs: vec![
+            member("first", first, vec![]),
+            member("non-fitting", non_fitting, vec![]),
+            member("cargo", cargo, vec![]),
+            member("remaining-custom", remaining_custom, vec![]),
+        ],
+    };
+    let hash = normalized_batch_payload_hash(&batch).unwrap();
+    let receipt = store
+        .submit_batch(Uuid::now_v7(), &hash, &batch)
+        .unwrap()
+        .receipt;
+
+    let resources = store
+        .daemon_status("test")
+        .unwrap()
+        .resources
+        .expect("current daemon resource snapshot");
+    assert_eq!(resources.cpu_units.capacity, 4);
+    assert_eq!(resources.cpu_units.granted, 0);
+    assert_eq!(resources.cpu_units.reserved, 3);
+    assert_eq!(resources.cargo_slots.reserved, 1);
+    assert_eq!(resources.custom["review_slots"].capacity, 2);
+    assert_eq!(resources.custom["review_slots"].granted, 0);
+    assert_eq!(resources.custom["review_slots"].reserved, 2);
+
+    for expected in [
+        receipt.jobs[0].receipt.job_id,
+        receipt.jobs[2].receipt.job_id,
+        receipt.jobs[3].receipt.job_id,
+    ] {
+        assert_eq!(store.prepare_next_job().unwrap().unwrap().job_id, expected);
+    }
+    let resources = store
+        .daemon_status("test")
+        .unwrap()
+        .resources
+        .expect("current daemon resource snapshot");
+    assert_eq!(resources.cpu_units.granted, 3);
+    assert_eq!(resources.cpu_units.reserved, 0);
+    assert_eq!(resources.cargo_slots.granted, 1);
+    assert_eq!(resources.cargo_slots.reserved, 0);
+    assert_eq!(resources.custom["review_slots"].granted, 2);
+    assert_eq!(resources.custom["review_slots"].reserved, 0);
+}
+
+#[test]
 fn receipt_reports_rank_blocker_and_honest_estimate() {
     let temp = tempfile::tempdir().unwrap();
     let mut store =

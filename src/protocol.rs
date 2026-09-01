@@ -252,4 +252,66 @@ mod tests {
             .is_err()
         );
     }
+
+    #[test]
+    fn daemon_resource_accounting_is_additive_with_an_explicit_legacy_absence() {
+        let legacy = serde_json::json!({
+            "result": "daemon_status",
+            "store_uuid": Uuid::now_v7(),
+            "daemon_generation": Uuid::now_v7(),
+            "version": "fixture",
+            "pid": 42,
+            "process_identity": null,
+            "endpoint": "fixture",
+            "store_path": "C:\\fixture",
+            "config_path": "C:\\fixture\\config.json",
+            "capacities": {
+                "cpu_units": 4,
+                "ram_mb": 8192,
+                "cargo_slots": 1,
+                "gpu_slots": 0,
+                "custom": {}
+            },
+            "config_sha256": "fixture",
+            "queued_jobs": 0,
+            "running_jobs": 0
+        });
+        let response: Response = serde_json::from_value(legacy.clone()).unwrap();
+        assert!(matches!(
+            response,
+            Response::DaemonStatus(DaemonSnapshot {
+                resources: None,
+                ..
+            })
+        ));
+
+        let mut current = legacy;
+        current.as_object_mut().unwrap().insert(
+            "resources".into(),
+            serde_json::json!({
+                "cpu_units": { "capacity": 4, "granted": 1, "reserved": 2 },
+                "ram_mb": { "capacity": 8192, "granted": 0, "reserved": 0 },
+                "cargo_slots": { "capacity": 1, "granted": 1, "reserved": 0 },
+                "gpu_slots": { "capacity": 0, "granted": 0, "reserved": 0 },
+                "custom": {},
+                "future_evidence": true
+            }),
+        );
+        let response: Response = serde_json::from_value(current).unwrap();
+        assert!(matches!(
+            response,
+            Response::DaemonStatus(DaemonSnapshot {
+                resources: Some(crate::ResourceSnapshot {
+                    cpu_units: crate::ScalarResourceSnapshot {
+                        capacity: 4,
+                        granted: 1,
+                        reserved: 2,
+                        ..
+                    },
+                    ..
+                }),
+                ..
+            })
+        ));
+    }
 }

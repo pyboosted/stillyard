@@ -39,9 +39,10 @@ pub use api::{
     MAX_TREE_SELECTOR_JOBS, MAX_WAIT_STREAM_JOBS, ManagedExecutionRecord, ManagedParent,
     ManagedPolicyAdmissionSnapshot, ObservationCursorParseError, ObservationFrame,
     ObservedOperandSnapshot, PendingReason, PrimaryInvocationResult, ProcessIdentity,
-    ReconciliationResult, RecoveryResult, RejectReason, SchedulerEvent, SchedulerEventKind,
-    SubmissionContext, SubmissionRef, SubmitOptions, TerminationReason, TreeAttentionBucket,
-    TreeObservationFrame, WaitOutcome, WaitReport, WaitStreamItem,
+    ReconciliationResult, RecoveryResult, RejectReason, ResourceSnapshot, ScalarResourceSnapshot,
+    SchedulerEvent, SchedulerEventKind, SubmissionContext, SubmissionRef, SubmitOptions,
+    TerminationReason, TreeAttentionBucket, TreeObservationFrame, WaitOutcome, WaitReport,
+    WaitStreamItem,
 };
 pub use client::{Client, ClientBuilder, LogFollower, ObservationStream, WaitStream};
 pub use error::{Error, Result};

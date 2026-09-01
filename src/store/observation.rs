@@ -1007,9 +1007,76 @@ impl Store {
             store_path: self.paths.root.clone(),
             config_path: self.paths.config.clone(),
             capacities: self.capacities.clone(),
+            resources: Some(self.resource_snapshot()?),
             config_sha256: self.config_sha256.clone(),
             queued_jobs,
             running_jobs,
+        })
+    }
+
+    fn resource_snapshot(&self) -> StoreResult<crate::ResourceSnapshot> {
+        let (granted, reserved) = self.granted_and_reserved_claims(None)?;
+        let scalar = |name: &str,
+                      capacity: u64,
+                      granted_values: &dyn Fn(&ResolvedClaims) -> u64,
+                      reserved_values: &dyn Fn(&ResolvedClaims) -> u64|
+         -> StoreResult<crate::ScalarResourceSnapshot> {
+            Ok(crate::ScalarResourceSnapshot {
+                capacity,
+                granted: checked_resource_total(
+                    name,
+                    granted.iter().map(granted_values),
+                    "granted",
+                )?,
+                reserved: checked_resource_total(
+                    name,
+                    reserved.iter().map(reserved_values),
+                    "reserved",
+                )?,
+            })
+        };
+        let mut custom = std::collections::BTreeMap::new();
+        for (configured_name, capacity) in &self.capacities.custom {
+            let name = crate::spec::canonical_custom_resource_name(configured_name)
+                .map_err(|error| StoreError::InvalidState(error.to_string()))?;
+            let granted_name = name.clone();
+            let reserved_name = name.clone();
+            custom.insert(
+                name.clone(),
+                scalar(
+                    &name,
+                    *capacity,
+                    &|claims| claims.custom.get(&granted_name).copied().unwrap_or(0),
+                    &|claims| claims.custom.get(&reserved_name).copied().unwrap_or(0),
+                )?,
+            );
+        }
+        Ok(crate::ResourceSnapshot {
+            cpu_units: scalar(
+                "cpu_units",
+                u64::from(self.capacities.cpu_units),
+                &|claims| claims.cpu_units,
+                &|claims| claims.cpu_units,
+            )?,
+            ram_mb: scalar(
+                "ram_mb",
+                self.capacities.ram_mb,
+                &|claims| claims.ram_mb,
+                &|claims| claims.ram_mb,
+            )?,
+            cargo_slots: scalar(
+                "cargo_slots",
+                u64::from(self.capacities.cargo_slots),
+                &|claims| claims.cargo_slots,
+                &|claims| claims.cargo_slots,
+            )?,
+            gpu_slots: scalar(
+                "gpu_slots",
+                u64::from(self.capacities.gpu_slots),
+                &|claims| claims.gpu_slots,
+                &|claims| claims.gpu_slots,
+            )?,
+            custom,
         })
     }
 
@@ -1352,6 +1419,18 @@ impl Store {
             ],
         })
     }
+}
+
+fn checked_resource_total(
+    name: &str,
+    mut values: impl Iterator<Item = u64>,
+    accounting: &str,
+) -> StoreResult<u64> {
+    values.try_fold(0_u64, |total, value| {
+        total.checked_add(value).ok_or_else(|| {
+            StoreError::InvalidState(format!("{name} {accounting} resource accounting overflow"))
+        })
+    })
 }
 
 #[cfg(test)]

@@ -1524,6 +1524,27 @@ pub struct LogChunk {
     pub gap: Option<String>,
 }
 
+/// Authoritative accounting for one configured scalar resource.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct ScalarResourceSnapshot {
+    pub capacity: u64,
+    pub granted: u64,
+    pub reserved: u64,
+}
+
+/// Authoritative scalar-resource accounting captured by the daemon.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct ResourceSnapshot {
+    pub cpu_units: ScalarResourceSnapshot,
+    pub ram_mb: ScalarResourceSnapshot,
+    pub cargo_slots: ScalarResourceSnapshot,
+    pub gpu_slots: ScalarResourceSnapshot,
+    #[serde(default)]
+    pub custom: std::collections::BTreeMap<String, ScalarResourceSnapshot>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub struct DaemonSnapshot {
@@ -1537,6 +1558,9 @@ pub struct DaemonSnapshot {
     pub store_path: PathBuf,
     pub config_path: PathBuf,
     pub capacities: crate::ResourceCapacities,
+    /// `None` only when a protocol-compatible older daemon omitted resource accounting.
+    #[serde(default)]
+    pub resources: Option<ResourceSnapshot>,
     pub config_sha256: String,
     pub queued_jobs: u64,
     pub running_jobs: u64,

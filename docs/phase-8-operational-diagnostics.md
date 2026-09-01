@@ -500,8 +500,10 @@ unavailable daemon/store is 69, and internal/protocol inconsistency is 70.
 state. Human clearance output distinguishes `cleared now` from `already cleared automatically` and
 `already force-cleared by PID/start identity at time`; JSON always returns the original audit.
 
-`daemon-status` remains present because it is the cheap compatibility/readiness surface. Doctor
-does not replace watch, list, status, logs, or events, and no TUI pane gains privileged access.
+`daemon-status` remains present because it is the cheap compatibility/readiness surface. Its
+additive `resources` field reports R-RES-9 `{ capacity, granted, reserved }` accounting; absence
+identifies a protocol-compatible older daemon instead of fabricating zero usage. Doctor does not
+replace watch, list, status, logs, or events, and no TUI pane gains privileged access.
 
 ## Acceptance and adversarial evidence
 

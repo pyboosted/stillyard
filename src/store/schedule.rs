@@ -238,22 +238,35 @@ impl Store {
         &self,
         job_key: &str,
     ) -> StoreResult<Vec<ResolvedClaims>> {
-        let mut granted = self.active_claims()?;
+        let (mut granted, reserved) = self.granted_and_reserved_claims(Some(job_key))?;
+        granted.extend(reserved);
+        Ok(granted)
+    }
+
+    pub(super) fn granted_and_reserved_claims(
+        &self,
+        before_job_key: Option<&str>,
+    ) -> StoreResult<(Vec<ResolvedClaims>, Vec<ResolvedClaims>)> {
+        let granted = self.active_claims()?;
+        let mut accounted = granted.clone();
+        let mut reserved = Vec::new();
         let mut statement = self.connection.prepare(
             "SELECT id, claims_json, retry_not_before_ms FROM jobs
-             WHERE state = 'pending' AND rowid < (SELECT rowid FROM jobs WHERE id = ?1)
+             WHERE state = 'pending'
+               AND (?1 IS NULL OR rowid < (SELECT rowid FROM jobs WHERE id = ?1))
              ORDER BY accepted_ms, rowid",
         )?;
-        let rows = statement.query_map([job_key], |row| {
+        let rows = statement.query_map([before_job_key], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, Option<i64>>(2)?,
             ))
         })?;
+        let now = now_millis();
         for row in rows {
             let (candidate, claims, retry_not_before) = row?;
-            if retry_not_before.is_some_and(|instant| instant > now_millis()) {
+            if retry_not_before.is_some_and(|instant| instant > now) {
                 continue;
             }
             let (dependencies, impossible) = self.dependency_blockers(&candidate)?;
@@ -262,13 +275,14 @@ impl Store {
             }
             let claims: ResolvedClaims = serde_json::from_str(&claims)?;
             if claims
-                .blockers(&self.capacities, &granted, &self.impact_incompatibilities)
+                .blockers(&self.capacities, &accounted, &self.impact_incompatibilities)
                 .is_empty()
             {
-                granted.push(claims);
+                accounted.push(claims.clone());
+                reserved.push(claims);
             }
         }
-        Ok(granted)
+        Ok((granted, reserved))
     }
 
     pub(super) fn dependency_blockers(&self, job_key: &str) -> StoreResult<(Vec<Blocker>, bool)> {

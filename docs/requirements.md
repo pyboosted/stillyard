@@ -144,6 +144,8 @@ R-RES-7 Every Job may declare expected duration. The estimate uses running remai
 
 R-RES-8 A path fence resolves without following a replaceable leaf. Existing paths use stable filesystem identity. A missing leaf uses the stable identity of the longest existing ancestor plus its platform-canonical remaining components (case-folded on Windows), so two different missing children do not alias and later creation cannot evade the fence.
 
+R-RES-9 `Client::daemon_status` and `stillyard daemon-status` MUST expose an authoritative scalar-resource snapshot for every built-in and configured custom resource as `{ capacity, granted, reserved }`. `granted` is the checked sum of every currently granted Lease, including Leases retained by uncertain Containments after their Jobs become final. `reserved` is the checked sum of the same complete, non-partial FIFO queue reservations used for blocker reporting, excluding granted Leases; a Job whose complete Lease does not fit reserves none of its scalar claims. An omitted snapshot means a protocol-compatible older daemon, never an all-zero current observation.
+
 ## 10. Invocation and Containment
 
 R-RUN-1 Attempt admission atomically grants its Lease and creates a prepared primary Invocation plus creating Containment whose durable record names the platform boundary and boot generation. Process creation begins only after that transaction commits. User code begins at most once per Invocation. A never-started Invocation may resolve and its Containment may become empty only after the recorded boundary proves that no process was created or remains.

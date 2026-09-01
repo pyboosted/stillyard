@@ -1161,13 +1161,16 @@ fn clean_deferral_exhaustion_uses_the_job_retry_policy() {
 #[test]
 fn uncertain_pre_release_cleanup_is_final_and_retains_the_lease() {
     let temp = tempfile::tempdir().unwrap();
+    let mut config = observation_config();
+    config.resources.cargo_slots = 1;
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
-        observation_config(),
+        config,
         probe_startup_identity(),
     )
     .unwrap();
     let mut job = quiet_job(temp.path());
+    job.resources.cargo_slots = Some(1);
     job.retry.max_attempts = 2;
     job.retry.retryable.push("safety_failed".into());
     let hash = normalized_payload_hash(&job).unwrap();
@@ -1224,6 +1227,14 @@ fn uncertain_pre_release_cleanup_is_final_and_retains_the_lease() {
         )
         .unwrap();
     assert_eq!(granted, 1, "unproven containment must retain its Lease");
+    let resources = store
+        .daemon_status("test")
+        .unwrap()
+        .resources
+        .expect("current daemon resource snapshot");
+    assert_eq!(resources.cargo_slots.capacity, 1);
+    assert_eq!(resources.cargo_slots.granted, 1);
+    assert_eq!(resources.cargo_slots.reserved, 0);
 }
 
 #[test]
