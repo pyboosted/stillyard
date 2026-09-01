@@ -40,6 +40,12 @@ coordinates but never selects the instance for ensure.
 `gap_or_unknown`. Deadline and cancellation affect only this disposable wait. The legacy `wait`
 methods remain compatibility adapters that translate typed pending back to their former error.
 
+`Client::submission_context` is the stable caller-attestation query required by R-PKG-6. It returns
+the connected store UUID and the immediate managed parent authenticated from the client's OS peer
+and live Containment. A definitive unmanaged caller receives `parent: null`; missing evidence,
+ambiguous membership, peer-inspection failure, or disagreement with inherited managed coordinates
+is an error.
+
 ## CLI
 
 ```text
@@ -48,7 +54,13 @@ stillyard --endpoint PIPE ensure --spec JOB.json --idempotency-key UUID \
 
 stillyard --endpoint PIPE ensure --batch BATCH.json --idempotency-key UUID \
   [--result-file receipt.json] [--wait]
+
+stillyard [--endpoint PIPE] context --json
 ```
+
+`context --json` prints the same public `SubmissionContext` returned by the Rust method and
+propagates attestation failures without fabricating an unmanaged result. The request and response
+were already part of local protocol 16; adding this CLI spelling does not change that protocol.
 
 `ensure` and `wait` emit reports containing `exit_source` and `exit_code`. Scheduler-owned codes are
 0, 20-27, 64, 69, and 70. A final primary code is returned directly only for a final

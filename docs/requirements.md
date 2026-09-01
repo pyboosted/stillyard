@@ -28,6 +28,8 @@ R-PKG-4 The binary auto-starts one per-user daemon only when an unmanaged local 
 
 R-PKG-5 JobSpec and BatchSpec use one versioned JSON Schema generated from the same public Rust types used by client and daemon. Unknown fields reject. The crate ships the schema and `stillyard schema spec` prints it byte-for-byte.
 
+R-PKG-6 `Client::submission_context` is a supported public query returning the selected store UUID and the server-authenticated immediate managed parent, if one exists. `stillyard [--endpoint PIPE] context --json` MUST return the same public `SubmissionContext { store_uuid, parent }` document. Both surfaces use the same OS peer/Containment authentication as submission. `parent: null` means the daemon established that the caller is unmanaged; peer-observation failure, missing containment evidence, ambiguity, and claimed-coordinate mismatch MUST return an error and MUST NOT be converted to `parent: null`.
+
 ## 3. Explicit guarantees and non-goals
 
 R-SCOPE-1 Stillyard guarantees atomic submission decisions, crash-consistent lifecycle state under the platform filesystem contract, idempotent submission within retained history, complete-tree termination inside its cooperative containment boundary, and honest reporting when cleanup or history is unknown.
@@ -210,6 +212,7 @@ stillyard list [--label KEY=VALUE...] [--limit N] [--cursor CURSOR] [--json]
 stillyard logs JOB [--attempt N] [--invocation ID] [--stdout | --stderr] [--follow] [--since OFFSET]
 stillyard watch [--job JOB | --batch ID | --label KEY=VALUE...]
 stillyard events [--since CURSOR] [--label KEY=VALUE...] --json
+stillyard [--endpoint PIPE] context --json
 stillyard cancel (JOB... | --batch ID | --label KEY=VALUE...) [--cascade]
 stillyard secret (set NAME | remove NAME | list) [--json]
 stillyard stop (--drain | --force | --local)

@@ -1085,6 +1085,11 @@ impl Client {
     }
 
     /// Returns the store and server-authenticated managed parent for this client process.
+    ///
+    /// `parent` is `None` only when the daemon can establish that the caller is not in a managed
+    /// Stillyard Containment. Peer-inspection failures, ambiguous containment, and mismatched
+    /// inherited coordinates are returned as errors rather than downgraded to an unmanaged
+    /// context.
     pub fn submission_context(
         &self,
         deadline: Instant,

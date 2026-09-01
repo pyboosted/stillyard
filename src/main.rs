@@ -209,6 +209,14 @@ enum Command {
         #[arg(long, default_value_t = 10)]
         deadline_seconds: u64,
     },
+    /// Print the daemon-authenticated submission context for this process.
+    Context {
+        /// Emit the public SubmissionContext JSON document.
+        #[arg(long, required = true)]
+        json: bool,
+        #[arg(long, default_value_t = 10)]
+        deadline_seconds: u64,
+    },
     /// Inspect daemon, host, store, configuration, and unresolved containment evidence.
     Doctor {
         #[command(subcommand)]
@@ -706,6 +714,14 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             let deadline = deadline(deadline_seconds);
             let client = connect_client(endpoint.as_deref(), deadline)?;
             print_json(&client.daemon_status(deadline, None)?)?;
+        }
+        Command::Context {
+            json: _,
+            deadline_seconds,
+        } => {
+            let deadline = deadline(deadline_seconds);
+            let client = connect_client(endpoint.as_deref(), deadline)?;
+            print_json(&client.submission_context(deadline, None)?)?;
         }
         Command::Doctor {
             command,
@@ -1340,6 +1356,21 @@ mod tests {
         assert_eq!(logs_deadline_seconds(true, None), 86_400);
         assert_eq!(logs_deadline_seconds(false, None), 10);
         assert_eq!(logs_deadline_seconds(true, Some(7)), 7);
+    }
+
+    #[test]
+    fn context_cli_is_an_explicit_json_query() {
+        assert!(Cli::try_parse_from(["stillyard", "context"]).is_err());
+        let context =
+            Cli::try_parse_from(["stillyard", "context", "--json", "--deadline-seconds", "7"])
+                .unwrap();
+        assert!(matches!(
+            context.command,
+            Command::Context {
+                json: true,
+                deadline_seconds: 7,
+            }
+        ));
     }
 
     #[test]

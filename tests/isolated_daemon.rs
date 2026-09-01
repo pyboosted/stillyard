@@ -439,6 +439,25 @@ fn pinned_isolated_daemons_coexist_and_own_both_coordinates() {
     assert_eq!(cli_doctor.daemon, doctor.daemon);
     assert_eq!(cli_doctor.store, doctor.store);
 
+    let cli_context = Command::new(&pinned)
+        .args(["--endpoint", &endpoint_b, "context", "--json"])
+        .env_remove("STILLYARD_ENDPOINT")
+        .env_remove("STILLYARD_JOB_ID")
+        .env_remove("STILLYARD_ATTEMPT")
+        .env_remove("STILLYARD_INVOCATION_ID")
+        .env_remove("STILLYARD_ROLE")
+        .output()
+        .unwrap();
+    assert!(
+        cli_context.status.success(),
+        "context CLI failed: {}",
+        String::from_utf8_lossy(&cli_context.stderr)
+    );
+    let cli_context: stillyard::SubmissionContext =
+        serde_json::from_slice(&cli_context.stdout).unwrap();
+    assert_eq!(cli_context.store_uuid, status_b.store_uuid);
+    assert_eq!(cli_context.parent, None);
+
     let nested = JobSpec {
         spec_version: SPEC_VERSION,
         executable: pinned.clone(),
@@ -502,6 +521,53 @@ fn pinned_isolated_daemons_coexist_and_own_both_coordinates() {
     let nested_status: DaemonSnapshot = serde_json::from_slice(&output.bytes).unwrap();
     assert_eq!(nested_status.endpoint, endpoint_b);
     assert_eq!(nested_status.store_uuid, status_b.store_uuid);
+
+    let mut nested_context = command_spec(temp.path(), "exit 1");
+    nested_context.executable = pinned.clone();
+    nested_context.args = vec!["context".into(), "--json".into()];
+    nested_context.child_submission_policy = Some(stillyard::ChildSubmissionPolicy::default());
+    let context_receipt = client_b
+        .submit(
+            nested_context,
+            &SubmitOptions::new(Uuid::now_v7()),
+            Instant::now() + Duration::from_secs(5),
+            None,
+        )
+        .unwrap();
+    let context_snapshot = client_b
+        .wait(
+            context_receipt.job_id,
+            Instant::now() + Duration::from_secs(10),
+            None,
+        )
+        .unwrap();
+    assert_eq!(
+        context_snapshot.outcome,
+        Some(stillyard::JobOutcome::Succeeded)
+    );
+    let context_output = client_b
+        .logs(
+            context_receipt.job_id,
+            LogStream::Stdout,
+            0,
+            64 * 1024,
+            Instant::now() + Duration::from_secs(2),
+            None,
+        )
+        .unwrap();
+    let nested_context: stillyard::SubmissionContext =
+        serde_json::from_slice(&context_output.bytes).unwrap();
+    let nested_parent = nested_context.parent.expect("managed CLI caller");
+    assert_eq!(nested_context.store_uuid, status_b.store_uuid);
+    assert_eq!(nested_parent.job_id, context_receipt.job_id);
+    assert_eq!(
+        nested_parent.attempt_id,
+        context_snapshot.attempts[0].attempt_id
+    );
+    assert_eq!(
+        nested_parent.invocation_id,
+        context_snapshot.attempts[0].invocations[0].invocation_id
+    );
 
     let foreign: JobId = durable_id(status_a.store_uuid);
     assert!(matches!(
@@ -596,6 +662,16 @@ fn isolated_client_helper() {
             if code == "rejected"
                 && detail == "submission rejected: claimed managed parent does not match daemon-held OS containment"
     ));
+    let cli = Command::new(std::env::var_os("ISOLATED_DAEMON_EXECUTABLE").unwrap())
+        .args(["context", "--json"])
+        .output()
+        .unwrap();
+    assert!(!cli.status.success());
+    assert!(cli.stdout.is_empty(), "failed attestation emitted JSON");
+    assert!(
+        String::from_utf8_lossy(&cli.stderr)
+            .contains("claimed managed parent does not match daemon-held OS containment")
+    );
 }
 
 #[test]

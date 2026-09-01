@@ -37,6 +37,8 @@ fn external_consumer_compiles(
         client.doctor(cursor, Some(256), deadline, cancellation);
     let _: stillyard::Result<CompleteDoctorSnapshot> =
         client.doctor_complete(deadline, cancellation);
+    let _: stillyard::Result<stillyard::SubmissionContext> =
+        client.submission_context(deadline, cancellation);
     let _: stillyard::Result<stillyard::ClearContainmentResult> =
         client.force_clear_containment(containment_id, deadline, cancellation);
     let _: stillyard::Result<stillyard::JobTreePage> = client.tree(
