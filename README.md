@@ -150,6 +150,8 @@ installed system Stillyard daemon:
 & .\scripts\run-stillyard-job.ps1 fmt-write
 & .\scripts\run-stillyard-job.ps1 check
 & .\scripts\run-stillyard-job.ps1 test
+& .\scripts\run-stillyard-job.ps1 msrv-check
+& .\scripts\run-stillyard-job.ps1 msrv-test
 & .\scripts\run-stillyard-job.ps1 clippy
 & .\scripts\run-stillyard-job.ps1 schema-update
 & .\scripts\run-stillyard-job.ps1 build-release

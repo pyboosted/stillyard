@@ -13,6 +13,8 @@ Use the checked-in launcher and JobSpecs:
 & .\scripts\run-stillyard-job.ps1 fmt-write  # apply rustfmt after Rust edits
 & .\scripts\run-stillyard-job.ps1 check
 & .\scripts\run-stillyard-job.ps1 test
+& .\scripts\run-stillyard-job.ps1 msrv-check  # Rust 1.85 acceptance check
+& .\scripts\run-stillyard-job.ps1 msrv-test   # Rust 1.85 acceptance tests
 & .\scripts\run-stillyard-job.ps1 clippy
 & .\scripts\run-stillyard-job.ps1 schema-update  # intentional public schema changes only
 & .\scripts\run-stillyard-job.ps1 build-release

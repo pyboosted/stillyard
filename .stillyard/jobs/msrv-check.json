@@ -1,0 +1,29 @@
+{
+  "spec_version": 2,
+  "executable": "C:\\Users\\User\\.cargo\\bin\\cargo.exe",
+  "args": ["+1.85.0", "check", "--workspace", "--all-targets", "--all-features"],
+  "working_directory": "C:\\Development\\stillyard",
+  "environment": {
+    "set": {
+      "CARGO_HOME": "C:\\Users\\User\\.cargo",
+      "CARGO_TARGET_DIR": "C:\\Development\\stillyard\\target\\scheduled",
+      "INCLUDE": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\include;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\VS\\include;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\ucrt;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\um;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\shared;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\winrt;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\cppwinrt",
+      "LIB": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\lib\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\lib\\10.0.26100.0\\ucrt\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\lib\\10.0.26100.0\\um\\x64",
+      "PATH": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\x64;C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Mozilla.sccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\sccache-v0.16.0-x86_64-pc-windows-msvc;C:\\Users\\User\\.cargo\\bin;C:\\Program Files\\Git\\cmd;C:\\Program Files\\CMake\\bin;C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem",
+      "RUSTUP_HOME": "C:\\Users\\User\\.rustup",
+      "SCCACHE_DIR": "C:\\Development\\.sccache",
+      "USERPROFILE": "C:\\Users\\User",
+      "SYSTEMDRIVE": "C:"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": ["cpu_heavy"]
+  },
+  "labels": [
+    {"key": "project", "value": "stillyard"},
+    {"key": "gate", "value": "msrv-check"}
+  ],
+  "expected_duration_seconds": 60,
+  "timeout_seconds": 900
+}

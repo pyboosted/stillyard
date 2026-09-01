@@ -28,11 +28,11 @@ enum RegisteredContainment {
 #[cfg(windows)]
 impl Drop for ContainmentRegistration {
     fn drop(&mut self) {
-        if self.retire_on_drop
-            && let Ok(mut registry) = self.registry.inner.lock()
-        {
-            if let Some(containment) = registry.get_mut(&self.invocation_id) {
-                *containment = RegisteredContainment::Retired;
+        if self.retire_on_drop {
+            if let Ok(mut registry) = self.registry.inner.lock() {
+                if let Some(containment) = registry.get_mut(&self.invocation_id) {
+                    *containment = RegisteredContainment::Retired;
+                }
             }
         }
     }

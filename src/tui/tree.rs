@@ -120,10 +120,10 @@ impl App {
             self.tree.collapsed_by_user.insert(job_id);
             return;
         }
-        if let Some(parent) = self.tree.parents.get(&job_id).copied()
-            && let Some(index) = self.page.jobs.iter().position(|job| job.job_id == parent)
-        {
-            self.selected = index;
+        if let Some(parent) = self.tree.parents.get(&job_id).copied() {
+            if let Some(index) = self.page.jobs.iter().position(|job| job.job_id == parent) {
+                self.selected = index;
+            }
         }
     }
 
@@ -143,9 +143,10 @@ impl App {
             .get(&job_id)
             .and_then(|children| children.first())
             .copied()
-            && let Some(index) = self.page.jobs.iter().position(|job| job.job_id == child)
         {
-            self.selected = index;
+            if let Some(index) = self.page.jobs.iter().position(|job| job.job_id == child) {
+                self.selected = index;
+            }
         }
     }
 }
