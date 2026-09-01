@@ -958,13 +958,22 @@ fn labels_selector(
 }
 
 fn print_job_list(page: &stillyard::JobListPage) {
-    println!("STATE\tRANK\tJOB\tBLOCKER");
+    println!("STATE\tPRIORITY\tEFFECTIVE\tRANK\tRESERVATION\tJOB\tBLOCKER");
     for job in &page.jobs {
         println!(
-            "{:?}\t{}\t{}\t{}",
+            "{:?}\t{}\t{}\t{}\t{}\t{}\t{}",
             job.state,
+            job.priority,
+            job.effective_priority
+                .map(|priority| priority.to_string())
+                .unwrap_or_else(|| "-".into()),
             job.queue_rank
                 .map(|rank| rank.to_string())
+                .unwrap_or_else(|| "-".into()),
+            job.reservation
+                .as_ref()
+                .map(|reservation| serde_json::to_string(&reservation.claims)
+                    .unwrap_or_else(|_| "?".into()))
                 .unwrap_or_else(|| "-".into()),
             job.job_id,
             job.blocker

@@ -95,6 +95,7 @@ durable_id!(JobId);
 durable_id!(AttemptId);
 durable_id!(InvocationId);
 durable_id!(ContainmentId);
+durable_id!(ReservationId);
 
 #[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Serialize, Deserialize)]
 #[non_exhaustive]

@@ -1,5 +1,5 @@
 {
-  "spec_version": 2,
+  "spec_version": 3,
   "executable": "C:\\Users\\User\\.cargo\\bin\\cargo.exe",
   "args": ["test", "--workspace", "--all-features"],
   "working_directory": "C:\\Development\\stillyard",

@@ -1424,6 +1424,7 @@ mod tests {
     fn job_spec(root: &Path, executable: PathBuf, args: Vec<String>) -> JobSpec {
         JobSpec {
             spec_version: SPEC_VERSION,
+            priority: crate::NEUTRAL_JOB_PRIORITY,
             executable,
             args,
             working_directory: root.to_path_buf(),

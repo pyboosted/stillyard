@@ -10,7 +10,7 @@ state and logs, and exposes visible reasons while they wait.
 Stillyard is useful when independent processes need one scheduling authority without moving into
 containers, a CI service, or a remote worker platform.
 
-Current release: **0.1.0-alpha.12 for Windows 10 1809+ and Windows Server 2019+**.
+Current release: **0.1.0-alpha.13 for Windows 10 1809+ and Windows Server 2019+**.
 
 ## What works today
 
@@ -19,6 +19,9 @@ Current release: **0.1.0-alpha.12 for Windows 10 1809+ and Windows Server 2019+*
   stdout and stderr.
 - **Resource scheduling.** Declare CPU, RAM, Cargo slots, GPU slots, custom scalar resources,
   shared or exclusive path fences, and host-configured incompatible impacts.
+- **Fair priority scheduling.** Each Job has immutable priority `-3..=3` (neutral `0`). A
+  deterministic one-minute aging quantum prevents starvation; finite durable scalar reservations
+  protect otherwise-admissible work without preemption or global head-of-line blocking.
 - **Observed admission.** RAM uses fresh physical and commit headroom. NVIDIA VRAM and GPU load
   use fresh NVML evidence tied to the configured GPU UUID. Missing, stale, or changed evidence
   blocks work instead of being treated as safe.
@@ -53,7 +56,8 @@ Create `hello.json`:
 
 ```json
 {
-  "spec_version": 2,
+  "spec_version": 3,
+  "priority": 0,
   "executable": "C:\\Windows\\System32\\cmd.exe",
   "args": ["/d", "/c", "echo hello from Stillyard"],
   "working_directory": "C:\\"
@@ -85,7 +89,7 @@ stillyard watch
 
 `daemon-status` includes authoritative `{ capacity, granted, reserved }` accounting for every
 built-in and configured custom scalar. Granted totals include retained uncertain-containment
-Leases; reserved totals use the scheduler's atomic FIFO queue reservations.
+Leases; reserved totals are the exact sum of active durable full-vector scalar reservations.
 
 JobSpec and host-config documents are strict and versioned. Print the authoritative schemas with:
 
@@ -144,7 +148,9 @@ For the exact contract, see [requirements](docs/requirements.md). Evidence for o
 and quiet admission is recorded in the
 [Windows verification report](docs/observed-resource-quiet-admission-verification.md). The
 alpha.9 managed-policy and tree contract is recorded in the
-[frozen implementation brief](docs/managed-child-policy-and-tree-views.md).
+[frozen implementation brief](docs/managed-child-policy-and-tree-views.md). Priority, aging, and
+reservation semantics are normative in the
+[R-RES-6 contract](docs/priority-aging-reservations.md).
 
 ## Developing Stillyard
 

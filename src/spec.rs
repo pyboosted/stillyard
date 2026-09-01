@@ -7,12 +7,31 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
 
-pub const SPEC_VERSION: u32 = 2;
+pub const SPEC_VERSION: u32 = 3;
+
+/// Least urgent explicit Job priority accepted by Stillyard.
+pub const MIN_JOB_PRIORITY: i8 = -3;
+/// Neutral Job priority used when the field is omitted.
+pub const NEUTRAL_JOB_PRIORITY: i8 = 0;
+/// Most urgent explicit Job priority accepted by Stillyard.
+pub const MAX_JOB_PRIORITY: i8 = 3;
+/// Waiting-time quantum added to effective priority.
+pub const PRIORITY_AGING_QUANTUM_MILLIS: u64 = 60_000;
+/// Saturating upper bound for effective priority arithmetic.
+pub const MAX_EFFECTIVE_PRIORITY: i64 = 1_000_000;
+/// Fixed lifetime of one durable scalar reservation.
+pub const SCALAR_RESERVATION_HOLD_MILLIS: u64 = 60_000;
+/// Durable cooldown after an expired reservation before the Job may be admitted or reserve again.
+pub const SCALAR_RESERVATION_BACKOFF_MILLIS: u64 = 5_000;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct JobSpec {
     pub spec_version: u32,
+    /// Immutable urgency in `MIN_JOB_PRIORITY..=MAX_JOB_PRIORITY`; larger is more urgent.
+    #[serde(default)]
+    #[schemars(range(min = -3, max = 3))]
+    pub priority: i8,
     pub executable: PathBuf,
     #[serde(default)]
     pub args: Vec<String>,
@@ -48,6 +67,12 @@ impl JobSpec {
             return Err(Error::InvalidSpec(format!(
                 "unsupported spec_version {}, expected {SPEC_VERSION}",
                 self.spec_version
+            )));
+        }
+        if !(MIN_JOB_PRIORITY..=MAX_JOB_PRIORITY).contains(&self.priority) {
+            return Err(Error::InvalidSpec(format!(
+                "priority {} is outside the supported inclusive range {MIN_JOB_PRIORITY}..={MAX_JOB_PRIORITY}",
+                self.priority
             )));
         }
         if self.executable.as_os_str().is_empty() {
@@ -193,6 +218,12 @@ impl JobSpec {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ChildSubmissionPolicy {
+    /// Inclusive minimum explicit priority that a child may request.
+    #[schemars(range(min = -3, max = 3))]
+    pub min_priority: i8,
+    /// Inclusive maximum explicit priority that a child may request.
+    #[schemars(range(min = -3, max = 3))]
+    pub max_priority: i8,
     pub max_claims: ResourceClaimLimits,
     pub allowed_impacts: Vec<String>,
     pub required_labels: Vec<Label>,
@@ -204,6 +235,14 @@ pub struct ChildSubmissionPolicy {
 
 impl ChildSubmissionPolicy {
     fn validate(&self) -> Result<()> {
+        if self.min_priority < MIN_JOB_PRIORITY
+            || self.max_priority > MAX_JOB_PRIORITY
+            || self.min_priority > self.max_priority
+        {
+            return Err(Error::InvalidSpec(format!(
+                "child priority range must be inclusive, ordered, and within {MIN_JOB_PRIORITY}..={MAX_JOB_PRIORITY}"
+            )));
+        }
         self.max_claims.validate()?;
         if self.allowed_impacts.len() > 16 {
             return Err(Error::InvalidSpec(
@@ -1186,7 +1225,7 @@ mod tests {
     fn schema_is_stable_within_one_build() {
         assert_eq!(
             schema_json().unwrap(),
-            include_str!("../schema/stillyard-spec-v2.json")
+            include_str!("../schema/stillyard-spec-v3.json")
         );
         assert_eq!(
             config_schema_json().unwrap(),
@@ -1194,14 +1233,14 @@ mod tests {
         );
         assert_eq!(
             managed_execution_schema_json().unwrap(),
-            include_str!("../schema/stillyard-managed-execution-v1.json")
+            include_str!("../schema/stillyard-managed-execution-v2.json")
         );
     }
 
     #[test]
     fn unknown_job_field_rejects() {
         let json = r#"{
-            "spec_version": 2,
+            "spec_version": 3,
             "executable": "tool.exe",
             "working_directory": ".",
             "surprise": true
@@ -1212,7 +1251,7 @@ mod tests {
     #[test]
     fn daemon_environment_presets_are_not_accepted() {
         let job = r#"{
-            "spec_version": 2,
+            "spec_version": 3,
             "executable": "tool.exe",
             "working_directory": ".",
             "environment": { "profile": "reviewer" }
@@ -1230,7 +1269,7 @@ mod tests {
     fn supported_claim_and_impact_validate() {
         let mut job: JobSpec = serde_json::from_str(
             r#"{
-                "spec_version": 2,
+                "spec_version": 3,
                 "executable": "tool.exe",
                 "working_directory": ".",
                 "resources": { "gpu_slots": 1 }
@@ -1261,7 +1300,7 @@ mod tests {
         let root = std::env::current_dir().unwrap();
         let mut job: JobSpec = serde_json::from_str(&format!(
             r#"{{
-                "spec_version": 2,
+                "spec_version": 3,
                 "executable": {},
                 "working_directory": {},
                 "retry": {{ "max_attempts": 100, "backoff_seconds": 0 }}
@@ -1288,7 +1327,7 @@ mod tests {
         let root = std::env::current_dir().unwrap();
         let mut job: JobSpec = serde_json::from_str(&format!(
             r#"{{
-                "spec_version": 2,
+                "spec_version": 3,
                 "executable": {},
                 "working_directory": {},
                 "retry": {{ "max_attempts": 100, "backoff_seconds": 0 }}
@@ -1320,11 +1359,11 @@ mod tests {
     }
 
     #[test]
-    fn version_two_rejects_duplicate_label_keys_and_invalid_policy_shapes() {
+    fn version_three_rejects_duplicate_label_keys_and_invalid_policy_shapes() {
         let root = std::env::current_dir().unwrap();
         let mut job: JobSpec = serde_json::from_str(&format!(
             r#"{{
-                "spec_version": 2,
+                "spec_version": 3,
                 "executable": {},
                 "working_directory": {}
             }}"#,
@@ -1368,7 +1407,7 @@ mod tests {
     #[test]
     fn child_policy_unknown_fields_are_rejected_during_decode() {
         let json = r#"{
-            "spec_version": 2,
+            "spec_version": 3,
             "executable": "C:\\tool.exe",
             "working_directory": "C:\\",
             "child_submission_policy": { "future_authority": true }

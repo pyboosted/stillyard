@@ -1,3 +1,4 @@
+use super::schedule::condition_blockers_tx;
 use super::*;
 
 impl Store {
@@ -9,11 +10,16 @@ impl Store {
         let job_key = self.local_id(job_id)?;
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
+        let store_uuid = self.store_uuid;
         let host_config = self.host_config();
         let now = now_millis();
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if expire_due_reservations_tx(&transaction, now)? {
+            transaction.commit()?;
+            return Ok(PrepareJob::StateChanged);
+        }
         let row = transaction
             .query_row(
                 "SELECT spec_json, claims_json, stdin_hash, stdin_len, attempt_id
@@ -56,6 +62,19 @@ impl Store {
             return Ok(PrepareJob::StateChanged);
         }
         if !dependency_blockers.is_empty() {
+            if release_reservation_tx(&transaction, &job_key)? {
+                transaction.commit()?;
+                return Ok(PrepareJob::StateChanged);
+            }
+            transaction.rollback()?;
+            return Ok(PrepareJob::Blocked);
+        }
+        let condition_blockers = condition_blockers_tx(&transaction, &job_key)?;
+        if !condition_blockers.is_empty() {
+            if release_reservation_tx(&transaction, &job_key)? {
+                transaction.commit()?;
+                return Ok(PrepareJob::StateChanged);
+            }
             transaction.rollback()?;
             return Ok(PrepareJob::Blocked);
         }
@@ -88,7 +107,8 @@ impl Store {
         let attempt_key = attempt_key.expect("checked above");
         let attempt_id = AttemptId::from_parts(self.store_uuid, Uuid::parse_str(&attempt_key)?);
         let active = active_claims_tx(&transaction)?;
-        let static_blockers = claims.blockers(&capacities, &active, &impact_incompatibilities);
+        let mut static_blockers = claims.scalar_blockers(&capacities, &[]);
+        static_blockers.extend(claims.non_scalar_blockers(&active, &impact_incompatibilities));
         ensure_admitting_row(
             &transaction,
             &attempt_key,
@@ -96,6 +116,7 @@ impl Store {
             host_config.observation.admission_wall_clock_limit_seconds,
         )?;
         if !static_blockers.is_empty() {
+            release_reservation_tx(&transaction, &job_key)?;
             if admission_deadline_expired(&transaction, &attempt_key, now)? {
                 settle_admission(
                     &transaction,
@@ -119,6 +140,7 @@ impl Store {
             [&attempt_key],
         )?;
         let Some(observation) = observation else {
+            release_reservation_tx(&transaction, &job_key)?;
             let blocker = Blocker {
                 code: "observation_missing".into(),
                 detail: "host observation sample is not available".into(),
@@ -160,6 +182,7 @@ impl Store {
             return Ok(PrepareJob::StateChanged);
         }
         if !context.non_quiet_blockers.is_empty() {
+            release_reservation_tx(&transaction, &job_key)?;
             record_admission_context(&transaction, &attempt_key, &context)?;
             pause_quiet_progress(&transaction, &attempt_key)?;
             transaction.commit()?;
@@ -209,6 +232,27 @@ impl Store {
             }
             update_admission_progress(&transaction, &attempt_key, &context, consumed, stability)?;
             if !stable {
+                release_reservation_tx(&transaction, &job_key)?;
+                transaction.commit()?;
+                return Ok(PrepareJob::Blocked);
+            }
+        }
+
+        match scalar_disposition_tx(
+            &transaction,
+            store_uuid,
+            &capacities,
+            &job_key,
+            &claims,
+            &active,
+            now,
+        )? {
+            ScalarDisposition::Grant => {}
+            ScalarDisposition::Created | ScalarDisposition::StateChanged => {
+                transaction.commit()?;
+                return Ok(PrepareJob::StateChanged);
+            }
+            ScalarDisposition::Hold => {
                 transaction.commit()?;
                 return Ok(PrepareJob::Blocked);
             }
@@ -236,7 +280,8 @@ impl Store {
         )?;
         transaction.execute(
             "UPDATE jobs SET state = 'active', invocation_id = ?2, containment_id = ?3,
-                stdout_len = 0, stderr_len = 0, retry_not_before_ms = NULL
+                stdout_len = 0, stderr_len = 0, retry_not_before_ms = NULL,
+                reservation_not_before_ms = NULL
              WHERE id = ?1 AND state = 'pending' AND attempt_id = ?4",
             params![
                 job_key,

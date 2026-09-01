@@ -116,6 +116,8 @@ impl Store {
                     managed_policy_admission_json,
                 )| {
                     let parsed_state = parse_job_state(&state)?;
+                    let spec: JobSpec = serde_json::from_str(&spec_json)?;
+                    let now = now_millis();
                     Ok(JobSnapshot {
                         job_id,
                         submission_id: SubmissionId::from_parts(
@@ -152,9 +154,18 @@ impl Store {
                         root_exit_code,
                         cancel_requested,
                         accepted_unix_millis: accepted_ms,
+                        priority: spec.priority,
+                        effective_priority: (parsed_state == JobState::Pending)
+                            .then(|| effective_priority_at(spec.priority, accepted_ms, now)),
+                        queue_rank: if parsed_state == JobState::Pending {
+                            self.queue_rank_for_job_at(job_id, now)?
+                        } else {
+                            None
+                        },
+                        reservation: self.reservation_for_job(job_id)?,
                         started_unix_millis: started_ms,
                         finished_unix_millis: finished_ms,
-                        spec: serde_json::from_str(&spec_json)?,
+                        spec,
                         parent: managed_parent_from_columns(
                             self.store_uuid,
                             (parent_job, parent_attempt, parent_invocation),
@@ -636,18 +647,14 @@ impl Store {
             },
         )?;
         let state = parse_job_state(&state)?;
+        let now = now_millis();
         let blockers = if state == JobState::Pending {
             self.blockers_for_job(job_id)?
         } else {
             Vec::new()
         };
         let queue_rank = if state == JobState::Pending {
-            Some(self.connection.query_row(
-                "SELECT COUNT(*) FROM jobs WHERE state = 'pending' AND rowid <=
-                    (SELECT rowid FROM jobs WHERE id = ?1)",
-                [job_id.entity_uuid().to_string()],
-                |row| row.get(0),
-            )?)
+            self.queue_rank_for_job_at(job_id, now)?
         } else {
             None
         };
@@ -670,9 +677,13 @@ impl Store {
             state,
             outcome: outcome.map(|value| parse_outcome(&value)).transpose()?,
             accepted_unix_millis: accepted,
+            priority: spec.priority,
+            effective_priority: (state == JobState::Pending)
+                .then(|| effective_priority_at(spec.priority, accepted, now)),
             started_unix_millis: started,
             finished_unix_millis: finished,
             queue_rank,
+            reservation: self.reservation_for_job(job_id)?,
             estimate,
             claims: spec.resources,
             labels: spec.labels,
@@ -1073,7 +1084,7 @@ impl Store {
     }
 
     fn resource_snapshot(&self) -> StoreResult<crate::ResourceSnapshot> {
-        let (granted, reserved) = self.granted_and_reserved_claims(None)?;
+        let (granted, reserved) = self.granted_and_reserved_claims()?;
         let scalar = |name: &str,
                       capacity: u64,
                       granted_values: &dyn Fn(&ResolvedClaims) -> u64,

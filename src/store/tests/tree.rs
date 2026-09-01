@@ -3,6 +3,8 @@ use crate::store::database::validate_schema;
 
 fn permissive_policy() -> crate::ChildSubmissionPolicy {
     crate::ChildSubmissionPolicy {
+        min_priority: crate::MIN_JOB_PRIORITY,
+        max_priority: crate::MAX_JOB_PRIORITY,
         max_claims: crate::ResourceClaimLimits {
             cpu_units: Some(u32::MAX),
             ram_mb: Some(u64::MAX),

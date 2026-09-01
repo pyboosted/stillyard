@@ -184,21 +184,32 @@ impl Store {
     pub(super) fn blockers_for_job(&self, job_id: JobId) -> StoreResult<Vec<Blocker>> {
         let job_key = self.local_id(job_id)?;
         let mut blockers = self.dependency_blockers(&job_key)?.0;
+        blockers.extend(condition_blockers_tx(&self.connection, &job_key)?);
         if !self.startup_identity.capable() {
             blockers.push(Blocker {
                 code: "host_capability_unavailable".into(),
                 detail: self.startup_identity.failures.join("; "),
             });
         }
-        let retry_not_before: Option<i64> = self.connection.query_row(
-            "SELECT retry_not_before_ms FROM jobs WHERE id = ?1",
-            [&job_key],
-            |row| row.get(0),
-        )?;
+        let (retry_not_before, reservation_not_before): (Option<i64>, Option<i64>) =
+            self.connection.query_row(
+                "SELECT retry_not_before_ms, reservation_not_before_ms FROM jobs WHERE id = ?1",
+                [&job_key],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )?;
         if retry_not_before.is_some_and(|instant| instant > now_millis()) {
             blockers.push(Blocker {
                 code: "retry_backoff".into(),
                 detail: format!("retry_not_before_unix_millis={}", retry_not_before.unwrap()),
+            });
+        }
+        if reservation_not_before.is_some_and(|instant| instant > now_millis()) {
+            blockers.push(Blocker {
+                code: "reservation_backoff".into(),
+                detail: format!(
+                    "reservation_not_before_unix_millis={}",
+                    reservation_not_before.unwrap()
+                ),
             });
         }
         let claims: String = self.connection.query_row(
@@ -238,50 +249,20 @@ impl Store {
         &self,
         job_key: &str,
     ) -> StoreResult<Vec<ResolvedClaims>> {
-        let (mut granted, reserved) = self.granted_and_reserved_claims(Some(job_key))?;
-        granted.extend(reserved);
+        let mut granted = self.active_claims()?;
+        granted.extend(self.reservation_debits_for_job(job_key)?);
         Ok(granted)
     }
 
     pub(super) fn granted_and_reserved_claims(
         &self,
-        before_job_key: Option<&str>,
     ) -> StoreResult<(Vec<ResolvedClaims>, Vec<ResolvedClaims>)> {
         let granted = self.active_claims()?;
-        let mut accounted = granted.clone();
-        let mut reserved = Vec::new();
-        let mut statement = self.connection.prepare(
-            "SELECT id, claims_json, retry_not_before_ms FROM jobs
-             WHERE state = 'pending'
-               AND (?1 IS NULL OR rowid < (SELECT rowid FROM jobs WHERE id = ?1))
-             ORDER BY accepted_ms, rowid",
-        )?;
-        let rows = statement.query_map([before_job_key], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, Option<i64>>(2)?,
-            ))
-        })?;
-        let now = now_millis();
-        for row in rows {
-            let (candidate, claims, retry_not_before) = row?;
-            if retry_not_before.is_some_and(|instant| instant > now) {
-                continue;
-            }
-            let (dependencies, impossible) = self.dependency_blockers(&candidate)?;
-            if impossible || !dependencies.is_empty() {
-                continue;
-            }
-            let claims: ResolvedClaims = serde_json::from_str(&claims)?;
-            if claims
-                .blockers(&self.capacities, &accounted, &self.impact_incompatibilities)
-                .is_empty()
-            {
-                accounted.push(claims.clone());
-                reserved.push(claims);
-            }
-        }
+        let reserved = self
+            .active_reservations()?
+            .into_iter()
+            .map(|reservation| reservation.claims)
+            .collect();
         Ok((granted, reserved))
     }
 
@@ -382,27 +363,41 @@ impl Store {
                 "a retained Lease from an uncertain Containment has no automatic release estimate",
             ));
         }
+        let job_key = self.local_id(job_id)?;
+        if self.active_reservations()?.iter().any(|reservation| {
+            reservation.job_id != job_key && claims.overlaps_scalars(&reservation.claims)
+        }) {
+            return Ok(Estimate::unknown(
+                "an overlapping finite scalar reservation may convert or expire before this Job; priority aging makes a precise ETA unsafe",
+            ));
+        }
+        let now = now_millis();
+        let pending_before = self
+            .pending_jobs_at(now)?
+            .into_iter()
+            .take_while(|candidate| *candidate != job_id)
+            .map(|candidate| candidate.entity_uuid().to_string())
+            .collect::<std::collections::HashSet<_>>();
         let mut statement = self.connection.prepare(
-            "SELECT accepted_ms, started_ms, spec_json, state FROM jobs
-             WHERE id != ?1 AND (
-                 state = 'active' OR (
-                     state = 'pending' AND rowid < (SELECT rowid FROM jobs WHERE id = ?1)
-                 )
-             ) ORDER BY accepted_ms, rowid",
+            "SELECT id, accepted_ms, started_ms, spec_json, state FROM jobs
+             WHERE id != ?1 AND state IN ('active', 'pending') ORDER BY accepted_ms, rowid",
         )?;
         let rows = statement.query_map([self.local_id(job_id)?], |row| {
             Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, Option<i64>>(1)?,
-                row.get::<_, String>(2)?,
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, Option<i64>>(2)?,
                 row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
             ))
         })?;
-        let now = now_millis();
         let mut estimate = 0_u64;
         let mut saw_job = false;
         for row in rows {
-            let (accepted, started, json, state) = row?;
+            let (candidate, accepted, started, json, state) = row?;
+            if state == "pending" && !pending_before.contains(&candidate) {
+                continue;
+            }
             saw_job = true;
             let spec: JobSpec = serde_json::from_str(&json)?;
             let Some(seconds) = spec.expected_duration_seconds else {
@@ -427,7 +422,7 @@ impl Store {
                 confidence: crate::EstimateConfidence::Estimated,
                 start_in_millis: Some(estimate),
                 assumptions: vec![
-                    "conservative FIFO estimate from declared durations of running and earlier queued jobs; orthogonal work may start sooner".into(),
+                    "conservative snapshot estimate from declared durations of running Jobs and the current effective-priority order; aging or new reservations may reorder queued work, and orthogonal work may start sooner".into(),
                 ],
             })
         } else {
@@ -489,7 +484,7 @@ impl Store {
             Option<crate::host_observation::ObservationMoment<'a>>,
         >,
     ) -> StoreResult<PrepareNext> {
-        let mut state_changed = false;
+        let mut state_changed = self.expire_due_reservations(now_millis())?;
         loop {
             let mut skipped_in_pass = false;
             for job_id in self.pending_jobs()? {
@@ -549,18 +544,21 @@ impl Store {
         }
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
-        let host_config = self.host_config();
+        let store_uuid = self.store_uuid;
         let attempt_id = AttemptId::new(self.store_uuid);
         let invocation_id = InvocationId::new(self.store_uuid);
         let containment_id = ContainmentId::new(self.store_uuid);
         let lease_id = Uuid::now_v7();
-        let transaction = self.connection.transaction()?;
+        let now = now_millis();
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let row = transaction
             .query_row(
                 "SELECT spec_json, claims_json, stdin_hash, stdin_len
                  FROM jobs WHERE id = ?1 AND state = 'pending'
                    AND COALESCE(retry_not_before_ms, 0) <= ?2",
-                params![job_key, now_millis()],
+                params![job_key, now],
                 |row| {
                     Ok((
                         row.get::<_, String>(0)?,
@@ -586,6 +584,19 @@ impl Store {
             return Ok(PrepareJob::StateChanged);
         }
         if !dependency_blockers.is_empty() {
+            if release_reservation_tx(&transaction, &job_key)? {
+                transaction.commit()?;
+                return Ok(PrepareJob::StateChanged);
+            }
+            transaction.rollback()?;
+            return Ok(PrepareJob::Blocked);
+        }
+        let condition_blockers = condition_blockers_tx(&transaction, &job_key)?;
+        if !condition_blockers.is_empty() {
+            if release_reservation_tx(&transaction, &job_key)? {
+                transaction.commit()?;
+                return Ok(PrepareJob::StateChanged);
+            }
             transaction.rollback()?;
             return Ok(PrepareJob::Blocked);
         }
@@ -593,26 +604,31 @@ impl Store {
         let spec: JobSpec = serde_json::from_str(&spec_json)?;
         let active = active_claims_tx(&transaction)?;
         if !claims
-            .blockers(&capacities, &active, &impact_incompatibilities)
+            .non_scalar_blockers(&active, &impact_incompatibilities)
             .is_empty()
         {
+            if release_reservation_tx(&transaction, &job_key)? {
+                transaction.commit()?;
+                return Ok(PrepareJob::StateChanged);
+            }
             transaction.rollback()?;
             return Ok(PrepareJob::Blocked);
         }
-        if spec.requires_host_observation() {
-            let Some(observation) = observation else {
-                transaction.rollback()?;
-                return Ok(PrepareJob::Blocked);
-            };
-            let context = crate::host_observation::evaluate_admission(
-                &spec,
-                &host_config,
-                observation.sample,
-                &active,
-                observation.now_unix_millis,
-                observation.now_monotonic_millis,
-            );
-            if !context.blockers.is_empty() || spec.quiet.is_some() {
+        match scalar_disposition_tx(
+            &transaction,
+            store_uuid,
+            &capacities,
+            &job_key,
+            &claims,
+            &active,
+            now,
+        )? {
+            ScalarDisposition::Grant => {}
+            ScalarDisposition::Created | ScalarDisposition::StateChanged => {
+                transaction.commit()?;
+                return Ok(PrepareJob::StateChanged);
+            }
+            ScalarDisposition::Hold => {
                 transaction.rollback()?;
                 return Ok(PrepareJob::Blocked);
             }
@@ -637,7 +653,8 @@ impl Store {
         transaction.execute(
             "UPDATE jobs SET state = 'active', attempt_id = ?2, invocation_id = ?3,
                 containment_id = ?4, stdout_len = 0, stderr_len = 0,
-                retry_not_before_ms = NULL WHERE id = ?1 AND state = 'pending'",
+                retry_not_before_ms = NULL, reservation_not_before_ms = NULL
+                WHERE id = ?1 AND state = 'pending'",
             params![
                 job_id.entity_uuid().to_string(),
                 attempt_id.entity_uuid().to_string(),
@@ -645,7 +662,7 @@ impl Store {
                 containment_id.entity_uuid().to_string(),
             ],
         )?;
-        let attempt_started = now_millis();
+        let attempt_started = now;
         let attempt_deadline = spec.timeout_seconds.map(|seconds| {
             attempt_started
                 .saturating_add(i64::try_from(seconds.saturating_mul(1000)).unwrap_or(i64::MAX))
@@ -856,15 +873,52 @@ impl Store {
     }
 
     pub(crate) fn pending_jobs(&self) -> StoreResult<Vec<JobId>> {
-        let mut statement = self
-            .connection
-            .prepare("SELECT id FROM jobs WHERE state = 'pending' ORDER BY accepted_ms, rowid")?;
-        let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
+        self.pending_jobs_at(now_millis())
+    }
+
+    pub(super) fn pending_jobs_at(&self, now: i64) -> StoreResult<Vec<JobId>> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, accepted_ms, rowid, spec_json FROM jobs WHERE state = 'pending'",
+        )?;
+        let rows = statement.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        })?;
         let mut jobs = Vec::new();
         for row in rows {
-            jobs.push(JobId::from_parts(self.store_uuid, Uuid::parse_str(&row?)?));
+            let (id, accepted, rowid, spec_json) = row?;
+            let spec: JobSpec = serde_json::from_str(&spec_json)?;
+            jobs.push((
+                JobId::from_parts(self.store_uuid, Uuid::parse_str(&id)?),
+                effective_priority_at(spec.priority, accepted, now),
+                accepted,
+                rowid,
+            ));
         }
-        Ok(jobs)
+        jobs.sort_by(|left, right| {
+            right
+                .1
+                .cmp(&left.1)
+                .then(left.2.cmp(&right.2))
+                .then(left.3.cmp(&right.3))
+        });
+        Ok(jobs.into_iter().map(|row| row.0).collect())
+    }
+
+    pub(super) fn queue_rank_for_job_at(
+        &self,
+        job_id: JobId,
+        now: i64,
+    ) -> StoreResult<Option<u64>> {
+        Ok(self
+            .pending_jobs_at(now)?
+            .iter()
+            .position(|candidate| *candidate == job_id)
+            .map(|index| u64::try_from(index).unwrap_or(u64::MAX).saturating_add(1)))
     }
 
     pub(crate) fn host_observation_demand(&self) -> StoreResult<bool> {
@@ -949,8 +1003,16 @@ impl Store {
     ) -> StoreResult<Option<std::time::Duration>> {
         let now = now_millis();
         let next: Option<i64> = self.connection.query_row(
-            "SELECT MIN(retry_not_before_ms) FROM jobs
-             WHERE state = 'pending' AND retry_not_before_ms > ?1",
+            "SELECT MIN(deadline) FROM (
+                 SELECT retry_not_before_ms AS deadline FROM jobs
+                 WHERE state = 'pending' AND retry_not_before_ms > ?1
+                 UNION ALL
+                 SELECT reservation_not_before_ms AS deadline FROM jobs
+                 WHERE state = 'pending' AND reservation_not_before_ms > ?1
+                 UNION ALL
+                 SELECT hold_deadline_ms AS deadline FROM reservations
+                 WHERE hold_deadline_ms > ?1
+             )",
             [scheduling_pass_started],
             |row| row.get(0),
         )?;
@@ -960,6 +1022,31 @@ impl Store {
             )
         }))
     }
+}
+
+pub(super) fn condition_blockers_tx(
+    connection: &Connection,
+    job_key: &str,
+) -> StoreResult<Vec<Blocker>> {
+    let mut statement = connection.prepare(
+        "SELECT state, spec_json FROM conditions
+         WHERE job_id = ?1 AND state != 'satisfied' ORDER BY rowid",
+    )?;
+    let rows = statement.query_map([job_key], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    rows.map(|row| {
+        let (state, spec_json) = row?;
+        Ok(Blocker {
+            code: if state == "failed" {
+                "condition_failed".into()
+            } else {
+                "condition_waiting".into()
+            },
+            detail: spec_json,
+        })
+    })
+    .collect()
 }
 
 #[derive(Default, serde::Deserialize)]

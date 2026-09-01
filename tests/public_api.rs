@@ -105,6 +105,11 @@ fn public_methods_are_callable_from_an_external_crate() {
     assert!(coordinates.store_path.is_absolute());
     assert!(!coordinates.endpoint.is_empty());
     assert!(std::mem::size_of::<DoctorSnapshot>() > 0);
+    assert!(std::mem::size_of::<stillyard::ScalarReservation>() > 0);
+    assert!(std::mem::size_of::<stillyard::ScalarResourceClaims>() > 0);
+    assert_eq!(stillyard::MIN_JOB_PRIORITY, -3);
+    assert_eq!(stillyard::NEUTRAL_JOB_PRIORITY, 0);
+    assert_eq!(stillyard::MAX_JOB_PRIORITY, 3);
     assert!(
         stillyard::managed_execution_schema_json()
             .unwrap()

@@ -40,23 +40,26 @@ pub use api::{
     ManagedExecutionRecord, ManagedParent, ManagedPolicyAdmissionSnapshot,
     ObservationCursorParseError, ObservationFrame, ObservedOperandSnapshot, PendingReason,
     PrimaryInvocationResult, ProcessIdentity, ReconciliationResult, RecoveryResult, RejectReason,
-    ResourceSnapshot, ScalarResourceSnapshot, SchedulerEvent, SchedulerEventKind,
-    SubmissionContext, SubmissionRef, SubmitOptions, TerminationReason, TreeAttentionBucket,
-    TreeObservationFrame, WaitOutcome, WaitReport, WaitStreamItem,
+    ResourceSnapshot, ScalarReservation, ScalarResourceClaims, ScalarResourceSnapshot,
+    SchedulerEvent, SchedulerEventKind, SubmissionContext, SubmissionRef, SubmitOptions,
+    TerminationReason, TreeAttentionBucket, TreeObservationFrame, WaitOutcome, WaitReport,
+    WaitStreamItem,
 };
 pub use client::{Client, ClientBuilder, LogFollower, ObservationStream, WaitStream};
 pub use error::{Error, Result};
 pub use instance::{DefaultInstance, default_instance};
 pub use model::{
     AttemptId, AttemptVerdict, BatchId, ContainmentId, DurableIdParseError, InvocationId, JobId,
-    JobOutcome, JobState, SubmissionId, SubmissionState,
+    JobOutcome, JobState, ReservationId, SubmissionId, SubmissionState,
 };
 pub use spec::{
     BatchMember, BatchSpec, ChildFencePolicy, ChildSubmissionPolicy, ConditionSpec, DependencyKind,
     DependencySpec, EnvironmentSpec, GpuProviderConfig, HostConfig, HostObservationConfig, JobSpec,
-    Label, ObservedResourcePolicy, PostconditionSpec, ProcessRules, QuietDetector, QuietPolicy,
-    ResourceCapacities, ResourceClaimLimits, ResourceClaims, RetryPolicy, SPEC_VERSION, StdinSpec,
-    SubmissionSpec, config_schema_json, managed_execution_schema_json, schema_json,
+    Label, MAX_EFFECTIVE_PRIORITY, MAX_JOB_PRIORITY, MIN_JOB_PRIORITY, NEUTRAL_JOB_PRIORITY,
+    ObservedResourcePolicy, PRIORITY_AGING_QUANTUM_MILLIS, PostconditionSpec, ProcessRules,
+    QuietDetector, QuietPolicy, ResourceCapacities, ResourceClaimLimits, ResourceClaims,
+    RetryPolicy, SCALAR_RESERVATION_BACKOFF_MILLIS, SCALAR_RESERVATION_HOLD_MILLIS, SPEC_VERSION,
+    StdinSpec, SubmissionSpec, config_schema_json, managed_execution_schema_json, schema_json,
 };
 
 /// Runs the per-user daemon in the foreground.

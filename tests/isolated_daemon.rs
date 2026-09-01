@@ -133,6 +133,7 @@ where
 fn command_spec(root: &Path, command: &str) -> JobSpec {
     JobSpec {
         spec_version: SPEC_VERSION,
+        priority: stillyard::NEUTRAL_JOB_PRIORITY,
         executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
         args: vec!["/d".into(), "/c".into(), command.into()],
         working_directory: root.to_path_buf(),
@@ -159,6 +160,7 @@ fn seed_unresolved_incidents(store: &Path, count: u64) {
         .unwrap();
     let spec = JobSpec {
         spec_version: SPEC_VERSION,
+        priority: stillyard::NEUTRAL_JOB_PRIORITY,
         executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
         args: vec!["/d".into(), "/c".into(), "exit 0".into()],
         working_directory: store.to_path_buf(),
@@ -460,6 +462,7 @@ fn pinned_isolated_daemons_coexist_and_own_both_coordinates() {
 
     let nested = JobSpec {
         spec_version: SPEC_VERSION,
+        priority: stillyard::NEUTRAL_JOB_PRIORITY,
         executable: pinned.clone(),
         args: vec!["daemon-status".into()],
         working_directory: temp.path().to_path_buf(),
@@ -764,6 +767,7 @@ fn external_nvml_generation_change_never_releases_the_suspended_child() {
     let marker = temp.path().join("forbidden-release.txt");
     let job = JobSpec {
         spec_version: SPEC_VERSION,
+        priority: stillyard::NEUTRAL_JOB_PRIORITY,
         executable: child,
         args: vec![
             "/d".into(),

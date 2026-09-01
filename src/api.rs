@@ -10,14 +10,36 @@ use uuid::Uuid;
 
 use crate::{
     AttemptId, AttemptVerdict, BatchId, ChildFencePolicy, ContainmentId, InvocationId, JobId,
-    JobOutcome, JobSpec, JobState, Label, ResourceClaimLimits, ResourceClaims, SubmissionId,
-    SubmissionState,
+    JobOutcome, JobSpec, JobState, Label, ReservationId, ResourceClaimLimits, ResourceClaims,
+    SubmissionId, SubmissionState,
 };
 
 pub const MAX_OBSERVATION_PAGE: u32 = 1_024;
 pub const MAX_TREE_PAGE_NODES: u32 = 256;
 pub const MAX_TREE_SELECTOR_JOBS: usize = 64;
 pub const MAX_WAIT_STREAM_JOBS: usize = 1_024;
+
+/// Scalar-only claim vector protected by a Reservation.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct ScalarResourceClaims {
+    pub cpu_units: u64,
+    pub ram_mb: u64,
+    pub cargo_slots: u64,
+    pub gpu_slots: u64,
+    #[serde(default)]
+    pub custom: std::collections::BTreeMap<String, u64>,
+}
+
+/// Durable, finite promise of scalar capacity to one Pending Job.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub struct ScalarReservation {
+    pub reservation_id: ReservationId,
+    pub claims: ScalarResourceClaims,
+    pub created_unix_millis: i64,
+    pub hold_deadline_unix_millis: i64,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[error("invalid observation cursor")]
@@ -170,9 +192,12 @@ pub struct JobSummary {
     pub state: JobState,
     pub outcome: Option<JobOutcome>,
     pub accepted_unix_millis: i64,
+    pub priority: i8,
+    pub effective_priority: Option<i64>,
     pub started_unix_millis: Option<i64>,
     pub finished_unix_millis: Option<i64>,
     pub queue_rank: Option<u64>,
+    pub reservation: Option<ScalarReservation>,
     pub estimate: Estimate,
     pub claims: ResourceClaims,
     /// Operator-declared labels copied from the accepted spec, e.g. `project=…` and `gate=…`,
@@ -358,6 +383,8 @@ pub struct ManagedParent {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct EffectiveChildSubmissionPolicy {
+    pub min_priority: i8,
+    pub max_priority: i8,
     pub max_claims: ResourceClaimLimits,
     pub allowed_impacts: Vec<String>,
     pub required_labels: Vec<Label>,
@@ -715,9 +742,13 @@ pub struct JobReceipt {
     pub job_id: JobId,
     pub submission_state: SubmissionState,
     pub job_state: JobState,
+    pub accepted_unix_millis: i64,
+    pub priority: i8,
+    pub effective_priority: Option<i64>,
     #[serde(default)]
     pub blockers: Vec<Blocker>,
     pub queue_rank: Option<u64>,
+    pub reservation: Option<ScalarReservation>,
     pub estimate: Estimate,
     pub parent: Option<ManagedParent>,
     #[serde(default)]
@@ -1474,6 +1505,10 @@ pub struct JobSnapshot {
     pub root_exit_code: Option<i32>,
     pub cancel_requested: bool,
     pub accepted_unix_millis: i64,
+    pub priority: i8,
+    pub effective_priority: Option<i64>,
+    pub queue_rank: Option<u64>,
+    pub reservation: Option<ScalarReservation>,
     pub started_unix_millis: Option<i64>,
     pub finished_unix_millis: Option<i64>,
     pub spec: JobSpec,
@@ -1609,8 +1644,12 @@ mod tests {
             job_id,
             submission_state: SubmissionState::Accepted,
             job_state: JobState::Pending,
+            accepted_unix_millis: 0,
+            priority: crate::NEUTRAL_JOB_PRIORITY,
+            effective_priority: Some(0),
             blockers: Vec::new(),
             queue_rank: None,
+            reservation: None,
             estimate: Estimate::unknown("fixture"),
             parent: None,
             managed_policy_admission: None,

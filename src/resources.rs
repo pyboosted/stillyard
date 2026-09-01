@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::spec::canonical_custom_resource_name;
-use crate::{Blocker, ChildSubmissionPolicy, ResourceCapacities, ResourceClaims};
+use crate::{
+    Blocker, ChildSubmissionPolicy, ResourceCapacities, ResourceClaims, ScalarResourceClaims,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -147,34 +149,45 @@ impl ResolvedClaims {
         active: &[Self],
         impact_incompatibilities: &BTreeMap<String, Vec<String>>,
     ) -> Vec<Blocker> {
+        let mut blockers = self.scalar_blockers(capacities, active);
+        blockers.extend(self.non_scalar_blockers(active, impact_incompatibilities));
+        sort_blockers(&mut blockers);
+        blockers
+    }
+
+    pub(crate) fn scalar_blockers(
+        &self,
+        capacities: &ResourceCapacities,
+        debits: &[Self],
+    ) -> Vec<Blocker> {
         let mut blockers = Vec::new();
         scalar_blocker(
             &mut blockers,
             "cpu_units",
             self.cpu_units,
             u64::from(capacities.cpu_units),
-            checked_total(active.iter().map(|claim| claim.cpu_units)),
+            checked_total(debits.iter().map(|claim| claim.cpu_units)),
         );
         scalar_blocker(
             &mut blockers,
             "ram_mb",
             self.ram_mb,
             capacities.ram_mb,
-            checked_total(active.iter().map(|claim| claim.ram_mb)),
+            checked_total(debits.iter().map(|claim| claim.ram_mb)),
         );
         scalar_blocker(
             &mut blockers,
             "cargo_slots",
             self.cargo_slots,
             u64::from(capacities.cargo_slots),
-            checked_total(active.iter().map(|claim| claim.cargo_slots)),
+            checked_total(debits.iter().map(|claim| claim.cargo_slots)),
         );
         scalar_blocker(
             &mut blockers,
             "gpu_slots",
             self.gpu_slots,
             u64::from(capacities.gpu_slots),
-            checked_total(active.iter().map(|claim| claim.gpu_slots)),
+            checked_total(debits.iter().map(|claim| claim.gpu_slots)),
         );
         for (name, requested) in &self.custom {
             scalar_blocker(
@@ -183,12 +196,22 @@ impl ResolvedClaims {
                 *requested,
                 custom_capacity(capacities, name),
                 checked_total(
-                    active
+                    debits
                         .iter()
                         .map(|claim| claim.custom.get(name).copied().unwrap_or(0)),
                 ),
             );
         }
+        sort_blockers(&mut blockers);
+        blockers
+    }
+
+    pub(crate) fn non_scalar_blockers(
+        &self,
+        active: &[Self],
+        impact_incompatibilities: &BTreeMap<String, Vec<String>>,
+    ) -> Vec<Blocker> {
+        let mut blockers = Vec::new();
         for claim in active {
             for fence in self.exclusive_fences.intersection(&claim.exclusive_fences) {
                 fence_blocker(&mut blockers, fence);
@@ -210,13 +233,48 @@ impl ResolvedClaims {
                 }
             }
         }
-        blockers.sort_by(|left, right| {
-            left.code
-                .cmp(&right.code)
-                .then(left.detail.cmp(&right.detail))
-        });
-        blockers.dedup();
+        sort_blockers(&mut blockers);
         blockers
+    }
+
+    pub(crate) fn scalar_only(&self) -> Self {
+        Self {
+            cpu_units: self.cpu_units,
+            ram_mb: self.ram_mb,
+            cargo_slots: self.cargo_slots,
+            gpu_slots: self.gpu_slots,
+            custom: self.custom.clone(),
+            ..Self::default()
+        }
+    }
+
+    pub(crate) fn public_scalars(&self) -> ScalarResourceClaims {
+        ScalarResourceClaims {
+            cpu_units: self.cpu_units,
+            ram_mb: self.ram_mb,
+            cargo_slots: self.cargo_slots,
+            gpu_slots: self.gpu_slots,
+            custom: self.custom.clone(),
+        }
+    }
+
+    pub(crate) fn has_positive_scalars(&self) -> bool {
+        self.cpu_units > 0
+            || self.ram_mb > 0
+            || self.cargo_slots > 0
+            || self.gpu_slots > 0
+            || self.custom.values().any(|value| *value > 0)
+    }
+
+    pub(crate) fn overlaps_scalars(&self, other: &Self) -> bool {
+        (self.cpu_units > 0 && other.cpu_units > 0)
+            || (self.ram_mb > 0 && other.ram_mb > 0)
+            || (self.cargo_slots > 0 && other.cargo_slots > 0)
+            || (self.gpu_slots > 0 && other.gpu_slots > 0)
+            || self
+                .custom
+                .iter()
+                .any(|(name, value)| *value > 0 && other.custom.get(name).is_some_and(|v| *v > 0))
     }
 
     /// Reports only conflicts that exist because authenticated ancestors retain Leases.
@@ -300,6 +358,15 @@ impl ResolvedClaims {
         blockers.dedup();
         blockers
     }
+}
+
+fn sort_blockers(blockers: &mut Vec<Blocker>) {
+    blockers.sort_by(|left, right| {
+        left.code
+            .cmp(&right.code)
+            .then(left.detail.cmp(&right.detail))
+    });
+    blockers.dedup();
 }
 
 fn custom_capacity(capacities: &ResourceCapacities, requested_name: &str) -> u64 {

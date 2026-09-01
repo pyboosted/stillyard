@@ -35,7 +35,7 @@ use crate::{
 
 // Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
 // the current schema changes; daemon startup will replace the whole SQLite database.
-const STORE_SCHEMA_EPOCH: &str = "stillyard-invocation-events-r1-2026-09-01";
+const STORE_SCHEMA_EPOCH: &str = "stillyard-priority-reservations-r1-2026-09-01";
 const MAX_EVENT_ROWS: u64 = 16_384;
 const SNAPSHOT_DIAGNOSTIC_BUDGET_BYTES: usize = 64 * 1024;
 const MAX_UPLOAD_CHUNK_BYTES: usize = 256 * 1024;
@@ -678,6 +678,7 @@ mod observation;
 mod reconciliation;
 mod recovery;
 mod release;
+mod reservation;
 mod schedule;
 mod tree;
 mod values;
@@ -690,6 +691,7 @@ use database::{
 };
 use input::{validate_batch_input_shape, validate_input_shape};
 use lease::*;
+use reservation::*;
 use values::*;
 
 #[cfg(windows)]

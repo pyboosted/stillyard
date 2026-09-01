@@ -947,20 +947,15 @@ impl Store {
         submission_id: SubmissionId,
         job_id: JobId,
     ) -> StoreResult<JobReceipt> {
-        let state: String = self.connection.query_row(
-            "SELECT state FROM jobs WHERE id = ?1",
+        let (state, accepted_ms, spec_json): (String, i64, String) = self.connection.query_row(
+            "SELECT state, accepted_ms, spec_json FROM jobs WHERE id = ?1",
             [self.local_id(job_id)?],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )?;
+        let spec: JobSpec = serde_json::from_str(&spec_json)?;
+        let now = now_millis();
         let queue_rank = if state == "pending" {
-            Some(self.connection.query_row(
-                "SELECT COUNT(*) FROM jobs
-                 WHERE state = 'pending' AND rowid <= (
-                     SELECT rowid FROM jobs WHERE id = ?1
-                 )",
-                [job_id.entity_uuid().to_string()],
-                |row| row.get::<_, u64>(0),
-            )?)
+            self.queue_rank_for_job_at(job_id, now)?
         } else {
             None
         };
@@ -985,8 +980,13 @@ impl Store {
             job_id,
             submission_state: SubmissionState::Accepted,
             job_state: parse_job_state(&state)?,
+            accepted_unix_millis: accepted_ms,
+            priority: spec.priority,
+            effective_priority: (state == "pending")
+                .then(|| effective_priority_at(spec.priority, accepted_ms, now)),
             blockers,
             queue_rank,
+            reservation: self.reservation_for_job(job_id)?,
             estimate,
             parent,
             managed_policy_admission,
@@ -1241,6 +1241,8 @@ fn evaluate_managed_policy(
     }
 
     let mut effective_claims = ancestors[0].1.policy.max_claims.clone();
+    let mut effective_min_priority = ancestors[0].1.policy.min_priority;
+    let mut effective_max_priority = ancestors[0].1.policy.max_priority;
     let mut effective_impacts = ancestors[0]
         .1
         .policy
@@ -1255,6 +1257,15 @@ fn evaluate_managed_policy(
 
     for (ancestor_id, resolved) in &ancestors {
         let policy = &resolved.policy;
+        if spec.priority < policy.min_priority || spec.priority > policy.max_priority {
+            return Err(policy_rejection(
+                "child_priority_not_permitted",
+                format!(
+                    "requested priority {} is outside allowed inclusive range {}..={} at policy ancestor {ancestor_id}",
+                    spec.priority, policy.min_priority, policy.max_priority
+                ),
+            ));
+        }
         validate_claims_against_limit(spec, &policy.max_claims, *ancestor_id)?;
         for impact in &spec.resources.impacts {
             if !policy.allowed_impacts.contains(impact) {
@@ -1318,6 +1329,8 @@ fn evaluate_managed_policy(
             }
         }
         effective_claims = intersect_claim_limits(&effective_claims, &policy.max_claims);
+        effective_min_priority = effective_min_priority.max(policy.min_priority);
+        effective_max_priority = effective_max_priority.min(policy.max_priority);
         effective_impacts.retain(|impact| policy.allowed_impacts.contains(impact));
         allow_observed &= policy.allow_observed;
         allow_quiet &= policy.allow_quiet;
@@ -1361,6 +1374,8 @@ fn evaluate_managed_policy(
         }
         validate_delegated_policy(
             delegated,
+            effective_min_priority,
+            effective_max_priority,
             &effective_claims,
             &effective_impacts,
             &required,
@@ -1373,6 +1388,8 @@ fn evaluate_managed_policy(
 
     let immediate = &ancestors[0].1;
     let effective_policy = EffectiveChildSubmissionPolicy {
+        min_priority: effective_min_priority,
+        max_priority: effective_max_priority,
         max_claims: effective_claims,
         allowed_impacts: effective_impacts.into_iter().collect(),
         required_labels: required
@@ -1485,6 +1502,8 @@ fn intersect_claim_limits(
 #[allow(clippy::too_many_arguments)]
 fn validate_delegated_policy(
     delegated: &crate::ChildSubmissionPolicy,
+    effective_min_priority: i8,
+    effective_max_priority: i8,
     effective_claims: &crate::ResourceClaimLimits,
     effective_impacts: &BTreeSet<String>,
     required: &BTreeMap<String, (String, JobId)>,
@@ -1495,6 +1514,7 @@ fn validate_delegated_policy(
 ) -> StoreResult<()> {
     let envelope = JobSpec {
         spec_version: crate::SPEC_VERSION,
+        priority: crate::NEUTRAL_JOB_PRIORITY,
         executable: Path::new("C:\\stillyard-policy-check.exe").to_path_buf(),
         args: Vec::new(),
         working_directory: Path::new("C:\\").to_path_buf(),
@@ -1525,6 +1545,14 @@ fn validate_delegated_policy(
             "delegated claim limits widen the effective ancestor policy",
         )
     })?;
+    if delegated.min_priority < effective_min_priority
+        || delegated.max_priority > effective_max_priority
+    {
+        return Err(policy_rejection(
+            "child_policy_escalation",
+            "delegated priority range widens the effective ancestor policy",
+        ));
+    }
     if delegated
         .allowed_impacts
         .iter()

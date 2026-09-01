@@ -704,6 +704,7 @@ mod tests {
     fn job(uuid: &str) -> JobSpec {
         JobSpec {
             spec_version: SPEC_VERSION,
+            priority: crate::NEUTRAL_JOB_PRIORITY,
             executable: "C:\\tool.exe".into(),
             args: Vec::new(),
             working_directory: "C:\\work".into(),

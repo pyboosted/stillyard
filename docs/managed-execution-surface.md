@@ -1,6 +1,6 @@
 # ManagedExecution public surface
 
-Status: implemented for `0.1.0-alpha.12`, local protocol 17, Windows v0.1.
+Status: implemented for `0.1.0-alpha.13`, local protocol 18, Windows v0.1.
 
 This amendment makes Stillyard the single owner of:
 
@@ -68,7 +68,7 @@ were already part of local protocol 16; adding this CLI spelling does not change
 exit 25 is JSON `final` with `root_exit_code: 25`, `exit_source: scheduler`, and process exit 20.
 
 The recorded output schema is printed by `stillyard schema managed-execution` and checked in as
-`schema/stillyard-managed-execution-v1.json`. Its root is an untagged union of the actual bare
+`schema/stillyard-managed-execution-v2.json`. Its root is an untagged union of the actual bare
 `EnsureReport`, `WaitReport`, and `PrimaryInvocationResult` JSON documents emitted or injected by
 these surfaces.
 

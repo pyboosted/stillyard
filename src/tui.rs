@@ -2747,9 +2747,12 @@ mod tests {
             "state": state,
             "outcome": outcome,
             "accepted_unix_millis": accepted,
+            "priority": 0,
+            "effective_priority": if state == "pending" { Some(0) } else { None },
             "started_unix_millis": started,
             "finished_unix_millis": finished,
             "queue_rank": rank,
+            "reservation": null,
             "estimate": serde_json::to_value(Estimate::unknown("test")).unwrap(),
             "claims": serde_json::to_value(ResourceClaims::default()).unwrap(),
             "labels": labels,
@@ -2808,7 +2811,8 @@ mod tests {
 
     fn snapshot(summary: &JobSummary) -> JobSnapshot {
         let spec = serde_json::json!({
-            "spec_version": 2,
+            "spec_version": 3,
+            "priority": 0,
             "executable": r"C:\tools\cmd.exe",
             "args": ["/d", "/c", "echo released>target\\dogfood\\e-released.txt"],
             "working_directory": r"C:\Development\stillyard",
@@ -2831,6 +2835,10 @@ mod tests {
             "root_exit_code": null,
             "cancel_requested": false,
             "accepted_unix_millis": summary.accepted_unix_millis,
+            "priority": summary.priority,
+            "effective_priority": null,
+            "queue_rank": null,
+            "reservation": null,
             "started_unix_millis": null,
             "finished_unix_millis": summary.accepted_unix_millis + 8_107,
             "spec": spec,

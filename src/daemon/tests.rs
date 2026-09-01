@@ -185,6 +185,7 @@ fn commit_at_wait_boundary_wakes_from_durable_event() {
     .unwrap();
     let spec = crate::JobSpec {
         spec_version: crate::SPEC_VERSION,
+        priority: crate::NEUTRAL_JOB_PRIORITY,
         executable: temp.path().join("tool.exe"),
         args: Vec::new(),
         working_directory: temp.path().to_path_buf(),
@@ -316,6 +317,7 @@ fn wait_snapshot_includes_daemon_reconciliation_evidence() {
     let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let spec = crate::JobSpec {
         spec_version: crate::SPEC_VERSION,
+        priority: crate::NEUTRAL_JOB_PRIORITY,
         executable: temp.path().join("tool.exe"),
         args: Vec::new(),
         working_directory: temp.path().to_path_buf(),

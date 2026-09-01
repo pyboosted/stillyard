@@ -2,6 +2,8 @@ use super::*;
 
 fn child_policy() -> crate::ChildSubmissionPolicy {
     crate::ChildSubmissionPolicy {
+        min_priority: crate::MIN_JOB_PRIORITY,
+        max_priority: crate::MAX_JOB_PRIORITY,
         max_claims: crate::ResourceClaimLimits {
             cpu_units: Some(u32::MAX),
             ram_mb: Some(u64::MAX),
@@ -583,6 +585,8 @@ fn child_policy_negative_axes_are_durable_contextual_and_create_no_work() {
     let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let mut parent_spec = spec(temp.path());
     parent_spec.child_submission_policy = Some(crate::ChildSubmissionPolicy {
+        min_priority: crate::NEUTRAL_JOB_PRIORITY,
+        max_priority: crate::NEUTRAL_JOB_PRIORITY,
         max_claims: crate::ResourceClaimLimits {
             cargo_slots: Some(1),
             custom: [("token".into(), 2)].into(),
@@ -847,5 +851,118 @@ fn policy_invalid_batch_names_the_member_and_is_atomic() {
             .unwrap(),
         RecoveryResult::Rejected { code, detail: retained }
             if code == "child_claim_not_permitted" && retained == detail
+    ));
+}
+
+#[test]
+fn neutral_only_parent_does_not_inherit_priority_and_rejects_escalation_durably() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let mut parent_spec = spec(temp.path());
+    parent_spec.priority = crate::MAX_JOB_PRIORITY;
+    parent_spec.child_submission_policy = Some(crate::ChildSubmissionPolicy::default());
+    let parent = start_managed_parent_with_spec(&mut store, parent_spec);
+    let scope = scope_for(&parent);
+
+    let neutral = spec(temp.path());
+    let neutral_hash = normalized_payload_hash(&neutral).unwrap();
+    let neutral_receipt = store
+        .submit_with_stdin_scoped(scope, Uuid::now_v7(), &neutral_hash, &neutral, None)
+        .unwrap()
+        .receipt;
+    assert_eq!(neutral_receipt.priority, crate::NEUTRAL_JOB_PRIORITY);
+    assert_eq!(
+        neutral_receipt
+            .managed_policy_admission
+            .unwrap()
+            .effective_policy
+            .min_priority,
+        crate::NEUTRAL_JOB_PRIORITY
+    );
+    assert_eq!(
+        store.status(neutral_receipt.job_id).unwrap().spec.priority,
+        crate::NEUTRAL_JOB_PRIORITY,
+        "a child without an explicit priority must not inherit the parent's +3"
+    );
+
+    let mut elevated = spec(temp.path());
+    elevated.priority = 1;
+    let elevated_hash = normalized_payload_hash(&elevated).unwrap();
+    let key = Uuid::now_v7();
+    let detail = match store.submit_with_stdin_scoped(scope, key, &elevated_hash, &elevated, None) {
+        Err(StoreError::OperationRejected { code, detail }) => {
+            assert_eq!(code, "child_priority_not_permitted");
+            detail
+        }
+        Ok(_) => panic!("elevated child was accepted"),
+        Err(error) => panic!("unexpected elevated child error: {error}"),
+    };
+    assert!(detail.contains("requested priority 1"));
+    assert!(detail.contains("allowed inclusive range 0..=0"));
+    assert!(!detail.contains("resource_capacity"));
+    assert!(matches!(
+        store
+            .recover_submission_scoped(scope, key, &elevated_hash)
+            .unwrap(),
+        RecoveryResult::Rejected { code, detail: retained }
+            if code == "child_priority_not_permitted" && retained == detail
+    ));
+    let children: u64 = store
+        .connection
+        .query_row(
+            "SELECT COUNT(*) FROM jobs WHERE parent_job_id = ?1",
+            [parent.job_id.entity_uuid().to_string()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(children, 1, "the rejected child must create no ghost Job");
+}
+
+#[test]
+fn managed_batch_with_one_forbidden_priority_is_atomically_rejected() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let mut parent_spec = spec(temp.path());
+    parent_spec.child_submission_policy = Some(crate::ChildSubmissionPolicy::default());
+    let parent = start_managed_parent_with_spec(&mut store, parent_spec);
+    let scope = scope_for(&parent);
+    let mut forbidden = spec(temp.path());
+    forbidden.priority = crate::MAX_JOB_PRIORITY;
+    let batch = BatchSpec {
+        spec_version: SPEC_VERSION,
+        jobs: vec![
+            member("neutral", spec(temp.path()), Vec::new()),
+            member("forbidden-priority", forbidden, Vec::new()),
+        ],
+    };
+    let hash = normalized_batch_payload_hash(&batch).unwrap();
+    let key = Uuid::now_v7();
+    let detail =
+        match store.submit_batch_with_stdins_scoped(scope, key, &hash, &batch, &Default::default())
+        {
+            Err(StoreError::OperationRejected { code, detail }) => {
+                assert_eq!(code, "child_priority_not_permitted");
+                detail
+            }
+            Ok(_) => panic!("managed Batch with forbidden priority was accepted"),
+            Err(error) => panic!("unexpected managed Batch error: {error}"),
+        };
+    assert!(detail.contains("forbidden-priority"));
+    assert!(detail.contains("requested priority 3"));
+    let children: u64 = store
+        .connection
+        .query_row(
+            "SELECT COUNT(*) FROM jobs WHERE parent_job_id = ?1",
+            [parent.job_id.entity_uuid().to_string()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(children, 0);
+    assert!(matches!(
+        store
+            .recover_submission_scoped(scope, key, &hash)
+            .unwrap(),
+        RecoveryResult::Rejected { code, detail: retained }
+            if code == "child_priority_not_permitted" && retained == detail
     ));
 }

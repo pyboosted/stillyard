@@ -1,0 +1,795 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SubmissionSpec",
+  "description": "Schema root covering both accepted submission document shapes.",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/JobSpec"
+    },
+    {
+      "$ref": "#/$defs/BatchSpec"
+    }
+  ],
+  "$defs": {
+    "BatchMember": {
+      "type": "object",
+      "properties": {
+        "dependencies": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DependencySpec"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "spec": {
+          "$ref": "#/$defs/JobSpec"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "spec"
+      ]
+    },
+    "BatchSpec": {
+      "type": "object",
+      "properties": {
+        "jobs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BatchMember"
+          }
+        },
+        "spec_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "spec_version",
+        "jobs"
+      ]
+    },
+    "ChildFencePolicy": {
+      "type": "object",
+      "properties": {
+        "exclusive_roots": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "shared_roots": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChildSubmissionPolicy": {
+      "type": "object",
+      "properties": {
+        "allow_delegation": {
+          "type": "boolean",
+          "default": false
+        },
+        "allow_observed": {
+          "type": "boolean",
+          "default": false
+        },
+        "allow_quiet": {
+          "type": "boolean",
+          "default": false
+        },
+        "allowed_impacts": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "fences": {
+          "$ref": "#/$defs/ChildFencePolicy",
+          "default": {
+            "exclusive_roots": [],
+            "shared_roots": []
+          }
+        },
+        "max_claims": {
+          "$ref": "#/$defs/ResourceClaimLimits",
+          "default": {
+            "cargo_slots": null,
+            "cpu_units": null,
+            "custom": {},
+            "gpu_slots": null,
+            "ram_mb": null
+          }
+        },
+        "max_priority": {
+          "description": "Inclusive maximum explicit priority that a child may request.",
+          "type": "integer",
+          "format": "int8",
+          "default": 0,
+          "maximum": 3,
+          "minimum": -3
+        },
+        "min_priority": {
+          "description": "Inclusive minimum explicit priority that a child may request.",
+          "type": "integer",
+          "format": "int8",
+          "default": 0,
+          "maximum": 3,
+          "minimum": -3
+        },
+        "required_labels": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Label"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ConditionSpec": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "path_exists"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "path"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "path_absent"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "path"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "not_before"
+            },
+            "unix_millis": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "unix_millis"
+          ]
+        }
+      ]
+    },
+    "DependencyKind": {
+      "type": "string",
+      "enum": [
+        "success",
+        "failure",
+        "terminal"
+      ]
+    },
+    "DependencySpec": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "type": "string"
+        },
+        "on": {
+          "$ref": "#/$defs/DependencyKind"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "job",
+        "on"
+      ]
+    },
+    "EnvironmentSpec": {
+      "type": "object",
+      "properties": {
+        "set": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "unset": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "JobSpec": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "child_submission_policy": {
+          "description": "Maximum capabilities that authenticated managed descendants may request.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChildSubmissionPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "conditions": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ConditionSpec"
+          }
+        },
+        "environment": {
+          "$ref": "#/$defs/EnvironmentSpec",
+          "default": {
+            "set": {},
+            "unset": []
+          }
+        },
+        "executable": {
+          "type": "string"
+        },
+        "expected_duration_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "labels": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Label"
+          }
+        },
+        "observed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ObservedResourcePolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "postconditions": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PostconditionSpec"
+          }
+        },
+        "priority": {
+          "description": "Immutable urgency in `MIN_JOB_PRIORITY..=MAX_JOB_PRIORITY`; larger is more urgent.",
+          "type": "integer",
+          "format": "int8",
+          "default": 0,
+          "maximum": 3,
+          "minimum": -3
+        },
+        "quiet": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuietPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resources": {
+          "$ref": "#/$defs/ResourceClaims",
+          "default": {
+            "cargo_slots": null,
+            "cpu_units": null,
+            "custom": {},
+            "exclusive_fences": [],
+            "gpu_slots": null,
+            "impacts": [],
+            "ram_mb": null,
+            "shared_fences": []
+          }
+        },
+        "retry": {
+          "$ref": "#/$defs/RetryPolicy",
+          "default": {
+            "backoff_seconds": 0,
+            "max_attempts": 1,
+            "retryable": []
+          }
+        },
+        "spec_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "stdin": {
+          "$ref": "#/$defs/StdinSpec",
+          "default": {
+            "kind": "eof"
+          }
+        },
+        "timeout_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "working_directory": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "spec_version",
+        "executable",
+        "working_directory"
+      ]
+    },
+    "Label": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "value"
+      ]
+    },
+    "ObservedResourcePolicy": {
+      "type": "object",
+      "properties": {
+        "cpu_utilization_percent_at_most": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "gpu_utilization_percent_at_most": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0
+          },
+          "default": {}
+        },
+        "max_sample_age_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "max_sample_age_seconds"
+      ]
+    },
+    "PostconditionSpec": {
+      "type": "object",
+      "properties": {
+        "accepted_exit_codes": {
+          "type": "array",
+          "default": [
+            0
+          ],
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "args": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "executable": {
+          "type": "string"
+        },
+        "retryable_exit_codes": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "working_directory": {
+          "description": "Defaults to the owning Job's working directory.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "executable"
+      ]
+    },
+    "QuietDetector": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "cpu_utilization"
+            },
+            "max_percent": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "max_percent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "gpu_uuid": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "gpu_utilization"
+            },
+            "max_percent": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "gpu_uuid",
+            "max_percent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "disk_utilization"
+            },
+            "max_percent": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "max_percent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "gpu_uuid": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "foreign_gpu_compute"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "gpu_uuid"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "blocked_processes"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "QuietPolicy": {
+      "type": "object",
+      "properties": {
+        "detectors": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/QuietDetector"
+          }
+        },
+        "max_sample_age_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "stable_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "wait_budget_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "stable_seconds",
+        "max_sample_age_seconds",
+        "wait_budget_seconds"
+      ]
+    },
+    "ResourceClaimLimits": {
+      "type": "object",
+      "properties": {
+        "cargo_slots": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "default": null,
+          "minimum": 0
+        },
+        "cpu_units": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "default": null,
+          "minimum": 0
+        },
+        "custom": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "default": {}
+        },
+        "gpu_slots": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "default": null,
+          "minimum": 0
+        },
+        "ram_mb": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "default": null,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "ResourceClaims": {
+      "type": "object",
+      "properties": {
+        "cargo_slots": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "cpu_units": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "custom": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "default": {}
+        },
+        "exclusive_fences": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "gpu_slots": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "impacts": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "ram_mb": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "shared_fences": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "RetryPolicy": {
+      "type": "object",
+      "properties": {
+        "backoff_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "max_attempts": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "retryable": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "max_attempts",
+        "backoff_seconds"
+      ]
+    },
+    "StdinSpec": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "eof"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "file"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "path"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -7,6 +7,7 @@ use crate::{
 fn spec(root: &Path) -> JobSpec {
     JobSpec {
         spec_version: SPEC_VERSION,
+        priority: crate::NEUTRAL_JOB_PRIORITY,
         executable: root.join("tool.exe"),
         args: Vec::new(),
         working_directory: root.to_path_buf(),
@@ -70,5 +71,6 @@ mod containment_safety;
 mod input_submission;
 mod managed_submission;
 mod observation;
+mod priority_reservations;
 mod store_recovery;
 mod tree;

@@ -252,11 +252,11 @@ fn expired_blocked_retry_does_not_spin_and_backoff_cancel_is_terminal() {
 
     assert!(store.prepare_job(retry_job).unwrap().is_none());
     let after_expiry = now_millis();
-    assert_eq!(
-        store.next_retry_delay(after_expiry).unwrap(),
-        None,
-        "an expired retry blocked on a Lease must wait for the Lease-release wakeup"
+    assert!(
+        store.next_retry_delay(after_expiry).unwrap().is_some(),
+        "a retry blocked only by scalar availability owns a finite reservation deadline"
     );
+    assert!(store.status(retry_job).unwrap().reservation.is_some());
     let canceled = store.cancel_jobs(&[retry_job]).unwrap();
     assert_eq!(canceled[0].outcome, Some(JobOutcome::Canceled));
     assert_eq!(canceled[0].attempts.len(), 1);

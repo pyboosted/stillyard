@@ -477,14 +477,7 @@ fn complete_leases_serialize_conflicts_but_allow_orthogonal_work() {
         .submit_batch(Uuid::now_v7(), &hash, &batch)
         .unwrap()
         .receipt;
-    assert!(
-        receipt.jobs[1]
-            .receipt
-            .blockers
-            .iter()
-            .any(|blocker| blocker.code == "resource_busy"),
-        "receipt must account for an earlier compatible queue reservation"
-    );
+    assert!(receipt.jobs[1].receipt.blockers.is_empty());
     assert!(receipt.jobs[2].receipt.blockers.is_empty());
     assert!(
         receipt.jobs[3].receipt.blockers.is_empty(),
@@ -497,8 +490,10 @@ fn complete_leases_serialize_conflicts_but_allow_orthogonal_work() {
         review.job_id, receipt.jobs[2].receipt.job_id,
         "a partially fitting CPU claim must not reserve its custom scalar or block orthogonal work"
     );
-    let remaining_scalar = store.prepare_next_job().unwrap().unwrap();
-    assert_eq!(remaining_scalar.job_id, receipt.jobs[3].receipt.job_id);
+    assert!(
+        store.prepare_next_job().unwrap().is_none(),
+        "ordinary work must not consume scalar capacity protected by a durable reservation"
+    );
     let blocked = store.status(receipt.jobs[1].receipt.job_id).unwrap();
     assert!(
         blocked
@@ -514,7 +509,7 @@ fn complete_leases_serialize_conflicts_but_allow_orthogonal_work() {
 }
 
 #[test]
-fn daemon_status_reports_grants_and_atomic_fifo_reservations() {
+fn daemon_status_reports_exact_durable_reservations() {
     let temp = tempfile::tempdir().unwrap();
     let mut store =
         Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
@@ -557,30 +552,39 @@ fn daemon_status_reports_grants_and_atomic_fifo_reservations() {
         .expect("current daemon resource snapshot");
     assert_eq!(resources.cpu_units.capacity, 4);
     assert_eq!(resources.cpu_units.granted, 0);
-    assert_eq!(resources.cpu_units.reserved, 3);
-    assert_eq!(resources.cargo_slots.reserved, 1);
+    assert_eq!(resources.cpu_units.reserved, 0);
+    assert_eq!(resources.cargo_slots.reserved, 0);
     assert_eq!(resources.custom["review_slots"].capacity, 2);
     assert_eq!(resources.custom["review_slots"].granted, 0);
-    assert_eq!(resources.custom["review_slots"].reserved, 2);
+    assert_eq!(resources.custom["review_slots"].reserved, 0);
 
-    for expected in [
-        receipt.jobs[0].receipt.job_id,
-        receipt.jobs[2].receipt.job_id,
-        receipt.jobs[3].receipt.job_id,
-    ] {
-        assert_eq!(store.prepare_next_job().unwrap().unwrap().job_id, expected);
-    }
+    assert_eq!(
+        store.prepare_next_job().unwrap().unwrap().job_id,
+        receipt.jobs[0].receipt.job_id
+    );
+    assert_eq!(
+        store.prepare_next_job().unwrap().unwrap().job_id,
+        receipt.jobs[2].receipt.job_id
+    );
     let resources = store
         .daemon_status("test")
         .unwrap()
         .resources
         .expect("current daemon resource snapshot");
     assert_eq!(resources.cpu_units.granted, 3);
-    assert_eq!(resources.cpu_units.reserved, 0);
+    assert_eq!(resources.cpu_units.reserved, 2);
     assert_eq!(resources.cargo_slots.granted, 1);
     assert_eq!(resources.cargo_slots.reserved, 0);
-    assert_eq!(resources.custom["review_slots"].granted, 2);
-    assert_eq!(resources.custom["review_slots"].reserved, 0);
+    assert_eq!(resources.custom["review_slots"].granted, 1);
+    assert_eq!(resources.custom["review_slots"].reserved, 1);
+    assert!(
+        store
+            .status(receipt.jobs[1].receipt.job_id)
+            .unwrap()
+            .reservation
+            .is_some()
+    );
+    assert!(store.prepare_next_job().unwrap().is_none());
 }
 
 #[test]

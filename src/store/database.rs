@@ -307,6 +307,7 @@ pub(super) fn create_current_schema(
              stderr_len INTEGER NOT NULL DEFAULT 0,
              cancel_requested INTEGER NOT NULL DEFAULT 0,
              retry_not_before_ms INTEGER,
+             reservation_not_before_ms INTEGER,
              parent_job_id TEXT,
              parent_attempt_id TEXT,
              parent_invocation_id TEXT,
@@ -418,6 +419,14 @@ pub(super) fn create_current_schema(
              state TEXT NOT NULL,
              claims_json TEXT NOT NULL
          );
+         CREATE TABLE reservations(
+             id TEXT PRIMARY KEY,
+             job_id TEXT NOT NULL UNIQUE REFERENCES jobs(id),
+             claims_json TEXT NOT NULL,
+             created_ms INTEGER NOT NULL,
+             hold_deadline_ms INTEGER NOT NULL,
+             CHECK (hold_deadline_ms > created_ms)
+         );
          CREATE TABLE events(
              sequence INTEGER PRIMARY KEY AUTOINCREMENT,
              kind TEXT NOT NULL,
@@ -443,6 +452,7 @@ pub(super) fn create_current_schema(
          CREATE INDEX jobs_parent_accepted ON jobs(parent_job_id, accepted_ms, id);
          CREATE INDEX jobs_state_accepted ON jobs(state, accepted_ms, id);
          CREATE INDEX jobs_accepted_order ON jobs(accepted_ms, id);
+         CREATE INDEX reservations_hold_deadline ON reservations(hold_deadline_ms, job_id);
          CREATE TRIGGER events_prune AFTER INSERT ON events BEGIN
              DELETE FROM events WHERE sequence <= NEW.sequence - {MAX_EVENT_ROWS};
          END;
@@ -465,12 +475,18 @@ pub(super) fn create_current_schema(
            OR OLD.started_ms IS NOT NEW.started_ms
            OR OLD.finished_ms IS NOT NEW.finished_ms
            OR OLD.retry_not_before_ms IS NOT NEW.retry_not_before_ms
+           OR OLD.reservation_not_before_ms IS NOT NEW.reservation_not_before_ms
            OR OLD.parent_job_id IS NOT NEW.parent_job_id
            OR OLD.parent_attempt_id IS NOT NEW.parent_attempt_id
            OR OLD.parent_invocation_id IS NOT NEW.parent_invocation_id BEGIN
              INSERT INTO events(kind, job_id, batch_id, committed_ms)
              VALUES ('job_changed', NEW.id, NEW.batch_id,
                  CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER));
+         END;
+         CREATE TRIGGER jobs_reservation_cleanup
+         AFTER UPDATE OF state, cancel_requested ON jobs
+         WHEN NEW.state != 'pending' OR NEW.cancel_requested != 0 BEGIN
+             DELETE FROM reservations WHERE job_id = NEW.id;
          END;
          {JOBS_TREE_ORDER_INSERT_TRIGGER};
          {JOBS_TREE_ORDER_UPDATE_TRIGGER};
@@ -538,6 +554,18 @@ pub(super) fn create_current_schema(
              JOIN jobs ON jobs.id = attempts.job_id
              WHERE invocations.id = NEW.invocation_id;
          END;
+         CREATE TRIGGER reservations_event_insert AFTER INSERT ON reservations BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             SELECT 'job_changed', NEW.job_id, jobs.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
+             FROM jobs WHERE jobs.id = NEW.job_id;
+         END;
+         CREATE TRIGGER reservations_event_delete AFTER DELETE ON reservations BEGIN
+             INSERT INTO events(kind, job_id, batch_id, committed_ms)
+             SELECT 'job_changed', OLD.job_id, jobs.batch_id,
+                 CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
+             FROM jobs WHERE jobs.id = OLD.job_id;
+         END;
          INSERT INTO meta(key, value) VALUES ('store_uuid', '{store_uuid}');
          INSERT INTO meta(key, value) VALUES ('schema_epoch', '{STORE_SCHEMA_EPOCH}');
          INSERT INTO meta(key, value) VALUES ('tree_order_revision', '0');
@@ -561,6 +589,7 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
         "conditions",
         "observations",
         "leases",
+        "reservations",
         "dependencies",
         "events",
     ] {
@@ -603,6 +632,7 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
                 "stdin_len",
                 "cancel_requested",
                 "retry_not_before_ms",
+                "reservation_not_before_ms",
                 "parent_job_id",
                 "parent_attempt_id",
                 "parent_invocation_id",
@@ -689,6 +719,16 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
             ] as &[_],
         ),
         (
+            "reservations",
+            &[
+                "id",
+                "job_id",
+                "claims_json",
+                "created_ms",
+                "hold_deadline_ms",
+            ] as &[_],
+        ),
+        (
             "events",
             &[
                 "sequence",
@@ -715,6 +755,7 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
         "events_prune",
         "jobs_event_insert",
         "jobs_event_update",
+        "jobs_reservation_cleanup",
         "jobs_tree_order_insert",
         "jobs_tree_order_update",
         "cancellation_event_update",
@@ -725,6 +766,8 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
         "invocations_event_update",
         "containments_event_insert",
         "containments_event_update",
+        "reservations_event_insert",
+        "reservations_event_delete",
     ] {
         let exists = connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?1)",
@@ -741,6 +784,7 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
         "jobs_parent_accepted",
         "jobs_state_accepted",
         "jobs_accepted_order",
+        "reservations_hold_deadline",
     ] {
         let exists = connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?1)",
