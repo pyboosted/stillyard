@@ -472,6 +472,11 @@ impl Store {
         let daemon_generation = self.daemon_generation;
         let boot_id = self.startup_identity.boot_id.clone();
         let condition_freshness = self.observation_config.condition_rescan_interval_millis;
+        let condition_evaluations = ConditionEvaluations::scan_many(
+            spec.jobs
+                .iter()
+                .map(|member| member.spec.conditions.as_slice()),
+        );
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
         let transaction = self.connection.transaction()?;
@@ -539,14 +544,15 @@ impl Store {
             ],
         )?;
         for (
-            (index, (member, (job_id, claims, accepted_spec, stdin, resolved_policy))),
-            admission,
+            ((index, (member, (job_id, claims, accepted_spec, stdin, resolved_policy))), admission),
+            evaluations,
         ) in spec
             .jobs
             .iter()
             .zip(&jobs)
             .enumerate()
             .zip(&policy_admissions)
+            .zip(&condition_evaluations)
         {
             transaction.execute(
                 "INSERT INTO jobs(
@@ -584,6 +590,7 @@ impl Store {
                     accepted_ms,
                     freshness_millis: condition_freshness,
                 },
+                evaluations,
             )?;
         }
         for (member, (successor, _, _, _, _)) in spec.jobs.iter().zip(&jobs) {
@@ -850,6 +857,7 @@ impl Store {
         let daemon_generation = self.daemon_generation;
         let boot_id = self.startup_identity.boot_id.clone();
         let condition_freshness = self.observation_config.condition_rescan_interval_millis;
+        let condition_evaluations = ConditionEvaluations::scan_all(&accepted_spec.conditions);
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
         let transaction = self.connection.transaction()?;
@@ -938,6 +946,7 @@ impl Store {
                 accepted_ms,
                 freshness_millis: condition_freshness,
             },
+            &condition_evaluations,
         )?;
         if wait_for_completion {
             if let Err(error) = validate_managed_wait_targets(

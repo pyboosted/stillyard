@@ -4,8 +4,8 @@ use crate::host_observation::{
     ProcessEvidence,
 };
 use crate::{
-    AdmissionDecisionState, AttemptVerdict, HostObservationConfig, JobOutcome, PostconditionSpec,
-    QuietDetector, QuietPolicy,
+    AdmissionDecisionState, AttemptVerdict, ConditionSpec, HostObservationConfig, JobOutcome,
+    PostconditionSpec, QuietDetector, QuietPolicy,
 };
 
 const GPU_UUID: &str = "GPU-a1144c26-a15c-cba1-3b7a-870c755ef08a";
@@ -87,6 +87,7 @@ fn at(sample: &HostSample, now: u64) -> ObservationMoment<'_> {
         sample,
         now_unix_millis: i64::try_from(now).unwrap(),
         now_monotonic_millis: now,
+        live_clock: false,
     }
 }
 
@@ -106,6 +107,52 @@ fn quiet_job(root: &Path) -> JobSpec {
         retryable_exit_codes: Vec::new(),
     });
     job
+}
+
+fn prepare_suspended_quiet_primary(
+    store: &mut Store,
+    job: &JobSpec,
+    pid: u32,
+) -> (JobId, PreparedJob) {
+    let hash = normalized_payload_hash(job).unwrap();
+    let receipt = store.submit(Uuid::now_v7(), &hash, job).unwrap().receipt;
+    let generation = Uuid::now_v7();
+    let first = sample(generation, 1_000, 0);
+    assert!(
+        store
+            .prepare_next_job_with_observation(Some(at(&first, 1_000)))
+            .unwrap()
+            .job
+            .is_none()
+    );
+    let mut prepared = None;
+    for now in (2_000_u64..=6_000).step_by(1_000) {
+        let next = sample(generation, now, 0);
+        if let Some(job) = store
+            .prepare_next_job_with_observation(Some(at(&next, now)))
+            .unwrap()
+            .job
+        {
+            prepared = Some(job);
+            break;
+        }
+    }
+    let prepared = prepared.unwrap_or_else(|| {
+        panic!(
+            "quiet primary did not become ready: {:?}",
+            store.status(receipt.job_id).unwrap()
+        )
+    });
+    let identity = ProcessIdentity::Windows {
+        host_id: prepared.host_id.clone().unwrap(),
+        boot_id: prepared.boot_id.clone().unwrap(),
+        pid,
+        creation_filetime_100ns: u64::from(pid),
+    };
+    store
+        .record_suspended_root(&prepared, pid, "test-image", &identity)
+        .unwrap();
+    (receipt.job_id, prepared)
 }
 
 #[test]
@@ -181,6 +228,265 @@ fn stale_memory_and_low_commit_headroom_never_create_a_lease_or_invocation() {
     assert_eq!(admission.operands[0].name, "ram_mb");
     assert_eq!(admission.operands[0].observed, Some(20_000));
     assert!(!admission.operands[0].satisfied);
+}
+
+#[test]
+fn condition_scan_time_ages_host_evidence_before_observed_grant() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut config = observation_config();
+    config.observation.sample_interval_millis = 100;
+    config.observation.memory_max_sample_age_millis = 100;
+    let mut store = Store::open_with_config(
+        StorePaths::new(temp.path().to_path_buf()),
+        config,
+        probe_startup_identity(),
+    )
+    .unwrap();
+    let mut job = spec(temp.path());
+    job.resources.ram_mb = Some(1);
+    job.conditions.push(ConditionSpec {
+        predicate: ConditionPredicate::PathAbsent {
+            path: temp.path().join("stillyard-test-slow-condition"),
+        },
+        deadline: ConditionDeadline::None,
+        on_deadline: ConditionDeadlineOutcome::Failed,
+    });
+    let hash = normalized_payload_hash(&job).unwrap();
+    let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+    let fresh_at_entry = sample(Uuid::now_v7(), 1_000, 0);
+
+    assert!(
+        store
+            .prepare_next_job_with_observation(Some(at(&fresh_at_entry, 1_000)))
+            .unwrap()
+            .job
+            .is_none()
+    );
+    let (leases, invocations): (u64, u64) = store
+        .connection
+        .query_row(
+            "SELECT (SELECT COUNT(*) FROM leases WHERE state = 'granted'),
+                    (SELECT COUNT(*) FROM invocations)",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!((leases, invocations), (0, 0));
+    let admission = store
+        .status(receipt.job_id)
+        .unwrap()
+        .admission
+        .expect("stale RAM admission evidence");
+    assert!(
+        admission
+            .blockers
+            .iter()
+            .any(|blocker| blocker.code == "observation_stale")
+    );
+}
+
+#[test]
+fn condition_release_rechecks_observed_evidence_before_resume() {
+    let temp = tempfile::tempdir().unwrap();
+    let ready = temp.path().join("ready.flag");
+    std::fs::write(&ready, b"ready").unwrap();
+    let mut config = observation_config();
+    config.observation.sample_interval_millis = 100;
+    config.observation.memory_max_sample_age_millis = 100;
+    let mut store = Store::open_with_config(
+        StorePaths::new(temp.path().to_path_buf()),
+        config,
+        probe_startup_identity(),
+    )
+    .unwrap();
+    let mut job = spec(temp.path());
+    job.resources.ram_mb = Some(1);
+    job.conditions.push(ConditionSpec {
+        predicate: ConditionPredicate::PathExists { path: ready },
+        deadline: ConditionDeadline::None,
+        on_deadline: ConditionDeadlineOutcome::Failed,
+    });
+    let hash = normalized_payload_hash(&job).unwrap();
+    let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+    let sample = sample(Uuid::now_v7(), 1_000, 0);
+    let prepared = store
+        .prepare_next_job_with_observation(Some(at(&sample, 1_000)))
+        .unwrap()
+        .job
+        .expect("fresh observed evidence should prepare the Condition primary");
+    store
+        .connection
+        .execute(
+            "UPDATE containments SET state = 'live' WHERE id = ?1",
+            [prepared.containment_id.entity_uuid().to_string()],
+        )
+        .unwrap();
+
+    assert!(matches!(
+        store
+            .authorize_condition_release(&prepared, Some(at(&sample, 1_101)))
+            .unwrap(),
+        ReleaseAuthorization::Deferred { .. }
+    ));
+    let states: (String, String) = store
+        .connection
+        .query_row(
+            "SELECT attempts.state, invocations.state FROM attempts
+             JOIN invocations ON invocations.attempt_id = attempts.id
+             WHERE attempts.id = ?1 AND invocations.id = ?2",
+            params![
+                prepared.attempt_id.entity_uuid().to_string(),
+                prepared.invocation_id.entity_uuid().to_string(),
+            ],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(states, ("starting".into(), "prepared".into()));
+    assert_eq!(
+        store.status(receipt.job_id).unwrap().state,
+        JobState::Active
+    );
+}
+
+#[test]
+fn observed_condition_runtime_timeout_starts_at_release() {
+    let temp = tempfile::tempdir().unwrap();
+    let ready = temp.path().join("ready.flag");
+    std::fs::write(&ready, b"ready").unwrap();
+    let config = observation_config();
+    let observation =
+        crate::host_observation::HostObservationService::new(config.observation.clone());
+    let mut store = Store::open_with_config(
+        StorePaths::new(temp.path().to_path_buf()),
+        config,
+        probe_startup_identity(),
+    )
+    .unwrap();
+    let mut job = spec(temp.path());
+    job.resources.ram_mb = Some(1);
+    job.timeout_seconds = Some(1);
+    job.conditions.push(ConditionSpec {
+        predicate: ConditionPredicate::PathExists { path: ready },
+        deadline: ConditionDeadline::None,
+        on_deadline: ConditionDeadlineOutcome::Failed,
+    });
+    let hash = normalized_payload_hash(&job).unwrap();
+    let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+    let sample = observation.sample_now().unwrap();
+    let primary = store
+        .prepare_next_job_with_sample(Some(&sample))
+        .unwrap()
+        .job
+        .expect("observed Condition Job should prepare with fresh RAM evidence");
+
+    let before_release = store.status(receipt.job_id).unwrap();
+    assert_eq!(primary.attempt_deadline_unix_millis, None);
+    assert_eq!(before_release.started_unix_millis, None);
+    assert_eq!(before_release.attempts[0].started_unix_millis, None);
+    assert_eq!(before_release.attempts[0].deadline_unix_millis, None);
+
+    // A delayed process-creation/final-rescan phase must not consume runtime timeout.
+    std::thread::sleep(std::time::Duration::from_millis(1_050));
+    store
+        .connection
+        .execute(
+            "UPDATE containments SET state = 'live' WHERE id = ?1",
+            [primary.containment_id.entity_uuid().to_string()],
+        )
+        .unwrap();
+    let release_sample = observation.sample_now().unwrap();
+    let (now_unix_millis, now_monotonic_millis) =
+        crate::host_observation::observation_clock().unwrap();
+    let release_observation = ObservationMoment {
+        sample: &release_sample,
+        now_unix_millis,
+        now_monotonic_millis,
+        live_clock: true,
+    };
+    let ReleaseAuthorization::Authorized {
+        runtime_deadline_unix_millis: Some(runtime_deadline),
+        ..
+    } = store
+        .authorize_condition_release(&primary, Some(release_observation))
+        .unwrap()
+    else {
+        panic!("observed Condition primary was not authorized after delayed release")
+    };
+    assert!(runtime_deadline > now_millis());
+
+    let released = store.status(receipt.job_id).unwrap();
+    assert!(released.started_unix_millis.is_some());
+    assert!(released.attempts[0].started_unix_millis.is_some());
+    assert_eq!(
+        released.attempts[0].deadline_unix_millis,
+        Some(runtime_deadline)
+    );
+}
+
+#[test]
+fn condition_scan_time_ages_host_evidence_before_probe_grant() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut config = observation_config();
+    config.observation.sample_interval_millis = 100;
+    config.observation.memory_max_sample_age_millis = 100;
+    let mut store = Store::open_with_config(
+        StorePaths::new(temp.path().to_path_buf()),
+        config,
+        probe_startup_identity(),
+    )
+    .unwrap();
+    let mut job = spec(temp.path());
+    job.conditions.push(ConditionSpec {
+        predicate: ConditionPredicate::PathAbsent {
+            path: temp.path().join("stillyard-test-slow-condition"),
+        },
+        deadline: ConditionDeadline::None,
+        on_deadline: ConditionDeadlineOutcome::Failed,
+    });
+    job.conditions.push(ConditionSpec {
+        predicate: ConditionPredicate::Probe {
+            probe: Box::new(crate::ProbeCondition {
+                executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+                args: vec!["/d".into(), "/c".into(), "exit 0".into()],
+                working_directory: temp.path().to_path_buf(),
+                environment: EnvironmentSpec::default(),
+                resources: ResourceClaims {
+                    ram_mb: Some(1),
+                    ..ResourceClaims::default()
+                },
+                timeout_seconds: 5,
+                interval_seconds: 1,
+                accepted_exit_codes: vec![0],
+            }),
+        },
+        deadline: ConditionDeadline::None,
+        on_deadline: ConditionDeadlineOutcome::Failed,
+    });
+    let hash = normalized_payload_hash(&job).unwrap();
+    let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+    let fresh_at_entry = sample(Uuid::now_v7(), 1_000, 0);
+
+    assert!(
+        store
+            .prepare_next_job_with_observation(Some(at(&fresh_at_entry, 1_000)))
+            .unwrap()
+            .job
+            .is_none()
+    );
+    let (probe_invocations, granted): (u64, u64) = store
+        .connection
+        .query_row(
+            "SELECT (SELECT COUNT(*) FROM invocations WHERE role = 'probe'),
+                    (SELECT COUNT(*) FROM leases WHERE state = 'granted')",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!((probe_invocations, granted), (0, 0));
+    assert_eq!(
+        store.status(receipt.job_id).unwrap().state,
+        JobState::Pending
+    );
 }
 
 #[test]
@@ -720,6 +1026,61 @@ fn final_observed_ram_check_excludes_only_its_own_granted_lease() {
 }
 
 #[test]
+fn direct_observed_admission_remains_released_without_a_final_barrier() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut store = Store::open_with_config(
+        StorePaths::new(temp.path().to_path_buf()),
+        observation_config(),
+        probe_startup_identity(),
+    )
+    .unwrap();
+    let mut job = spec(temp.path());
+    job.resources.ram_mb = Some(1_024);
+    let hash = normalized_payload_hash(&job).unwrap();
+    let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+    let observation = sample(Uuid::now_v7(), 1_000, 0);
+    let prepared = store
+        .prepare_next_job_with_observation(Some(at(&observation, 1_000)))
+        .unwrap()
+        .job
+        .unwrap();
+
+    let reserved = store.status(receipt.job_id).unwrap().admission.unwrap();
+    assert_eq!(reserved.state, AdmissionDecisionState::Reserved);
+    assert!(!reserved.final_sample);
+
+    store.mark_started(&prepared, 42, "test-image").unwrap();
+    let running = store.status(receipt.job_id).unwrap().admission.unwrap();
+    assert_eq!(running.state, AdmissionDecisionState::Released);
+    assert!(!running.final_sample);
+
+    store.mark_root_exited(&prepared, 0).unwrap();
+    store
+        .mark_invocation_resolved(
+            &prepared,
+            Some(0),
+            Some(crate::ExitClassification::Accepted),
+        )
+        .unwrap();
+    store
+        .record_primary_result(
+            &prepared,
+            InvocationVerdict::Succeeded,
+            TerminationReason::Exited,
+        )
+        .unwrap();
+    assert!(
+        !store
+            .settle_attempt(&prepared, AttemptVerdict::Succeeded)
+            .unwrap()
+    );
+
+    let settled = store.status(receipt.job_id).unwrap().admission.unwrap();
+    assert_eq!(settled.state, AdmissionDecisionState::Released);
+    assert!(!settled.final_sample);
+}
+
+#[test]
 fn restart_preserves_admitting_attempt_budget_resets_stability_and_allows_cancel() {
     let temp = tempfile::tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
@@ -1092,8 +1453,32 @@ fn clean_deferral_exhaustion_uses_the_job_retry_policy() {
     let mut job = quiet_job(temp.path());
     job.retry.max_attempts = 2;
     job.retry.retryable.push("safety_failed".into());
+    job.conditions.push(ConditionSpec {
+        predicate: ConditionPredicate::Probe {
+            probe: Box::new(crate::ProbeCondition {
+                executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+                args: vec!["/d".into(), "/c".into(), "exit 0".into()],
+                working_directory: temp.path().to_path_buf(),
+                environment: EnvironmentSpec::default(),
+                resources: ResourceClaims::default(),
+                timeout_seconds: 5,
+                interval_seconds: 1,
+                accepted_exit_codes: vec![0],
+            }),
+        },
+        deadline: ConditionDeadline::None,
+        on_deadline: ConditionDeadlineOutcome::Failed,
+    });
     let hash = normalized_payload_hash(&job).unwrap();
     let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+    store
+        .connection
+        .execute(
+            "UPDATE conditions SET state = 'satisfied', next_probe_ms = NULL
+             WHERE job_id = ?1",
+            [receipt.job_id.entity_uuid().to_string()],
+        )
+        .unwrap();
     let generation = Uuid::now_v7();
     let first = sample(generation, 1_000, 0);
     assert!(
@@ -1117,6 +1502,86 @@ fn clean_deferral_exhaustion_uses_the_job_retry_policy() {
     };
     store
         .record_suspended_root(&prepared, 51, "test-image", &identity)
+        .unwrap();
+    store.replan_never_run(&prepared, "contaminated").unwrap();
+
+    let state: (String, Option<String>, u64, u64) = store
+        .connection
+        .query_row(
+            "SELECT jobs.state, jobs.attempt_id,
+                    (SELECT COUNT(*) FROM attempts WHERE job_id = jobs.id),
+                    (SELECT COUNT(*) FROM leases WHERE state = 'granted')
+             FROM jobs WHERE jobs.id = ?1",
+            [receipt.job_id.entity_uuid().to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .unwrap();
+    assert_eq!(state, ("pending".into(), None, 1, 0));
+    let prior = store.status(receipt.job_id).unwrap();
+    assert_eq!(
+        prior.attempts[0].verdict,
+        Some(AttemptVerdict::SafetyFailed)
+    );
+    assert_eq!(
+        prior.attempts[0].reason_code.as_deref(),
+        Some("readiness_unstable")
+    );
+    assert_eq!(prior.admission.unwrap().deferral_count, 1);
+
+    let retry_sample = sample(generation, 3_000, 0);
+    let retry_probe = store
+        .prepare_next_job_with_observation(Some(at(&retry_sample, 3_000)))
+        .unwrap()
+        .job
+        .expect("retry must re-evaluate the prior successful probe");
+    assert_eq!(retry_probe.role, InvocationRole::Probe);
+    assert_ne!(retry_probe.attempt_id, prepared.attempt_id);
+    let attempts: u64 = store
+        .connection
+        .query_row("SELECT COUNT(*) FROM attempts", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(attempts, 2, "retry must create a fresh Attempt and budget");
+}
+
+#[test]
+fn quiet_only_deferral_exhaustion_still_uses_the_job_retry_policy() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut config = observation_config();
+    config.observation.pre_release_max_deferrals = 1;
+    let mut store = Store::open_with_config(
+        StorePaths::new(temp.path().to_path_buf()),
+        config,
+        probe_startup_identity(),
+    )
+    .unwrap();
+    let mut job = quiet_job(temp.path());
+    job.retry.max_attempts = 2;
+    job.retry.retryable.push("safety_failed".into());
+    let hash = normalized_payload_hash(&job).unwrap();
+    let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+    let generation = Uuid::now_v7();
+    let first = sample(generation, 1_000, 0);
+    assert!(
+        store
+            .prepare_next_job_with_observation(Some(at(&first, 1_000)))
+            .unwrap()
+            .job
+            .is_none()
+    );
+    let second = sample(generation, 2_000, 0);
+    let prepared = store
+        .prepare_next_job_with_observation(Some(at(&second, 2_000)))
+        .unwrap()
+        .job
+        .unwrap();
+    let identity = ProcessIdentity::Windows {
+        host_id: prepared.host_id.clone().unwrap(),
+        boot_id: prepared.boot_id.clone().unwrap(),
+        pid: 61,
+        creation_filetime_100ns: 7,
+    };
+    store
+        .record_suspended_root(&prepared, 61, "test-image", &identity)
         .unwrap();
     store.replan_never_run(&prepared, "contaminated").unwrap();
 
@@ -1206,6 +1671,12 @@ fn uncertain_pre_release_cleanup_is_final_and_retains_the_lease() {
     let snapshot = store.status(receipt.job_id).unwrap();
     assert_eq!(snapshot.state, JobState::Final);
     assert_eq!(snapshot.outcome, Some(JobOutcome::Failed));
+    assert_eq!(snapshot.started_unix_millis, None);
+    assert_eq!(snapshot.attempts[0].started_unix_millis, None);
+    assert_eq!(
+        snapshot.attempts[0].invocations[0].started_unix_millis,
+        None
+    );
     assert_eq!(
         snapshot.attempts[0].verdict,
         Some(AttemptVerdict::SafetyFailed)
@@ -1235,6 +1706,141 @@ fn uncertain_pre_release_cleanup_is_final_and_retains_the_lease() {
     assert_eq!(resources.cargo_slots.capacity, 1);
     assert_eq!(resources.cargo_slots.granted, 1);
     assert_eq!(resources.cargo_slots.reserved, 0);
+}
+
+#[test]
+fn uncertain_pre_release_cleanup_preserves_explicit_cancellation() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut config = observation_config();
+    config.resources.cargo_slots = 1;
+    let mut store = Store::open_with_config(
+        StorePaths::new(temp.path().to_path_buf()),
+        config,
+        probe_startup_identity(),
+    )
+    .unwrap();
+    let mut job = quiet_job(temp.path());
+    job.resources.cargo_slots = Some(1);
+    let (job_id, prepared) = prepare_suspended_quiet_primary(&mut store, &job, 53);
+
+    assert!(store.cancel_jobs(&[job_id]).unwrap()[0].cancel_requested);
+    store
+        .mark_pre_release_cleanup_uncertain(&prepared, None)
+        .unwrap();
+
+    let snapshot = store.status(job_id).unwrap();
+    assert_eq!(snapshot.state, JobState::Final);
+    assert_eq!(snapshot.outcome, Some(JobOutcome::Canceled));
+    assert_eq!(snapshot.started_unix_millis, None);
+    assert_eq!(snapshot.attempts[0].started_unix_millis, None);
+    assert_eq!(
+        snapshot.attempts[0].invocations[0].started_unix_millis,
+        None
+    );
+    assert_eq!(snapshot.reason_code, None);
+    assert_eq!(snapshot.attempts[0].verdict, Some(AttemptVerdict::Canceled));
+    assert_eq!(snapshot.attempts[0].reason_code, None);
+    assert_eq!(
+        snapshot.attempts[0].invocations[0].containment.state,
+        ContainmentState::Uncertain
+    );
+    let granted: u64 = store
+        .connection
+        .query_row(
+            "SELECT COUNT(*) FROM leases WHERE state = 'granted'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(granted, 1, "unproven containment must retain its Lease");
+}
+
+#[test]
+fn uncertain_pre_release_cleanup_preserves_condition_deadline_outcome() {
+    for (index, (deadline_outcome, job_outcome, attempt_verdict)) in [
+        (
+            ConditionDeadlineOutcome::Failed,
+            JobOutcome::Failed,
+            AttemptVerdict::SafetyFailed,
+        ),
+        (
+            ConditionDeadlineOutcome::Canceled,
+            JobOutcome::Canceled,
+            AttemptVerdict::Canceled,
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let temp = tempfile::tempdir().unwrap();
+        let mut config = observation_config();
+        config.resources.cargo_slots = 1;
+        // Leave deliberate slack for the authoritative PathExists scan. The
+        // cleanup assertion is about terminal-cause precedence, not the
+        // sampler's default one-second maximum gap.
+        config.observation.quiet_max_sample_gap_millis = 5_000;
+        let mut store = Store::open_with_config(
+            StorePaths::new(temp.path().to_path_buf()),
+            config,
+            probe_startup_identity(),
+        )
+        .unwrap();
+        let mut job = quiet_job(temp.path());
+        job.resources.cargo_slots = Some(1);
+        job.conditions.push(ConditionSpec {
+            predicate: ConditionPredicate::PathExists {
+                path: temp.path().to_path_buf(),
+            },
+            deadline: ConditionDeadline::Relative { seconds: 60 },
+            on_deadline: deadline_outcome,
+        });
+        let (job_id, prepared) =
+            prepare_suspended_quiet_primary(&mut store, &job, 54 + index as u32);
+        store
+            .connection
+            .execute(
+                "UPDATE conditions SET deadline_ms = ?2 WHERE job_id = ?1",
+                params![job_id.entity_uuid().to_string(), now_millis() - 1],
+            )
+            .unwrap();
+
+        store
+            .mark_pre_release_cleanup_uncertain(&prepared, None)
+            .unwrap();
+
+        let snapshot = store.status(job_id).unwrap();
+        assert_eq!(snapshot.state, JobState::Final);
+        assert_eq!(snapshot.outcome, Some(job_outcome));
+        assert_eq!(snapshot.started_unix_millis, None);
+        assert_eq!(snapshot.attempts[0].started_unix_millis, None);
+        assert_eq!(
+            snapshot.attempts[0].invocations[0].started_unix_millis,
+            None
+        );
+        assert_eq!(
+            snapshot.reason_code.as_deref(),
+            Some("condition_deadline_expired")
+        );
+        assert_eq!(snapshot.attempts[0].verdict, Some(attempt_verdict));
+        assert_eq!(
+            snapshot.attempts[0].reason_code.as_deref(),
+            Some("condition_deadline_expired")
+        );
+        assert_eq!(snapshot.conditions[0].state, ConditionState::Failed);
+        assert_eq!(
+            snapshot.attempts[0].invocations[0].containment.state,
+            ContainmentState::Uncertain
+        );
+        let granted: u64 = store
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM leases WHERE state = 'granted'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(granted, 1, "unproven containment must retain its Lease");
+    }
 }
 
 #[test]

@@ -415,6 +415,7 @@ impl Store {
                                  WHEN EXISTS(
                                      SELECT 1 FROM jobs
                                      WHERE jobs.id = conditions.job_id AND jobs.state = 'pending'
+                                       AND jobs.cancel_requested = 0
                                  ) THEN ?2 ELSE NULL END
                          WHERE id = ?1",
                         params![condition_key, next_probe],

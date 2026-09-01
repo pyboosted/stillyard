@@ -314,6 +314,117 @@ impl Store {
             )));
         }
         let spec: JobSpec = serde_json::from_str(&spec_json)?;
+        let settled_now = now_millis();
+        let readiness_never_started = verdict == AttemptVerdict::StartFailed
+            && (spec.quiet.is_some() || !spec.conditions.is_empty());
+        if readiness_never_started {
+            let deadline_outcome: Option<String> = transaction
+                .query_row(
+                    "SELECT deadline_outcome FROM conditions
+                     WHERE job_id = ?1 AND deadline_ms IS NOT NULL
+                       AND (state = 'failed' OR deadline_ms <= ?2)
+                     ORDER BY deadline_ms, condition_index LIMIT 1",
+                    params![job.job_id.entity_uuid().to_string(), settled_now],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if deadline_outcome.is_some() || cancel_requested {
+                let (terminal_verdict, terminal_outcome, reason) =
+                    if let Some(deadline_outcome) = deadline_outcome {
+                        transaction.execute(
+                            "UPDATE conditions SET state = 'failed', next_probe_ms = NULL
+                             WHERE job_id = ?1 AND state != 'failed'",
+                            [job.job_id.entity_uuid().to_string()],
+                        )?;
+                        if deadline_outcome == "canceled" {
+                            (
+                                AttemptVerdict::Canceled.as_str(),
+                                JobOutcome::Canceled,
+                                Some("condition_deadline_expired"),
+                            )
+                        } else {
+                            (
+                                AttemptVerdict::SafetyFailed.as_str(),
+                                JobOutcome::Failed,
+                                Some("condition_deadline_expired"),
+                            )
+                        }
+                    } else {
+                        (
+                            AttemptVerdict::Canceled.as_str(),
+                            JobOutcome::Canceled,
+                            None,
+                        )
+                    };
+                transaction.execute(
+                    "UPDATE invocations SET started_ms = NULL WHERE id = ?1",
+                    [job.invocation_id.entity_uuid().to_string()],
+                )?;
+                transaction.execute(
+                    "UPDATE attempts SET state = 'settled', verdict = ?2, safety_reason = ?3,
+                        primary_result_json = NULL, started_ms = NULL, deadline_ms = NULL,
+                        finished_ms = ?4 WHERE id = ?1",
+                    params![
+                        job.attempt_id.entity_uuid().to_string(),
+                        terminal_verdict,
+                        reason,
+                        settled_now,
+                    ],
+                )?;
+                release_attempt_lease_if_safe(
+                    &transaction,
+                    &job.attempt_id.entity_uuid().to_string(),
+                )?;
+                transaction.execute(
+                    "UPDATE jobs SET state = 'final', outcome = ?2, reason_code = ?3,
+                        root_exit_code = NULL, started_ms = (
+                            SELECT MIN(started_ms) FROM attempts
+                            WHERE attempts.job_id = jobs.id AND started_ms IS NOT NULL
+                        ), finished_ms = ?4, retry_not_before_ms = NULL
+                     WHERE id = ?1",
+                    params![
+                        job.job_id.entity_uuid().to_string(),
+                        outcome_string(terminal_outcome),
+                        reason,
+                        settled_now,
+                    ],
+                )?;
+                transaction.commit()?;
+                return Ok(false);
+            }
+
+            let primary_result_json: Option<String> = transaction.query_row(
+                "SELECT primary_result_json FROM attempts WHERE id = ?1",
+                [job.attempt_id.entity_uuid().to_string()],
+                |row| row.get(0),
+            )?;
+            let primary_result_json = primary_result_json
+                .map(|json| {
+                    let mut result = serde_json::from_str::<PrimaryInvocationResult>(&json)?;
+                    result.started_unix_millis = None;
+                    serde_json::to_string(&result).map_err(StoreError::from)
+                })
+                .transpose()?;
+            transaction.execute(
+                "UPDATE invocations SET started_ms = NULL WHERE id = ?1",
+                [job.invocation_id.entity_uuid().to_string()],
+            )?;
+            transaction.execute(
+                "UPDATE attempts SET primary_result_json = ?2, started_ms = NULL,
+                    deadline_ms = NULL WHERE id = ?1",
+                params![
+                    job.attempt_id.entity_uuid().to_string(),
+                    primary_result_json,
+                ],
+            )?;
+            transaction.execute(
+                "UPDATE jobs SET started_ms = (
+                    SELECT MIN(started_ms) FROM attempts
+                    WHERE attempts.job_id = jobs.id AND started_ms IS NOT NULL
+                 ) WHERE id = ?1",
+                [job.job_id.entity_uuid().to_string()],
+            )?;
+        }
         let verdict_text = verdict.as_str();
         let retry = !cancel_requested
             && attempt_index < spec.retry.max_attempts
@@ -327,7 +438,7 @@ impl Store {
             params![
                 job.attempt_id.entity_uuid().to_string(),
                 verdict_text,
-                now_millis()
+                settled_now
             ],
         )?;
         release_attempt_lease_if_safe(&transaction, &job.attempt_id.entity_uuid().to_string())?;
@@ -368,7 +479,7 @@ impl Store {
                 params![
                     job.job_id.entity_uuid().to_string(),
                     outcome_string(outcome_for_verdict(effective_verdict)),
-                    now_millis(),
+                    settled_now,
                 ],
             )?;
         }
@@ -376,14 +487,34 @@ impl Store {
         Ok(retry)
     }
 
-    pub(crate) fn invocation_stop_requested(&self, job_id: JobId) -> StoreResult<bool> {
-        self.connection
-            .query_row(
-                "SELECT cancel_requested != 0 OR state = 'final' FROM jobs WHERE id = ?1",
-                [self.local_id(job_id)?],
-                |row| row.get(0),
-            )
-            .map_err(Into::into)
+    pub(crate) fn invocation_stop_requested(&mut self, job_id: JobId) -> StoreResult<bool> {
+        let job_key = self.local_id(job_id)?;
+        let now = now_millis();
+        let (state, stop, due_deadline): (String, bool, bool) = self.connection.query_row(
+            "SELECT jobs.state,
+                    jobs.cancel_requested != 0 OR jobs.state = 'final' OR EXISTS(
+                        SELECT 1 FROM conditions
+                        WHERE conditions.job_id = jobs.id AND conditions.state = 'failed'
+                          AND conditions.deadline_ms IS NOT NULL
+                    ),
+                    EXISTS(
+                        SELECT 1 FROM conditions
+                        WHERE conditions.job_id = jobs.id AND conditions.deadline_ms IS NOT NULL
+                          AND conditions.deadline_ms <= ?2
+                    )
+             FROM jobs WHERE jobs.id = ?1",
+            params![job_key, now],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+        if state == "pending" && due_deadline {
+            let transaction = self
+                .connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)?;
+            expire_condition_deadline_tx(&transaction, &job_key, now)?;
+            transaction.commit()?;
+            return Ok(true);
+        }
+        Ok(stop)
     }
 
     pub(crate) fn cancel_jobs(&mut self, job_ids: &[JobId]) -> StoreResult<Vec<JobSnapshot>> {
@@ -411,19 +542,15 @@ impl Store {
                 .ok_or_else(|| StoreError::NotFound(local_id.clone()))?;
             match state.as_str() {
                 "pending" => {
+                    let now = now_millis();
+                    expire_condition_deadline_tx(&transaction, local_id, now)?;
                     transaction.execute(
-                        "UPDATE attempts SET state = 'settled', verdict = 'canceled',
-                            finished_ms = ?2
-                         WHERE id = (SELECT attempt_id FROM jobs WHERE id = ?1)
-                           AND state IN ('planned', 'admitting')",
-                        params![local_id, now_millis()],
+                        "UPDATE jobs SET cancel_requested = 1
+                         WHERE id = ?1 AND state = 'pending'",
+                        [local_id],
                     )?;
-                    transaction.execute(
-                        "UPDATE jobs SET state = 'final', outcome = 'canceled',
-                            cancel_requested = 1, retry_not_before_ms = NULL, finished_ms = ?2
-                         WHERE id = ?1",
-                        params![local_id, now_millis()],
-                    )?;
+                    release_reservation_tx(&transaction, local_id)?;
+                    finalize_pending_condition_terminal_if_ready_tx(&transaction, local_id, now)?;
                 }
                 "active" => {
                     transaction.execute(
@@ -450,13 +577,14 @@ impl Store {
         outcome: JobOutcome,
         verdict: &str,
     ) -> StoreResult<()> {
+        let finished = now_millis();
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let state: String = transaction.query_row(
-            "SELECT state FROM jobs WHERE id = ?1",
+        let (state, spec_json, cancel_requested): (String, String, bool) = transaction.query_row(
+            "SELECT state, spec_json, cancel_requested != 0 FROM jobs WHERE id = ?1",
             [job.job_id.entity_uuid().to_string()],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )?;
         if state != "active" {
             return Err(StoreError::InvalidState(format!(
@@ -464,13 +592,53 @@ impl Store {
                 job.job_id
             )));
         }
+        let spec: JobSpec = serde_json::from_str(&spec_json)?;
+        let mut effective_outcome = outcome;
+        let mut effective_verdict = verdict;
+        let mut effective_reason = None;
+        let preserve_never_started_terminal = job.role == InvocationRole::Primary
+            && verdict == AttemptVerdict::StartFailed.as_str()
+            && (spec.quiet.is_some() || !spec.conditions.is_empty());
+        if preserve_never_started_terminal {
+            let deadline_outcome: Option<String> = transaction
+                .query_row(
+                    "SELECT deadline_outcome FROM conditions
+                     WHERE job_id = ?1 AND deadline_ms IS NOT NULL
+                       AND (state = 'failed' OR deadline_ms <= ?2)
+                     ORDER BY deadline_ms, condition_index LIMIT 1",
+                    params![job.job_id.entity_uuid().to_string(), finished],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if let Some(deadline_outcome) = deadline_outcome {
+                transaction.execute(
+                    "UPDATE conditions SET state = 'failed', next_probe_ms = NULL
+                     WHERE job_id = ?1 AND state != 'failed'",
+                    [job.job_id.entity_uuid().to_string()],
+                )?;
+                effective_reason = Some("condition_deadline_expired");
+                if deadline_outcome == "canceled" {
+                    effective_outcome = JobOutcome::Canceled;
+                    effective_verdict = AttemptVerdict::Canceled.as_str();
+                } else {
+                    effective_outcome = JobOutcome::Failed;
+                    effective_verdict = AttemptVerdict::SafetyFailed.as_str();
+                }
+            }
+        }
+        if effective_reason.is_none() && cancel_requested {
+            effective_outcome = JobOutcome::Canceled;
+            effective_verdict = AttemptVerdict::Canceled.as_str();
+        }
         transaction.execute(
             "UPDATE invocations SET state = 'resolved', root_exit_code = ?2,
+                started_ms = CASE WHEN ?4 THEN NULL ELSE started_ms END,
                 finished_ms = ?3 WHERE id = ?1",
             params![
                 job.invocation_id.entity_uuid().to_string(),
                 exit_code,
-                now_millis()
+                finished,
+                preserve_never_started_terminal,
             ],
         )?;
         transaction.execute(
@@ -478,22 +646,34 @@ impl Store {
             [job.containment_id.entity_uuid().to_string()],
         )?;
         transaction.execute(
-            "UPDATE attempts SET state = 'settled', verdict = ?2, finished_ms = ?3 WHERE id = ?1",
+            "UPDATE attempts SET state = 'settled', verdict = ?2, safety_reason = ?3,
+                started_ms = CASE WHEN ?5 THEN NULL ELSE started_ms END,
+                deadline_ms = CASE WHEN ?5 THEN NULL ELSE deadline_ms END,
+                finished_ms = ?4 WHERE id = ?1",
             params![
                 job.attempt_id.entity_uuid().to_string(),
-                verdict,
-                now_millis()
+                effective_verdict,
+                effective_reason,
+                finished,
+                preserve_never_started_terminal,
             ],
         )?;
         release_attempt_lease_if_safe(&transaction, &job.attempt_id.entity_uuid().to_string())?;
         transaction.execute(
-            "UPDATE jobs SET state = 'final', outcome = ?2, root_exit_code = ?3,
-                finished_ms = ?4 WHERE id = ?1",
+            "UPDATE jobs SET state = 'final', outcome = ?2, reason_code = ?3,
+                root_exit_code = CASE WHEN ?6 THEN ?4 ELSE root_exit_code END,
+                started_ms = CASE WHEN ?7 THEN (
+                    SELECT MIN(started_ms) FROM attempts
+                    WHERE attempts.job_id = jobs.id AND started_ms IS NOT NULL
+                ) ELSE started_ms END, finished_ms = ?5 WHERE id = ?1",
             params![
                 job.job_id.entity_uuid().to_string(),
-                outcome_string(outcome),
+                outcome_string(effective_outcome),
+                effective_reason,
                 exit_code,
-                now_millis(),
+                finished,
+                job.role == InvocationRole::Primary,
+                preserve_never_started_terminal,
             ],
         )?;
         transaction.commit()?;
@@ -506,7 +686,14 @@ impl Store {
         exit_code: Option<i32>,
         verdict: &str,
     ) -> StoreResult<()> {
-        self.mark_uncertain_settlement(job, exit_code, verdict, None, JobOutcome::Interrupted)
+        self.mark_uncertain_settlement(
+            job,
+            exit_code,
+            verdict,
+            None,
+            JobOutcome::Interrupted,
+            false,
+        )
     }
 
     pub(crate) fn mark_pre_release_cleanup_uncertain(
@@ -520,6 +707,7 @@ impl Store {
             AttemptVerdict::SafetyFailed.as_str(),
             Some("pre_release_cleanup_uncertain"),
             JobOutcome::Failed,
+            true,
         )
     }
 
@@ -530,18 +718,57 @@ impl Store {
         verdict: &str,
         safety_reason: Option<&str>,
         outcome: JobOutcome,
+        preserve_pre_release_terminal: bool,
     ) -> StoreResult<()> {
-        let transaction = self.connection.transaction()?;
-        let state: String = transaction.query_row(
-            "SELECT state FROM jobs WHERE id = ?1",
-            [job.job_id.entity_uuid().to_string()],
-            |row| row.get(0),
+        let now = now_millis();
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let job_key = job.job_id.entity_uuid().to_string();
+        let (state, cancel_requested): (String, bool) = transaction.query_row(
+            "SELECT state, cancel_requested != 0 FROM jobs WHERE id = ?1",
+            [&job_key],
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
         if state != "active" {
             return Err(StoreError::InvalidState(format!(
                 "job {} cannot become uncertain from {state}",
                 job.job_id
             )));
+        }
+        let mut effective_verdict = verdict;
+        let mut effective_safety_reason = safety_reason;
+        let mut effective_outcome = outcome;
+        if preserve_pre_release_terminal {
+            let deadline_outcome: Option<String> = transaction
+                .query_row(
+                    "SELECT deadline_outcome FROM conditions
+                     WHERE job_id = ?1 AND deadline_ms IS NOT NULL
+                       AND (state = 'failed' OR deadline_ms <= ?2)
+                     ORDER BY deadline_ms, condition_index LIMIT 1",
+                    params![job_key, now],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if let Some(deadline_outcome) = deadline_outcome {
+                transaction.execute(
+                    "UPDATE conditions SET state = 'failed', next_probe_ms = NULL
+                     WHERE job_id = ?1 AND state != 'failed'",
+                    [&job_key],
+                )?;
+                effective_safety_reason = Some("condition_deadline_expired");
+                if deadline_outcome == "canceled" {
+                    effective_verdict = AttemptVerdict::Canceled.as_str();
+                    effective_outcome = JobOutcome::Canceled;
+                } else {
+                    effective_verdict = AttemptVerdict::SafetyFailed.as_str();
+                    effective_outcome = JobOutcome::Failed;
+                }
+            } else if cancel_requested {
+                effective_verdict = AttemptVerdict::Canceled.as_str();
+                effective_safety_reason = None;
+                effective_outcome = JobOutcome::Canceled;
+            }
         }
         let incident_sequence: u64 = transaction.query_row(
             "SELECT COALESCE(MAX(incident_sequence), 0) + 1 FROM containments",
@@ -578,7 +805,7 @@ impl Store {
             params![
                 job.containment_id.entity_uuid().to_string(),
                 incident_sequence,
-                safety_reason.unwrap_or(verdict),
+                effective_safety_reason.unwrap_or(effective_verdict),
                 "cleanup could not be proven within the bounded runner wait",
                 opened,
                 retained_claims_json,
@@ -586,27 +813,43 @@ impl Store {
         )?;
         transaction.execute(
             "UPDATE attempts SET state = 'settled', verdict = ?2, safety_reason = ?3,
-                finished_ms = ?4
+                started_ms = CASE WHEN ?5 THEN NULL ELSE started_ms END,
+                deadline_ms = CASE WHEN ?5 THEN NULL ELSE deadline_ms END, finished_ms = ?4
              WHERE id = ?1 AND state != 'settled'",
             params![
                 job.attempt_id.entity_uuid().to_string(),
-                verdict,
-                safety_reason,
-                now_millis()
+                effective_verdict,
+                effective_safety_reason,
+                now,
+                preserve_pre_release_terminal,
             ],
         )?;
+        if preserve_pre_release_terminal {
+            transaction.execute(
+                "UPDATE invocations SET started_ms = NULL WHERE id = ?1",
+                [job.invocation_id.entity_uuid().to_string()],
+            )?;
+            transaction.execute(
+                "UPDATE jobs SET started_ms = (
+                     SELECT MIN(started_ms) FROM attempts
+                     WHERE attempts.job_id = jobs.id AND started_ms IS NOT NULL
+                 ) WHERE id = ?1",
+                [&job_key],
+            )?;
+        }
         // An uncertain Containment deliberately keeps its Lease granted.
         transaction.execute(
-            "UPDATE jobs SET state = 'final', outcome = ?2,
-                root_exit_code = COALESCE(?3, root_exit_code), finished_ms = ?4
+            "UPDATE jobs SET state = 'final', outcome = ?2, reason_code = ?3,
+                root_exit_code = COALESCE(?4, root_exit_code), finished_ms = ?5
              WHERE id = ?1 AND state = 'active'",
             params![
-                job.job_id.entity_uuid().to_string(),
-                outcome_string(outcome),
+                job_key,
+                outcome_string(effective_outcome),
+                effective_safety_reason,
                 (job.role == InvocationRole::Primary)
                     .then_some(exit_code)
                     .flatten(),
-                now_millis()
+                now
             ],
         )?;
         transaction.commit()?;

@@ -83,6 +83,102 @@ impl Store {
                 ],
             )?;
         }
+        let pre_resume_terminals = {
+            let mut statement = transaction.prepare(
+                "SELECT jobs.id, attempts.id, invocations.id,
+                        admissions.pre_resume_defer_reason, attempts.state
+                 FROM jobs
+                 JOIN attempts ON attempts.id = jobs.attempt_id
+                 JOIN invocations ON invocations.id = jobs.invocation_id
+                 JOIN admissions ON admissions.attempt_id = attempts.id
+                 WHERE jobs.state = 'active'
+                   AND attempts.state IN ('starting', 'running')
+                   AND invocations.role = 'primary'
+                   AND (admissions.pre_resume_defer_reason IS NOT NULL
+                        OR EXISTS(
+                            SELECT 1 FROM conditions
+                            WHERE conditions.job_id = jobs.id AND conditions.state = 'failed'
+                              AND conditions.deadline_ms IS NOT NULL
+                        )
+                        OR (attempts.state = 'starting' AND (
+                            jobs.cancel_requested != 0 OR EXISTS(
+                                SELECT 1 FROM conditions
+                                WHERE conditions.job_id = jobs.id
+                                  AND conditions.deadline_ms IS NOT NULL
+                                  AND conditions.deadline_ms <= ?1
+                            )
+                        )))
+                 ORDER BY jobs.accepted_ms, jobs.rowid",
+            )?;
+            statement
+                .query_map([finished], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, Option<String>>(3)?,
+                        row.get::<_, String>(4)?,
+                    ))
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        for (job_id, attempt_id, invocation_id, defer_reason, attempt_state) in pre_resume_terminals
+        {
+            let deadline_outcome: Option<String> = transaction
+                .query_row(
+                    "SELECT deadline_outcome FROM conditions
+                     WHERE job_id = ?1 AND deadline_ms IS NOT NULL
+                       AND (state = 'failed'
+                            OR ((?3 IS NOT NULL OR ?4 = 'starting') AND deadline_ms <= ?2))
+                     ORDER BY deadline_ms, condition_index LIMIT 1",
+                    params![job_id, finished, defer_reason, attempt_state],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            let (verdict, outcome, reason) = if let Some(deadline_outcome) = deadline_outcome {
+                transaction.execute(
+                    "UPDATE conditions SET state = 'failed', next_probe_ms = NULL
+                     WHERE job_id = ?1 AND state != 'failed'",
+                    [&job_id],
+                )?;
+                if deadline_outcome == "canceled" {
+                    ("canceled", "canceled", Some("condition_deadline_expired"))
+                } else {
+                    (
+                        "safety_failed",
+                        "failed",
+                        Some("condition_deadline_expired"),
+                    )
+                }
+            } else if defer_reason.as_deref() == Some("cancel_requested")
+                || attempt_state == "starting"
+            {
+                ("canceled", "canceled", None)
+            } else {
+                return Err(StoreError::InvalidState(format!(
+                    "active Job {job_id} has an invalid pre-resume terminal latch"
+                )));
+            };
+            transaction.execute(
+                "UPDATE invocations SET started_ms = NULL WHERE id = ?1",
+                [&invocation_id],
+            )?;
+            transaction.execute(
+                "UPDATE attempts SET state = 'settled', verdict = ?2, safety_reason = ?3,
+                    started_ms = NULL, deadline_ms = NULL, finished_ms = ?4
+                 WHERE id = ?1 AND state IN ('starting', 'running')",
+                params![attempt_id, verdict, reason, finished],
+            )?;
+            transaction.execute(
+                "UPDATE jobs SET state = 'final', outcome = ?2, reason_code = ?3,
+                    started_ms = (
+                        SELECT MIN(started_ms) FROM attempts
+                        WHERE attempts.job_id = jobs.id AND started_ms IS NOT NULL
+                    ), finished_ms = ?4
+                 WHERE id = ?1 AND state = 'active'",
+                params![job_id, outcome, reason, finished],
+            )?;
+        }
         transaction.execute(
             "UPDATE attempts SET state = 'settled', verdict = 'start_failed', finished_ms = ?1
              WHERE state = 'starting'",
@@ -107,7 +203,17 @@ impl Store {
             [finished],
         )?;
         release_all_safe_attempt_leases(&transaction)?;
+        repair_resolved_empty_probes_tx(
+            &transaction,
+            self.store_uuid,
+            self.daemon_generation,
+            self.startup_identity.boot_id.as_ref(),
+            finished,
+        )?;
+        expire_due_condition_deadlines_tx(&transaction, finished)?;
+        finalize_recovered_condition_terminals_tx(&transaction, finished)?;
         transaction.commit()?;
+        self.prune_condition_history()?;
         Ok(())
     }
 

@@ -353,6 +353,7 @@ pub(super) fn create_current_schema(
              reservation_generation TEXT,
              reservation_evidence_json TEXT,
              release_evidence_json TEXT,
+             pre_resume_defer_reason TEXT,
              gpu_uuid TEXT,
              gpu_driver_version TEXT
          );
@@ -427,6 +428,11 @@ pub(super) fn create_current_schema(
              source TEXT NOT NULL,
              value_json TEXT NOT NULL
          );
+         CREATE TABLE probe_log_gc(
+             invocation_id TEXT PRIMARY KEY,
+             job_id TEXT NOT NULL,
+             attempt_count INTEGER NOT NULL DEFAULT 0
+         );
          CREATE TABLE leases(
              id TEXT PRIMARY KEY,
              attempt_id TEXT NOT NULL REFERENCES attempts(id),
@@ -471,6 +477,7 @@ pub(super) fn create_current_schema(
          CREATE INDEX conditions_job_state ON conditions(job_id, state, condition_index);
          CREATE INDEX conditions_deadline ON conditions(deadline_ms, state);
          CREATE INDEX conditions_probe_due ON conditions(next_probe_ms, state);
+         CREATE INDEX observations_condition_latest ON observations(condition_id);
          CREATE TRIGGER events_prune AFTER INSERT ON events BEGIN
              DELETE FROM events WHERE sequence <= NEW.sequence - {MAX_EVENT_ROWS};
          END;
@@ -579,13 +586,24 @@ pub(super) fn create_current_schema(
                  CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
              FROM jobs WHERE jobs.id = NEW.job_id;
          END;
-         CREATE TRIGGER conditions_event_update AFTER UPDATE ON conditions BEGIN
+         CREATE TRIGGER conditions_event_update AFTER UPDATE ON conditions
+         WHEN OLD.state IS NOT NEW.state
+           OR OLD.deadline_ms IS NOT NEW.deadline_ms
+           OR OLD.transition_armed IS NOT NEW.transition_armed
+           OR OLD.next_probe_ms IS NOT NEW.next_probe_ms
+           OR OLD.probe_invocation_id IS NOT NEW.probe_invocation_id BEGIN
              INSERT INTO events(kind, job_id, batch_id, committed_ms)
              SELECT 'job_changed', NEW.job_id, jobs.batch_id,
                  CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
              FROM jobs WHERE jobs.id = NEW.job_id;
          END;
-         CREATE TRIGGER observations_event_insert AFTER INSERT ON observations BEGIN
+         CREATE TRIGGER observations_event_insert AFTER INSERT ON observations
+         WHEN (SELECT previous.value_json FROM observations previous
+               WHERE previous.condition_id = NEW.condition_id AND previous.id != NEW.id
+               ORDER BY previous.rowid DESC LIMIT 1) IS NOT NEW.value_json
+           OR (SELECT previous.source FROM observations previous
+               WHERE previous.condition_id = NEW.condition_id AND previous.id != NEW.id
+               ORDER BY previous.rowid DESC LIMIT 1) IS NOT NEW.source BEGIN
              INSERT INTO events(kind, job_id, batch_id, committed_ms)
              SELECT 'job_changed', conditions.job_id, jobs.batch_id,
                  CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
@@ -626,6 +644,7 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
         "containments",
         "conditions",
         "observations",
+        "probe_log_gc",
         "leases",
         "reservations",
         "dependencies",
@@ -715,6 +734,7 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
                 "reservation_generation",
                 "reservation_evidence_json",
                 "release_evidence_json",
+                "pre_resume_defer_reason",
                 "gpu_uuid",
                 "gpu_driver_version",
             ] as &[_],
@@ -759,6 +779,10 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
                 "fresh_until_ms",
                 "source",
             ] as &[_],
+        ),
+        (
+            "probe_log_gc",
+            &["invocation_id", "job_id", "attempt_count"] as &[_],
         ),
         ("leases", &["invocation_id"] as &[_]),
         (
@@ -853,6 +877,7 @@ pub(super) fn validate_schema(connection: &Connection) -> StoreResult<()> {
         "conditions_job_state",
         "conditions_deadline",
         "conditions_probe_due",
+        "observations_condition_latest",
     ] {
         let exists = connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?1)",

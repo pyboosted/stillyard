@@ -11,6 +11,21 @@ impl Store {
         let impact_incompatibilities = self.impact_incompatibilities.clone();
         let store_uuid = self.store_uuid;
         let host_config = self.host_config();
+        let condition_spec = self
+            .connection
+            .query_row(
+                "SELECT spec_json FROM jobs WHERE id = ?1 AND state = 'pending'
+                   AND COALESCE(retry_not_before_ms, 0) <= ?2",
+                params![&job_key, now_millis()],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+            .map(|json| serde_json::from_str::<JobSpec>(&json))
+            .transpose()?;
+        let Some(condition_spec) = condition_spec else {
+            return Ok(PrepareJob::Blocked);
+        };
+        let condition_evaluations = ConditionEvaluations::scan_all(&condition_spec.conditions);
         let now = now_millis();
         let transaction = self
             .connection
@@ -41,6 +56,10 @@ impl Store {
             return Ok(PrepareJob::Blocked);
         };
         let spec: JobSpec = serde_json::from_str(&spec_json)?;
+        if expire_condition_deadline_tx(&transaction, &job_key, now)?.is_some() {
+            transaction.commit()?;
+            return Ok(PrepareJob::StateChanged);
+        }
         let quiet = spec.quiet.as_ref();
         let (dependency_blockers, impossible) = dependency_blockers_tx(&transaction, job_id)?;
         if impossible {
@@ -70,29 +89,37 @@ impl Store {
         }
         let condition_refresh = refresh_conditions_tx(
             &transaction,
-            self.daemon_generation,
-            self.startup_identity.boot_id.as_ref(),
             &job_key,
-            now,
-            self.observation_config.condition_rescan_interval_millis,
-            false,
+            ConditionRefreshContext {
+                daemon_generation: self.daemon_generation,
+                boot_id: self.startup_identity.boot_id.as_ref(),
+                now,
+                freshness_millis: self.observation_config.condition_rescan_interval_millis,
+                force: false,
+                evaluations: &condition_evaluations,
+            },
         )?;
         if condition_refresh.deadline_expired {
             transaction.commit()?;
             return Ok(PrepareJob::StateChanged);
         }
         if !condition_refresh.blockers.is_empty() {
-            if release_reservation_tx(&transaction, &job_key)? || condition_refresh.state_changed {
+            let reservation_released = release_reservation_tx(&transaction, &job_key)?;
+            if reservation_released || condition_refresh.state_changed {
                 transaction.commit()?;
+            } else {
+                transaction.rollback()?;
+            }
+            if reservation_released {
                 return Ok(PrepareJob::StateChanged);
             }
-            transaction.rollback()?;
-            return Ok(
-                match self.prepare_due_probe(job_id, &spec, now, observation)? {
-                    Some(probe) => PrepareJob::Ready(Box::new(probe)),
-                    None => PrepareJob::Blocked,
-                },
-            );
+            let observation = observation
+                .map(|moment| moment.after_provider_work(condition_evaluations.scan_elapsed()))
+                .transpose()?;
+            return Ok(match self.prepare_due_probe(job_id, &spec, observation)? {
+                Some(probe) => PrepareJob::Ready(Box::new(probe)),
+                None => PrepareJob::Blocked,
+            });
         }
 
         let claims: ResolvedClaims = serde_json::from_str(&claims_json)?;
@@ -178,6 +205,7 @@ impl Store {
             transaction.commit()?;
             return Ok(PrepareJob::Blocked);
         };
+        let observation = observation.after_provider_work(condition_evaluations.scan_elapsed())?;
         let mut context = crate::host_observation::evaluate_admission(
             &spec,
             &host_config,
@@ -256,12 +284,15 @@ impl Store {
 
         let final_conditions = refresh_conditions_tx(
             &transaction,
-            self.daemon_generation,
-            self.startup_identity.boot_id.as_ref(),
             &job_key,
-            now_millis(),
-            self.observation_config.condition_rescan_interval_millis,
-            true,
+            ConditionRefreshContext {
+                daemon_generation: self.daemon_generation,
+                boot_id: self.startup_identity.boot_id.as_ref(),
+                now: now_millis(),
+                freshness_millis: self.observation_config.condition_rescan_interval_millis,
+                force: true,
+                evaluations: &condition_evaluations,
+            },
         )?;
         if final_conditions.deadline_expired || !final_conditions.blockers.is_empty() {
             release_reservation_tx(&transaction, &job_key)?;
@@ -297,7 +328,8 @@ impl Store {
         let invocation_id = InvocationId::new(self.store_uuid);
         let containment_id = ContainmentId::new(self.store_uuid);
         let lease_id = Uuid::now_v7();
-        let attempt_started = quiet.is_none().then_some(now);
+        let waits_for_release = quiet.is_some() || !spec.conditions.is_empty();
+        let attempt_started = (!waits_for_release).then_some(now);
         let attempt_deadline = attempt_started.and_then(|started| {
             spec.timeout_seconds.map(|seconds| {
                 started.saturating_add(
@@ -610,6 +642,7 @@ fn settle_admission(
                 retry_not_before_ms = ?2 WHERE id = ?1 AND state = 'pending'",
             params![job_key, not_before],
         )?;
+        reset_conditions_for_retry_tx(transaction, job_key, not_before)?;
     } else {
         transaction.execute(
             "UPDATE jobs SET state = 'final', outcome = 'failed', finished_ms = ?2,

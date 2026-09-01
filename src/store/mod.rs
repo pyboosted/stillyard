@@ -38,7 +38,7 @@ use crate::{
 
 // Pre-stable Stillyard intentionally has no migration chain. Change this opaque epoch whenever
 // the current schema changes; daemon startup will replace the whole SQLite database.
-const STORE_SCHEMA_EPOCH: &str = "stillyard-conditions-r1-2026-09-01";
+const STORE_SCHEMA_EPOCH: &str = "stillyard-conditions-r3-2026-09-02";
 const MAX_EVENT_ROWS: u64 = 16_384;
 const SNAPSHOT_DIAGNOSTIC_BUDGET_BYTES: usize = 64 * 1024;
 const MAX_UPLOAD_CHUNK_BYTES: usize = 256 * 1024;

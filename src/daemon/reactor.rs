@@ -478,12 +478,16 @@ impl DaemonReactor {
                     });
                 if let Err(error) = spawned {
                     if let Ok(mut guard) = store.lock() {
-                        let _ = guard.mark_finished(
-                            &job,
-                            None,
-                            crate::JobOutcome::Failed,
-                            "start_failed",
-                        );
+                        let _ = if job.role == crate::InvocationRole::Probe {
+                            guard.settle_probe(&job, None, false)
+                        } else {
+                            let verdict = if job.role == crate::InvocationRole::Postcondition {
+                                "postcondition_failed"
+                            } else {
+                                "start_failed"
+                            };
+                            guard.mark_finished(&job, None, crate::JobOutcome::Failed, verdict)
+                        };
                     }
                     eprintln!(
                         "stillyard could not start worker thread for {}: {error}",

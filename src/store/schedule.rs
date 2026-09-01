@@ -1,6 +1,8 @@
 use super::admitting::ensure_admitting_row;
 use super::*;
 
+const EXPIRED_CONDITION_RESCAN_YIELD: Duration = Duration::from_millis(25);
+
 impl Store {
     pub(super) fn accepting_daemon_generation(
         &self,
@@ -95,6 +97,7 @@ impl Store {
     ) -> StoreResult<AdmissionDecisionSnapshot> {
         let (
             attempt_state,
+            attempt_started,
             verdict,
             deferral_count,
             last_eval_unix_millis,
@@ -104,30 +107,37 @@ impl Store {
             release_evidence_json,
             gpu_uuid,
             gpu_driver_version,
+            spec_json,
         ) = self.connection.query_row(
-            "SELECT attempts.state, attempts.verdict, admissions.deferral_count,
+            "SELECT attempts.state, attempts.started_ms, attempts.verdict,
+                    admissions.deferral_count,
                     admissions.last_eval_unix_ms, admissions.last_blockers_json,
                     admissions.last_evidence_json, admissions.reservation_evidence_json,
                     admissions.release_evidence_json, admissions.gpu_uuid,
-                    admissions.gpu_driver_version
+                    admissions.gpu_driver_version, jobs.spec_json
              FROM admissions JOIN attempts ON attempts.id = admissions.attempt_id
+             JOIN jobs ON jobs.id = attempts.job_id
              WHERE admissions.attempt_id = ?1",
             [attempt_id],
             |row| {
                 Ok((
                     row.get::<_, String>(0)?,
-                    row.get::<_, Option<String>>(1)?,
-                    row.get::<_, u32>(2)?,
-                    row.get::<_, Option<i64>>(3)?,
-                    row.get::<_, String>(4)?,
-                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<i64>>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, u32>(3)?,
+                    row.get::<_, Option<i64>>(4)?,
+                    row.get::<_, String>(5)?,
                     row.get::<_, Option<String>>(6)?,
                     row.get::<_, Option<String>>(7)?,
                     row.get::<_, Option<String>>(8)?,
                     row.get::<_, Option<String>>(9)?,
+                    row.get::<_, Option<String>>(10)?,
+                    row.get::<_, String>(11)?,
                 ))
             },
         )?;
+        let spec = serde_json::from_str::<JobSpec>(&spec_json)?;
+        let readiness_release_required = spec.quiet.is_some() || !spec.conditions.is_empty();
         let final_sample = release_evidence_json.is_some();
         let evidence_json = release_evidence_json
             .as_deref()
@@ -145,6 +155,15 @@ impl Store {
         } else if matches!(attempt_state.as_str(), "planned" | "admitting") {
             AdmissionDecisionState::Waiting
         } else if attempt_state == "starting" {
+            AdmissionDecisionState::Reserved
+        } else if matches!(attempt_state.as_str(), "running" | "settled")
+            && release_evidence_json.is_some()
+            && (!readiness_release_required || attempt_started.is_some())
+        {
+            AdmissionDecisionState::Released
+        } else if matches!(attempt_state.as_str(), "running" | "settled")
+            && readiness_release_required
+        {
             AdmissionDecisionState::Reserved
         } else if matches!(attempt_state.as_str(), "running" | "settled")
             && reservation_evidence_json.is_some()
@@ -507,6 +526,7 @@ impl Store {
                 sample,
                 now_unix_millis,
                 now_monotonic_millis,
+                live_clock: true,
             }))
         })
     }
@@ -517,7 +537,10 @@ impl Store {
             Option<crate::host_observation::ObservationMoment<'a>>,
         >,
     ) -> StoreResult<PrepareNext> {
-        let mut state_changed = self.expire_due_reservations(now_millis())?;
+        let pass_now = now_millis();
+        self.prune_condition_history()?;
+        let mut state_changed = self.expire_due_reservations(pass_now)?;
+        state_changed |= self.expire_due_condition_deadlines(pass_now)?;
         loop {
             let mut skipped_in_pass = false;
             for job_id in self.pending_jobs()? {
@@ -558,23 +581,30 @@ impl Store {
         observation: Option<crate::host_observation::ObservationMoment<'_>>,
     ) -> StoreResult<PrepareJob> {
         let job_key = self.local_id(job_id)?;
+        if self.expire_job_condition_deadline(job_id, now_millis())? {
+            return Ok(PrepareJob::StateChanged);
+        }
         if !self.startup_identity.capable() {
             return Ok(PrepareJob::Blocked);
         }
-        let observed_job = self
+        let pending_spec = self
             .connection
             .query_row(
-                "SELECT spec_json FROM jobs WHERE id = ?1 AND state = 'pending'",
-                [&job_key],
+                "SELECT spec_json FROM jobs WHERE id = ?1 AND state = 'pending'
+                   AND COALESCE(retry_not_before_ms, 0) <= ?2",
+                params![&job_key, now_millis()],
                 |row| row.get::<_, String>(0),
             )
             .optional()?
             .map(|json| serde_json::from_str::<JobSpec>(&json))
-            .transpose()?
-            .is_some_and(|spec| spec.requires_host_observation());
-        if observed_job {
+            .transpose()?;
+        let Some(pending_spec) = pending_spec else {
+            return Ok(PrepareJob::Blocked);
+        };
+        if pending_spec.requires_host_observation() {
             return self.advance_observed_admission(job_id, observation);
         }
+        let condition_evaluations = ConditionEvaluations::scan_all(&pending_spec.conditions);
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
         let store_uuid = self.store_uuid;
@@ -607,6 +637,10 @@ impl Store {
             return Ok(PrepareJob::Blocked);
         };
         let spec: JobSpec = serde_json::from_str(&spec_json)?;
+        if expire_condition_deadline_tx(&transaction, &job_key, now)?.is_some() {
+            transaction.commit()?;
+            return Ok(PrepareJob::StateChanged);
+        }
         let (dependency_blockers, impossible) = dependency_blockers_tx(&transaction, job_id)?;
         if impossible {
             transaction.execute(
@@ -627,29 +661,34 @@ impl Store {
         }
         let condition_refresh = refresh_conditions_tx(
             &transaction,
-            self.daemon_generation,
-            self.startup_identity.boot_id.as_ref(),
             &job_key,
-            now,
-            self.observation_config.condition_rescan_interval_millis,
-            false,
+            ConditionRefreshContext {
+                daemon_generation: self.daemon_generation,
+                boot_id: self.startup_identity.boot_id.as_ref(),
+                now,
+                freshness_millis: self.observation_config.condition_rescan_interval_millis,
+                force: false,
+                evaluations: &condition_evaluations,
+            },
         )?;
         if condition_refresh.deadline_expired {
             transaction.commit()?;
             return Ok(PrepareJob::StateChanged);
         }
         if !condition_refresh.blockers.is_empty() {
-            if release_reservation_tx(&transaction, &job_key)? || condition_refresh.state_changed {
+            let reservation_released = release_reservation_tx(&transaction, &job_key)?;
+            if reservation_released || condition_refresh.state_changed {
                 transaction.commit()?;
+            } else {
+                transaction.rollback()?;
+            }
+            if reservation_released {
                 return Ok(PrepareJob::StateChanged);
             }
-            transaction.rollback()?;
-            return Ok(
-                match self.prepare_due_probe(job_id, &spec, now, observation)? {
-                    Some(probe) => PrepareJob::Ready(Box::new(probe)),
-                    None => PrepareJob::Blocked,
-                },
-            );
+            return Ok(match self.prepare_due_probe(job_id, &spec, observation)? {
+                Some(probe) => PrepareJob::Ready(Box::new(probe)),
+                None => PrepareJob::Blocked,
+            });
         }
         let claims: ResolvedClaims = serde_json::from_str(&claims_json)?;
         let active = active_claims_tx(&transaction)?;
@@ -666,12 +705,15 @@ impl Store {
         }
         let final_conditions = refresh_conditions_tx(
             &transaction,
-            self.daemon_generation,
-            self.startup_identity.boot_id.as_ref(),
             &job_key,
-            now_millis(),
-            self.observation_config.condition_rescan_interval_millis,
-            true,
+            ConditionRefreshContext {
+                daemon_generation: self.daemon_generation,
+                boot_id: self.startup_identity.boot_id.as_ref(),
+                now: now_millis(),
+                freshness_millis: self.observation_config.condition_rescan_interval_millis,
+                force: true,
+                evaluations: &condition_evaluations,
+            },
         )?;
         if final_conditions.deadline_expired || !final_conditions.blockers.is_empty() {
             release_reservation_tx(&transaction, &job_key)?;
@@ -954,6 +996,7 @@ impl Store {
         }
         spec.stdin = StdinSpec::Eof;
         spec.observed = None;
+        spec.conditions.clear();
         spec.quiet = None;
         spec.postconditions.clear();
         spec.child_submission_policy = None;
@@ -1124,7 +1167,7 @@ impl Store {
         scheduling_pass_started: i64,
     ) -> StoreResult<Option<std::time::Duration>> {
         let now = now_millis();
-        let next: Option<i64> = self.connection.query_row(
+        let next_one_shot: Option<i64> = self.connection.query_row(
             "SELECT MIN(deadline) FROM (
                  SELECT retry_not_before_ms AS deadline FROM jobs
                  WHERE state = 'pending' AND retry_not_before_ms > ?1
@@ -1139,16 +1182,6 @@ impl Store {
                  JOIN jobs ON jobs.id = conditions.job_id
                  WHERE jobs.state = 'pending' AND conditions.deadline_ms > ?1
                  UNION ALL
-                 SELECT observations.fresh_until_ms AS deadline FROM observations
-                 JOIN conditions ON conditions.id = observations.condition_id
-                 JOIN jobs ON jobs.id = conditions.job_id
-                 WHERE jobs.state = 'pending' AND observations.fresh_until_ms > ?1
-                   AND observations.id = (
-                       SELECT latest.id FROM observations latest
-                       WHERE latest.condition_id = conditions.id
-                       ORDER BY latest.rowid DESC LIMIT 1
-                   )
-                 UNION ALL
                  SELECT conditions.next_probe_ms AS deadline FROM conditions
                  JOIN jobs ON jobs.id = conditions.job_id
                  WHERE jobs.state = 'pending' AND conditions.next_probe_ms > ?1
@@ -1156,11 +1189,86 @@ impl Store {
             [scheduling_pass_started],
             |row| row.get(0),
         )?;
-        Ok(next.map(|instant| {
+        let one_shot_delay = next_one_shot.map(|instant| {
             std::time::Duration::from_millis(
                 u64::try_from(instant.saturating_sub(now)).unwrap_or(0),
             )
-        }))
+        });
+        let next_freshness: Option<i64> = self.connection.query_row(
+            "SELECT MIN(observations.fresh_until_ms) FROM observations
+             JOIN conditions ON conditions.id = observations.condition_id
+             JOIN jobs ON jobs.id = conditions.job_id
+             WHERE jobs.state = 'pending' AND observations.fresh_until_ms > ?1
+               AND observations.source != 'probe'
+               AND COALESCE(jobs.retry_not_before_ms, 0) <= ?2
+               AND NOT EXISTS(
+                   SELECT 1 FROM dependencies
+                   JOIN jobs predecessor ON predecessor.id = dependencies.predecessor_id
+                   WHERE dependencies.successor_id = jobs.id
+                     AND predecessor.state != 'final'
+               )
+               AND observations.id = (
+                   SELECT latest.id FROM observations latest
+                   WHERE latest.condition_id = conditions.id
+                   ORDER BY latest.rowid DESC LIMIT 1
+               )",
+            params![scheduling_pass_started, now],
+            |row| row.get(0),
+        )?;
+        let freshness_delay = next_freshness.map(|instant| {
+            let remaining = u64::try_from(instant.saturating_sub(now)).unwrap_or(0);
+            if remaining == 0 {
+                EXPIRED_CONDITION_RESCAN_YIELD
+            } else {
+                Duration::from_millis(remaining)
+            }
+        });
+        let monotonic_now = crate::host_observation::observation_clock()
+            .map(|(_, monotonic)| monotonic)
+            .unwrap_or(0);
+        let monotonic_deadline = {
+            let mut statement = self.connection.prepare(
+                "SELECT observations.observed_monotonic_ms FROM observations
+                 JOIN conditions ON conditions.id = observations.condition_id
+                 JOIN jobs ON jobs.id = conditions.job_id
+                 WHERE jobs.state = 'pending' AND observations.source != 'probe'
+                   AND observations.daemon_generation = ?1
+                   AND COALESCE(jobs.retry_not_before_ms, 0) <= ?2
+                   AND NOT EXISTS(
+                       SELECT 1 FROM dependencies
+                       JOIN jobs predecessor ON predecessor.id = dependencies.predecessor_id
+                       WHERE dependencies.successor_id = jobs.id
+                         AND predecessor.state != 'final'
+                   )
+                   AND observations.id = (
+                       SELECT latest.id FROM observations latest
+                       WHERE latest.condition_id = conditions.id
+                       ORDER BY latest.rowid DESC LIMIT 1
+                   )",
+            )?;
+            statement
+                .query_map(params![self.daemon_generation.to_string(), now], |row| {
+                    row.get::<_, u64>(0)
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?
+                .into_iter()
+                .map(|observed| {
+                    let remaining = monotonic_now.checked_sub(observed).and_then(|elapsed| {
+                        self.observation_config
+                            .condition_rescan_interval_millis
+                            .checked_sub(elapsed)
+                    });
+                    match remaining {
+                        Some(remaining) if remaining > 0 => Duration::from_millis(remaining),
+                        _ => EXPIRED_CONDITION_RESCAN_YIELD,
+                    }
+                })
+                .min()
+        };
+        Ok([one_shot_delay, freshness_delay, monotonic_deadline]
+            .into_iter()
+            .flatten()
+            .min())
     }
 }
 

@@ -61,7 +61,8 @@ impl Store {
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
         let host_config = self.host_config();
-        let now = now_millis();
+        let condition_evaluations = ConditionEvaluations::scan_all(&job.spec.conditions);
+        let evaluation_now = now_millis();
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -105,12 +106,15 @@ impl Store {
         let mut blockers = dependency_blockers_tx(&transaction, job.job_id)?.0;
         let condition_refresh = refresh_conditions_tx(
             &transaction,
-            self.daemon_generation,
-            self.startup_identity.boot_id.as_ref(),
             &job.job_id.entity_uuid().to_string(),
-            now,
-            self.observation_config.condition_rescan_interval_millis,
-            true,
+            ConditionRefreshContext {
+                daemon_generation: self.daemon_generation,
+                boot_id: self.startup_identity.boot_id.as_ref(),
+                now: evaluation_now,
+                freshness_millis: self.observation_config.condition_rescan_interval_millis,
+                force: true,
+                evaluations: &condition_evaluations,
+            },
         )?;
         if condition_refresh.deadline_expired {
             let outcome = condition_refresh
@@ -125,6 +129,7 @@ impl Store {
         }
         blockers.extend(condition_refresh.blockers);
         blockers.extend(claims.blockers(&capacities, &active, &impact_incompatibilities));
+        let observation = observation.after_provider_work(condition_evaluations.scan_elapsed())?;
         let context = crate::host_observation::evaluate_admission(
             &spec,
             &host_config,
@@ -164,7 +169,7 @@ impl Store {
             .ok_or_else(|| {
                 StoreError::InvalidState("quiet release has no observation age bound".into())
             })?;
-        let Some(expires) = observation
+        let Some(mut expires) = observation
             .sample
             .captured_monotonic_millis
             .checked_add(max_age)
@@ -174,30 +179,48 @@ impl Store {
                 reason: "release evidence expiry overflow".into(),
             });
         };
+        if !job.spec.conditions.is_empty() {
+            expires = expires.min(
+                condition_evaluations
+                    .expires_monotonic(self.observation_config.condition_rescan_interval_millis),
+            );
+            let release_monotonic_now = crate::host_observation::observation_clock()
+                .map(|(_, monotonic)| monotonic)
+                .unwrap_or(u64::MAX);
+            if release_monotonic_now >= expires {
+                transaction.rollback()?;
+                return Ok(ReleaseAuthorization::Deferred {
+                    reason: "release evidence expired during the bounded Condition rescan".into(),
+                });
+            }
+        }
+        let started_now = now_millis();
         let runtime_deadline = spec.timeout_seconds.map(|seconds| {
-            now.saturating_add(i64::try_from(seconds.saturating_mul(1_000)).unwrap_or(i64::MAX))
+            started_now
+                .saturating_add(i64::try_from(seconds.saturating_mul(1_000)).unwrap_or(i64::MAX))
         });
         transaction.execute(
             "UPDATE invocations SET state = 'started', started_ms = ?2
              WHERE id = ?1 AND state = 'prepared'",
-            params![job.invocation_id.entity_uuid().to_string(), now],
+            params![job.invocation_id.entity_uuid().to_string(), started_now],
         )?;
         transaction.execute(
             "UPDATE attempts SET state = 'running', started_ms = ?2, deadline_ms = ?3
              WHERE id = ?1 AND state = 'starting'",
             params![
                 job.attempt_id.entity_uuid().to_string(),
-                now,
+                started_now,
                 runtime_deadline,
             ],
         )?;
         transaction.execute(
             "UPDATE jobs SET started_ms = COALESCE(started_ms, ?2)
              WHERE id = ?1 AND state = 'active'",
-            params![job.job_id.entity_uuid().to_string(), now],
+            params![job.job_id.entity_uuid().to_string(), started_now],
         )?;
         transaction.execute(
-            "UPDATE admissions SET release_evidence_json = ?2 WHERE attempt_id = ?1",
+            "UPDATE admissions SET release_evidence_json = ?2,
+                pre_resume_defer_reason = NULL WHERE attempt_id = ?1",
             params![
                 job.attempt_id.entity_uuid().to_string(),
                 super::admitting::admission_evidence_json(&context)?,
@@ -213,10 +236,13 @@ impl Store {
     pub(crate) fn authorize_condition_release(
         &mut self,
         job: &PreparedJob,
+        observation: Option<crate::host_observation::ObservationMoment<'_>>,
     ) -> StoreResult<ReleaseAuthorization> {
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
-        let now = now_millis();
+        let host_config = self.host_config();
+        let condition_evaluations = ConditionEvaluations::scan_all(&job.spec.conditions);
+        let evaluation_now = now_millis();
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -255,12 +281,15 @@ impl Store {
         }
         let refresh = refresh_conditions_tx(
             &transaction,
-            self.daemon_generation,
-            self.startup_identity.boot_id.as_ref(),
             &job.job_id.entity_uuid().to_string(),
-            now,
-            self.observation_config.condition_rescan_interval_millis,
-            true,
+            ConditionRefreshContext {
+                daemon_generation: self.daemon_generation,
+                boot_id: self.startup_identity.boot_id.as_ref(),
+                now: evaluation_now,
+                freshness_millis: self.observation_config.condition_rescan_interval_millis,
+                force: true,
+                evaluations: &condition_evaluations,
+            },
         )?;
         if refresh.deadline_expired {
             let outcome = refresh
@@ -278,6 +307,49 @@ impl Store {
         let mut blockers = dependency_blockers_tx(&transaction, job.job_id)?.0;
         blockers.extend(refresh.blockers);
         blockers.extend(claims.blockers(&capacities, &active, &impact_incompatibilities));
+        let mut observation_captured_monotonic = None;
+        let admission_context = if job.spec.requires_host_observation() {
+            match observation {
+                Some(observation) => {
+                    let observation =
+                        observation.after_provider_work(condition_evaluations.scan_elapsed())?;
+                    observation_captured_monotonic =
+                        Some(observation.sample.captured_monotonic_millis);
+                    let context = crate::host_observation::evaluate_admission(
+                        &job.spec,
+                        &host_config,
+                        observation.sample,
+                        &active,
+                        observation.now_unix_millis,
+                        observation.now_monotonic_millis,
+                    );
+                    blockers.extend(context.blockers.clone());
+                    let reservation_generation: Option<String> = transaction.query_row(
+                        "SELECT reservation_generation FROM admissions WHERE attempt_id = ?1",
+                        [job.attempt_id.entity_uuid().to_string()],
+                        |row| row.get(0),
+                    )?;
+                    if reservation_generation.as_deref()
+                        != Some(context.observation_generation.to_string().as_str())
+                    {
+                        blockers.push(Blocker {
+                            code: "observation_generation_changed".into(),
+                            detail: "observation generation changed after reservation".into(),
+                        });
+                    }
+                    Some(context)
+                }
+                None => {
+                    blockers.push(Blocker {
+                        code: "observation_missing".into(),
+                        detail: "release-time host observation sample is not available".into(),
+                    });
+                    None
+                }
+            }
+        } else {
+            None
+        };
         blockers.sort_by(|left, right| {
             left.code
                 .cmp(&right.code)
@@ -290,37 +362,118 @@ impl Store {
                 reason: serde_json::to_string(&blockers)?,
             });
         }
+        let started_now = now_millis();
         let runtime_deadline = job.spec.timeout_seconds.map(|seconds| {
-            now.saturating_add(i64::try_from(seconds.saturating_mul(1_000)).unwrap_or(i64::MAX))
+            started_now
+                .saturating_add(i64::try_from(seconds.saturating_mul(1_000)).unwrap_or(i64::MAX))
         });
         transaction.execute(
             "UPDATE invocations SET state = 'started', started_ms = ?2
              WHERE id = ?1 AND state = 'prepared'",
-            params![job.invocation_id.entity_uuid().to_string(), now],
+            params![job.invocation_id.entity_uuid().to_string(), started_now],
         )?;
         transaction.execute(
             "UPDATE attempts SET state = 'running', started_ms = ?2, deadline_ms = ?3
              WHERE id = ?1 AND state = 'starting'",
             params![
                 job.attempt_id.entity_uuid().to_string(),
-                now,
+                started_now,
                 runtime_deadline,
             ],
         )?;
         transaction.execute(
             "UPDATE jobs SET started_ms = COALESCE(started_ms, ?2)
              WHERE id = ?1 AND state = 'active'",
-            params![job.job_id.entity_uuid().to_string(), now],
+            params![job.job_id.entity_uuid().to_string(), started_now],
+        )?;
+        let mut evidence_expires = condition_evaluations
+            .expires_monotonic(self.observation_config.condition_rescan_interval_millis);
+        if let (Some(captured_monotonic), Some(max_age)) = (
+            observation_captured_monotonic,
+            job.spec.minimum_observation_age_millis(&host_config),
+        ) {
+            evidence_expires = evidence_expires.min(captured_monotonic.saturating_add(max_age));
+        }
+        let monotonic_now = crate::host_observation::observation_clock()
+            .map(|(_, monotonic)| monotonic)
+            .unwrap_or(u64::MAX);
+        if monotonic_now >= evidence_expires {
+            transaction.rollback()?;
+            return Ok(ReleaseAuthorization::Deferred {
+                reason: "Condition release evidence expired during the bounded rescan".into(),
+            });
+        }
+        let release_evidence = admission_context
+            .as_ref()
+            .map(super::admitting::admission_evidence_json)
+            .transpose()?
+            .unwrap_or_else(|| "{}".into());
+        transaction.execute(
+            "UPDATE admissions SET pre_resume_defer_reason = NULL,
+                release_evidence_json = ?2 WHERE attempt_id = ?1",
+            params![job.attempt_id.entity_uuid().to_string(), release_evidence,],
         )?;
         transaction.commit()?;
-        let monotonic = crate::host_observation::observation_clock()
-            .map(|(_, monotonic)| monotonic)
-            .unwrap_or(0);
         Ok(ReleaseAuthorization::Authorized {
             runtime_deadline_unix_millis: runtime_deadline,
-            evidence_expires_monotonic_millis: monotonic
-                .saturating_add(self.observation_config.condition_rescan_interval_millis),
+            evidence_expires_monotonic_millis: evidence_expires,
         })
+    }
+
+    pub(crate) fn pre_resume_defer_reason(&mut self, job_id: JobId) -> StoreResult<Option<String>> {
+        let job_key = self.local_id(job_id)?;
+        let now = now_millis();
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let (state, cancel_requested): (String, bool) = transaction.query_row(
+            "SELECT state, cancel_requested != 0 FROM jobs WHERE id = ?1",
+            [&job_key],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        if state != "active" {
+            transaction.rollback()?;
+            return Ok(Some(format!(
+                "job left active state before resume: {state}"
+            )));
+        }
+        let deadline_outcome: Option<String> = transaction
+            .query_row(
+                "SELECT deadline_outcome FROM conditions
+                 WHERE job_id = ?1 AND deadline_ms IS NOT NULL
+                   AND (state = 'failed' OR deadline_ms <= ?2)
+                 ORDER BY deadline_ms, condition_index LIMIT 1",
+                params![job_key, now],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if let Some(outcome) = deadline_outcome {
+            let reason = format!("condition_deadline_expired:deadline outcome={outcome}");
+            transaction.execute(
+                "UPDATE conditions SET state = 'failed', next_probe_ms = NULL
+                 WHERE job_id = ?1 AND state != 'failed'",
+                [&job_key],
+            )?;
+            transaction.execute(
+                "UPDATE admissions SET pre_resume_defer_reason = ?2
+                 WHERE attempt_id = (SELECT attempt_id FROM jobs WHERE id = ?1)",
+                params![job_key, reason],
+            )?;
+            transaction.commit()?;
+            return Ok(Some(reason));
+        }
+        if cancel_requested {
+            let reason = "cancel_requested".to_owned();
+            transaction.execute(
+                "UPDATE admissions SET pre_resume_defer_reason = ?2
+                 WHERE attempt_id = (SELECT attempt_id FROM jobs WHERE id = ?1)",
+                params![job_key, reason],
+            )?;
+            transaction.commit()?;
+            return Ok(Some(reason));
+        }
+        transaction.rollback()?;
+        Ok(None)
     }
 
     pub(crate) fn replan_never_run(&mut self, job: &PreparedJob, reason: &str) -> StoreResult<()> {
@@ -354,15 +507,19 @@ impl Store {
                 ))
             },
         )?;
-        if row.0 != "active" || row.1 != "starting" || row.2 != "prepared" {
+        let pre_release_state = matches!(
+            (row.1.as_str(), row.2.as_str()),
+            ("starting", "prepared") | ("running", "started")
+        );
+        if row.0 != "active" || !pre_release_state {
             return Err(StoreError::InvalidState(format!(
                 "never-run Invocation cannot replan from {}/{}/{}",
                 row.0, row.1, row.2
             )));
         }
         transaction.execute(
-            "UPDATE invocations SET state = 'resolved', finished_ms = ?2
-             WHERE id = ?1 AND state = 'prepared'",
+            "UPDATE invocations SET state = 'resolved', started_ms = NULL, finished_ms = ?2
+             WHERE id = ?1 AND state IN ('prepared', 'started')",
             params![job.invocation_id.entity_uuid().to_string(), now],
         )?;
         transaction.execute(
@@ -378,6 +535,17 @@ impl Store {
                 "never-run Attempt Lease was not safe to release".into(),
             ));
         }
+        transaction.execute(
+            "UPDATE attempts SET started_ms = NULL, deadline_ms = NULL WHERE id = ?1",
+            [job.attempt_id.entity_uuid().to_string()],
+        )?;
+        transaction.execute(
+            "UPDATE jobs SET started_ms = (
+                 SELECT MIN(started_ms) FROM attempts
+                 WHERE attempts.job_id = jobs.id AND started_ms IS NOT NULL
+             ) WHERE id = ?1",
+            [job.job_id.entity_uuid().to_string()],
+        )?;
         let spec: JobSpec = serde_json::from_str(&row.6)?;
         let quiet_budget = spec
             .quiet
@@ -387,16 +555,43 @@ impl Store {
         let deferrals = row.4.saturating_add(1);
         let exhausted =
             deferrals >= self.observation_config.pre_release_max_deferrals || row.5 >= quiet_budget;
-        let condition_deadline_outcome =
-            reason
-                .strip_prefix("condition_deadline_expired:")
-                .map(|detail| {
-                    if detail.contains("canceled") {
-                        ("canceled", "canceled")
-                    } else {
-                        ("safety_failed", "failed")
-                    }
-                });
+        let durable_deadline_outcome: Option<String> = transaction
+            .query_row(
+                "SELECT deadline_outcome FROM conditions
+                 WHERE job_id = ?1 AND deadline_ms IS NOT NULL
+                   AND (state = 'failed' OR deadline_ms <= ?2)
+                 ORDER BY deadline_ms, condition_index LIMIT 1",
+                params![job.job_id.entity_uuid().to_string(), now],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if durable_deadline_outcome.is_some() {
+            transaction.execute(
+                "UPDATE conditions SET state = 'failed', next_probe_ms = NULL
+                 WHERE job_id = ?1 AND state != 'failed'",
+                [job.job_id.entity_uuid().to_string()],
+            )?;
+        }
+        let condition_deadline_outcome = durable_deadline_outcome
+            .as_deref()
+            .map(|outcome| {
+                if outcome == "canceled" {
+                    ("canceled", "canceled")
+                } else {
+                    ("safety_failed", "failed")
+                }
+            })
+            .or_else(|| {
+                reason
+                    .strip_prefix("condition_deadline_expired:")
+                    .map(|detail| {
+                        if detail.contains("canceled") {
+                            ("canceled", "canceled")
+                        } else {
+                            ("safety_failed", "failed")
+                        }
+                    })
+            });
         if let Some((verdict, outcome)) = condition_deadline_outcome {
             transaction.execute(
                 "UPDATE attempts SET state = 'settled', verdict = ?2,

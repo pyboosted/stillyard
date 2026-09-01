@@ -1,6 +1,89 @@
 use super::schedule::condition_blockers_tx;
 use super::*;
 
+const PATH_INSPECTION_TIMEOUT: Duration = Duration::from_secs(2);
+const PATH_INSPECTION_WORKERS: usize = 8;
+const PATH_INSPECTION_QUEUE: usize = 32;
+pub(super) const MAX_RETAINED_OBSERVATIONS_PER_CONDITION: usize = 8;
+pub(super) const MAX_RETAINED_PROBE_INVOCATIONS_PER_CONDITION: usize = 64;
+
+#[derive(Clone)]
+enum PathInspection {
+    Present(bool),
+    Invalidated(String),
+}
+
+pub(super) struct ConditionEvaluations {
+    observed_ms: i64,
+    observed_monotonic_ms: u64,
+    scan_elapsed: Duration,
+    paths: std::collections::HashMap<usize, PathInspection>,
+}
+
+impl ConditionEvaluations {
+    pub(super) fn at_now() -> Self {
+        let (observed_ms, observed_monotonic_ms) =
+            crate::host_observation::observation_clock().unwrap_or_else(|_| (now_millis(), 0));
+        Self {
+            observed_ms,
+            observed_monotonic_ms,
+            scan_elapsed: Duration::ZERO,
+            paths: Default::default(),
+        }
+    }
+
+    pub(super) fn scan_all(conditions: &[crate::ConditionSpec]) -> Self {
+        Self::scan_until(conditions, Instant::now() + PATH_INSPECTION_TIMEOUT)
+    }
+
+    pub(super) fn scan_many<'a>(
+        conditions: impl IntoIterator<Item = &'a [crate::ConditionSpec]>,
+    ) -> Vec<Self> {
+        let deadline = Instant::now() + PATH_INSPECTION_TIMEOUT;
+        conditions
+            .into_iter()
+            .map(|conditions| Self::scan_until(conditions, deadline))
+            .collect()
+    }
+
+    fn scan_until(conditions: &[crate::ConditionSpec], deadline: Instant) -> Self {
+        let scan_started = Instant::now();
+        let mut evaluations = Self::at_now();
+        for (index, condition) in conditions.iter().enumerate() {
+            if let Some(path) = condition_path(condition) {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                let inspection = if remaining.is_zero() {
+                    PathInspection::Invalidated(format!(
+                        "filesystem rescan batch exceeded the {}ms provider bound",
+                        PATH_INSPECTION_TIMEOUT.as_millis()
+                    ))
+                } else {
+                    inspect_path_bounded(path, remaining)
+                };
+                evaluations.paths.insert(index, inspection);
+            }
+        }
+        evaluations.scan_elapsed = scan_started.elapsed();
+        evaluations
+    }
+
+    fn path(&self, index: usize) -> StoreResult<&PathInspection> {
+        self.paths.get(&index).ok_or_else(|| {
+            StoreError::InvalidState(format!(
+                "Condition path evaluation {index} was not captured before the write transaction"
+            ))
+        })
+    }
+
+    pub(super) fn expires_monotonic(&self, freshness_millis: u64) -> u64 {
+        self.observed_monotonic_ms.saturating_add(freshness_millis)
+    }
+
+    pub(super) fn scan_elapsed(&self) -> Duration {
+        self.scan_elapsed
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct ConditionAcceptance<'a> {
     pub(super) store_uuid: Uuid,
@@ -16,11 +99,22 @@ pub(super) struct ConditionRefresh {
     pub(super) deadline_expired: bool,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct ConditionRefreshContext<'a> {
+    pub(super) daemon_generation: Uuid,
+    pub(super) boot_id: Option<&'a BootId>,
+    pub(super) now: i64,
+    pub(super) freshness_millis: u64,
+    pub(super) force: bool,
+    pub(super) evaluations: &'a ConditionEvaluations,
+}
+
 pub(super) fn insert_conditions_tx(
     transaction: &Transaction<'_>,
     job_id: JobId,
     conditions: &[crate::ConditionSpec],
     acceptance: ConditionAcceptance<'_>,
+    evaluations: &ConditionEvaluations,
 ) -> StoreResult<()> {
     for (index, spec) in conditions.iter().enumerate() {
         let condition_id = ConditionId::new(acceptance.store_uuid);
@@ -51,9 +145,10 @@ pub(super) fn insert_conditions_tx(
                 &condition_id.entity_uuid().to_string(),
                 spec,
                 acceptance.accepted_ms,
-                monotonic_now(),
+                evaluations.observed_monotonic_ms,
                 acceptance.freshness_millis,
-                true,
+                Some(evaluations),
+                index,
             )?;
         }
     }
@@ -62,58 +157,10 @@ pub(super) fn insert_conditions_tx(
 
 pub(super) fn refresh_conditions_tx(
     transaction: &Transaction<'_>,
-    daemon_generation: Uuid,
-    boot_id: Option<&BootId>,
     job_key: &str,
-    now: i64,
-    freshness_millis: u64,
-    force: bool,
+    context: ConditionRefreshContext<'_>,
 ) -> StoreResult<ConditionRefresh> {
-    let expired: Option<(String, String)> = transaction
-        .query_row(
-            "SELECT id, deadline_outcome FROM conditions
-             WHERE job_id = ?1 AND deadline_ms IS NOT NULL AND deadline_ms <= ?2
-             ORDER BY deadline_ms, condition_index LIMIT 1",
-            params![job_key, now],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .optional()?;
-    if let Some((_condition, outcome)) = expired {
-        release_reservation_tx(transaction, job_key)?;
-        transaction.execute(
-            "UPDATE attempts SET state = 'settled', verdict = ?2,
-                safety_reason = 'condition_deadline_expired', finished_ms = ?3
-             WHERE id = (SELECT attempt_id FROM jobs WHERE id = ?1)
-               AND state IN ('planned', 'admitting')",
-            params![
-                job_key,
-                if outcome == "canceled" {
-                    "canceled"
-                } else {
-                    "safety_failed"
-                },
-                now,
-            ],
-        )?;
-        transaction.execute(
-            "UPDATE conditions SET state = 'failed' WHERE job_id = ?1 AND state != 'failed'",
-            [job_key],
-        )?;
-        transaction.execute(
-            "UPDATE jobs SET state = 'final', outcome = ?2,
-                reason_code = 'condition_deadline_expired', finished_ms = ?3,
-                retry_not_before_ms = NULL, reservation_not_before_ms = NULL
-             WHERE id = ?1 AND state = 'pending'",
-            params![
-                job_key,
-                if outcome == "canceled" {
-                    "canceled"
-                } else {
-                    "failed"
-                },
-                now,
-            ],
-        )?;
+    if let Some(outcome) = expire_condition_deadline_tx(transaction, job_key, context.now)? {
         return Ok(ConditionRefresh {
             blockers: vec![Blocker {
                 code: "condition_deadline_expired".into(),
@@ -124,13 +171,15 @@ pub(super) fn refresh_conditions_tx(
         });
     }
 
-    let now_monotonic = monotonic_now();
     let mut statement = transaction.prepare(
         "SELECT id, state, spec_json,
                 (SELECT fresh_until_ms FROM observations
                  WHERE condition_id = conditions.id ORDER BY rowid DESC LIMIT 1),
                 (SELECT daemon_generation FROM observations
-                 WHERE condition_id = conditions.id ORDER BY rowid DESC LIMIT 1)
+                 WHERE condition_id = conditions.id ORDER BY rowid DESC LIMIT 1),
+                (SELECT observed_monotonic_ms FROM observations
+                 WHERE condition_id = conditions.id ORDER BY rowid DESC LIMIT 1),
+                condition_index
          FROM conditions WHERE job_id = ?1 ORDER BY condition_index",
     )?;
     let rows = statement
@@ -141,29 +190,48 @@ pub(super) fn refresh_conditions_tx(
                 row.get::<_, String>(2)?,
                 row.get::<_, Option<i64>>(3)?,
                 row.get::<_, Option<String>>(4)?,
+                row.get::<_, Option<u64>>(5)?,
+                row.get::<_, usize>(6)?,
             ))
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
     drop(statement);
     let mut changed = false;
-    for (condition_key, prior, spec_json, fresh_until, generation) in rows {
+    for (
+        condition_key,
+        prior,
+        spec_json,
+        fresh_until,
+        generation,
+        observed_monotonic,
+        condition_index,
+    ) in rows
+    {
         let spec: crate::ConditionSpec = serde_json::from_str(&spec_json)?;
-        if matches!(&spec.predicate, ConditionPredicate::Probe { .. }) {
+        if prior == "failed" || matches!(&spec.predicate, ConditionPredicate::Probe { .. }) {
             continue;
         }
-        let stale = fresh_until.is_none_or(|deadline| deadline <= now)
-            || generation.as_deref() != Some(&daemon_generation.to_string());
-        if force || stale {
+        let stale = observation_is_stale(
+            fresh_until,
+            generation.as_deref(),
+            observed_monotonic,
+            context.daemon_generation,
+            context.now,
+            context.evaluations.observed_monotonic_ms,
+            context.freshness_millis,
+        );
+        if context.force || stale {
             let state = evaluate_one_tx(
                 transaction,
-                daemon_generation,
-                boot_id,
+                context.daemon_generation,
+                context.boot_id,
                 &condition_key,
                 &spec,
-                now,
-                now_monotonic,
-                freshness_millis,
-                force,
+                context.evaluations.observed_ms,
+                context.evaluations.observed_monotonic_ms,
+                context.freshness_millis,
+                Some(context.evaluations),
+                condition_index,
             )?;
             let _ = prior;
             let _ = state;
@@ -176,6 +244,398 @@ pub(super) fn refresh_conditions_tx(
         state_changed: changed,
         deadline_expired: false,
     })
+}
+
+pub(super) fn expire_condition_deadline_tx(
+    transaction: &Transaction<'_>,
+    job_key: &str,
+    now: i64,
+) -> StoreResult<Option<String>> {
+    let expired: Option<(String, String)> = transaction
+        .query_row(
+            "SELECT id, deadline_outcome FROM conditions
+             WHERE job_id = ?1 AND state != 'failed'
+               AND deadline_ms IS NOT NULL AND deadline_ms <= ?2
+             ORDER BY deadline_ms, condition_index LIMIT 1",
+            params![job_key, now],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    if let Some((_condition, outcome)) = expired {
+        release_reservation_tx(transaction, job_key)?;
+        transaction.execute(
+            "UPDATE conditions SET state = 'failed', next_probe_ms = NULL
+             WHERE job_id = ?1 AND state != 'failed'",
+            [job_key],
+        )?;
+        finalize_pending_condition_terminal_if_ready_tx(transaction, job_key, now)?;
+        return Ok(Some(outcome));
+    }
+    Ok(None)
+}
+
+pub(super) fn job_has_live_probe_tx(
+    transaction: &Transaction<'_>,
+    job_key: &str,
+) -> StoreResult<bool> {
+    transaction
+        .query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM conditions
+                 JOIN invocations ON invocations.condition_id = conditions.id
+                 JOIN containments ON containments.invocation_id = invocations.id
+                 WHERE conditions.job_id = ?1
+                   AND invocations.role = 'probe'
+                   AND (invocations.state != 'resolved'
+                        OR containments.state IN ('creating', 'live'))
+             )",
+            [job_key],
+            |row| row.get(0),
+        )
+        .map_err(Into::into)
+}
+
+pub(super) fn finalize_pending_condition_terminal_if_ready_tx(
+    transaction: &Transaction<'_>,
+    job_key: &str,
+    now: i64,
+) -> StoreResult<bool> {
+    let (state, cancel_requested): (String, bool) = transaction.query_row(
+        "SELECT state, cancel_requested != 0 FROM jobs WHERE id = ?1",
+        [job_key],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    if state != "pending" || job_has_live_probe_tx(transaction, job_key)? {
+        return Ok(false);
+    }
+    let deadline_outcome: Option<String> = transaction
+        .query_row(
+            "SELECT deadline_outcome FROM conditions
+             WHERE job_id = ?1 AND state = 'failed'
+               AND deadline_ms IS NOT NULL
+             ORDER BY deadline_ms, condition_index LIMIT 1",
+            [job_key],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(outcome) = deadline_outcome {
+        finalize_pending_condition_terminal_tx(
+            transaction,
+            job_key,
+            &outcome,
+            Some("condition_deadline_expired"),
+            now,
+        )?;
+        return Ok(true);
+    }
+    if cancel_requested {
+        finalize_pending_condition_terminal_tx(transaction, job_key, "canceled", None, now)?;
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+pub(super) fn finalize_recovered_condition_terminals_tx(
+    transaction: &Transaction<'_>,
+    now: i64,
+) -> StoreResult<bool> {
+    let jobs = {
+        let mut statement = transaction.prepare(
+            "SELECT jobs.id FROM jobs WHERE jobs.state = 'pending'
+               AND (jobs.cancel_requested != 0 OR EXISTS(
+                   SELECT 1 FROM conditions
+                   WHERE conditions.job_id = jobs.id AND conditions.state = 'failed'
+                     AND conditions.deadline_ms IS NOT NULL
+               ))
+             ORDER BY jobs.accepted_ms, jobs.rowid",
+        )?;
+        statement
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<std::result::Result<Vec<_>, _>>()?
+    };
+    let mut changed = false;
+    for job_key in jobs {
+        changed |= finalize_pending_condition_terminal_if_ready_tx(transaction, &job_key, now)?;
+    }
+    Ok(changed)
+}
+
+pub(super) fn expire_due_condition_deadlines_tx(
+    transaction: &Transaction<'_>,
+    now: i64,
+) -> StoreResult<bool> {
+    let due = {
+        let mut statement = transaction.prepare(
+            "SELECT DISTINCT jobs.id FROM jobs
+             JOIN conditions ON conditions.job_id = jobs.id
+             WHERE jobs.state = 'pending' AND conditions.state != 'failed'
+               AND conditions.deadline_ms IS NOT NULL
+               AND conditions.deadline_ms <= ?1
+             ORDER BY jobs.accepted_ms, jobs.rowid",
+        )?;
+        statement
+            .query_map([now], |row| row.get::<_, String>(0))?
+            .collect::<std::result::Result<Vec<_>, _>>()?
+    };
+    for job_key in &due {
+        expire_condition_deadline_tx(transaction, job_key, now)?;
+    }
+    Ok(!due.is_empty())
+}
+
+pub(super) fn finalize_pending_condition_terminal_tx(
+    transaction: &Transaction<'_>,
+    job_key: &str,
+    outcome: &str,
+    reason: Option<&str>,
+    now: i64,
+) -> StoreResult<()> {
+    transaction.execute(
+        "UPDATE conditions SET next_probe_ms = NULL WHERE job_id = ?1",
+        [job_key],
+    )?;
+    transaction.execute(
+        "UPDATE attempts SET state = 'settled', verdict = ?2,
+            safety_reason = COALESCE(?3, safety_reason),
+            finished_ms = ?4
+         WHERE id = (SELECT attempt_id FROM jobs WHERE id = ?1)
+           AND state IN ('planned', 'admitting')",
+        params![
+            job_key,
+            if outcome == "canceled" {
+                "canceled"
+            } else {
+                "safety_failed"
+            },
+            reason,
+            now,
+        ],
+    )?;
+    transaction.execute(
+        "UPDATE jobs SET state = 'final', outcome = ?2, reason_code = ?3,
+            finished_ms = ?4, retry_not_before_ms = NULL,
+            reservation_not_before_ms = NULL
+         WHERE id = ?1 AND state = 'pending'",
+        params![job_key, outcome, reason, now],
+    )?;
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn repair_resolved_empty_probes_tx(
+    transaction: &Transaction<'_>,
+    store_uuid: Uuid,
+    daemon_generation: Uuid,
+    boot_id: Option<&BootId>,
+    now: i64,
+) -> StoreResult<bool> {
+    let rows = {
+        let mut statement = transaction.prepare(
+            "SELECT conditions.id, conditions.job_id, conditions.spec_json,
+                    conditions.state, invocations.id, invocations.root_exit_code,
+                    jobs.state, jobs.cancel_requested != 0
+             FROM conditions
+             JOIN invocations ON invocations.id = conditions.probe_invocation_id
+             JOIN containments ON containments.invocation_id = invocations.id
+             JOIN jobs ON jobs.id = conditions.job_id
+             WHERE invocations.state = 'resolved' AND containments.state = 'empty'
+               AND EXISTS(SELECT 1 FROM leases
+                          WHERE leases.invocation_id = invocations.id
+                            AND leases.state = 'granted')
+             ORDER BY conditions.job_id, conditions.condition_index",
+        )?;
+        statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<i32>>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, bool>(7)?,
+                ))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?
+    };
+    let changed = !rows.is_empty();
+    for (
+        condition_key,
+        job_key,
+        condition_json,
+        condition_state,
+        invocation_key,
+        exit_code,
+        job_state,
+        cancel_requested,
+    ) in rows
+    {
+        let condition: crate::ConditionSpec = serde_json::from_str(&condition_json)?;
+        let ConditionPredicate::Probe { probe } = condition.predicate else {
+            return Err(StoreError::InvalidState(
+                "resolved empty probe references a non-probe Condition".into(),
+            ));
+        };
+        // The legacy split commit did not persist whether the runner timed out. Reconstructing
+        // success from the exit code alone could release primary work after a timed-out probe, so
+        // recovery deliberately fails closed and schedules a fresh probe.
+        let accepted = false;
+        transaction.execute(
+            "UPDATE invocations SET exit_classification = COALESCE(exit_classification, ?2)
+             WHERE id = ?1",
+            params![invocation_key, if accepted { "accepted" } else { "failed" }],
+        )?;
+        let observation_id = ObservationId::new(store_uuid);
+        let monotonic = monotonic_now_for_recovery();
+        transaction.execute(
+            "INSERT INTO observations(
+                id, condition_id, observed_ms, observed_monotonic_ms, boot_id,
+                daemon_generation, fresh_until_ms, source, value_json
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?3, 'probe', ?7)",
+            params![
+                observation_id.entity_uuid().to_string(),
+                condition_key,
+                now,
+                monotonic,
+                boot_id.map(|boot| boot.0.as_str()),
+                daemon_generation.to_string(),
+                serde_json::to_string(&ConditionObservationValue::Probe {
+                    exit_code,
+                    timed_out: false,
+                    accepted,
+                })?,
+            ],
+        )?;
+        transaction.execute(
+            "DELETE FROM observations WHERE condition_id = ?1 AND id NOT IN (
+                 SELECT id FROM observations WHERE condition_id = ?1
+                 ORDER BY rowid DESC LIMIT ?2
+             )",
+            params![condition_key, MAX_RETAINED_OBSERVATIONS_PER_CONDITION],
+        )?;
+        let next_probe = (!accepted && job_state == "pending" && !cancel_requested).then(|| {
+            now.saturating_add(
+                i64::try_from(probe.interval_seconds.saturating_mul(1_000)).unwrap_or(i64::MAX),
+            )
+        });
+        transaction.execute(
+            "UPDATE conditions SET state = ?2, probe_invocation_id = NULL,
+                next_probe_ms = ?3 WHERE id = ?1",
+            params![
+                condition_key,
+                if condition_state == "failed" || job_state != "pending" {
+                    condition_state.as_str()
+                } else if accepted {
+                    "satisfied"
+                } else {
+                    "waiting"
+                },
+                next_probe,
+            ],
+        )?;
+        transaction.execute(
+            "UPDATE leases SET state = 'released'
+             WHERE invocation_id = ?1 AND state = 'granted'",
+            [invocation_key],
+        )?;
+        finalize_pending_condition_terminal_if_ready_tx(transaction, &job_key, now)?;
+    }
+    Ok(changed)
+}
+
+#[derive(Debug)]
+struct PrunedProbeLog {
+    job_key: String,
+    invocation_key: String,
+}
+
+fn prune_resolved_probe_history_tx(
+    transaction: &Transaction<'_>,
+    condition_key: &str,
+) -> StoreResult<Vec<PrunedProbeLog>> {
+    let stale = {
+        let mut statement = transaction.prepare(
+            "SELECT jobs.id, invocations.id FROM invocations
+             JOIN containments ON containments.invocation_id = invocations.id
+             JOIN attempts ON attempts.id = invocations.attempt_id
+             JOIN jobs ON jobs.id = attempts.job_id
+             WHERE invocations.condition_id = ?1 AND invocations.state = 'resolved'
+               AND containments.state IN ('empty', 'cleared')
+               AND NOT EXISTS(SELECT 1 FROM leases
+                              WHERE leases.invocation_id = invocations.id
+                                AND leases.state = 'granted')
+               AND NOT EXISTS(SELECT 1 FROM events
+                              WHERE events.invocation_id = invocations.id)
+             ORDER BY invocations.rowid DESC
+             LIMIT -1 OFFSET ?2",
+        )?;
+        statement
+            .query_map(
+                params![condition_key, MAX_RETAINED_PROBE_INVOCATIONS_PER_CONDITION],
+                |row| {
+                    Ok(PrunedProbeLog {
+                        job_key: row.get(0)?,
+                        invocation_key: row.get(1)?,
+                    })
+                },
+            )?
+            .collect::<std::result::Result<Vec<_>, _>>()?
+    };
+    for stale_probe in &stale {
+        transaction.execute(
+            "INSERT OR IGNORE INTO probe_log_gc(invocation_id, job_id) VALUES (?1, ?2)",
+            params![stale_probe.invocation_key, stale_probe.job_key],
+        )?;
+        transaction.execute(
+            "DELETE FROM leases WHERE invocation_id = ?1 AND state = 'released'",
+            [&stale_probe.invocation_key],
+        )?;
+        transaction.execute(
+            "DELETE FROM containments WHERE invocation_id = ?1
+               AND state IN ('empty', 'cleared')",
+            [&stale_probe.invocation_key],
+        )?;
+        transaction.execute(
+            "DELETE FROM invocations WHERE id = ?1 AND state = 'resolved'",
+            [&stale_probe.invocation_key],
+        )?;
+    }
+    Ok(stale)
+}
+
+fn remove_probe_log(path: &Path) -> bool {
+    match std::fs::remove_file(path) {
+        Ok(()) => true,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
+        Err(_) => false,
+    }
+}
+
+fn remove_pruned_probe_logs(
+    paths: &StorePaths,
+    store_uuid: Uuid,
+    stale: &[PrunedProbeLog],
+) -> Vec<String> {
+    let mut completed = Vec::new();
+    for stale_probe in stale {
+        let directory = paths.logs.join(&stale_probe.job_key);
+        let durable_invocation = format!("{store_uuid}~{}", stale_probe.invocation_key);
+        let stdout_removed =
+            remove_probe_log(&directory.join(format!("{durable_invocation}.stdout")));
+        let stderr_removed =
+            remove_probe_log(&directory.join(format!("{durable_invocation}.stderr")));
+        if stdout_removed && stderr_removed {
+            completed.push(stale_probe.invocation_key.clone());
+        }
+    }
+    completed
+}
+
+fn monotonic_now_for_recovery() -> u64 {
+    crate::host_observation::observation_clock()
+        .map(|(_, monotonic)| monotonic)
+        .unwrap_or(0)
 }
 
 pub(super) fn reset_conditions_for_retry_tx(
@@ -227,44 +687,54 @@ fn evaluate_one_tx(
     observed_ms: i64,
     observed_monotonic_ms: u64,
     freshness_millis: u64,
-    _force: bool,
+    evaluations: Option<&ConditionEvaluations>,
+    condition_index: usize,
 ) -> StoreResult<String> {
     let (value, state, transition_armed, source) = match &spec.predicate {
-        ConditionPredicate::PathExists { path } => match path_presence(path) {
-            Ok(exists) => (
-                ConditionObservationValue::Path { exists },
-                if exists { "satisfied" } else { "waiting" },
+        ConditionPredicate::PathExists { .. } => match evaluations
+            .ok_or_else(|| StoreError::InvalidState("missing Condition evaluations".into()))?
+            .path(condition_index)?
+        {
+            PathInspection::Present(exists) => (
+                ConditionObservationValue::Path { exists: *exists },
+                if *exists { "satisfied" } else { "waiting" },
                 None,
                 ConditionObservationSource::FilesystemRescan,
             ),
-            Err(error) => (
+            PathInspection::Invalidated(error) => (
                 ConditionObservationValue::Invalidated {
-                    reason: format!("filesystem rescan failed: {error}"),
+                    reason: error.clone(),
                 },
                 "waiting",
                 None,
                 ConditionObservationSource::Invalidation,
             ),
         },
-        ConditionPredicate::PathAbsent { path } => match path_presence(path) {
-            Ok(exists) => (
-                ConditionObservationValue::Path { exists },
-                if exists { "waiting" } else { "satisfied" },
+        ConditionPredicate::PathAbsent { .. } => match evaluations
+            .ok_or_else(|| StoreError::InvalidState("missing Condition evaluations".into()))?
+            .path(condition_index)?
+        {
+            PathInspection::Present(exists) => (
+                ConditionObservationValue::Path { exists: *exists },
+                if *exists { "waiting" } else { "satisfied" },
                 None,
                 ConditionObservationSource::FilesystemRescan,
             ),
-            Err(error) => (
+            PathInspection::Invalidated(error) => (
                 ConditionObservationValue::Invalidated {
-                    reason: format!("filesystem rescan failed: {error}"),
+                    reason: error.clone(),
                 },
                 "waiting",
                 None,
                 ConditionObservationSource::Invalidation,
             ),
         },
-        ConditionPredicate::PathTransition { path, from, to } => match path_presence(path) {
-            Ok(exists) => {
-                let current = if exists {
+        ConditionPredicate::PathTransition { from, to, .. } => match evaluations
+            .ok_or_else(|| StoreError::InvalidState("missing Condition evaluations".into()))?
+            .path(condition_index)?
+        {
+            PathInspection::Present(exists) => {
+                let current = if *exists {
                     crate::PathConditionState::Present
                 } else {
                     crate::PathConditionState::Absent
@@ -282,20 +752,31 @@ fn evaluate_one_tx(
                 // present/absent add the corresponding level Condition to the AND-set.
                 let satisfied = previously_satisfied || (armed && current == *to);
                 (
-                    ConditionObservationValue::Path { exists },
+                    ConditionObservationValue::Path { exists: *exists },
                     if satisfied { "satisfied" } else { "waiting" },
                     Some(armed),
                     ConditionObservationSource::FilesystemRescan,
                 )
             }
-            Err(error) => (
-                ConditionObservationValue::Invalidated {
-                    reason: format!("filesystem rescan failed: {error}"),
-                },
-                "waiting",
-                None,
-                ConditionObservationSource::Invalidation,
-            ),
+            PathInspection::Invalidated(error) => {
+                let previously_satisfied: bool = transaction.query_row(
+                    "SELECT state = 'satisfied' FROM conditions WHERE id = ?1",
+                    [condition_key],
+                    |row| row.get(0),
+                )?;
+                (
+                    ConditionObservationValue::Invalidated {
+                        reason: error.clone(),
+                    },
+                    if previously_satisfied {
+                        "satisfied"
+                    } else {
+                        "waiting"
+                    },
+                    None,
+                    ConditionObservationSource::Invalidation,
+                )
+            }
         },
         ConditionPredicate::NotBefore { unix_millis } => {
             let reached = observed_ms >= *unix_millis;
@@ -333,6 +814,13 @@ fn evaluate_one_tx(
         ],
     )?;
     transaction.execute(
+        "DELETE FROM observations WHERE condition_id = ?1 AND id NOT IN (
+             SELECT id FROM observations WHERE condition_id = ?1
+             ORDER BY rowid DESC LIMIT ?2
+         )",
+        params![condition_key, MAX_RETAINED_OBSERVATIONS_PER_CONDITION],
+    )?;
+    transaction.execute(
         "UPDATE conditions SET state = ?2,
             transition_armed = COALESCE(?3, transition_armed) WHERE id = ?1",
         params![condition_key, state, transition_armed],
@@ -341,6 +829,116 @@ fn evaluate_one_tx(
 }
 
 impl Store {
+    fn retry_pruned_probe_logs(&mut self) -> StoreResult<()> {
+        let stale = {
+            let mut statement = self.connection.prepare(
+                "SELECT job_id, invocation_id FROM probe_log_gc
+                 ORDER BY attempt_count, rowid LIMIT 256",
+            )?;
+            statement
+                .query_map([], |row| {
+                    Ok(PrunedProbeLog {
+                        job_key: row.get(0)?,
+                        invocation_key: row.get(1)?,
+                    })
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        if stale.is_empty() {
+            return Ok(());
+        }
+        let completed = remove_pruned_probe_logs(&self.paths, self.store_uuid, &stale)
+            .into_iter()
+            .collect::<std::collections::HashSet<_>>();
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        for stale_probe in stale {
+            if completed.contains(&stale_probe.invocation_key) {
+                transaction.execute(
+                    "DELETE FROM probe_log_gc WHERE invocation_id = ?1",
+                    [stale_probe.invocation_key],
+                )?;
+            } else {
+                transaction.execute(
+                    "UPDATE probe_log_gc SET attempt_count = CASE
+                         WHEN attempt_count = 9223372036854775807 THEN 0
+                         ELSE attempt_count + 1 END
+                     WHERE invocation_id = ?1",
+                    [stale_probe.invocation_key],
+                )?;
+            }
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
+    pub(super) fn prune_condition_history(&mut self) -> StoreResult<()> {
+        let condition_keys = {
+            let mut statement = self.connection.prepare(
+                "SELECT invocations.condition_id FROM invocations
+                 JOIN containments ON containments.invocation_id = invocations.id
+                 WHERE invocations.role = 'probe'
+                   AND invocations.condition_id IS NOT NULL
+                   AND invocations.state = 'resolved'
+                   AND containments.state IN ('empty', 'cleared')
+                   AND NOT EXISTS(SELECT 1 FROM leases
+                                  WHERE leases.invocation_id = invocations.id
+                                    AND leases.state = 'granted')
+                   AND NOT EXISTS(SELECT 1 FROM events
+                                  WHERE events.invocation_id = invocations.id)
+                 GROUP BY invocations.condition_id
+                 HAVING COUNT(*) > ?1",
+            )?;
+            statement
+                .query_map([MAX_RETAINED_PROBE_INVOCATIONS_PER_CONDITION], |row| {
+                    row.get::<_, String>(0)
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        if !condition_keys.is_empty() {
+            let transaction = self
+                .connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)?;
+            for condition_key in condition_keys {
+                prune_resolved_probe_history_tx(&transaction, &condition_key)?;
+            }
+            transaction.commit()?;
+        }
+        self.retry_pruned_probe_logs()
+    }
+
+    pub(super) fn expire_job_condition_deadline(
+        &mut self,
+        job_id: JobId,
+        now: i64,
+    ) -> StoreResult<bool> {
+        let job_key = self.local_id(job_id)?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let changed = expire_condition_deadline_tx(&transaction, &job_key, now)?.is_some();
+        if changed {
+            transaction.commit()?;
+        } else {
+            transaction.rollback()?;
+        }
+        Ok(changed)
+    }
+
+    pub(super) fn expire_due_condition_deadlines(&mut self, now: i64) -> StoreResult<bool> {
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let changed = expire_due_condition_deadlines_tx(&transaction, now)?;
+        if changed {
+            transaction.commit()?;
+        } else {
+            transaction.rollback()?;
+        }
+        Ok(changed)
+    }
+
     pub(super) fn condition_snapshots(&self, job_id: JobId) -> StoreResult<Vec<ConditionSnapshot>> {
         let mut statement = self.connection.prepare(
             "SELECT conditions.id, conditions.condition_index, conditions.state,
@@ -453,9 +1051,9 @@ impl Store {
         &mut self,
         job_id: JobId,
         original_spec: &JobSpec,
-        now: i64,
         observation: Option<crate::host_observation::ObservationMoment<'_>>,
     ) -> StoreResult<Option<PreparedJob>> {
+        let now = now_millis();
         let store_uuid = self.store_uuid;
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
@@ -474,6 +1072,11 @@ impl Store {
                    AND next_probe_ms IS NOT NULL AND next_probe_ms <= ?2
                    AND probe_invocation_id IS NULL
                    AND (deadline_ms IS NULL OR deadline_ms > ?2)
+                   AND EXISTS(
+                       SELECT 1 FROM jobs
+                       WHERE jobs.id = conditions.job_id AND jobs.state = 'pending'
+                         AND jobs.cancel_requested = 0
+                   )
                  ORDER BY condition_index LIMIT 1",
                 params![job_key, now],
                 |row| {
@@ -668,24 +1271,39 @@ impl Store {
             StoreError::InvalidState("probe Invocation has no Condition identity".into())
         })?;
         let now = now_millis();
+        // Diagnostic reads are deliberately outside the authoritative write transaction. A tail
+        // read failure is represented in-band and cannot split probe cleanup into two commits.
+        let stdout_tail = read_diagnostic_tail(&probe_job.stdout_path)
+            .unwrap_or_else(|error| format!("[stillyard stdout tail unavailable: {error}]"));
+        let stderr_tail = read_diagnostic_tail(&probe_job.stderr_path)
+            .unwrap_or_else(|error| format!("[stillyard stderr tail unavailable: {error}]"));
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let (condition_json, current_probe, condition_state, job_state): (
+        let (condition_json, current_probe, condition_state, job_state, cancel_requested): (
             String,
             Option<String>,
             String,
             String,
+            bool,
         ) = transaction.query_row(
             "SELECT conditions.spec_json, conditions.probe_invocation_id,
-                        conditions.state, jobs.state
+                        conditions.state, jobs.state, jobs.cancel_requested != 0
                  FROM conditions JOIN jobs ON jobs.id = conditions.job_id
                  WHERE conditions.id = ?1 AND conditions.job_id = ?2",
             params![
                 condition_id.entity_uuid().to_string(),
                 probe_job.job_id.entity_uuid().to_string(),
             ],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
         )?;
         if current_probe.as_deref()
             != Some(probe_job.invocation_id.entity_uuid().to_string().as_str())
@@ -693,6 +1311,19 @@ impl Store {
             return Err(StoreError::InvalidState(
                 "resolved probe is not the Condition's unresolved Invocation".into(),
             ));
+        }
+        let containment_state: String = transaction.query_row(
+            "SELECT state FROM containments WHERE id = ?1 AND invocation_id = ?2",
+            params![
+                probe_job.containment_id.entity_uuid().to_string(),
+                probe_job.invocation_id.entity_uuid().to_string(),
+            ],
+            |row| row.get(0),
+        )?;
+        if !matches!(containment_state.as_str(), "creating" | "live") {
+            return Err(StoreError::InvalidState(format!(
+                "probe cannot settle without an owned empty proof from {containment_state}"
+            )));
         }
         let condition: crate::ConditionSpec = serde_json::from_str(&condition_json)?;
         let ConditionPredicate::Probe { probe } = condition.predicate else {
@@ -708,11 +1339,24 @@ impl Store {
             accepted,
         };
         transaction.execute(
-            "UPDATE invocations SET exit_classification = ?2 WHERE id = ?1",
+            "UPDATE invocations SET state = 'resolved',
+                root_exit_code = COALESCE(?2, root_exit_code),
+                exit_classification = ?3, finished_ms = ?4,
+                stdout_tail = ?5, stderr_tail = ?6
+             WHERE id = ?1 AND state IN ('prepared', 'started', 'exited', 'resolved')",
             params![
                 probe_job.invocation_id.entity_uuid().to_string(),
+                exit_code,
                 if accepted { "accepted" } else { "failed" },
+                now,
+                stdout_tail,
+                stderr_tail,
             ],
+        )?;
+        transaction.execute(
+            "UPDATE containments SET state = 'empty'
+             WHERE id = ?1 AND state IN ('creating', 'live')",
+            [probe_job.containment_id.entity_uuid().to_string()],
         )?;
         let (_, monotonic) = crate::host_observation::observation_clock().unwrap_or((now, 0));
         let observation_id = ObservationId::new(self.store_uuid);
@@ -734,12 +1378,26 @@ impl Store {
                 serde_json::to_string(&value)?,
             ],
         )?;
-        let next_probe = (!accepted && job_state == "pending").then(|| {
-            now.saturating_add(
-                i64::try_from(probe.interval_seconds.saturating_mul(1_000)).unwrap_or(i64::MAX),
-            )
-        });
-        let next_state = if job_state != "pending" {
+        transaction.execute(
+            "DELETE FROM observations WHERE condition_id = ?1 AND id NOT IN (
+                 SELECT id FROM observations WHERE condition_id = ?1
+                 ORDER BY rowid DESC LIMIT ?2
+             )",
+            params![
+                condition_id.entity_uuid().to_string(),
+                MAX_RETAINED_OBSERVATIONS_PER_CONDITION
+            ],
+        )?;
+        let next_probe = (!accepted
+            && condition_state != "failed"
+            && job_state == "pending"
+            && !cancel_requested)
+            .then(|| {
+                now.saturating_add(
+                    i64::try_from(probe.interval_seconds.saturating_mul(1_000)).unwrap_or(i64::MAX),
+                )
+            });
+        let next_state = if condition_state == "failed" || job_state != "pending" {
             condition_state.as_str()
         } else if accepted {
             "satisfied"
@@ -760,7 +1418,16 @@ impl Store {
              WHERE invocation_id = ?1 AND state = 'granted'",
             [probe_job.invocation_id.entity_uuid().to_string()],
         )?;
+        finalize_pending_condition_terminal_if_ready_tx(
+            &transaction,
+            &probe_job.job_id.entity_uuid().to_string(),
+            now,
+        )?;
         transaction.commit()?;
+        // History GC is ancillary to the already committed authoritative probe settlement. A GC
+        // failure must not make the runner retain an empty boundary or retry a non-replayable
+        // settlement call.
+        let _ = self.prune_condition_history();
         Ok(())
     }
 
@@ -806,6 +1473,8 @@ impl Store {
              WHERE id = ?1",
             [condition_id.entity_uuid().to_string()],
         )?;
+        let job_key = probe_job.job_id.entity_uuid().to_string();
+        finalize_pending_condition_terminal_if_ready_tx(&transaction, &job_key, now_millis())?;
         transaction.commit()?;
         Ok(())
     }
@@ -829,18 +1498,104 @@ fn deadline_outcome_string(outcome: ConditionDeadlineOutcome) -> &'static str {
     }
 }
 
-fn path_presence(path: &Path) -> std::io::Result<bool> {
-    match std::fs::symlink_metadata(path) {
-        Ok(_) => Ok(true),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(error),
+fn condition_path(condition: &crate::ConditionSpec) -> Option<&Path> {
+    match &condition.predicate {
+        ConditionPredicate::PathExists { path }
+        | ConditionPredicate::PathAbsent { path }
+        | ConditionPredicate::PathTransition { path, .. } => Some(path),
+        ConditionPredicate::NotBefore { .. } | ConditionPredicate::Probe { .. } => None,
     }
 }
 
-fn monotonic_now() -> u64 {
-    crate::host_observation::observation_clock()
-        .map(|(_, monotonic)| monotonic)
-        .unwrap_or(0)
+fn inspect_path_bounded(path: &Path, timeout: Duration) -> PathInspection {
+    #[cfg(test)]
+    if path.file_name() == Some(std::ffi::OsStr::new("stillyard-test-slow-condition")) {
+        std::thread::sleep(Duration::from_millis(150));
+        return PathInspection::Present(false);
+    }
+
+    struct Request {
+        path: PathBuf,
+        response: std::sync::mpsc::SyncSender<std::io::Result<bool>>,
+    }
+    static INSPECTOR: std::sync::OnceLock<
+        std::result::Result<std::sync::mpsc::SyncSender<Request>, String>,
+    > = std::sync::OnceLock::new();
+
+    let sender = INSPECTOR.get_or_init(|| {
+        let (sender, receiver) = std::sync::mpsc::sync_channel::<Request>(PATH_INSPECTION_QUEUE);
+        let receiver = std::sync::Arc::new(std::sync::Mutex::new(receiver));
+        for index in 0..PATH_INSPECTION_WORKERS {
+            let receiver = std::sync::Arc::clone(&receiver);
+            std::thread::Builder::new()
+                .name(format!("stillyard-path-inspector-{index}"))
+                .spawn(move || {
+                    loop {
+                        let request = match receiver.lock() {
+                            Ok(receiver) => receiver.recv(),
+                            Err(_) => return,
+                        };
+                        let Ok(request) = request else {
+                            return;
+                        };
+                        let result = match std::fs::symlink_metadata(&request.path) {
+                            Ok(_) => Ok(true),
+                            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+                            Err(error) => Err(error),
+                        };
+                        let _ = request.response.send(result);
+                    }
+                })
+                .map_err(|error| format!("filesystem inspector unavailable: {error}"))?;
+        }
+        Ok(sender)
+    });
+    let sender = match sender {
+        Ok(sender) => sender,
+        Err(error) => return PathInspection::Invalidated(error.clone()),
+    };
+    let (response, receiver) = std::sync::mpsc::sync_channel(1);
+    if sender
+        .try_send(Request {
+            path: path.to_path_buf(),
+            response,
+        })
+        .is_err()
+    {
+        return PathInspection::Invalidated(
+            "filesystem rescan deferred because the bounded inspector is busy".into(),
+        );
+    }
+    match receiver.recv_timeout(timeout) {
+        Ok(Ok(exists)) => PathInspection::Present(exists),
+        Ok(Err(error)) => PathInspection::Invalidated(format!("filesystem rescan failed: {error}")),
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => PathInspection::Invalidated(format!(
+            "filesystem rescan exceeded the {}ms provider bound",
+            PATH_INSPECTION_TIMEOUT.as_millis()
+        )),
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            PathInspection::Invalidated("filesystem inspector disconnected".into())
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn observation_is_stale(
+    fresh_until: Option<i64>,
+    generation: Option<&str>,
+    observed_monotonic: Option<u64>,
+    daemon_generation: Uuid,
+    now: i64,
+    now_monotonic: u64,
+    freshness_millis: u64,
+) -> bool {
+    generation != Some(daemon_generation.to_string().as_str())
+        || fresh_until.is_none_or(|deadline| deadline <= now)
+        || observed_monotonic.is_none_or(|observed| {
+            now_monotonic
+                .checked_sub(observed)
+                .is_none_or(|elapsed| elapsed >= freshness_millis)
+        })
 }
 
 fn observation_source_string(source: ConditionObservationSource) -> &'static str {

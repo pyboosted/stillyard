@@ -49,6 +49,8 @@ thread_local! {
     static FORCE_PRESTART_FAILURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static FORCE_IMAGE_MISMATCH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static FORCE_WAIT_JOB_EMPTY_FAILURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static FORCE_RESUME_FAILURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static FORCE_STOPPED_ROOT_WAIT_FAILURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 struct OwnedHandle(HANDLE);
@@ -163,6 +165,7 @@ impl Drop for AttributeList {
 #[derive(Default)]
 struct RunProgress {
     user_code_released: bool,
+    durable_release_authorized: bool,
     release_authorized: bool,
     pre_release_replanned: bool,
     cleanup_proven: bool,
@@ -170,6 +173,7 @@ struct RunProgress {
     exit_code: Option<i32>,
     timed_out: bool,
     canceled: bool,
+    never_run_reason: Option<String>,
 }
 
 enum GuardedRelease {
@@ -179,6 +183,11 @@ enum GuardedRelease {
     Deferred {
         reason: String,
     },
+}
+
+struct PendingStop {
+    verdict: AttemptVerdict,
+    reason: String,
 }
 
 type RunResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -260,9 +269,9 @@ pub(super) fn run_with_wake(
 
     if !matches!(verdict, AttemptVerdict::Canceled | AttemptVerdict::TimedOut) {
         for index in 0..job.spec.postconditions.len() {
-            match pending_stop_verdict(job, store) {
+            match pending_stop_verdict(job, store, false) {
                 Ok(Some(stop)) => {
-                    verdict = stop;
+                    verdict = stop.verdict;
                     break;
                 }
                 Ok(None) => {}
@@ -418,10 +427,7 @@ fn run_probe_with_wake(
             let settled = store
                 .lock()
                 .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-                .and_then(|mut locked| {
-                    locked.mark_invocation_resolved(job, Some(exit_code as i32), None)?;
-                    locked.settle_probe(job, Some(exit_code as i32), timed_out)
-                });
+                .and_then(|mut locked| locked.settle_probe(job, Some(exit_code as i32), timed_out));
             match settled {
                 Ok(()) => live_containments.clear(job.invocation_id),
                 Err(error) => report_runner_error(job, &error),
@@ -433,7 +439,6 @@ fn run_probe_with_wake(
                     .lock()
                     .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
                     .and_then(|mut locked| {
-                        locked.mark_invocation_resolved(job, progress.exit_code, None)?;
                         locked.settle_probe(job, progress.exit_code, progress.timed_out)
                     });
                 match settled {
@@ -470,14 +475,27 @@ fn run(job: &PreparedJob, store: &Arc<Mutex<Store>>, endpoint: &str) {
 fn pending_stop_verdict(
     job: &PreparedJob,
     store: &Arc<Mutex<Store>>,
-) -> RunResult<Option<AttemptVerdict>> {
-    if store
+    preserve_readiness_terminal: bool,
+) -> RunResult<Option<PendingStop>> {
+    let mut locked = store
         .lock()
-        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
-        .invocation_stop_requested(job.job_id)?
-    {
-        return Ok(Some(AttemptVerdict::Canceled));
+        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+    if preserve_readiness_terminal {
+        if let Some(reason) = locked.pre_resume_defer_reason(job.job_id)? {
+            let verdict = if reason.contains("outcome=failed") {
+                AttemptVerdict::SafetyFailed
+            } else {
+                AttemptVerdict::Canceled
+            };
+            return Ok(Some(PendingStop { verdict, reason }));
+        }
+    } else if locked.invocation_stop_requested(job.job_id)? {
+        return Ok(Some(PendingStop {
+            verdict: AttemptVerdict::Canceled,
+            reason: "cancel_requested".into(),
+        }));
     }
+    drop(locked);
     let now: i64 = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -487,7 +505,10 @@ fn pending_stop_verdict(
     Ok(job
         .attempt_deadline_unix_millis
         .is_some_and(|deadline| deadline <= now)
-        .then_some(AttemptVerdict::TimedOut))
+        .then_some(PendingStop {
+            verdict: AttemptVerdict::TimedOut,
+            reason: "attempt_timeout".into(),
+        }))
 }
 
 fn finish_completed_invocation(
@@ -546,6 +567,17 @@ fn finish_failed_invocation(
 ) {
     if let Ok(mut locked) = store.lock() {
         if progress.cleanup_proven {
+            if let Some(reason) = progress
+                .never_run_reason
+                .as_deref()
+                .filter(|_| !progress.user_code_released)
+            {
+                match locked.replan_never_run(job, reason) {
+                    Ok(()) => live_containments.clear(job.invocation_id),
+                    Err(error) => report_runner_error(job, &error),
+                }
+                return;
+            }
             let failed_verdict = failed_run_verdict(progress);
             let verdict = if postcondition && failed_verdict == AttemptVerdict::StartFailed {
                 AttemptVerdict::PostconditionFailed
@@ -624,6 +656,71 @@ fn record_primary_result(
         }
     };
     store.record_primary_result(job, invocation_verdict, termination)
+}
+
+fn authorize_condition_and_resume(
+    job: &PreparedJob,
+    store: &Arc<Mutex<Store>>,
+    host_observation: &crate::host_observation::HostObservationService,
+    thread_handle: HANDLE,
+    observation: Option<crate::host_observation::ObservationMoment<'_>>,
+    progress: &mut RunProgress,
+) -> RunResult<GuardedRelease> {
+    let mut locked = store
+        .lock()
+        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+    Ok(
+        match locked.authorize_condition_release(job, observation)? {
+            crate::store::ReleaseAuthorization::Authorized {
+                runtime_deadline_unix_millis,
+                evidence_expires_monotonic_millis,
+            } => {
+                progress.durable_release_authorized = true;
+                if let Some(reason) = locked.pre_resume_defer_reason(job.job_id)? {
+                    GuardedRelease::Deferred { reason }
+                } else {
+                    let (wall_now, monotonic_now) = crate::host_observation::observation_clock()?;
+                    let discontinuity = observation.is_some_and(|observation| {
+                        let wall_delta = wall_now
+                            .checked_sub(observation.sample.captured_unix_millis)
+                            .and_then(|delta| u64::try_from(delta).ok());
+                        let monotonic_delta =
+                            monotonic_now.checked_sub(observation.sample.captured_monotonic_millis);
+                        wall_delta
+                            .zip(monotonic_delta)
+                            .is_none_or(|(wall, monotonic)| {
+                                wall.abs_diff(monotonic)
+                                    > host_observation.release_discontinuity_limit_millis()
+                            })
+                    });
+                    if monotonic_now >= evidence_expires_monotonic_millis || discontinuity {
+                        GuardedRelease::Deferred {
+                        reason: "Condition/host release evidence expired or the clock changed before resume".into(),
+                    }
+                    } else {
+                        #[cfg(test)]
+                        let force_resume_failure = FORCE_RESUME_FAILURE.replace(false);
+                        #[cfg(not(test))]
+                        let force_resume_failure = false;
+                        // SAFETY: the primary remains suspended in its complete Job Object; the
+                        // Store mutex orders cancellation/deadline commits after this release point.
+                        if force_resume_failure
+                            || unsafe { ResumeThread(thread_handle) } == u32::MAX
+                        {
+                            return Err(std::io::Error::last_os_error().into());
+                        }
+                        progress.release_authorized = true;
+                        GuardedRelease::Resumed {
+                            runtime_deadline_unix_millis,
+                        }
+                    }
+                }
+            }
+            crate::store::ReleaseAuthorization::Deferred { reason } => {
+                GuardedRelease::Deferred { reason }
+            }
+        },
+    )
 }
 
 fn report_runner_error(job: &PreparedJob, error: &dyn std::error::Error) {
@@ -825,30 +922,47 @@ fn run_inner(
 
     let execution = (|| -> RunResult<(u32, bool)> {
         let mut runtime_deadline_unix_millis = job.attempt_deadline_unix_millis;
-        let stop_before_resume = pending_stop_verdict(job, store)?;
-        let mut timed_out = stop_before_resume == Some(AttemptVerdict::TimedOut);
+        let stop_before_resume = pending_stop_verdict(
+            job,
+            store,
+            job.role == InvocationRole::Primary
+                && (job.spec.quiet.is_some() || !job.spec.conditions.is_empty()),
+        )?;
+        let mut timed_out = stop_before_resume
+            .as_ref()
+            .is_some_and(|stop| stop.verdict == AttemptVerdict::TimedOut);
         if let Some(stop) = stop_before_resume {
-            progress.canceled = stop == AttemptVerdict::Canceled;
+            progress.canceled = stop.verdict == AttemptVerdict::Canceled;
             progress.timed_out = timed_out;
+            if job.spec.quiet.is_some() || !job.spec.conditions.is_empty() {
+                progress.never_run_reason = Some(stop.reason.clone());
+            }
             let exit_code = if progress.canceled { 22 } else { 21 };
             // SAFETY: the process is still suspended and born-contained. No user code runs
             // after a cancel/deadline that won between preparation and release.
             unsafe { TerminateJobObject(job_object.raw(), exit_code) };
             // SAFETY: process_handle remains valid.
-            if unsafe { WaitForSingleObject(process_handle.raw(), 30_000) } != WAIT_OBJECT_0 {
+            let root_wait = unsafe { WaitForSingleObject(process_handle.raw(), 30_000) };
+            #[cfg(test)]
+            let root_wait = if FORCE_STOPPED_ROOT_WAIT_FAILURE.replace(false) {
+                WAIT_TIMEOUT
+            } else {
+                root_wait
+            };
+            if root_wait != WAIT_OBJECT_0 {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
                     "stopped suspended root did not exit within cleanup bound",
                 )
                 .into());
             }
-            if job.spec.quiet.is_some() {
+            if job.spec.quiet.is_some() || !job.spec.conditions.is_empty() {
                 wait_job_empty(job_object.raw(), Duration::from_secs(30))?;
                 progress.cleanup_proven = true;
                 store
                     .lock()
                     .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
-                    .replan_never_run(job, "cancel_requested")?;
+                    .replan_never_run(job, &stop.reason)?;
                 live_containments.clear(job.invocation_id);
                 progress.pre_release_replanned = true;
                 return Ok((0, false));
@@ -868,9 +982,9 @@ fn run_inner(
                             sample,
                             now_unix_millis: authorization_wall,
                             now_monotonic_millis: authorization_monotonic,
+                            live_clock: true,
                         },
                     )?;
-                    drop(locked);
                     let crate::store::ReleaseAuthorization::Authorized {
                         runtime_deadline_unix_millis,
                         evidence_expires_monotonic_millis,
@@ -882,7 +996,7 @@ fn run_inner(
                         };
                         return Ok(GuardedRelease::Deferred { reason });
                     };
-                    progress.release_authorized = true;
+                    progress.durable_release_authorized = true;
                     let (wall_now, monotonic_now) = crate::host_observation::observation_clock()?;
                     let wall_delta = wall_now
                         .checked_sub(sample.captured_unix_millis)
@@ -893,30 +1007,41 @@ fn run_inner(
                         .ok_or_else(|| {
                             std::io::Error::other("release monotonic clock regressed")
                         })?;
-                    if monotonic_now > evidence_expires_monotonic_millis
+                    if let Some(reason) = locked.pre_resume_defer_reason(job.job_id)? {
+                        return Ok(GuardedRelease::Deferred { reason });
+                    }
+                    if monotonic_now >= evidence_expires_monotonic_millis
                         || wall_delta.abs_diff(monotonic_delta)
                             > host_observation.release_discontinuity_limit_millis()
                     {
-                        return Err(std::io::Error::other(
-                            "authorized release evidence expired or clock discontinuity occurred",
-                        )
-                        .into());
+                        return Ok(GuardedRelease::Deferred {
+                            reason:
+                                "authorized release evidence expired or clock discontinuity occurred"
+                                    .into(),
+                        });
                     }
                     // SAFETY: the primary thread is valid, remains suspended, and the release
                     // barrier prevents provider generation changes through this call.
-                    if unsafe { ResumeThread(thread_handle.raw()) } == u32::MAX {
+                    #[cfg(test)]
+                    let force_resume_failure = FORCE_RESUME_FAILURE.replace(false);
+                    #[cfg(not(test))]
+                    let force_resume_failure = false;
+                    if force_resume_failure
+                        || unsafe { ResumeThread(thread_handle.raw()) } == u32::MAX
+                    {
                         return Err(std::io::Error::last_os_error().into());
                     }
+                    progress.release_authorized = true;
                     Ok(GuardedRelease::Resumed {
                         runtime_deadline_unix_millis,
                     })
                 },
             ) {
                 Ok(Ok(guarded)) => guarded,
-                Ok(Err(error)) if !progress.release_authorized => GuardedRelease::Deferred {
+                Ok(Err(error)) if !progress.durable_release_authorized => GuardedRelease::Deferred {
                     reason: format!("pre-release authorization failed: {error}"),
                 },
-                Err(error) if !progress.release_authorized => GuardedRelease::Deferred {
+                Err(error) if !progress.durable_release_authorized => GuardedRelease::Deferred {
                     reason: format!("pre-release observation failed: {error}"),
                 },
                 Ok(Err(error)) => return Err(error),
@@ -930,6 +1055,7 @@ fn run_inner(
                     progress.user_code_released = true;
                 }
                 GuardedRelease::Deferred { reason } => {
+                    progress.never_run_reason = Some(reason.clone());
                     // SAFETY: user code remains suspended in this complete Job Object.
                     unsafe { TerminateJobObject(job_object.raw(), 70) };
                     if unsafe { WaitForSingleObject(process_handle.raw(), 30_000) } != WAIT_OBJECT_0
@@ -952,32 +1078,48 @@ fn run_inner(
                 }
             }
         } else if !job.spec.conditions.is_empty() {
-            let authorization = store
-                .lock()
-                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
-                .authorize_condition_release(job)?;
-            match authorization {
-                crate::store::ReleaseAuthorization::Authorized {
+            let guarded = if job.spec.requires_host_observation() {
+                match host_observation.with_release_sample(process.dwProcessId, |sample| {
+                    let (now_unix_millis, now_monotonic_millis) =
+                        crate::host_observation::observation_clock()?;
+                    authorize_condition_and_resume(
+                        job,
+                        store,
+                        host_observation,
+                        thread_handle.raw(),
+                        Some(crate::host_observation::ObservationMoment {
+                            sample,
+                            now_unix_millis,
+                            now_monotonic_millis,
+                            live_clock: true,
+                        }),
+                        progress,
+                    )
+                }) {
+                    Ok(result) => result?,
+                    Err(error) => GuardedRelease::Deferred {
+                        reason: format!("pre-release observation failed: {error}"),
+                    },
+                }
+            } else {
+                authorize_condition_and_resume(
+                    job,
+                    store,
+                    host_observation,
+                    thread_handle.raw(),
+                    None,
+                    progress,
+                )?
+            };
+            match guarded {
+                GuardedRelease::Resumed {
                     runtime_deadline_unix_millis: deadline,
-                    evidence_expires_monotonic_millis,
                 } => {
-                    let (_, monotonic_now) = crate::host_observation::observation_clock()?;
-                    if monotonic_now > evidence_expires_monotonic_millis {
-                        return Err(std::io::Error::other(
-                            "Condition release evidence expired before resume",
-                        )
-                        .into());
-                    }
-                    progress.release_authorized = true;
                     runtime_deadline_unix_millis = deadline;
-                    // SAFETY: the primary remains suspended in its complete Job Object and the
-                    // authorizing transaction atomically rechecked every Condition.
-                    if unsafe { ResumeThread(thread_handle.raw()) } == u32::MAX {
-                        return Err(std::io::Error::last_os_error().into());
-                    }
                     progress.user_code_released = true;
                 }
-                crate::store::ReleaseAuthorization::Deferred { reason } => {
+                GuardedRelease::Deferred { reason } => {
+                    progress.never_run_reason = Some(reason.clone());
                     // SAFETY: no user code has run and the complete tree remains suspended.
                     unsafe { TerminateJobObject(job_object.raw(), 70) };
                     if unsafe { WaitForSingleObject(process_handle.raw(), 30_000) } != WAIT_OBJECT_0
@@ -1000,11 +1142,48 @@ fn run_inner(
                 }
             }
         } else {
-            // SAFETY: the primary thread handle is valid and has not been resumed before.
-            if unsafe { ResumeThread(thread_handle.raw()) } == u32::MAX {
-                return Err(std::io::Error::last_os_error().into());
+            let stop_at_release = {
+                let mut locked = store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+                let stop = if locked.invocation_stop_requested(job.job_id)? {
+                    Some(AttemptVerdict::Canceled)
+                } else {
+                    let now: i64 = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis()
+                        .try_into()
+                        .unwrap_or(i64::MAX);
+                    job.attempt_deadline_unix_millis
+                        .is_some_and(|deadline| deadline <= now)
+                        .then_some(AttemptVerdict::TimedOut)
+                };
+                if stop.is_none() {
+                    // SAFETY: the thread remains suspended and the store mutex orders a
+                    // concurrent cancellation/deadline commit after this release point.
+                    if unsafe { ResumeThread(thread_handle.raw()) } == u32::MAX {
+                        return Err(std::io::Error::last_os_error().into());
+                    }
+                    progress.user_code_released = true;
+                }
+                stop
+            };
+            if let Some(stop) = stop_at_release {
+                progress.canceled = stop == AttemptVerdict::Canceled;
+                timed_out = stop == AttemptVerdict::TimedOut;
+                progress.timed_out = timed_out;
+                let exit_code = if progress.canceled { 22 } else { 21 };
+                // SAFETY: no user code was resumed and the complete tree is contained.
+                unsafe { TerminateJobObject(job_object.raw(), exit_code) };
+                if unsafe { WaitForSingleObject(process_handle.raw(), 30_000) } != WAIT_OBJECT_0 {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "stopped suspended root did not exit within cleanup bound",
+                    )
+                    .into());
+                }
             }
-            progress.user_code_released = true;
         }
 
         let deadline = runtime_deadline_unix_millis.and_then(|deadline| {
@@ -1537,9 +1716,10 @@ mod tests {
     use crate::runner::LiveContainments;
     use crate::store::{StorePaths, normalized_payload_hash, normalized_payload_hash_with_input};
     use crate::{
-        AttemptVerdict, EnvironmentSpec, ExitClassification, InvocationId, InvocationRole,
-        JobOutcome, JobSpec, JobState, PostconditionSpec, ResourceClaims, RetryPolicy,
-        SPEC_VERSION, StdinSpec,
+        AdmissionDecisionState, AttemptVerdict, ConditionDeadline, ConditionDeadlineOutcome,
+        ConditionPredicate, ConditionSpec, EnvironmentSpec, ExitClassification, InvocationId,
+        InvocationRole, JobOutcome, JobSpec, JobState, PostconditionSpec, QuietDetector,
+        QuietPolicy, ResourceClaims, RetryPolicy, SPEC_VERSION, StdinSpec,
     };
     use uuid::Uuid;
 
@@ -2462,6 +2642,258 @@ mod tests {
                 .map(|result| result.verdict),
             Some(InvocationVerdict::StartFailed)
         );
+    }
+
+    #[test]
+    fn condition_resume_failure_clears_never_started_timestamps() {
+        let temp = tempfile::tempdir().unwrap();
+        let command = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join("System32")
+            .join("cmd.exe");
+        let ready = temp.path().join("ready.flag");
+        std::fs::write(&ready, b"ready").unwrap();
+        let mut spec = job_spec(
+            temp.path(),
+            command,
+            vec!["/D".into(), "/C".into(), "exit 0".into()],
+        );
+        spec.conditions.push(ConditionSpec {
+            predicate: ConditionPredicate::PathExists { path: ready },
+            deadline: ConditionDeadline::None,
+            on_deadline: ConditionDeadlineOutcome::Failed,
+        });
+        let mut raw_store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let hash = normalized_payload_hash(&spec).unwrap();
+        let receipt = raw_store
+            .submit(Uuid::now_v7(), &hash, &spec)
+            .unwrap()
+            .receipt;
+        let job = (0..8)
+            .find_map(|_| raw_store.prepare_job(receipt.job_id).unwrap())
+            .expect("satisfied Condition should prepare a primary");
+        let store = Arc::new(Mutex::new(raw_store));
+        FORCE_RESUME_FAILURE.set(true);
+
+        run(&job, &store, TEST_ENDPOINT);
+
+        let snapshot = store.lock().unwrap().status(receipt.job_id).unwrap();
+        assert_eq!(snapshot.state, JobState::Final);
+        assert_eq!(snapshot.outcome, Some(JobOutcome::Failed));
+        assert_eq!(
+            snapshot.attempts[0].verdict,
+            Some(AttemptVerdict::StartFailed)
+        );
+        assert_eq!(snapshot.started_unix_millis, None);
+        assert_eq!(snapshot.attempts[0].started_unix_millis, None);
+        assert_eq!(snapshot.attempts[0].deadline_unix_millis, None);
+        assert_eq!(
+            snapshot.attempts[0].invocations[0].started_unix_millis,
+            None
+        );
+        let primary_result = snapshot.attempts[0]
+            .primary_result
+            .as_ref()
+            .expect("clean resume failure retains its primary result");
+        assert_eq!(primary_result.verdict, InvocationVerdict::StartFailed);
+        assert_eq!(primary_result.started_unix_millis, None);
+        let admission = snapshot.attempts[0]
+            .admission
+            .as_ref()
+            .expect("Condition Attempt has admission history");
+        assert_eq!(admission.state, AdmissionDecisionState::Reserved);
+        assert!(admission.final_sample);
+    }
+
+    #[test]
+    fn first_terminal_cleanup_wait_failure_keeps_condition_deadline_outcome() {
+        let temp = tempfile::tempdir().unwrap();
+        let command = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join("System32")
+            .join("cmd.exe");
+        let ready = temp.path().join("ready.flag");
+        std::fs::write(&ready, b"ready").unwrap();
+        let mut spec = job_spec(
+            temp.path(),
+            command,
+            vec!["/D".into(), "/C".into(), "exit 0".into()],
+        );
+        spec.conditions.push(ConditionSpec {
+            predicate: ConditionPredicate::PathExists { path: ready },
+            deadline: ConditionDeadline::Relative { seconds: 1 },
+            on_deadline: ConditionDeadlineOutcome::Failed,
+        });
+        let mut raw_store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let hash = normalized_payload_hash(&spec).unwrap();
+        let receipt = raw_store
+            .submit(Uuid::now_v7(), &hash, &spec)
+            .unwrap()
+            .receipt;
+        let job = (0..8)
+            .find_map(|_| raw_store.prepare_job(receipt.job_id).unwrap())
+            .expect("satisfied Condition should prepare a primary");
+        std::thread::sleep(Duration::from_millis(1_050));
+        let store = Arc::new(Mutex::new(raw_store));
+        FORCE_STOPPED_ROOT_WAIT_FAILURE.set(true);
+
+        run(&job, &store, TEST_ENDPOINT);
+
+        let snapshot = store.lock().unwrap().status(job.job_id).unwrap();
+        assert_eq!(snapshot.state, JobState::Final);
+        assert_eq!(snapshot.outcome, Some(JobOutcome::Failed));
+        assert_eq!(
+            snapshot.reason_code.as_deref(),
+            Some("condition_deadline_expired")
+        );
+        assert_eq!(
+            snapshot.attempts[0].verdict,
+            Some(AttemptVerdict::SafetyFailed)
+        );
+        assert!(snapshot.attempts[0].primary_result.is_none());
+        assert_eq!(snapshot.started_unix_millis, None);
+    }
+
+    #[test]
+    fn clean_prestart_failure_keeps_condition_deadline_precedence() {
+        let temp = tempfile::tempdir().unwrap();
+        let command = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join("System32")
+            .join("cmd.exe");
+        let ready = temp.path().join("ready.flag");
+        std::fs::write(&ready, b"ready").unwrap();
+        let mut spec = job_spec(
+            temp.path(),
+            command,
+            vec!["/D".into(), "/C".into(), "exit 0".into()],
+        );
+        spec.retry.max_attempts = 2;
+        spec.retry.retryable.push("start_failed".into());
+        spec.conditions.push(ConditionSpec {
+            predicate: ConditionPredicate::PathExists { path: ready },
+            deadline: ConditionDeadline::Relative { seconds: 1 },
+            on_deadline: ConditionDeadlineOutcome::Canceled,
+        });
+        let mut raw_store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let hash = normalized_payload_hash(&spec).unwrap();
+        let receipt = raw_store
+            .submit(Uuid::now_v7(), &hash, &spec)
+            .unwrap()
+            .receipt;
+        let job = (0..8)
+            .find_map(|_| raw_store.prepare_job(receipt.job_id).unwrap())
+            .expect("satisfied Condition should prepare a primary");
+        std::thread::sleep(Duration::from_millis(1_050));
+        let store = Arc::new(Mutex::new(raw_store));
+        FORCE_PRESTART_FAILURE.set(true);
+
+        run(&job, &store, TEST_ENDPOINT);
+
+        let snapshot = store.lock().unwrap().status(job.job_id).unwrap();
+        assert_eq!(snapshot.state, JobState::Final);
+        assert_eq!(snapshot.outcome, Some(JobOutcome::Canceled));
+        assert_eq!(
+            snapshot.reason_code.as_deref(),
+            Some("condition_deadline_expired")
+        );
+        assert_eq!(snapshot.attempts.len(), 1);
+        assert_eq!(snapshot.attempts[0].verdict, Some(AttemptVerdict::Canceled));
+        assert!(snapshot.attempts[0].primary_result.is_none());
+        assert_eq!(snapshot.started_unix_millis, None);
+    }
+
+    #[test]
+    fn quiet_resume_failure_after_durable_authorization_is_start_failed() {
+        let temp = tempfile::tempdir().unwrap();
+        let command = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join("System32")
+            .join("cmd.exe");
+        let mut spec = job_spec(
+            temp.path(),
+            command,
+            vec!["/D".into(), "/C".into(), "exit 0".into()],
+        );
+        spec.quiet = Some(QuietPolicy {
+            stable_seconds: 1,
+            max_sample_age_seconds: 3,
+            wait_budget_seconds: 5,
+            detectors: vec![QuietDetector::CpuUtilization { max_percent: 100 }],
+        });
+        let observation = crate::host_observation::HostObservationService::new(Default::default());
+        let mut raw_store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let hash = normalized_payload_hash(&spec).unwrap();
+        let receipt = raw_store
+            .submit(Uuid::now_v7(), &hash, &spec)
+            .unwrap()
+            .receipt;
+        let _ = observation.sample_now().unwrap();
+        std::thread::sleep(Duration::from_millis(100));
+        let first = observation.sample_now().unwrap();
+        for _ in 0..4 {
+            assert!(
+                raw_store
+                    .prepare_next_job_with_sample(Some(&first))
+                    .unwrap()
+                    .job
+                    .is_none()
+            );
+        }
+        std::thread::sleep(Duration::from_millis(1_050));
+        let second = observation.sample_now().unwrap();
+        let job = (0..4)
+            .find_map(|_| {
+                raw_store
+                    .prepare_next_job_with_sample(Some(&second))
+                    .unwrap()
+                    .job
+            })
+            .expect("stable quiet evidence should prepare a primary");
+        let store = Arc::new(Mutex::new(raw_store));
+        let live_containments = LiveContainments::default();
+        let wake: super::super::ReconciliationWake = Arc::new(|| {});
+        FORCE_RESUME_FAILURE.set(true);
+
+        run_with_wake(
+            &job,
+            &store,
+            TEST_ENDPOINT,
+            &live_containments,
+            &observation,
+            &wake,
+        );
+
+        let snapshot = store.lock().unwrap().status(receipt.job_id).unwrap();
+        assert_eq!(snapshot.state, JobState::Final);
+        assert_eq!(snapshot.outcome, Some(JobOutcome::Failed));
+        assert_eq!(
+            snapshot.attempts[0].verdict,
+            Some(AttemptVerdict::StartFailed)
+        );
+        assert_eq!(
+            snapshot.attempts[0]
+                .primary_result
+                .as_ref()
+                .map(|result| result.verdict),
+            Some(InvocationVerdict::StartFailed)
+        );
+        assert_eq!(snapshot.started_unix_millis, None);
+        assert_eq!(snapshot.attempts[0].started_unix_millis, None);
+        assert_eq!(snapshot.attempts[0].deadline_unix_millis, None);
+        assert_eq!(
+            snapshot.attempts[0].invocations[0].started_unix_millis,
+            None
+        );
+        assert_eq!(
+            snapshot.attempts[0]
+                .primary_result
+                .as_ref()
+                .and_then(|result| result.started_unix_millis),
+            None
+        );
+        let admission = snapshot.attempts[0]
+            .admission
+            .as_ref()
+            .expect("quiet Attempt has admission history");
+        assert_eq!(admission.state, AdmissionDecisionState::Reserved);
+        assert!(admission.final_sample);
     }
 
     #[test]

@@ -193,6 +193,34 @@ fn plain_cancel_covers_queued_active_and_backoff_without_successors() {
 }
 
 #[test]
+fn worker_start_failure_preserves_an_active_cancel_and_suppresses_retry() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut store =
+        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+            .unwrap();
+    let mut job = spec(temp.path());
+    job.retry = RetryPolicy {
+        max_attempts: 2,
+        backoff_seconds: 0,
+        retryable: vec!["start_failed".into()],
+    };
+    let hash = normalized_payload_hash(&job).unwrap();
+    let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
+    let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+    store.cancel_jobs(&[receipt.job_id]).unwrap();
+
+    store
+        .mark_finished(&prepared, None, JobOutcome::Failed, "start_failed")
+        .unwrap();
+
+    let snapshot = store.status(receipt.job_id).unwrap();
+    assert_eq!(snapshot.state, JobState::Final);
+    assert_eq!(snapshot.outcome, Some(JobOutcome::Canceled));
+    assert_eq!(snapshot.attempts.len(), 1);
+    assert_eq!(snapshot.attempts[0].verdict, Some(AttemptVerdict::Canceled));
+}
+
+#[test]
 fn expired_blocked_retry_does_not_spin_and_backoff_cancel_is_terminal() {
     let temp = tempfile::tempdir().unwrap();
     let mut store =

@@ -39,7 +39,7 @@ pub(super) fn release_never_run_attempt_lease_if_safe(
     let eligible: bool = transaction.query_row(
         "SELECT EXISTS(
                 SELECT 1 FROM attempts
-                WHERE id = ?1 AND state = 'starting'
+                WHERE id = ?1 AND state IN ('starting', 'running')
             )
             AND NOT EXISTS(
                 SELECT 1 FROM invocations
