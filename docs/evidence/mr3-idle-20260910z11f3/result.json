@@ -1,0 +1,186 @@
+{
+  "duration_seconds": 300.00162073300453,
+  "processes": [
+    {
+      "side": "linux",
+      "pid": 1929672,
+      "name": "python3",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 8.75,
+      "voluntary_switches": 0,
+      "identity_before": 9119560,
+      "identity_after": 9119560,
+      "role": "python_keepalive_or_supervisor"
+    },
+    {
+      "side": "linux",
+      "pid": 1929683,
+      "name": "stillyard",
+      "cpu_percent_one_core": 0.009999945975858378,
+      "memory_mib": 12.4140625,
+      "voluntary_switches": 153,
+      "identity_before": 9119564,
+      "identity_after": 9119564,
+      "role": "executor_daemon"
+    },
+    {
+      "side": "linux",
+      "pid": 1929710,
+      "name": "stillyard.exe",
+      "cpu_percent_one_core": 0.003333315325286126,
+      "memory_mib": 0.0,
+      "voluntary_switches": 96,
+      "identity_before": 9119591,
+      "identity_after": 9119591,
+      "role": "interop_proxy"
+    },
+    {
+      "side": "linux",
+      "pid": 3989858,
+      "name": "Relay(3989859)",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 0.0,
+      "voluntary_switches": 0,
+      "identity_before": 6323934,
+      "identity_after": 6323934,
+      "role": "interop_init"
+    },
+    {
+      "side": "linux",
+      "pid": 3989859,
+      "name": "python3",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 8.0,
+      "voluntary_switches": 0,
+      "identity_before": 6323934,
+      "identity_after": 6323934,
+      "role": "python_keepalive_or_supervisor"
+    },
+    {
+      "side": "windows",
+      "pid": 60892,
+      "name": "stillyard",
+      "cpu_percent_one_core": 0.036458136370317,
+      "memory_mib": 34.82421875,
+      "thread_context_switches": 51,
+      "process_cycles": 412759063,
+      "identity_before": "2026-09-10T12:58:06.5954950Z",
+      "identity_after": "2026-09-10T12:58:06.5954950Z",
+      "role": "coordinator_daemon"
+    },
+    {
+      "side": "windows",
+      "pid": 24044,
+      "name": "stillyard",
+      "cpu_percent_one_core": 0.005208305195759572,
+      "memory_mib": 1.84375,
+      "thread_context_switches": 97,
+      "process_cycles": 118448471,
+      "identity_before": "2026-09-10T12:58:09.2576236Z",
+      "identity_after": "2026-09-10T12:58:09.2576236Z",
+      "role": "native_bridge"
+    },
+    {
+      "side": "windows",
+      "pid": 32592,
+      "name": "wsl",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 1.30859375,
+      "thread_context_switches": 0,
+      "process_cycles": 0,
+      "identity_before": "2026-09-10T05:12:12.5245520Z",
+      "identity_after": "2026-09-10T05:12:12.5245520Z",
+      "role": "windows_keepalive"
+    }
+  ],
+  "daemon_timer_expirations": {
+    "linux": {
+      "reactor": 0,
+      "attached": 16,
+      "subscriber": 0,
+      "transport": 0,
+      "backoff": 0
+    },
+    "windows": {
+      "reactor": 0,
+      "subscriber": 0,
+      "backoff": 0
+    }
+  },
+  "limits": {
+    "daemon_cpu_percent": 0.5,
+    "daemon_memory_mib": 40,
+    "bridge_cpu_percent": 0.1,
+    "bridge_memory_mib": 16,
+    "aggregate_cpu_percent": 1.1,
+    "aggregate_memory_mib": 96,
+    "aggregate_timer_expirations_per_minute": 6
+  },
+  "helper_timer_coverage": "Daemon counters cover application-owned timer expirations. Helper event-only waits require separate source audit; context switches are retained only as diagnostics, never relabeled as timer counts.",
+  "applicable_timers": {
+    "linux": [
+      "reactor",
+      "attached",
+      "subscriber",
+      "transport",
+      "backoff"
+    ],
+    "windows": [
+      "reactor",
+      "subscriber",
+      "backoff"
+    ]
+  },
+  "inapplicable_buckets": {
+    "linux": {},
+    "windows": {
+      "attached": 0,
+      "transport": 0
+    }
+  },
+  "daemon_generations": {
+    "linux": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+    "windows": "01a08b65-9a4c-7111-ad59-a0825b917b7b"
+  },
+  "aggregate_cpu_percent": 0.05499970286722108,
+  "aggregate_memory_mib": 67.140625,
+  "daemon_timer_expirations_per_minute": 3.199982712274681,
+  "preconditions": {
+    "unchanged_job_history": true,
+    "job_counts": {
+      "linux": [
+        162,
+        162,
+        0
+      ],
+      "windows": [
+        1232,
+        1232,
+        0
+      ]
+    },
+    "unchanged_interop": true,
+    "unchanged_process_identities": true,
+    "unchanged_daemon_generations": true
+  },
+  "helper_limits": "Helpers other than the bridge are included in the aggregate CPU/memory budget; no separate per-helper bound is specified.",
+  "aggregate_timer_status": "pending helper timer coverage; daemon sum alone is not aggregate acceptance",
+  "cpu_memory_checks": [
+    {
+      "role": "executor_daemon",
+      "cpu_pass": true,
+      "memory_pass": true
+    },
+    {
+      "role": "coordinator_daemon",
+      "cpu_pass": true,
+      "memory_pass": true
+    },
+    {
+      "role": "native_bridge",
+      "cpu_pass": true,
+      "memory_pass": true
+    }
+  ],
+  "cpu_memory_pass": true
+}

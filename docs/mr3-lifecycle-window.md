@@ -18,7 +18,7 @@ controller is a default Windows Job with no Cargo claim; its own receipt and
 Job ID identify each operation. Keep the same intent/key when reconnecting.
 The controller rejects execution from Linux or without its actual native primary
 Invocation identity. The controller/starter bundle, revised after independent review, and unsubmitted
-JobSpecs are retained in [prepared evidence](evidence/mr3-lifecycle-window-20260910z11i/).
+JobSpecs are retained in [prepared evidence](evidence/mr3-lifecycle-window-20260910z11j/).
 
 Before submitting the disruptive Job, record the user's separately agreed scope
 in an operation-specific `approval.json`: permitted operations, exact running
@@ -39,6 +39,15 @@ unresolved cleanup. The controller's own native Job is the only permitted
 active native Job at this initial quiescent lifecycle stage. Confirm the agreed
 inventory again immediately before the fault; a changed inventory stops the step.
 Keep pairing anchors private; hashes and public identities suffice.
+
+The j preflight executes this empty barrier, including the accepted maintenance
+helper's SQL/journal cross-check under a rolled-back admission transaction.
+Historical automatically cleared `proven_empty` containments are accepted only
+with matching executor seals and boundary digests; forced resolutions remain
+blocking. Its native default Job `01a08b9f-e7b3-71d0-b8f0-be7a634f1b9d` passed
+with zero active Leases, zero blocking containments, no unsealed Invocations and
+an empty recursive executor cgroup. The two historical records and their exact
+seals are retained in `preflight/result/preflight-clearance.json`.
 
 This first window tests restart/lifetime with already sealed history. Existing
 active-daemon SIGKILL and bridge-loss Jobs cover live work. It must not be

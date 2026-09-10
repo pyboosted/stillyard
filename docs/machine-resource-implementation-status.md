@@ -26,7 +26,7 @@ before the subsequent trusted-bootstrap changes.
 | MR-0 | complete | Normative contract/amendment and failure traces; installed safe bootstrap; matched native/WSL check/build baseline; concrete consumer commands and validator controls. Linux compiler failures are the permitted portability baseline. |
 | MR-1 | complete | Shared admission/lifecycle core installed in Windows alpha.16 / IPC 21; native gates and installed test Job passed, scoped accounting observed. |
 | MR-2 | complete | Durable coordinator/manager protocol and public fault controls passed; final review disposition closed; Windows alpha.17 / IPC 22 installed and ordinary default Job passed. |
-| MR-3 | in_progress | Windows/WSL z11f alpha.20 installed and paired; three W-C1..4 rounds passed on z3 with shared capacity 2/2/1. Cross-OS Store-reset, live capacity and incarnation controls passed on z8. M-A04/M-A07 passed. Final-source W-C1..4 confirmation passed on z11f. Complete lifecycle coverage, aggregate idle timers and exit review remain pending. |
+| MR-3 | in_progress | Windows/WSL z11f alpha.20 installed and paired; three W-C1..4 rounds passed on z3 with shared capacity 2/2/1. Cross-OS Store-reset, live capacity and incarnation controls passed on z8. M-A04/M-A07 passed. Final-source W-C1..4 confirmation passed on z11f. Installed aggregate idle acceptance passed on z11f3. Complete lifecycle coverage and exit review remain pending. |
 | MR-4 | not_started | Later native Linux/container delivery. |
 | MR-5 | not_started | Later macOS delivery. |
 
@@ -84,11 +84,18 @@ Installed postconditions/probes, three complete live consumer rounds, priority/
 aging, bridge loss, active daemon crash and forced cleanup failure passed.
 Cross-OS isolated Store-reset, live capacity and explicit incarnation controls
 passed on z8. Remaining: complete VM/distro/logout/
-reboot lifecycle evidence, aggregate timer wakes and independent exit review.
+reboot lifecycle evidence and independent exit review.
 Final-source z11f consumer confirmation passed. z8 native/Linux Clippy, full tests,
 MSRV tests and release builds passed and were installed. The actual attached
-wait-path negative control passed; helper timer coverage remains open. The five-minute idle observation passed CPU/memory; aggregate timer coverage remains open.
+wait-path negative control passed. Final z11f3 idle acceptance passed all 21 conditions: aggregate CPU 0.0550%, endpoint memory 67.1406 MiB and 3.2000 timer expirations/min, including helper coverage. [Accepted interval](evidence/mr3-idle-20260910z11f3/acceptance.json).
 Historical “current” notes below are superseded by this section.
+
+The current prepared lifecycle bundle is j. Its native default quiescent
+preflight W`01a08b9f-e7b3-71d0-b8f0-be7a634f1b9d` passed, including actual
+SQL/journal cleanup proofs and recursive kernel emptiness. The snapshot includes
+98 selected foreign-work process candidates in Ubuntu-SSD. Terminate/shutdown
+remain unsubmitted pending the separately agreed interruption window.
+[Prepared procedure and evidence](evidence/mr3-lifecycle-window-20260910z11j/).
 
 Historical MR-0 baseline source identity follows.
 The incoming Linux checkout had no tracked changes; the supplied plan was untracked
@@ -2877,3 +2884,33 @@ native cycle and creation-identity queries.
 Current scripts now contain the complete observer, settlement and separate
 acceptance validator; temporary /tmp scripts are not needed to resume.
 The viewer pause request is unanswered; the viewer remains untouched.
+
+### Clean installed idle acceptance: z11f3 PASS
+
+The user closed the Windows watch. The checked-in external observer measured
+300.0016 seconds with no Jobs or external installed clients, then retained
+54.0368 seconds of boundary settlement including collection. All 21 explicit
+validator conditions passed against accepted z11f image hashes/generations.
+Aggregate CPU: 0.0550% of one logical core; endpoint private/RssAnon memory:
+67.1406 MiB; timer expirations: 3.2000/min (16 attached expirations, all other
+buckets zero). The opaque Windows keepalive had zero lifetime cycle delta and
+zero thread-switch delta. Process identities and Job histories stayed unchanged.
+[Raw observations, validator and acceptance](evidence/mr3-idle-20260910z11f3/).
+Windows watch was restored after validation as PID 51640.
+
+This closes the remaining aggregate idle coverage gap. MR-3 remains in progress
+for the explicitly controlled lifecycle observations and final exit review.
+Closing watch did not authorize stopping WSL or affecting other workloads.
+
+Fresh native read-only lifecycle preflight `01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b9c-7234-7d43-bbc5-3cc3ed00394e` passed after the idle interval. Ubuntu-SSD is the only running distribution; 92 selected foreign workload candidates remain (Codex/Claude, Cargo, runner, Node and services). Stillyard active Leases and unsealed Invocations are zero; the old inventory counts two historical `cleared`/automatic `proven_empty` containments as nonempty. This preflight does not prove the disruptive empty barrier; the inventory is being corrected to cross-check their real executor seals. [Preflight](evidence/mr3-lifecycle-window-20260910z11i/preflight-after-idle/summary.json). The prepared terminate/shutdown Jobs remain unsubmitted pending a separately agreed interruption window.
+
+The correction passed as native default Job
+W`01a08b9f-e7b3-71d0-b8f0-be7a634f1b9d`. Bundle j invokes the accepted
+maintenance SQL barrier with the actual checksum-validated journal, under an
+admission transaction that is rolled back without data-changing SQL. Both
+historical automatic proven_empty records matched their actual executor seals;
+zero blocking containments, active Leases or unsealed Invocations remain, and
+the recursive executor cgroup is empty. Preflight now executes the disruptive
+empty predicate itself. The fresh selected foreign-work inventory contains
+98 process candidates. [Exact clearance, source and canonical Job](evidence/mr3-lifecycle-window-20260910z11j/).
+No shutdown/terminate approval file was created or disruptive Job submitted.

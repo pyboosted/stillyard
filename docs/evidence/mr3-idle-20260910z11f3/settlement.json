@@ -1,0 +1,8 @@
+{
+  "passed": true,
+  "duration_seconds": 54.03678974499053,
+  "unchanged_process_identities": true,
+  "unchanged_daemon_generations": true,
+  "unchanged_job_history": true,
+  "delayed_transport_or_backoff_expirations": 0
+}

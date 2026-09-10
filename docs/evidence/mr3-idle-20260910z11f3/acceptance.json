@@ -1,0 +1,187 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "condition": "at_least_five_minutes_excluding_collection",
+      "passed": true,
+      "observed": 300.00162073300453
+    },
+    {
+      "condition": "no_invalidated_interval",
+      "passed": true,
+      "observed": false
+    },
+    {
+      "condition": "windows_accepted_generation",
+      "passed": true,
+      "observed": [
+        "01a08b65-9a4c-7111-ad59-a0825b917b7b",
+        "01a08b65-9a4c-7111-ad59-a0825b917b7b"
+      ]
+    },
+    {
+      "condition": "linux_accepted_generation",
+      "passed": true,
+      "observed": [
+        "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+        "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4"
+      ]
+    },
+    {
+      "condition": "accepted_installed_images",
+      "passed": true,
+      "observed": {
+        "before": {
+          "linux": "95dc85a28c57c084f2e15210d08162d95642117da5c95b300e4b2cbb0593527b",
+          "windows": "8c5a6ec722a9f89942587f9c51f02487f7cc7683ead67bfe535e4de5a65ec791"
+        },
+        "after": {
+          "linux": "95dc85a28c57c084f2e15210d08162d95642117da5c95b300e4b2cbb0593527b",
+          "windows": "8c5a6ec722a9f89942587f9c51f02487f7cc7683ead67bfe535e4de5a65ec791"
+        }
+      }
+    },
+    {
+      "condition": "stable_quiescent_interval",
+      "passed": true,
+      "observed": {
+        "unchanged_job_history": true,
+        "job_counts": {
+          "linux": [
+            162,
+            162,
+            0
+          ],
+          "windows": [
+            1232,
+            1232,
+            0
+          ]
+        },
+        "unchanged_interop": true,
+        "unchanged_process_identities": true,
+        "unchanged_daemon_generations": true
+      }
+    },
+    {
+      "condition": "boundary_settlement",
+      "passed": true,
+      "observed": {
+        "passed": true,
+        "duration_seconds": 54.03678974499053,
+        "unchanged_process_identities": true,
+        "unchanged_daemon_generations": true,
+        "unchanged_job_history": true,
+        "delayed_transport_or_backoff_expirations": 0
+      }
+    },
+    {
+      "condition": "complete_expected_process_inventory",
+      "passed": true,
+      "observed": {
+        "python_keepalive_or_supervisor": 2,
+        "executor_daemon": 1,
+        "interop_proxy": 1,
+        "interop_init": 1,
+        "coordinator_daemon": 1,
+        "native_bridge": 1,
+        "windows_keepalive": 1
+      }
+    },
+    {
+      "condition": "helper_zero_voluntary_switches_1929672",
+      "passed": true,
+      "observed": 0
+    },
+    {
+      "condition": "helper_zero_voluntary_switches_3989858",
+      "passed": true,
+      "observed": 0
+    },
+    {
+      "condition": "helper_zero_voluntary_switches_3989859",
+      "passed": true,
+      "observed": 0
+    },
+    {
+      "condition": "opaque_keepalive_zero_execution",
+      "passed": true,
+      "observed": {
+        "lifetime_cycle_delta": 0,
+        "thread_switch_delta": 0
+      }
+    },
+    {
+      "condition": "linux_transport_zero",
+      "passed": true,
+      "observed": 0
+    },
+    {
+      "condition": "linux_backoff_zero",
+      "passed": true,
+      "observed": 0
+    },
+    {
+      "condition": "linux_subscriber_zero",
+      "passed": true,
+      "observed": 0
+    },
+    {
+      "condition": "windows_backoff_zero",
+      "passed": true,
+      "observed": 0
+    },
+    {
+      "condition": "windows_subscriber_zero",
+      "passed": true,
+      "observed": 0
+    },
+    {
+      "condition": "linux_inapplicable_zero",
+      "passed": true,
+      "observed": {}
+    },
+    {
+      "condition": "windows_inapplicable_zero",
+      "passed": true,
+      "observed": {
+        "attached": 0,
+        "transport": 0
+      }
+    },
+    {
+      "condition": "aggregate_timer_budget_with_conditional_zero_helpers",
+      "passed": true,
+      "observed": 3.199982712274681
+    },
+    {
+      "condition": "cpu_memory_budget",
+      "passed": true,
+      "observed": {
+        "cpu_percent_one_core": 0.05499970286722108,
+        "endpoint_sample_memory_mib": 67.140625,
+        "per_role": [
+          {
+            "role": "executor_daemon",
+            "cpu_pass": true,
+            "memory_pass": true
+          },
+          {
+            "role": "coordinator_daemon",
+            "cpu_pass": true,
+            "memory_pass": true
+          },
+          {
+            "role": "native_bridge",
+            "cpu_pass": true,
+            "memory_pass": true
+          }
+        ]
+      }
+    }
+  ],
+  "source_files_sha256": "9dd388044392f8b7bd991321f5dd80857e449667dc4abd12aabb0d56b3466af0",
+  "aggregate_timer_expirations_per_minute": 3.199982712274681,
+  "helper_basis": "Complete source wait-path audit plus lifetime process cycles, identities and settlement; no cycles-to-time conversion.",
+  "memory_scope": "Endpoint samples of Windows private bytes and Linux RssAnon, as specified by MR-0; not an interval peak measurement."
+}

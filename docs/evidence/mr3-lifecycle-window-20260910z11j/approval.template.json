@@ -1,0 +1,10 @@
+{
+  "user_agreement": null,
+  "no_new_submissions": false,
+  "operations": [
+    "terminate",
+    "shutdown"
+  ],
+  "running_distributions": [],
+  "foreign_work_candidates": []
+}
