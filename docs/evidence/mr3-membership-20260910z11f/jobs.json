@@ -1,0 +1,68 @@
+[
+  {
+    "side": "windows",
+    "gate": "build-release",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5f-48a9-7630-86f4-6e641ab724af",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "check",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5a-0b1d-7940-a7bf-2b95ea9d3c13",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "clippy",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5a-4248-7e42-b68f-353ccd673983",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "fmt-write",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b54-770b-72a3-9f81-13f54855ec6a",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "msrv-test",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-e7b5-7bb3-a4d4-986c78d571d2",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "test",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5a-8267-7922-8ae8-b9931a56ff7a",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-build-release",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b60-39c4-7043-b3e6-6e8cb8221d80",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-clippy",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-b13c-77b2-b254-d31e00f8cb00",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-test",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-db53-79d1-b08e-a65092a3325d",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-msrv-test",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b58-d4f9-73d0-a983-fe2fee5309f2",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-check",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-818b-7ef1-a654-a613cf22992a",
+    "outcome": "succeeded"
+  }
+]

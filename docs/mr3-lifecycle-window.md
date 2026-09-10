@@ -17,8 +17,8 @@ cache. Use the installed Windows Stillyard CLI and native Python 3.13. The
 controller is a default Windows Job with no Cargo claim; its own receipt and
 Job ID identify each operation. Keep the same intent/key when reconnecting.
 The controller rejects execution from Linux or without its actual native primary
-Invocation identity. The reviewed controller/starter bundle and unsubmitted
-JobSpecs are retained in [prepared evidence](evidence/mr3-lifecycle-window-20260910z11g/).
+Invocation identity. The controller/starter bundle, revised after independent review, and unsubmitted
+JobSpecs are retained in [prepared evidence](evidence/mr3-lifecycle-window-20260910z11h/).
 
 Before submitting the disruptive Job, record the user's separately agreed scope
 in an operation-specific `approval.json`: permitted operations, exact running

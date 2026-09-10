@@ -1,0 +1,309 @@
+{
+  "outcome": {
+    "outcome": "final",
+    "value": {
+      "receipt": {
+        "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-4995-7b50-aaee-ad1aa974b681",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-4999-7180-bfb8-e6fc7a7911e4",
+        "submission_state": "accepted",
+        "job_state": "pending",
+        "reason_code": null,
+        "accepted_unix_millis": 1789045131673,
+        "priority": 0,
+        "effective_priority": 0,
+        "blockers": [],
+        "queue_rank": 1,
+        "reservation": null,
+        "conditions": [],
+        "estimate": {
+          "confidence": "estimated",
+          "start_in_millis": 0,
+          "assumptions": [
+            "currently admissible"
+          ]
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4"
+      },
+      "snapshot": {
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-4999-7180-bfb8-e6fc7a7911e4",
+        "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-4995-7b50-aaee-ad1aa974b681",
+        "batch_id": null,
+        "batch_member": null,
+        "state": "final",
+        "outcome": "succeeded",
+        "reason_code": null,
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-499e-7392-adab-d31d2209ffe3",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-1024-7ff3-a94d-fe0820ecc8a4",
+        "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-1024-7ff3-a94d-fe15072e17b2",
+        "root_exit_code": 0,
+        "cancel_requested": false,
+        "accepted_unix_millis": 1789045131673,
+        "priority": 0,
+        "effective_priority": null,
+        "queue_rank": null,
+        "reservation": null,
+        "conditions": [],
+        "started_unix_millis": 1789045131990,
+        "finished_unix_millis": 1789045314580,
+        "spec": {
+          "spec_version": 4,
+          "priority": 0,
+          "executable": "/home/pythonic/.local/bin/claude2",
+          "args": [
+            "-p",
+            "You are the real W-C3 agent consumer. Use Bash to run exactly the following managed Stillyard adapter command twice sequentially. The second identical call must recover the first child Job, not build twice. Do not run Cargo directly and do not run any other commands. If it fails report the actual error. Return the child Job ID and whether both calls succeeded. The daemon schedules the build while other Windows Jobs may own the shared cargo token.\n/usr/bin/python3 /home/pythonic/Development/stillyard-consumers-20260910z11f/wc3/consumer.py managed-build --cli /home/pythonic/.local/share/stillyard/bin/stillyard --spec /home/pythonic/Development/stillyard-consumers-20260910z11f/wc3/child.json --evidence-directory /home/pythonic/Development/stillyard-consumers-20260910z11f/wc3/child-evidence --operation wc3-z11f-confirmation\nFor each Bash invocation set timeout=600000 ms. Wait for completion before the second call and before returning. If Bash still returns a background task ID, use TaskOutput with block=true and timeout=300000 until it completes. Never replace waiting with a shell polling command.",
+            "--model",
+            "sonnet",
+            "--effort",
+            "low",
+            "--output-format",
+            "json",
+            "--safe-mode",
+            "--tools",
+            "Bash,TaskOutput",
+            "--allowedTools",
+            "Bash(/usr/bin/python3 /home/pythonic/Development/stillyard-consumers-20260910z11f/wc3/consumer.py managed-build --cli /home/pythonic/.local/share/stillyard/bin/stillyard --spec /home/pythonic/Development/stillyard-consumers-20260910z11f/wc3/child.json --evidence-directory /home/pythonic/Development/stillyard-consumers-20260910z11f/wc3/child-evidence --operation wc3-z11f-confirmation),TaskOutput",
+            "--permission-mode",
+            "dontAsk",
+            "--setting-sources",
+            ""
+          ],
+          "working_directory": "/home/pythonic/Development/stillyard-consumers-20260910z11f/wc3",
+          "stdin": {
+            "kind": "eof"
+          },
+          "environment": {
+            "set": {
+              "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+              "HOME": "/home/pythonic",
+              "LANG": "C.UTF-8",
+              "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+            },
+            "unset": []
+          },
+          "resources": {
+            "cpu_units": null,
+            "ram_mb": null,
+            "cargo_slots": null,
+            "gpu_slots": null,
+            "custom": {
+              "claude2_slots": 1
+            },
+            "shared_fences": [],
+            "exclusive_fences": [],
+            "impacts": []
+          },
+          "observed": null,
+          "conditions": [],
+          "retry": {
+            "max_attempts": 3,
+            "backoff_seconds": 1,
+            "retryable": [
+              "start_failed"
+            ]
+          },
+          "postconditions": [
+            {
+              "executable": "/usr/bin/python3",
+              "args": [
+                "/home/pythonic/Development/stillyard-consumers-20260910z11f/wc3/consumer.py",
+                "validate-managed-build",
+                "--cli",
+                "/home/pythonic/.local/share/stillyard/bin/stillyard",
+                "--evidence-directory",
+                "/home/pythonic/Development/stillyard-consumers-20260910z11f/wc3/child-evidence"
+              ],
+              "working_directory": null,
+              "accepted_exit_codes": [
+                0
+              ],
+              "retryable_exit_codes": []
+            }
+          ],
+          "labels": [
+            {
+              "key": "project",
+              "value": "stillyard"
+            },
+            {
+              "key": "acceptance",
+              "value": "W-C3"
+            },
+            {
+              "key": "round",
+              "value": "z11f-confirmation"
+            }
+          ],
+          "expected_duration_seconds": null,
+          "timeout_seconds": 900,
+          "quiet": null,
+          "artifacts": [],
+          "child_submission_policy": {
+            "min_priority": 0,
+            "max_priority": 0,
+            "max_claims": {
+              "cpu_units": null,
+              "ram_mb": null,
+              "cargo_slots": 1,
+              "gpu_slots": null,
+              "custom": {}
+            },
+            "allowed_impacts": [
+              "cpu_heavy"
+            ],
+            "required_labels": [
+              {
+                "key": "project",
+                "value": "stillyard"
+              }
+            ],
+            "fences": {
+              "shared_roots": [],
+              "exclusive_roots": []
+            },
+            "allow_observed": false,
+            "allow_quiet": false,
+            "allow_delegation": false
+          }
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "blockers": [],
+        "attempts": [
+          {
+            "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-499e-7392-adab-d31d2209ffe3",
+            "attempt_index": 1,
+            "verdict": "succeeded",
+            "reason_code": null,
+            "created_unix_millis": 1789045131678,
+            "started_unix_millis": 1789045131815,
+            "deadline_unix_millis": 1789046031815,
+            "finished_unix_millis": 1789045314580,
+            "primary_result": {
+              "schema_version": 1,
+              "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-4999-7180-bfb8-e6fc7a7911e4",
+              "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-499e-7392-adab-d31d2209ffe3",
+              "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-499e-7392-adab-d32d45b3424e",
+              "verdict": "succeeded",
+              "root_exit_code": 0,
+              "termination": "exited",
+              "containment": "empty",
+              "started_unix_millis": 1789045131990,
+              "exited_unix_millis": 1789045313401,
+              "resolved_unix_millis": 1789045313554
+            },
+            "admission": null,
+            "invocations": [
+              {
+                "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-499e-7392-adab-d32d45b3424e",
+                "role": "primary",
+                "role_index": 0,
+                "state": "resolved",
+                "root_pid": 1935071,
+                "root_identity": {
+                  "platform": "linux",
+                  "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+                  "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+                  "pid": 1935071,
+                  "start_ticks": 9123858,
+                  "pid_namespace_inode": 4026534694,
+                  "uid": 1000
+                },
+                "root_exit_code": 0,
+                "exit_classification": null,
+                "executable_hash": "dbfd4e5fb529f34573f88467f89d46b4cce55a43611c4ef73443177e75458ed0",
+                "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+                "started_unix_millis": 1789045131990,
+                "finished_unix_millis": 1789045313554,
+                "containment": {
+                  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-499e-7392-adab-d33afcede7d0",
+                  "state": "empty",
+                  "strength": "linux_cgroup_v2",
+                  "incident_id": null,
+                  "incident": null,
+                  "resolution": null,
+                  "resolution_audit": null
+                },
+                "stdout_tail": "{\"duration_api_ms\":13930,\"stop_reason\":\"end_turn\",\"session_id\":\"706e5daa-587d-4d0c-9d76-12679321ee79\",\"total_cost_usd\":0.0649816,\"usage\":{\"input_tokens\":6,\"cache_creation_input_tokens\":11947,\"cache_read_input_tokens\":35663,\"output_tokens\":878,\"output_tokens_details\":{\"thinking_tokens\":0},\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":11947,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"not_available\",\"iterations\":[{\"input_tokens\":2,\"output_tokens\":202,\"cache_read_input_tokens\":15852,\"cache_creation_input_tokens\":5476,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":5476},\"type\":\"message\"}],\"speed\":\"standard\"},\"modelUsage\":{\"claude-haiku-4-5-20251001\":{\"inputTokens\":1179,\"outputTokens\":18,\"cacheReadInputTokens\":0,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.001269,\"contextWindow\":200000,\"maxOutputTokens\":32000,\"thinkingTokens\":0,\"canonicalModel\":\"claude-haiku-4-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"},\"claude-sonnet-5\":{\"inputTokens\":6,\"outputTokens\":878,\"cacheReadInputTokens\":35663,\"cacheCreationInputTokens\":11947,\"webSearchRequests\":0,\"costUSD\":0.06371260000000001,\"contextWindow\":1000000,\"maxOutputTokens\":64000,\"thinkingTokens\":0,\"canonicalModel\":\"claude-sonnet-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"fast_mode_disabled_reason\":\"sdk_opt_in_required\",\"subagent_stats\":{\"spawned\":0,\"requested\":{\"background\":0,\"foreground\":0,\"unset\":0},\"started_in_background\":0,\"max_depth\":0,\"spawned_by_subagents\":0,\"completed\":0,\"failed\":0,\"killed\":{\"parent\":0,\"user\":0,\"system\":0},\"refused\":{\"depth_limit\":0,\"concurrency_limit\":0,\"budget\":0},\"by_type\":{}},\"is_error\":false,\"num_turns\":3,\"subtype\":\"success\",\"api_error_status\":null,\"result\":\"Both calls succeeded.\\n\\n- Child Job ID: `01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-62b6-7790-bab6-5fee9dd50979`\\n- Call 1: submitted fresh, ran `cargo check`, `job_state: pending` → completed with `outcome: succeeded`.\\n- Call 2: recovered the same job (identical `job_id`/`submission_id`/`attempt_id`), returning `job_state: final` directly with the same succeeded result rather than re-running the build — confirming idempotent recovery, not a rebuild.\",\"ttft_ms\":2859,\"type\":\"result\",\"duration_ms\":179698,\"uuid\":\"5298fc1a-bdc6-4b1e-9e76-f81922c9f0f1\",\"ttft_stream_ms\":2307,\"time_to_request_ms\":51,\"first_content_frame_ms\":2307,\"queued_turn_count\":0}\n",
+                "stderr_tail": ""
+              },
+              {
+                "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-1024-7ff3-a94d-fe0820ecc8a4",
+                "role": "postcondition",
+                "role_index": 1,
+                "state": "resolved",
+                "root_pid": 1966059,
+                "root_identity": {
+                  "platform": "linux",
+                  "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+                  "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+                  "pid": 1966059,
+                  "start_ticks": 9142051,
+                  "pid_namespace_inode": 4026534694,
+                  "uid": 1000
+                },
+                "root_exit_code": 0,
+                "exit_classification": "accepted",
+                "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+                "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+                "started_unix_millis": 1789045314344,
+                "finished_unix_millis": 1789045314568,
+                "containment": {
+                  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-1024-7ff3-a94d-fe15072e17b2",
+                  "state": "empty",
+                  "strength": "linux_cgroup_v2",
+                  "incident_id": null,
+                  "incident": null,
+                  "resolution": null,
+                  "resolution_audit": null
+                },
+                "stdout_tail": "{\"validated_child_job\": \"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-62b6-7790-bab6-5fee9dd50979\", \"completed_calls\": 2, \"attempts\": 1}\n",
+                "stderr_tail": ""
+              }
+            ]
+          }
+        ],
+        "allocations": [
+          {
+            "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b66-49b6-7601-9793-f52561d7d252",
+            "lease_id": "01a08b66-499e-7392-adab-d34be6ecd784",
+            "key": {
+              "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+              "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+              "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+              "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+              "lease_id": "01a08b66-499e-7392-adab-d34be6ecd784"
+            },
+            "owner": {
+              "kind": "work",
+              "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-4999-7180-bfb8-e6fc7a7911e4",
+              "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-499e-7392-adab-d31d2209ffe3"
+            },
+            "state": "armed",
+            "claims": {
+              "scalars": {
+                "cargo_slots": 0,
+                "claude2_slots": 1,
+                "cpu_units": 0,
+                "gpu_slots": 0,
+                "ram_mb": 0
+              },
+              "shared_fences": [],
+              "exclusive_fences": [],
+              "impacts": []
+            }
+          }
+        ],
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4"
+      }
+    }
+  },
+  "exit_source": "scheduler",
+  "exit_code": 0
+}

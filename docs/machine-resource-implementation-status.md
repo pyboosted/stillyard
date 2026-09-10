@@ -26,7 +26,7 @@ before the subsequent trusted-bootstrap changes.
 | MR-0 | complete | Normative contract/amendment and failure traces; installed safe bootstrap; matched native/WSL check/build baseline; concrete consumer commands and validator controls. Linux compiler failures are the permitted portability baseline. |
 | MR-1 | complete | Shared admission/lifecycle core installed in Windows alpha.16 / IPC 21; native gates and installed test Job passed, scoped accounting observed. |
 | MR-2 | complete | Durable coordinator/manager protocol and public fault controls passed; final review disposition closed; Windows alpha.17 / IPC 22 installed and ordinary default Job passed. |
-| MR-3 | in_progress | Windows/WSL z11e alpha.20 installed and paired; three W-C1..4 rounds passed on z3 with shared capacity 2/2/1. Cross-OS Store-reset, live capacity and incarnation controls passed on z8. M-A04/M-A07 passed. Final consumer confirmation, complete lifecycle coverage, aggregate idle timers and exit review remain pending. |
+| MR-3 | in_progress | Windows/WSL z11f alpha.20 installed and paired; three W-C1..4 rounds passed on z3 with shared capacity 2/2/1. Cross-OS Store-reset, live capacity and incarnation controls passed on z8. M-A04/M-A07 passed. Final consumer confirmation, complete lifecycle coverage, aggregate idle timers and exit review remain pending. |
 | MR-4 | not_started | Later native Linux/container delivery. |
 | MR-5 | not_started | Later macOS delivery. |
 
@@ -34,23 +34,23 @@ before the subsequent trusted-bootstrap changes.
 
 Current slice: **MR-3 installed Windows/WSL acceptance**. Base commit
 `5c440f6a2437510e56d3d728843562bae411303b`. Both installed binaries are
-**alpha.20 / IPC 25**. Both installed sides now use z11e, retaining the release repair and adding
+**alpha.20 / IPC 25**. Both installed sides now use z11f, retaining the release repair and adding
 the membership/cleanup synchronization fix, exact unsealed negative controls
 and the empty-provider model-clock correction, plus separate all-role transport
-authentication with primary-only submission authority
-(file-map `d22bfab38f5f26505dfc8ca24c1c2fea1c958b608eef85f4088f7a5343d2e27e`).
+authentication with primary-only submission authority and finite native busy-pipe waits
+(file-map `9dd388044392f8b7bd991321f5dd80857e449667dc4abd12aabb0d56b3466af0`).
 Shared machine cargo_slots is restored to 1; both original retained Grants released.
 The three accepted consumer rounds used z3 file-map
 `005ed18d96eb8f5e14cf5b178308b9d7cbb8ec1eeeaef1f16d58b0ca5fffa10a`.
 Historical x2 file-map
 `4dbfc18c91bbede4df1f6714e442448797df7b064a0ee58a58159c49afba4c99`.
-Windows: PID 64392, generation `01a08b4a-cfab-7740-aef2-bcf946f2f918`, unchanged
+Windows: PID 60892, generation `01a08b65-9a4c-7111-ad59-a0825b917b7b`, unchanged
 store `01a05f1f-858c-7880-8c15-d55875da9e6b`, SHA-256
-`4d9b97337c11c3d0a722e72a4bfeaf62df38d8ad53d845632fac6302042834cc`.
+`8c5a6ec722a9f89942587f9c51f02487f7cc7683ead67bfe535e4de5a65ec791`.
 WSL: installed `/home/pythonic/.local/share/stillyard/bin/stillyard`,
 store `01a089b1-9a6a-7711-a600-39e2b74e495d`, SHA-256
-`0c72827cf17a6f7db9f94f5aca2865003fc4d29b33eaa276df51c87c1087a52d`.
-Linux daemon PID 1703349, generation `01a08b4a-da2c-72d1-bcdc-f5b512f5a453`. [Current installation evidence](evidence/mr3-installed-20260910z11e/).
+`95dc85a28c57c084f2e15210d08162d95642117da5c95b300e4b2cbb0593527b`.
+Linux daemon PID 1929683, generation `01a08b65-a2dd-74b3-bbb1-4f45ebe170e4`. [Current installation evidence](evidence/mr3-installed-20260910z11f/).
 Historical daemon identity after crash is recorded in
 [daemon-crash evidence](evidence/mr3-daemon-crash-20260910z3/);
 [upgrade barrier and retained identity](evidence/mr3-installed-20260910z3/).
@@ -62,7 +62,7 @@ Current interop connection is proven, logout/cold-start lifetime is not.
 Maintenance-helper corrections are now included in the accepted z8 source.
 Native/WSL z8 gates and the explicit pair upgrade
 passed, preserving both Stores and the executor journal.
-[Current installation](evidence/mr3-installed-20260910z8/); historical
+[Historical z8 installation](evidence/mr3-installed-20260910z8/); historical
 [first installed Job](evidence/mr3-installed-20260910x2/).
 
 Accepted MR-2 h file-map:
@@ -2791,3 +2791,42 @@ succeeded, and actual pending-child/active-Windows overlap was recorded.
 The next slice removes native busy-pipe one-second timeout/retry polling so
 bridge timer expiry cannot remain hidden during otherwise healthy operation;
 real occupied-pipe negative control and matched gates follow.
+
+### Git checkpoint and installed z11f
+
+At the user's request, branch `wsl` was created and pushed to `origin`.
+Commits `b663d39` (implementation/contracts/ledger) and `8cf08e7` (canonical
+evidence) preserve the accumulated work; remote HEAD was verified equal to local.
+Future milestones are committed/pushed incrementally; merge into main is deferred
+until delivery acceptance. Disposable targets and transient receipt locks are
+excluded. Historical manifests retain their original baseline commit and exact
+file maps; this checkpoint does not rewrite that evidence.
+
+All 11 z11f matched gates passed as default Stillyard Jobs, including Windows and
+Linux check, Clippy, full tests, Rust 1.85 tests, release builds and native fmt.
+[Exact Jobs and source map](evidence/mr3-membership-20260910z11f/jobs.json).
+The real occupied native-pipe old-loop mutant failed with two waits rather than
+one; [negative control](evidence/mr3-busy-pipe-mutant-20260910z11f/).
+The installed pair upgrade passed all empty barriers with original Stores and
+journal retained; [installed pair](evidence/mr3-installed-20260910z11f/).
+Scratch source now matches z11f; its cache moved e → f without copying, after
+empty queues/process-reference checks; [cache move](evidence/mr3-cleanup-20260910z11f/).
+Current-pair W-C1..4 confirmation is running.
+
+The independent busy-pipe review confirmed the API fix and identified an omitted
+client receiving-thread timeout in the original idle argument. The corrected
+[complete helper wait audit](evidence/mr3-helper-timer-audit-20260910z11f/audit.md)
+includes that path; [review disposition](evidence/mr3-opus-busy-pipe-20260910z11f/triage.md).
+Final aggregate idle acceptance is still pending actual interval observations.
+
+The h lifecycle bundle has passed a read-only native preflight and is prepared
+for review. Terminate/shutdown remain unsubmitted with no approval file.
+[Prepared bundle](evidence/mr3-lifecycle-window-20260910z11h/) and
+[earlier review disposition](evidence/mr3-opus-lifecycle-window-20260910z11f2/triage.md).
+
+Final-source z11f W-C1..4 confirmation passed: all six Jobs succeeded, including
+Windows and Linux full tests, real review, actual measurement, agent parent and
+its one managed child. Both agent adapter calls completed sequentially and
+recovered the same child/Attempt/receipt/key; authenticated postcondition passed.
+Actual pending-child/active-Windows overlap was captured under shared capacity 1.
+[Canonical Jobs and results](evidence/mr3-consumer-confirmation-20260910z11f/).

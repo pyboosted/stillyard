@@ -1,0 +1,58 @@
+{
+  "jobs": [
+    {
+      "side": "windows",
+      "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b66-50c2-7711-ab74-7a600e4a7944",
+      "outcome": "succeeded",
+      "receipt": "/mnt/c/Development/stillyard-mr3-consumer-confirmation-evidence-20260910z11f/test-7b3cd96e221f46bcb2348622984f1530.receipt.json"
+    },
+    {
+      "side": "linux",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-4999-7180-bfb8-e6fc7a7911e4",
+      "outcome": "succeeded",
+      "receipt": "/home/pythonic/Development/stillyard-consumers-20260910z11f/wc3/receipt.json"
+    },
+    {
+      "side": "linux",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-49cc-7583-b75b-7d7adc15c9e6",
+      "outcome": "succeeded",
+      "receipt": "/home/pythonic/Development/stillyard-consumers-20260910z11f/wc4/receipt.json"
+    },
+    {
+      "side": "linux",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-49ac-7d82-84b8-eed7db61369d",
+      "outcome": "succeeded",
+      "receipt": "/home/pythonic/Development/stillyard-consumers-20260910z11f/wc2/receipt.json"
+    },
+    {
+      "side": "linux",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-62b6-7790-bab6-5fee9dd50979",
+      "outcome": "succeeded",
+      "receipt": "/home/pythonic/Development/stillyard-consumers-20260910z11f/wc3/child-evidence/dcaa6a29-07c2-58b3-af11-486b1fd4fb7c.receipt.json"
+    },
+    {
+      "side": "linux",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-4a65-7821-8555-39520e6ed101",
+      "outcome": "succeeded",
+      "receipt": "/home/pythonic/Development/stillyard-consumers-20260910z11f/linux-gate/wsl-test-85be88535ebd474db2f8d5488880477b/receipt.json"
+    }
+  ],
+  "managed_calls": 2,
+  "one_child": true,
+  "measurement": {
+    "rounds": 256,
+    "bytes_per_round": 4190888,
+    "bytes_hashed": 1072867328,
+    "payload_sha256": "3311305f344222ef61cdb73aae6cd730c9c9c6974a683f341c084a9ec0377f3c",
+    "source_files_sha256": "9dd388044392f8b7bd991321f5dd80857e449667dc4abd12aabb0d56b3466af0",
+    "wall_seconds": 1.7504629129980458,
+    "cpu_seconds": 1.737544782,
+    "invocation": {
+      "STILLYARD_JOB_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-49cc-7583-b75b-7d7adc15c9e6",
+      "STILLYARD_ATTEMPT": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b66-49db-7a92-a81e-5ac05408e9b5",
+      "STILLYARD_INVOCATION_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b68-f7ed-72c0-8d8a-339025dffecf",
+      "STILLYARD_ENDPOINT": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock"
+    }
+  },
+  "source_files_sha256": "9dd388044392f8b7bd991321f5dd80857e449667dc4abd12aabb0d56b3466af0"
+}
