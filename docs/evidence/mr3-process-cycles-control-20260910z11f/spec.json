@@ -1,0 +1,27 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+  "args": [
+    "C:\\Development\\stillyard-mr3-process-cycles-control-20260910z11f\\control.py"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr3-process-cycles-control-20260910z11f",
+  "environment": {
+    "set": {
+      "SystemRoot": "C:\\Windows",
+      "USERPROFILE": "C:\\Users\\User",
+      "PATH": "C:\\Windows\\System32;C:\\Windows"
+    }
+  },
+  "resources": {},
+  "timeout_seconds": 60,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr3-process-cycles-control"
+    }
+  ]
+}

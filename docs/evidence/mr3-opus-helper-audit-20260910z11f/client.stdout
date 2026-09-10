@@ -1,0 +1,274 @@
+{
+  "outcome": {
+    "outcome": "final",
+    "value": {
+      "receipt": {
+        "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b77-d07d-78e3-93ab-abb7a6c15679",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b77-d081-7860-ac87-7292d08766d2",
+        "submission_state": "accepted",
+        "job_state": "pending",
+        "reason_code": null,
+        "accepted_unix_millis": 1789046280321,
+        "priority": 0,
+        "effective_priority": 0,
+        "blockers": [],
+        "queue_rank": 1,
+        "reservation": null,
+        "conditions": [],
+        "estimate": {
+          "confidence": "estimated",
+          "start_in_millis": 0,
+          "assumptions": [
+            "currently admissible"
+          ]
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4"
+      },
+      "snapshot": {
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b77-d081-7860-ac87-7292d08766d2",
+        "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b77-d07d-78e3-93ab-abb7a6c15679",
+        "batch_id": null,
+        "batch_member": null,
+        "state": "final",
+        "outcome": "succeeded",
+        "reason_code": null,
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b77-d08b-7090-82fa-9388258f6a5b",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b7e-5b5c-7610-830b-a79232f0bc54",
+        "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b7e-5b5c-7610-830b-a7a2ad5405e4",
+        "root_exit_code": 0,
+        "cancel_requested": false,
+        "accepted_unix_millis": 1789046280321,
+        "priority": 0,
+        "effective_priority": null,
+        "queue_rank": null,
+        "reservation": null,
+        "conditions": [],
+        "started_unix_millis": 1789046280723,
+        "finished_unix_millis": 1789046709286,
+        "spec": {
+          "spec_version": 4,
+          "priority": 0,
+          "executable": "/usr/bin/python3",
+          "args": [
+            "/home/pythonic/Development/stillyard-mr3-opus-helper-audit-20260910z11f/ba5d990907e54b56a4dfbdac1916b225/reviewer.py",
+            "review",
+            "--cli",
+            "/home/pythonic/.local/bin/claude-current",
+            "--brief",
+            "/home/pythonic/Development/stillyard-mr3-opus-helper-audit-20260910z11f/ba5d990907e54b56a4dfbdac1916b225/brief.txt",
+            "--output",
+            "/home/pythonic/Development/stillyard-mr3-opus-helper-audit-20260910z11f/ba5d990907e54b56a4dfbdac1916b225/review.json",
+            "--model",
+            "opus",
+            "--effort",
+            "high"
+          ],
+          "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-helper-audit-20260910z11f/ba5d990907e54b56a4dfbdac1916b225",
+          "stdin": {
+            "kind": "eof"
+          },
+          "environment": {
+            "set": {
+              "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+              "HOME": "/home/pythonic",
+              "LANG": "C.UTF-8",
+              "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+            },
+            "unset": []
+          },
+          "resources": {
+            "cpu_units": null,
+            "ram_mb": null,
+            "cargo_slots": null,
+            "gpu_slots": null,
+            "custom": {
+              "claude2_slots": 1
+            },
+            "shared_fences": [],
+            "exclusive_fences": [],
+            "impacts": []
+          },
+          "observed": null,
+          "conditions": [],
+          "retry": {
+            "max_attempts": 3,
+            "backoff_seconds": 1,
+            "retryable": [
+              "start_failed"
+            ]
+          },
+          "postconditions": [
+            {
+              "executable": "/usr/bin/python3",
+              "args": [
+                "/home/pythonic/Development/stillyard-mr3-opus-helper-audit-20260910z11f/ba5d990907e54b56a4dfbdac1916b225/reviewer.py",
+                "validate-review",
+                "--input",
+                "/home/pythonic/Development/stillyard-mr3-opus-helper-audit-20260910z11f/ba5d990907e54b56a4dfbdac1916b225/review.json",
+                "--expected-model-prefix",
+                "claude-opus-"
+              ],
+              "working_directory": null,
+              "accepted_exit_codes": [
+                0
+              ],
+              "retryable_exit_codes": []
+            }
+          ],
+          "labels": [
+            {
+              "key": "project",
+              "value": "stillyard"
+            },
+            {
+              "key": "gate",
+              "value": "mr3-opus-helper-audit-z11f"
+            }
+          ],
+          "expected_duration_seconds": null,
+          "timeout_seconds": 1200,
+          "quiet": null,
+          "artifacts": [],
+          "child_submission_policy": null
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "blockers": [],
+        "attempts": [
+          {
+            "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b77-d08b-7090-82fa-9388258f6a5b",
+            "attempt_index": 1,
+            "verdict": "succeeded",
+            "reason_code": null,
+            "created_unix_millis": 1789046280331,
+            "started_unix_millis": 1789046280429,
+            "deadline_unix_millis": 1789047480429,
+            "finished_unix_millis": 1789046709286,
+            "primary_result": {
+              "schema_version": 1,
+              "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b77-d081-7860-ac87-7292d08766d2",
+              "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b77-d08b-7090-82fa-9388258f6a5b",
+              "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b77-d08b-7090-82fa-939e208b770a",
+              "verdict": "succeeded",
+              "root_exit_code": 0,
+              "termination": "exited",
+              "containment": "empty",
+              "started_unix_millis": 1789046280723,
+              "exited_unix_millis": 1789046709061,
+              "resolved_unix_millis": 1789046709078
+            },
+            "admission": null,
+            "invocations": [
+              {
+                "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b77-d08b-7090-82fa-939e208b770a",
+                "role": "primary",
+                "role_index": 0,
+                "state": "resolved",
+                "root_pid": 2133288,
+                "root_identity": {
+                  "platform": "linux",
+                  "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+                  "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+                  "pid": 2133288,
+                  "start_ticks": 9238720,
+                  "pid_namespace_inode": 4026534691,
+                  "uid": 1000
+                },
+                "root_exit_code": 0,
+                "exit_classification": null,
+                "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+                "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+                "started_unix_millis": 1789046280723,
+                "finished_unix_millis": 1789046709078,
+                "containment": {
+                  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b77-d08b-7090-82fa-93a42718991b",
+                  "state": "empty",
+                  "strength": "linux_cgroup_v2",
+                  "incident_id": null,
+                  "incident": null,
+                  "resolution": null,
+                  "resolution_audit": null
+                },
+                "stdout_tail": "ead key sets, daemon generations, job counts, interop target unchanged, and transport/backoff zero - and the Linux daemon's subscriber counter need not move at all if each request is answered without a daemon-side timed wait. Whether the installed Linux CLI passes a cancellation token on those subcommands is UNKNOWN from the exhibited source, but the detection gap is independent of that. Given attempt 2 was invalidated by a watch subscriber, the Linux client-free precondition should be an observed and retained fact (e.g., an enumerate-and-reject pass over all processes whose exe resolves to the installed Linux stillyard image), not an implicit assumption.\\\",\\\"Material gap - the opaque wsl.exe bound covers only threads present in both snapshots. The PowerShell probe reads Win32_PerfRawData_PerfProc_Thread at each snapshot and compares `old_threads.keys()!=new_threads.keys()` plus per-thread ElapsedTime, then sums ContextSwitchesPersec deltas; a thread created and exited between the two snapshots appears in neither set and contributes no delta. Exact surviving counterexample: a Windows thread-pool timer callback in the keepalive wsl.exe that fires and its worker thread exits before the `after` WMI query - matched-thread switch deltas stay 0, thread identity comparison passes, and the audit's stated bound ('zero raw context-switch deltas' bounds actual timer-driven scheduling to zero) does not hold. Nothing in the retained evidence bounds thread creation (no cumulative thread count, handle count, or per-role CPU limit for role 'windows_keepalive' - result['cpu_memory_checks'] covers only executor_daemon/coordinator_daemon/native_bridge, leaving only the 1.1% aggregate). Related, fail-closed direction: the same strict thread-set equality is applied to native_bridge processes, but Client::request spawns a fresh transport thread per request and the Linux driver drives a Participant heartbeat plus SchedulingStatus refresh every few seconds, so a snapshot landing during an exchange raises 'native thread identity changed'. That fails closed rather than passing falsely; whether it caused the first attempt's WMI baseline failure is UNKNOWN.\\\",\\\"Material gap (partly a source-attribution limit) - the exhaustiveness premise 'the only timed waits on these paths are the ones enumerated' is not established by the exhibited source, and the class of counterexample it must exclude is exactly the one the busy-pipe fix removed: a wait that expires, retries, and then succeeds, producing actual expirations with no error, no BridgeOutcome::Error, no teardown, and no counter movement. Two specific holes: (a) src/client.rs `verify_pipe_server` is truncated after its `use` line in the provided excerpt, and it runs on every native transport_request after the pipe opens - if it contains any retry-on-timeout (e.g., waiting on the server process/handle), its expirations survive every stated observation; (b) no Timer::Reactor or Timer::Subscriber call site appears in any provided file, so 'daemon counters cover application-owned timer expirations' is unverified here - any uninstrumented timed wait in either daemon's reactor/subscriber path is a silent undercount under all stated observations. Whether such sites exist is UNKNOWN. The audit should either exhibit those call sites or state the coverage claim as an assumption rather than a verified property.\\\",\\\"Process gap - every condition the audit calls 'required' is recorded but never asserted, and scripts/observe-installed-idle.py's only hard gate is result['cpu_memory_pass'] (per-role and aggregate CPU/memory). Unenforced: zero Linux transport/backoff (result['daemon_timer_expirations'] is emitted, never compared), the 6/min aggregate (result['aggregate_timer_status'] is hard-coded to 'pending helper timer coverage'), zero voluntary switches for the init session relay and the python helpers (result['processes'][*]['voluntary_switches'] is emitted per process, with no per-role expectation), and zero native raw context-switch deltas (only the backwards-counter check is enforced). Note that one stated condition is vacuous rather than unenforced: because Timer::Attached and Timer::Transport are `#[cfg(target_os = \\\\\\\"linux\\\\\\\")]` in src/runtime_metrics.rs while doctor_check() prints all five statics, the Windows 'inapplicable_buckets' can never be nonzero, so 'retain inapplicable buckets and require zero' proves nothing on that side. Acceptance therefore rests on a manual composition step with no retained artifact mapping each condition to a field; a checklist emitted into result.json (per-condition pass/fail plus the aggregate rate) would make the conditional argument auditable after the fact.\\\",\\\"Material gap in the CPU/memory portion - the Linux memory metric is not conservative and is not comparable to the Windows one. result['processes'][*]['memory_mib'] uses rss_anon_kib on Linux, which excludes resident file-backed and shared pages (including the mapped executable and any mapped store pages), so the 40 MiB daemon and 96 MiB aggregate budgets are enforced against a strict undercount; Windows uses PrivateMemorySize64, so result['aggregate_memory_mib'] sums two different quantities. Both sides also sample only twice (`max(p[mem],b[mem])`), so any peak strictly between the snapshots is unobserved. This does not affect the timer-expiration argument, but it does affect the same PASS the audit is being composed for.\\\",\\\"Magnitude is unestablished, and the exhibited fallback would fail the budget - src/daemon/attached.rs computes the idle wait as `store.attached_poll_interval()` with `.unwrap_or(Duration::from_secs(1))`, and that fallback is taken whenever the store mutex is unavailable or the query errors; ReleaseState::wait then counts one Timer::Attached expiration per elapsed interval, i.e. ~60/min against the 6/min aggregate budget. The comment in src/runtime_metrics.rs's ignored system test instead describes 'the real driver's 20s idle wait' (~3/min), which is not a value visible in the exhibited path. The installed store's attached_poll_interval for image z11f is UNKNOWN and is not recorded anywhere in the evidence. These expirations are correctly counted, so this is not an accounting gap, but the audit states no expected aggregate and gives no basis to expect the 6/min comparison to pass; the observed interval should record the configured interval alongside the counter deltas.\\\"]}\",\"structured_output\":{\"verdict\":\"findings\",\"summary\":\"The audit's core conditional chain checks out against the exhibited source: all six bridge commands in src/machine/bridge.rs::run pass cancellation=None, so src/client.rs Client::request takes the single full-remaining-deadline recv_timeout and never the 25 ms loop; a recv_timeout expiry or an ERROR_SEM_TIMEOUT from WaitNamedPipeW (finite 1..MAX-1 timeout) returns DeadlineElapsed, serve serializes BridgeOutcome::Error, protocol::write_frame flushes, Linux Bridge::exchange maps every BridgeOutcome::Error to Err, every Driver call site in src/store/attached/driver.rs uses .map_err(bridge_error)?, and src/daemon/attached.rs's error branch unconditionally drops the Driver (killing the direct Linux child, changing the proxy PID) and increments Timer::Backoff after its 1 s sleep. A stalled native reply instead expires TimedIo::ready in bridge/linux.rs, which is counted as Timer::Transport and reaches the same teardown. So \\\"zero Linux transport/backoff expirations + stable Linux proxy/native bridge identities + unchanged daemon generations\\\" does exclude an uncounted native bridge timer expiration on the request path, and the 35 s settlement re-check of Linux transport/backoff plus both identity sets closes the boundary case (bridge frames are clamped to <=30 s in Bridge::exchange and re-clamped 1..30000 in serve). Vendor claims also match the exhibited excerpts (binfmt.cpp:235 poll(-1) relay with the 10 s accept at line 27 startup-only; init.cpp:1757 poll timeout of -1 unless PendingStdin is non-empty, else 100 ms). The residual gaps are not in that chain but in the observation harness and in the unproven exhaustiveness of \\\"which timed waits exist\\\": the Linux side has no equivalent of the native external-client rejection, the opaque wsl.exe bound does not cover threads that do not persist across both snapshots, none of the audit's \\\"require zero\\\" conditions are actually asserted by the observer, and the Linux memory metric is not conservative. Verdict is findings, not a rejection of the argument's structure.\",\"findings\":[\"Material gap - Linux-side external Stillyard clients/subscribers are not excluded, asymmetrically with the native side (scripts/observe-installed-idle.py, snapshot()). The /proc walk skips any process that is neither in a 'stillyard.service/' cgroup nor the interop init pid nor a direct child of it (`if 'stillyard.service/' not in cg and int(proc.name)!=initpid and int(fields[1])!=initpid: continue`), and the 'unclassified helper process' RuntimeError only fires for processes that already passed that filter; the hard rejection with unexpected-native-clients.json ('idle requires no external Stillyard clients/subscribers') is applied only to Windows processes matched by ExecutablePath. Exact surviving counterexample: a user-run Linux `stillyard` client in a shell/user-slice scope (watch, logs --follow, or a repeated doctor loop) during the measured interval. Its own timed waits in src/client.rs Client::request (`receiver.recv_timeout(remaining.min(Duration::from_millis(25)))` retried until the deadline whenever a cancellation token is passed) are actual timer expirations at up to ~2400/min, are in no daemon counter, and its CPU/RSS is outside result['aggregate_*']; meanwhile every stated observation holds - identities, thread key sets, daemon generations, job counts, interop target unchanged, and transport/backoff zero - and the Linux daemon's subscriber counter need not move at all if each request is answered without a daemon-side timed wait. Whether the installed Linux CLI passes a cancellation token on those subcommands is UNKNOWN from the exhibited source, but the detection gap is independent of that. Given attempt 2 was invalidated by a watch subscriber, the Linux client-free precondition should be an observed and retained fact (e.g., an enumerate-and-reject pass over all processes whose exe resolves to the installed Linux stillyard image), not an implicit assumption.\",\"Material gap - the opaque wsl.exe bound covers only threads present in both snapshots. The PowerShell probe reads Win32_PerfRawData_PerfProc_Thread at each snapshot and compares `old_threads.keys()!=new_threads.keys()` plus per-thread ElapsedTime, then sums ContextSwitchesPersec deltas; a thread created and exited between the two snapshots appears in neither set and contributes no delta. Exact surviving counterexample: a Windows thread-pool timer callback in the keepalive wsl.exe that fires and its worker thread exits before the `after` WMI query - matched-thread switch deltas stay 0, thread identity comparison passes, and the audit's stated bound ('zero raw context-switch deltas' bounds actual timer-driven scheduling to zero) does not hold. Nothing in the retained evidence bounds thread creation (no cumulative thread count, handle count, or per-role CPU limit for role 'windows_keepalive' - result['cpu_memory_checks'] covers only executor_daemon/coordinator_daemon/native_bridge, leaving only the 1.1% aggregate). Related, fail-closed direction: the same strict thread-set equality is applied to native_bridge processes, but Client::request spawns a fresh transport thread per request and the Linux driver drives a Participant heartbeat plus SchedulingStatus refresh every few seconds, so a snapshot landing during an exchange raises 'native thread identity changed'. That fails closed rather than passing falsely; whether it caused the first attempt's WMI baseline failure is UNKNOWN.\",\"Material gap (partly a source-attribution limit) - the exhaustiveness premise 'the only timed waits on these paths are the ones enumerated' is not established by the exhibited source, and the class of counterexample it must exclude is exactly the one the busy-pipe fix removed: a wait that expires, retries, and then succeeds, producing actual expirations with no error, no BridgeOutcome::Error, no teardown, and no counter movement. Two specific holes: (a) src/client.rs `verify_pipe_server` is truncated after its `use` line in the provided excerpt, and it runs on every native transport_request after the pipe opens - if it contains any retry-on-timeout (e.g., waiting on the server process/handle), its expirations survive every stated observation; (b) no Timer::Reactor or Timer::Subscriber call site appears in any provided file, so 'daemon counters cover application-owned timer expirations' is unverified here - any uninstrumented timed wait in either daemon's reactor/subscriber path is a silent undercount under all stated observations. Whether such sites exist is UNKNOWN. The audit should either exhibit those call sites or state the coverage claim as an assumption rather than a verified property.\",\"Process gap - every condition the audit calls 'required' is recorded but never asserted, and scripts/observe-installed-idle.py's only hard gate is result['cpu_memory_pass'] (per-role and aggregate CPU/memory). Unenforced: zero Linux transport/backoff (result['daemon_timer_expirations'] is emitted, never compared), the 6/min aggregate (result['aggregate_timer_status'] is hard-coded to 'pending helper timer coverage'), zero voluntary switches for the init session relay and the python helpers (result['processes'][*]['voluntary_switches'] is emitted per process, with no per-role expectation), and zero native raw context-switch deltas (only the backwards-counter check is enforced). Note that one stated condition is vacuous rather than unenforced: because Timer::Attached and Timer::Transport are `#[cfg(target_os = \\\"linux\\\")]` in src/runtime_metrics.rs while doctor_check() prints all five statics, the Windows 'inapplicable_buckets' can never be nonzero, so 'retain inapplicable buckets and require zero' proves nothing on that side. Acceptance therefore rests on a manual composition step with no retained artifact mapping each condition to a field; a checklist emitted into result.json (per-condition pass/fail plus the aggregate rate) would make the conditional argument auditable after the fact.\",\"Material gap in the CPU/memory portion - the Linux memory metric is not conservative and is not comparable to the Windows one. result['processes'][*]['memory_mib'] uses rss_anon_kib on Linux, which excludes resident file-backed and shared pages (including the mapped executable and any mapped store pages), so the 40 MiB daemon and 96 MiB aggregate budgets are enforced against a strict undercount; Windows uses PrivateMemorySize64, so result['aggregate_memory_mib'] sums two different quantities. Both sides also sample only twice (`max(p[mem],b[mem])`), so any peak strictly between the snapshots is unobserved. This does not affect the timer-expiration argument, but it does affect the same PASS the audit is being composed for.\",\"Magnitude is unestablished, and the exhibited fallback would fail the budget - src/daemon/attached.rs computes the idle wait as `store.attached_poll_interval()` with `.unwrap_or(Duration::from_secs(1))`, and that fallback is taken whenever the store mutex is unavailable or the query errors; ReleaseState::wait then counts one Timer::Attached expiration per elapsed interval, i.e. ~60/min against the 6/min aggregate budget. The comment in src/runtime_metrics.rs's ignored system test instead describes 'the real driver's 20s idle wait' (~3/min), which is not a value visible in the exhibited path. The installed store's attached_poll_interval for image z11f is UNKNOWN and is not recorded anywhere in the evidence. These expirations are correctly counted, so this is not an accounting gap, but the audit states no expected aggregate and gives no basis to expect the 6/min comparison to pass; the observed interval should record the configured interval alongside the counter deltas.\"]},\"ttft_ms\":381516,\"type\":\"result\",\"duration_ms\":426433,\"uuid\":\"38c1cebe-073d-453b-aee1-5c228a298021\",\"ttft_stream_ms\":1970,\"time_to_request_ms\":94,\"first_content_frame_ms\":2355,\"queued_turn_count\":0}\n",
+                "stderr_tail": ""
+              },
+              {
+                "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b7e-5b5c-7610-830b-a79232f0bc54",
+                "role": "postcondition",
+                "role_index": 1,
+                "state": "resolved",
+                "root_pid": 2191382,
+                "root_identity": {
+                  "platform": "linux",
+                  "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+                  "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+                  "pid": 2191382,
+                  "start_ticks": 9281582,
+                  "pid_namespace_inode": 4026534152,
+                  "uid": 1000
+                },
+                "root_exit_code": 0,
+                "exit_classification": "accepted",
+                "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+                "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+                "started_unix_millis": 1789046709217,
+                "finished_unix_millis": 1789046709282,
+                "containment": {
+                  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b7e-5b5c-7610-830b-a7a2ad5405e4",
+                  "state": "empty",
+                  "strength": "linux_cgroup_v2",
+                  "incident_id": null,
+                  "incident": null,
+                  "resolution": null,
+                  "resolution_audit": null
+                },
+                "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-opus-5\"], \"selected_family_models\": [\"claude-opus-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"verdict\": \"findings\", \"summary\": \"The audit's core conditional chain checks out against the exhibited source: all six bridge commands in src/machine/bridge.rs::run pass cancellation=None, so src/client.rs Client::request takes the single full-remaining-deadline recv_timeout and never the 25 ms loop; a recv_timeout expiry or an ERROR_SEM_TIMEOUT from WaitNamedPipeW (finite 1..MAX-1 timeout) returns DeadlineElapsed, serve serializes BridgeOutcome::Error, protocol::write_frame flushes, Linux Bridge::exchange maps every BridgeOutcome::Error to Err, every Driver call site in src/store/attached/driver.rs uses .map_err(bridge_error)?, and src/daemon/attached.rs's error branch unconditionally drops the Driver (killing the direct Linux child, changing the proxy PID) and increments Timer::Backoff after its 1 s sleep. A stalled native reply instead expires TimedIo::ready in bridge/linux.rs, which is counted as Timer::Transport and reaches the same teardown. So \\\"zero Linux transport/backoff expirations + stable Linux proxy/native bridge identities + unchanged daemon generations\\\" does exclude an uncounted native bridge timer expiration on the request path, and the 35 s settlement re-check of Linux transport/backoff plus both identity sets closes the boundary case (bridge frames are clamped to <=30 s in Bridge::exchange and re-clamped 1..30000 in serve). Vendor claims also match the exhibited excerpts (binfmt.cpp:235 poll(-1) relay with the 10 s accept at line 27 startup-only; init.cpp:1757 poll timeout of -1 unless PendingStdin is non-empty, else 100 ms). The residual gaps are not in that chain but in the observation harness and in the unproven exhaustiveness of \\\"which timed waits exist\\\": the Linux side has no equivalent of the native external-client rejection, the opaque wsl.exe bound does not cover threads that do not persist across both snapshots, none of the audit's \\\"require zero\\\" conditions are actually asserted by the observer, and the Linux memory metric is not conservative. Verdict is findings, not a rejection of the argument's structure.\", \"findings\": [\"Material gap - Linux-side external Stillyard clients/subscribers are not excluded, asymmetrically with the native side (scripts/observe-installed-idle.py, snapshot()). The /proc walk skips any process that is neither in a 'stillyard.service/' cgroup nor the interop init pid nor a direct child of it (`if 'stillyard.service/' not in cg and int(proc.name)!=initpid and int(fields[1])!=initpid: continue`), and the 'unclassified helper process' RuntimeError only fires for processes that already passed that filter; the hard rejection with unexpected-native-clients.json ('idle requires no external Stillyard clients/subscribers') is applied only to Windows processes matched by ExecutablePath. Exact surviving counterexample: a user-run Linux `stillyard` client in a shell/user-slice scope (watch, logs --follow, or a repeated doctor loop) during the measured interval. Its own timed waits in src/client.rs Client::request (`receiver.recv_timeout(remaining.min(Duration::from_millis(25)))` retried until the deadline whenever a cancellation token is passed) are actual timer expirations at up to ~2400/min, are in no daemon counter, and its CPU/RSS is outside result['aggregate_*']; meanwhile every stated observation holds - identities, thread key sets, daemon generations, job counts, interop target unchanged, and transport/backoff zero - and the Linux daemon's subscriber counter need not move at all if each request is answered without a daemon-side timed wait. Whether the installed Linux CLI passes a cancellation token on those subcommands is UNKNOWN from the exhibited source, but the detection gap is independent of that. Given attempt 2 was invalidated by a watch subscriber, the Linux client-free precondition should be an observed and retained fact (e.g., an enumerate-and-reject pass over all processes whose exe resolves to the installed Linux stillyard image), not an implicit assumption.\", \"Material gap - the opaque wsl.exe bound covers only threads present in both snapshots. The PowerShell probe reads Win32_PerfRawData_PerfProc_Thread at each snapshot and compares `old_threads.keys()!=new_threads.keys()` plus per-thread ElapsedTime, then sums ContextSwitchesPersec deltas; a thread created and exited between the two snapshots appears in neither set and contributes no delta. Exact surviving counterexample: a Windows thread-pool timer callback in the keepalive wsl.exe that fires and its worker thread exits before the `after` WMI query - matched-thread switch deltas stay 0, thread identity comparison passes, and the audit's stated bound ('zero raw context-switch deltas' bounds actual timer-driven scheduling to zero) does not hold. Nothing in the retained evidence bounds thread creation (no cumulative thread count, handle count, or per-role CPU limit for role 'windows_keepalive' - result['cpu_memory_checks'] covers only executor_daemon/coordinator_daemon/native_bridge, leaving only the 1.1% aggregate). Related, fail-closed direction: the same strict thread-set equality is applied to native_bridge processes, but Client::request spawns a fresh transport thread per request and the Linux driver drives a Participant heartbeat plus SchedulingStatus refresh every few seconds, so a snapshot landing during an exchange raises 'native thread identity changed'. That fails closed rather than passing falsely; whether it caused the first attempt's WMI baseline failure is UNKNOWN.\", \"Material gap (partly a source-attribution limit) - the exhaustiveness premise 'the only timed waits on these paths are the ones enumerated' is not established by the exhibited source, and the class of counterexample it must exclude is exactly the one the busy-pipe fix removed: a wait that expires, retries, and then succeeds, producing actual expirations with no error, no BridgeOutcome::Error, no teardown, and no counter movement. Two specific holes: (a) src/client.rs `verify_pipe_server` is truncated after its `use` line in the provided excerpt, and it runs on every native transport_request after the pipe opens - if it contains any retry-on-timeout (e.g., waiting on the server process/handle), its expirations survive every stated observation; (b) no Timer::Reactor or Timer::Subscriber call site appears in any provided file, so 'daemon counters cover application-owned timer expirations' is unverified here - any uninstrumented timed wait in either daemon's reactor/subscriber path is a silent undercount under all stated observations. Whether such sites exist is UNKNOWN. The audit should either exhibit those call sites or state the coverage claim as an assumption rather than a verified property.\", \"Process gap - every condition the audit calls 'required' is recorded but never asserted, and scripts/observe-installed-idle.py's only hard gate is result['cpu_memory_pass'] (per-role and aggregate CPU/memory). Unenforced: zero Linux transport/backoff (result['daemon_timer_expirations'] is emitted, never compared), the 6/min aggregate (result['aggregate_timer_status'] is hard-coded to 'pending helper timer coverage'), zero voluntary switches for the init session relay and the python helpers (result['processes'][*]['voluntary_switches'] is emitted per process, with no per-role expectation), and zero native raw context-switch deltas (only the backwards-counter check is enforced). Note that one stated condition is vacuous rather than unenforced: because Timer::Attached and Timer::Transport are `#[cfg(target_os = \\\"linux\\\")]` in src/runtime_metrics.rs while doctor_check() prints all five statics, the Windows 'inapplicable_buckets' can never be nonzero, so 'retain inapplicable buckets and require zero' proves nothing on that side. Acceptance therefore rests on a manual composition step with no retained artifact mapping each condition to a field; a checklist emitted into result.json (per-condition pass/fail plus the aggregate rate) would make the conditional argument auditable after the fact.\", \"Material gap in the CPU/memory portion - the Linux memory metric is not conservative and is not comparable to the Windows one. result['processes'][*]['memory_mib'] uses rss_anon_kib on Linux, which excludes resident file-backed and shared pages (including the mapped executable and any mapped store pages), so the 40 MiB daemon and 96 MiB aggregate budgets are enforced against a strict undercount; Windows uses PrivateMemorySize64, so result['aggregate_memory_mib'] sums two different quantities. Both sides also sample only twice (`max(p[mem],b[mem])`), so any peak strictly between the snapshots is unobserved. This does not affect the timer-expiration argument, but it does affect the same PASS the audit is being composed for.\", \"Magnitude is unestablished, and the exhibited fallback would fail the budget - src/daemon/attached.rs computes the idle wait as `store.attached_poll_interval()` with `.unwrap_or(Duration::from_secs(1))`, and that fallback is taken whenever the store mutex is unavailable or the query errors; ReleaseState::wait then counts one Timer::Attached expiration per elapsed interval, i.e. ~60/min against the 6/min aggregate budget. The comment in src/runtime_metrics.rs's ignored system test instead describes 'the real driver's 20s idle wait' (~3/min), which is not a value visible in the exhibited path. The installed store's attached_poll_interval for image z11f is UNKNOWN and is not recorded anywhere in the evidence. These expirations are correctly counted, so this is not an accounting gap, but the audit states no expected aggregate and gives no basis to expect the 6/min comparison to pass; the observed interval should record the configured interval alongside the counter deltas.\"]}}\n",
+                "stderr_tail": ""
+              }
+            ]
+          }
+        ],
+        "allocations": [
+          {
+            "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b77-d0aa-7890-a320-244ff214ba75",
+            "lease_id": "01a08b77-d08b-7090-82fa-93b09a001452",
+            "key": {
+              "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+              "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+              "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+              "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+              "lease_id": "01a08b77-d08b-7090-82fa-93b09a001452"
+            },
+            "owner": {
+              "kind": "work",
+              "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b77-d081-7860-ac87-7292d08766d2",
+              "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b77-d08b-7090-82fa-9388258f6a5b"
+            },
+            "state": "armed",
+            "claims": {
+              "scalars": {
+                "cargo_slots": 0,
+                "claude2_slots": 1,
+                "cpu_units": 0,
+                "gpu_slots": 0,
+                "ram_mb": 0
+              },
+              "shared_fences": [],
+              "exclusive_fences": [],
+              "impacts": []
+            }
+          }
+        ],
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4"
+      }
+    }
+  },
+  "exit_source": "scheduler",
+  "exit_code": 0
+}

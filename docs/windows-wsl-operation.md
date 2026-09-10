@@ -135,3 +135,22 @@ actual journal seals, consumed Tickets, resolved Invocations and empty cgroups
 all match. It leaves Lease/Grant history intact for normal protocol release.
 The default updater still refuses outstanding Leases. These flags do not
 authorize SQL resets, forced resource release or updating over running work.
+
+For the five-minute idle interval, close installed CLI viewers on both sides and
+avoid opening clients or submitting Jobs until collection finishes. The observer
+runs outside Jobs by design, verifies empty queues and client inventories, then
+retains an additional 35-second boundary-settlement observation:
+
+```bash
+python3 scripts/observe-installed-idle.py --windows-keepalive-pid PID \
+  --evidence-directory /absolute/new-idle-evidence
+python3 scripts/validate-installed-idle.py /absolute/new-idle-evidence \
+  --installation-plan /absolute/accepted-pair/plan.json
+```
+
+The second command produces an explicit condition-by-condition acceptance file.
+It requires the accepted pair's sibling `after.json`, exact installed image hashes
+and generations, full helper inventory, source-audited wait paths, native lifetime
+cycle totals and timer budgets. Observer completion alone is not aggregate idle
+acceptance. Memory is sampled at interval endpoints using the specified native
+private-byte/Linux RssAnon metric; an interval peak is not claimed.

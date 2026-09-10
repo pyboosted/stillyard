@@ -1,0 +1,13 @@
+{
+  "expected_rejection": true,
+  "phase": "before idle interval",
+  "actual_error": "idle requires no external Stillyard clients/subscribers: [44148]",
+  "watch_pid": 44148,
+  "watch_terminated": false,
+  "native_cycle_probe_and_creation_binding": "completed before external-client rejection",
+  "installed_build_jobs": {
+    "windows": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5f-48a9-7630-86f4-6e641ab724af",
+    "linux": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b60-39c4-7043-b3e6-6e8cb8221d80"
+  },
+  "scope": "external observer as required by no-Jobs idle norm; no Cargo invoked"
+}

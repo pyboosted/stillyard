@@ -2855,3 +2855,25 @@ exit-259 process rejection, empty/BOM quiet-list parsing and WSL-path rejection.
 Only terminate/shutdown plus later canaries are prepared for an interruption
 window; sleep/logout/reboot remain separately unprepared. No disruptive approval
 file exists and no disruptive Job has been submitted.
+
+The complete helper audit review Job
+L`01a08b77-d081-7860-ac87-7292d08766d2` confirmed the full timeout propagation
+chain and found an endpoint thread-inventory gap. The observer now includes
+creation-bound process lifetime cycle totals and rejects external Linux clients.
+A native process-cycle control passed and retained an exited worker's cycles in
+the process total; [control](evidence/mr3-process-cycles-control-20260910z11f/).
+A separate explicit-condition idle validator is prepared.
+[Review disposition](evidence/mr3-opus-helper-audit-20260910z11f/triage.md).
+The final clean interval still awaits permission to pause the user's watch; no
+aggregate idle PASS has been recorded.
+
+Native lifetime-cycle control
+W`01a08b81-f573-75a2-b15a-25ba7c692d38` measured 1,310,578,091 cycles in a
+worker that exited; the process total retained a delta of 1,314,459,349 cycles.
+The updated observer's real precondition control correctly rejected the still
+open Windows watch PID 44148 before beginning the interval, after successful
+native cycle and creation-identity queries.
+[Viewer rejection control](evidence/mr3-idle-viewer-control-20260910z11f/).
+Current scripts now contain the complete observer, settlement and separate
+acceptance validator; temporary /tmp scripts are not needed to resume.
+The viewer pause request is unanswered; the viewer remains untouched.

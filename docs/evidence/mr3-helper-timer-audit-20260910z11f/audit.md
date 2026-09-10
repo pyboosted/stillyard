@@ -63,3 +63,25 @@ actual expirations only after the conditions above hold. Linux poll rounding may
 produce multiple expirations for one logical timeout: retain them all. Compare
 this aggregate against 6/min, with CPU/memory budgets separately measured. An
 unresolved helper or boundary interval means pending, not PASS.
+
+## Follow-up: process lifetime totals and executable composition
+
+The independent review identified a real hole in endpoint thread lists: a worker
+can start and exit between samples. The opaque Windows keepalive now additionally
+requires zero QueryProcessCycleTime delta, bound to the same creation FILETIME.
+A real native Job proved exited worker cycles remain in that lifetime total;
+see ../mr3-process-cycles-control-20260910z11f/. No cycles-to-time or nonzero
+cycles-to-timer conversion is used. The original zero persistent-thread-switch
+condition alone is insufficient.
+
+Both installed Linux and native external clients are rejected by snapshot
+inventory. The controlled interval must have no newly opened clients; snapshots
+are not a general process-creation trace. verify_pipe_server and complete daemon
+reactor/subscriber/backoff call sites are retained in this directory, together
+with attached_poll_interval's 20-second empty-state branch.
+
+`scripts/validate-installed-idle.py` performs explicit per-condition composition
+against a real interval and accepted installation plan. Its resulting acceptance
+artifact must be retained; observer success alone still means CPU/memory only.
+The report expressly measures endpoint private/RssAnon memory, as the MR-0 norm
+specifies, and does not claim to measure interval peaks.

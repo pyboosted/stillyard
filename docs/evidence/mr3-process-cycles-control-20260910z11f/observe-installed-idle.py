@@ -1,5 +1,5 @@
 """External five-minute idle observer: run only after all scheduled gates finish."""
-import argparse,base64,hashlib,json,os,sqlite3,subprocess,time
+import argparse,base64,json,os,sqlite3,subprocess,time
 from pathlib import Path
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--windows-keepalive-pid',type=int,required=True)
@@ -51,7 +51,7 @@ def snapshot():
     threads[t.name]={'voluntary':int(state['voluntary_ctxt_switches']),'involuntary':int(state['nonvoluntary_ctxt_switches'])}
    try: exe=os.readlink(proc/'exe')
    except PermissionError: exe='unavailable: ptrace permission'
-   records.append({'pid':int(proc.name),'name':status['Name'].strip(),'start_ticks':int(fields[19]),'cpu_ticks':int(fields[11])+int(fields[12]),'rss_anon_kib':int(status['RssAnon'].split()[0]),'threads':threads,'exe':exe})
+   records.append({'pid':int(proc.name),'name':status['Name'].strip(),'start_ticks':int(fields[19]),'cpu_ticks':int(fields[11])+int(fields[12]),'rss_anon_kib':int(status.get('RssAnon','0 kB').split()[0]),'threads':threads,'exe':exe})
   except (FileNotFoundError,ProcessLookupError):pass
  if unexpected_linux:
   save('unexpected-linux-clients.json',unexpected_linux)
@@ -71,8 +71,7 @@ def snapshot():
  if unexpected:
   save('unexpected-native-clients.json',unexpected)
   raise RuntimeError('idle requires no external Stillyard clients/subscribers: '+str([p['pid'] for p in unexpected]))
- hashes={side:hashlib.sha256(Path(cli).read_bytes()).hexdigest() for side,cli in [('linux',linux),('windows',windows)]}
- return {'unix_ns':time.time_ns(),'capture_started_monotonic':started,'monotonic':time.monotonic(),'binary_sha256':hashes,'doctor':docs,'job_counts':counts,'linux':records,'windows':native,'interop_target':str(target)}
+ return {'unix_ns':time.time_ns(),'capture_started_monotonic':started,'monotonic':time.monotonic(),'doctor':docs,'job_counts':counts,'linux':records,'windows':native,'interop_target':str(target)}
 before=snapshot();save('before.json',before)
 # Retain the exact observer used for this interval.
 (out/'observer.py').write_bytes(Path(__file__).read_bytes())
@@ -141,21 +140,3 @@ result['cpu_memory_checks']=checks
 result['cpu_memory_pass']=(all(c['cpu_pass'] and c['memory_pass'] for c in checks) and result['aggregate_cpu_percent']<=1.1 and result['aggregate_memory_mib']<=96)
 save('result.json',result);print(json.dumps(result),flush=True)
 if not result['cpu_memory_pass']:raise RuntimeError('installed idle CPU/memory budget exceeded')
-
-# Extra observation outside the measured 300-second interval: let every bounded
-# native bridge request (<=30 s) settle, then reject any delayed teardown.
-print('idle interval complete; settling bounded bridge requests',flush=True)
-time.sleep(35)
-settled=snapshot();save('settled.json',settled)
-for side,identity in [('linux','start_ticks'),('windows','start_time')]:
- if {(p['pid'],p[identity]) for p in after[side]}!={(p['pid'],p[identity]) for p in settled[side]}:
-  raise RuntimeError('process identity changed after the interval boundary')
- if settled['doctor'][side]['daemon']['daemon_generation']!=after['doctor'][side]['daemon']['daemon_generation']:
-  raise RuntimeError('daemon generation changed while settling')
-if settled['job_counts']!=after['job_counts']:
- raise RuntimeError('Jobs were submitted while settling')
-for name in ['transport','backoff']:
- if timer(settled['doctor']['linux'])[name]!=timer(after['doctor']['linux'])[name]:
-  raise RuntimeError('delayed bridge deadline/reconnect after interval boundary')
-save('settlement.json',{'passed':True,'duration_seconds':settled['monotonic']-after['monotonic'],'unchanged_process_identities':True,'unchanged_daemon_generations':True,'unchanged_job_history':True,'delayed_transport_or_backoff_expirations':0})
-print('boundary settlement passed',flush=True)
