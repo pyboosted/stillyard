@@ -1,0 +1,167 @@
+{
+  "executor": {
+    "containment": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a44-28fe-70b1-ab11-4fd0d990d5b4",
+    "lease": "01a08a44-28fe-70b1-ab11-4fe84cfc671c",
+    "daemon_generation": "01a08a42-318c-7b21-9091-aa0de1d8b4b4",
+    "creator": {
+      "platform": "linux",
+      "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+      "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+      "pid": 301964,
+      "start_ticks": 7209565,
+      "pid_namespace_inode": 4026532221,
+      "uid": 1000
+    },
+    "boundary": {
+      "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+      "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service/executors/invocation-01a08a44-28fe-70b1-ab11-4fcdd0ba1df0",
+      "device": 23,
+      "inode": 59880
+    },
+    "root": {
+      "platform": "linux",
+      "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+      "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+      "pid": 307462,
+      "start_ticks": 7222468,
+      "pid_namespace_inode": 4026534556,
+      "uid": 1000
+    },
+    "executable_sha256": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+    "release_intent": {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a44-2915-74b3-ac76-c532f8bac9e1",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08a44-28fe-70b1-ab11-4fe84cfc671c"
+      },
+      "offer_nonce": "01a08a44-2915-74b3-ac76-c54d669e713c",
+      "intent": {
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a44-28fe-70b1-ab11-4fcdd0ba1df0",
+        "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a44-28fe-70b1-ab11-4fd0d990d5b4",
+        "role": "primary",
+        "role_index": 0,
+        "release_sequence": 1,
+        "executable_sha256": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+        "boundary_sha256": "0bfa66a775fee91be014754a37d84d49b23a8d38583b225c1409c13eeb360c1d",
+        "readiness_challenge": "01a08a44-298e-7ac2-b07b-51e9bed7ca6a",
+        "previous_cleanup": null
+      },
+      "configuration_sha256": "7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978",
+      "issued_unix_millis": 1789026118048,
+      "host_observation_generation": "01a08a44-299e-7e22-ac8f-559c5ae7fa92",
+      "host_sample_unix_millis": 1789026118033,
+      "session": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "executor_incarnation": "01a08a42-318c-7b21-9091-aa0de1d8b4b4",
+        "connection_epoch": 11
+      }
+    },
+    "seal": null
+  },
+  "windows_job": {
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a44-2a1e-7192-8624-56e42c2e82c5",
+    "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a44-2a1d-7221-a903-48f4db06f85b",
+    "batch_id": null,
+    "batch_member": null,
+    "state": "pending",
+    "outcome": null,
+    "reason_code": null,
+    "attempt_id": null,
+    "invocation_id": null,
+    "containment_id": null,
+    "root_exit_code": null,
+    "cancel_requested": false,
+    "accepted_unix_millis": 1789026118174,
+    "priority": 0,
+    "effective_priority": 0,
+    "queue_rank": 1,
+    "reservation": {
+      "reservation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a44-2a24-7c62-b764-dcdd041a8f9f",
+      "claims": {
+        "cpu_units": 0,
+        "ram_mb": 0,
+        "cargo_slots": 1,
+        "gpu_slots": 0,
+        "custom": {}
+      },
+      "created_unix_millis": 1789026118180,
+      "hold_deadline_unix_millis": 1789026178180
+    },
+    "conditions": [],
+    "started_unix_millis": null,
+    "finished_unix_millis": null,
+    "spec": {
+      "spec_version": 4,
+      "priority": 0,
+      "executable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+      "args": [
+        "-c",
+        "print(\"shared token released only after Linux cleanup\")"
+      ],
+      "working_directory": "C:\\Development\\stillyard-mr3-cleanup-failure-evidence-20260910z3\\cleanup-failure-b7a003d086c540888a07a35be258d394",
+      "stdin": {
+        "kind": "eof"
+      },
+      "environment": {
+        "set": {},
+        "unset": []
+      },
+      "resources": {
+        "cpu_units": null,
+        "ram_mb": null,
+        "cargo_slots": 1,
+        "gpu_slots": null,
+        "custom": {},
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      },
+      "observed": null,
+      "conditions": [],
+      "retry": {
+        "max_attempts": 1,
+        "backoff_seconds": 0,
+        "retryable": []
+      },
+      "postconditions": [],
+      "labels": [
+        {
+          "key": "project",
+          "value": "stillyard"
+        },
+        {
+          "key": "gate",
+          "value": "installed-cleanup-failure"
+        }
+      ],
+      "expected_duration_seconds": null,
+      "timeout_seconds": 30,
+      "quiet": null,
+      "artifacts": [],
+      "child_submission_policy": null
+    },
+    "parent": null,
+    "managed_policy_admission": null,
+    "blockers": [
+      {
+        "code": "resource_busy",
+        "detail": "cargo_slots: requested 1, available 0, configured 1"
+      }
+    ],
+    "attempts": [],
+    "allocations": [],
+    "gpu_provenance": null,
+    "admission": null,
+    "daemon_generation": "01a08a29-e57b-7c90-a1a7-1c56e73cc496"
+  },
+  "cgroup_events": {
+    "populated": "0",
+    "frozen": "0"
+  }
+}

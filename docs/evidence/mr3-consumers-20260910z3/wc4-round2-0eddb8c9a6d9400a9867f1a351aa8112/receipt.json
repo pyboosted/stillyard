@@ -1,0 +1,41 @@
+{
+  "version": 5,
+  "idempotency_key": "e750394a-b92c-41cb-837b-7bc5899494e2",
+  "payload_hash": "1820bc40137f6aea627f6fd31cb9de038ce096621cc1816c28949b699c8c2160",
+  "endpoint": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock",
+  "store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+  "parent": null,
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3cde-7313-a63d-af61073fa546",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3ce0-76e3-a350-107922ca529a",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1789023960288,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [
+        {
+          "code": "impact_busy",
+          "detail": "measurement incompatible with active cpu_heavy"
+        }
+      ],
+      "queue_rank": 2,
+      "reservation": null,
+      "conditions": [],
+      "estimate": {
+        "confidence": "unknown",
+        "start_in_millis": null,
+        "assumptions": [
+          "at least one running or earlier queued job has no declared duration"
+        ]
+      },
+      "parent": null,
+      "managed_policy_admission": null,
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a08a20-4b37-7cb0-8340-8704746b9685"
+    }
+  }
+}

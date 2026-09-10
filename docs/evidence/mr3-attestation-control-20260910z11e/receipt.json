@@ -1,0 +1,86 @@
+{
+  "version": 5,
+  "idempotency_key": "9665f854-e6f3-4a85-aa02-253c4c1db7de",
+  "payload_hash": "bb4d7846c064d868999af59a943ec7d8764f240a12d2429e45cda8a41afce6a6",
+  "endpoint": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock",
+  "store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+  "parent": null,
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b4b-d945-7671-8568-578ce8770b9c",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b4b-d95a-7fe2-b73d-9fc51866b66c",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1789043399002,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [
+        {
+          "code": "condition_waiting",
+          "detail": "{\"predicate\":{\"kind\":\"probe\",\"probe\":{\"executable\":\"/usr/bin/python3\",\"args\":[\"/home/pythonic/Development/stillyard-mr3-attestation-control-20260910z11e/control.py\"],\"working_directory\":\"/home/pythonic/Development/stillyard-mr3-attestation-control-20260910z11e\",\"environment\":{\"set\":{},\"unset\":[]},\"resources\":{\"cpu_units\":null,\"ram_mb\":null,\"cargo_slots\":null,\"gpu_slots\":null,\"custom\":{},\"shared_fences\":[],\"exclusive_fences\":[],\"impacts\":[]},\"timeout_seconds\":30,\"interval_seconds\":1,\"accepted_exit_codes\":[0]}},\"deadline\":{\"kind\":\"relative\",\"seconds\":120},\"on_deadline\":\"failed\"}"
+        }
+      ],
+      "queue_rank": 2,
+      "reservation": null,
+      "conditions": [
+        {
+          "condition_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b4b-d95b-72c1-8594-7b77bff518ab",
+          "condition_index": 0,
+          "state": "waiting",
+          "spec": {
+            "predicate": {
+              "kind": "probe",
+              "probe": {
+                "executable": "/usr/bin/python3",
+                "args": [
+                  "/home/pythonic/Development/stillyard-mr3-attestation-control-20260910z11e/control.py"
+                ],
+                "working_directory": "/home/pythonic/Development/stillyard-mr3-attestation-control-20260910z11e",
+                "environment": {
+                  "set": {},
+                  "unset": []
+                },
+                "resources": {
+                  "cpu_units": null,
+                  "ram_mb": null,
+                  "cargo_slots": null,
+                  "gpu_slots": null,
+                  "custom": {},
+                  "shared_fences": [],
+                  "exclusive_fences": [],
+                  "impacts": []
+                },
+                "timeout_seconds": 30,
+                "interval_seconds": 1,
+                "accepted_exit_codes": [
+                  0
+                ]
+              }
+            },
+            "deadline": {
+              "kind": "relative",
+              "seconds": 120
+            },
+            "on_deadline": "failed"
+          },
+          "deadline_unix_millis": 1789043519002,
+          "last_observation": null,
+          "probe_invocation_id": null
+        }
+      ],
+      "estimate": {
+        "confidence": "unknown",
+        "start_in_millis": null,
+        "assumptions": [
+          "filesystem transitions and executable probes have no honest completion ETA"
+        ]
+      },
+      "parent": null,
+      "managed_policy_admission": null,
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a08b4a-da2c-72d1-bcdc-f5b512f5a453"
+    }
+  }
+}

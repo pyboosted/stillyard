@@ -1,0 +1,6 @@
+{
+  "helper_sha256": "ad66636a7852eced36be50c6bf135e45eb8d466e8910da89a14911e206449e86",
+  "validation_job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a3f-fff4-7e01-9b6c-ce5fad39050e",
+  "binary_sha256": "ea916efe8b6adb4816b02f538f3264c74d762b7aee40cfac83f3b3234d42c7bf",
+  "unit_text": "[Unit]\nDescription=Stillyard attached Windows/WSL scheduler\n\n[Service]\nType=simple\nExecStart=/usr/bin/python3 \"/home/pythonic/.local/share/stillyard/libexec/wsl-service.py\" run --executors \"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service/executors\" --ram-mb 16384 --daemon \"/home/pythonic/.local/share/stillyard/bin/stillyard\"\nWorkingDirectory=/home/pythonic/.local/share/stillyard\nDelegate=cpu memory pids\nDelegateSubgroup=manager\nSlice=app.slice\nKillMode=process\nTimeoutStopSec=infinity\nOOMPolicy=continue\nRestart=no\nRestartSec=2\nUMask=0077\nUnsetEnvironment=STILLYARD_STORE STILLYARD_ENDPOINT STILLYARD_JOB_ID STILLYARD_ATTEMPT STILLYARD_INVOCATION_ID STILLYARD_ROLE\n\n[Install]\nWantedBy=default.target\n"
+}

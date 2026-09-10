@@ -1,0 +1,14 @@
+[
+  {
+    "RegistrationId": "{390247b7-48b6-4712-bab7-ab81822b9e4d}",
+    "DistributionName": "Ubuntu-22.04",
+    "Version": 2,
+    "DefaultUid": 1000
+  },
+  {
+    "RegistrationId": "{4a62a312-631a-4038-b191-6fd3a0f57860}",
+    "DistributionName": "Ubuntu-SSD",
+    "Version": 2,
+    "DefaultUid": 0
+  }
+]

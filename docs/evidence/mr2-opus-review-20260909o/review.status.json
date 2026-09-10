@@ -1,0 +1,89 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b1-239c-7aa1-ae02-15f320e94795",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b1-239b-7b31-81bb-9b9d207fa413",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "canceled",
+  "reason_code": null,
+  "attempt_id": null,
+  "invocation_id": null,
+  "containment_id": null,
+  "root_exit_code": null,
+  "cancel_requested": true,
+  "accepted_unix_millis": 1788982928284,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": null,
+  "finished_unix_millis": 1788982992442,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr2-opus-review-20260909o\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr2-opus-review-20260909o",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {
+        "claude2": 3
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr2-opus-review"
+      },
+      {
+        "key": "source",
+        "value": "b0d7b6cd15f22f7fe9b8f840946364588b516e68688c542399f5895b1784f46d"
+      }
+    ],
+    "expected_duration_seconds": 300,
+    "timeout_seconds": 1530,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08727-6971-79a1-a1b3-fd73badf9036"
+}

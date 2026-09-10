@@ -1,0 +1,5 @@
+{
+  "old_sha256": "dd7138013f9317dae07d7ed0a27bc8725ae828f7664b9d725b49d4655fe1762c",
+  "new_sha256": "9cb73243bc2b28a2c58803a80f18a079b944188724c0aeb679e5eb2e09494bdf",
+  "reason": "report exact delegated control-process cgroup"
+}

@@ -1,0 +1,81 @@
+{
+  "version": 5,
+  "idempotency_key": "db5211e0-f56c-584a-a739-dc9f2451e6aa",
+  "payload_hash": "c5a270683d88e0f1643bb3fd92c2724b496d98d9b84fd838e1242ba69300c361",
+  "endpoint": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock",
+  "store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+  "parent": {
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2016-7af3-94f6-dad66aa471ac",
+    "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-201e-7fe3-99ea-cf6d259b7b4e",
+    "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-201e-7fe3-99ea-cf7ee2f03141"
+  },
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-34ee-7e21-a723-23672986aacf",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-34f2-7f20-b245-be8c295ab33d",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1789041652978,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [],
+      "queue_rank": 2,
+      "reservation": null,
+      "conditions": [],
+      "estimate": {
+        "confidence": "estimated",
+        "start_in_millis": 0,
+        "assumptions": [
+          "currently admissible"
+        ]
+      },
+      "parent": {
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2016-7af3-94f6-dad66aa471ac",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-201e-7fe3-99ea-cf6d259b7b4e",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-201e-7fe3-99ea-cf7ee2f03141"
+      },
+      "managed_policy_admission": {
+        "parent": {
+          "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2016-7af3-94f6-dad66aa471ac",
+          "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-201e-7fe3-99ea-cf6d259b7b4e",
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-201e-7fe3-99ea-cf7ee2f03141"
+        },
+        "evaluated_unix_millis": 1789041652978,
+        "effective_policy": {
+          "min_priority": 0,
+          "max_priority": 0,
+          "max_claims": {
+            "cpu_units": null,
+            "ram_mb": null,
+            "cargo_slots": 1,
+            "gpu_slots": null,
+            "custom": {}
+          },
+          "allowed_impacts": [
+            "cpu_heavy"
+          ],
+          "required_labels": [
+            {
+              "key": "project",
+              "value": "stillyard"
+            }
+          ],
+          "fences": {
+            "shared_roots": [],
+            "exclusive_roots": []
+          },
+          "allow_observed": false,
+          "allow_quiet": false,
+          "allow_delegation": false
+        },
+        "policy_ancestors": [
+          "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2016-7af3-94f6-dad66aa471ac"
+        ]
+      },
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a08b2f-b3e1-7b93-9dce-92828505ee47"
+    }
+  }
+}

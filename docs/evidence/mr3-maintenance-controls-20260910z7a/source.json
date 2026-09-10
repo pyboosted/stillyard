@@ -1,0 +1,7 @@
+{
+  "wsl_maintenance.py": "62434178f2d7bc5990b6c91ef29ae39a00e3a4810ef9baeae614aec6c1239569",
+  "test-wsl-maintenance.py": "d3157f26f7a7515680737c15c4ada843b68cb9a691c849f738951778293c0d00",
+  "upgrade-wsl-daemon.py": "1e14c25bcfea6f9df0e33b6578c28a5908fe04622cc0785bed97b5bde503a895",
+  "rotate-wsl-bridge-pin.py": "5b9e2eae0be46fce8d8502ed3b0c273ff930eabd128a77454cf4579a0d29f08c",
+  "upgrade-wsl-service.py": "789f2017e97352d7b1ff361807a3ea469f800ed502cdcb51cc7b3388459aab17"
+}

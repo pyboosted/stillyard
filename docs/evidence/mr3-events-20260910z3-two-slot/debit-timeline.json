@@ -1,0 +1,177 @@
+[
+  {
+    "sequence": 535,
+    "at": 1789023936463,
+    "cargo_debit": 1,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-dfcf-7b52-8a84-8fd0c1a68dc8": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-dfcf-7b52-8a84-8fd0c1a68dc8",
+    "state": "offered"
+  },
+  {
+    "sequence": 536,
+    "at": 1789023936486,
+    "cargo_debit": 1,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-dfcf-7b52-8a84-8fd0c1a68dc8": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-dfcf-7b52-8a84-8fd0c1a68dc8",
+    "state": "armed"
+  },
+  {
+    "sequence": 537,
+    "at": 1789023936684,
+    "cargo_debit": 1,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-dfcf-7b52-8a84-8fd0c1a68dc8": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-dfcf-7b52-8a84-8fd0c1a68dc8",
+    "state": "armed"
+  },
+  {
+    "sequence": 538,
+    "at": 1789023937454,
+    "cargo_debit": 1,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-dfcf-7b52-8a84-8fd0c1a68dc8": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e3ae-7d23-b4b2-47b20d04ef87",
+    "state": "offered"
+  },
+  {
+    "sequence": 539,
+    "at": 1789023937515,
+    "cargo_debit": 1,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-dfcf-7b52-8a84-8fd0c1a68dc8": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e3ae-7d23-b4b2-47b20d04ef87",
+    "state": "armed"
+  },
+  {
+    "sequence": 540,
+    "at": 1789023937679,
+    "cargo_debit": 1,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-dfcf-7b52-8a84-8fd0c1a68dc8": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e3ae-7d23-b4b2-47b20d04ef87",
+    "state": "armed"
+  },
+  {
+    "sequence": 541,
+    "at": 1789023937884,
+    "cargo_debit": 2,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-dfcf-7b52-8a84-8fd0c1a68dc8": 1,
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e55b-79f2-a15e-6514792e444c": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e55b-79f2-a15e-6514792e444c",
+    "state": "armed"
+  },
+  {
+    "sequence": 542,
+    "at": 1789023959118,
+    "cargo_debit": 2,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-dfcf-7b52-8a84-8fd0c1a68dc8": 1,
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e55b-79f2-a15e-6514792e444c": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a23-384f-7591-b78a-85a1eb5a838c",
+    "state": "offered"
+  },
+  {
+    "sequence": 543,
+    "at": 1789023959137,
+    "cargo_debit": 2,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-dfcf-7b52-8a84-8fd0c1a68dc8": 1,
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e55b-79f2-a15e-6514792e444c": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a23-384f-7591-b78a-85a1eb5a838c",
+    "state": "armed"
+  },
+  {
+    "sequence": 544,
+    "at": 1789023959270,
+    "cargo_debit": 2,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-dfcf-7b52-8a84-8fd0c1a68dc8": 1,
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e55b-79f2-a15e-6514792e444c": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a23-384f-7591-b78a-85a1eb5a838c",
+    "state": "armed"
+  },
+  {
+    "sequence": 545,
+    "at": 1789023977200,
+    "cargo_debit": 1,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e55b-79f2-a15e-6514792e444c": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-dfcf-7b52-8a84-8fd0c1a68dc8",
+    "state": "released"
+  },
+  {
+    "sequence": 546,
+    "at": 1789023977218,
+    "cargo_debit": 2,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e55b-79f2-a15e-6514792e444c": 1,
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a23-7f02-73b3-9469-36e32ac1b095": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a23-7f02-73b3-9469-36e32ac1b095",
+    "state": "offered"
+  },
+  {
+    "sequence": 547,
+    "at": 1789023977251,
+    "cargo_debit": 2,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e55b-79f2-a15e-6514792e444c": 1,
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a23-7f02-73b3-9469-36e32ac1b095": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a23-7f02-73b3-9469-36e32ac1b095",
+    "state": "armed"
+  },
+  {
+    "sequence": 548,
+    "at": 1789023977398,
+    "cargo_debit": 2,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e55b-79f2-a15e-6514792e444c": 1,
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a23-7f02-73b3-9469-36e32ac1b095": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a23-7f02-73b3-9469-36e32ac1b095",
+    "state": "armed"
+  },
+  {
+    "sequence": 549,
+    "at": 1789023985861,
+    "cargo_debit": 1,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e55b-79f2-a15e-6514792e444c": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a23-7f02-73b3-9469-36e32ac1b095",
+    "state": "released"
+  },
+  {
+    "sequence": 550,
+    "at": 1789023996694,
+    "cargo_debit": 1,
+    "cargo_grants": {
+      "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e55b-79f2-a15e-6514792e444c": 1
+    },
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e3ae-7d23-b4b2-47b20d04ef87",
+    "state": "released"
+  },
+  {
+    "sequence": 551,
+    "at": 1789024023433,
+    "cargo_debit": 0,
+    "cargo_grants": {},
+    "changed_grant": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e55b-79f2-a15e-6514792e444c",
+    "state": "released"
+  }
+]

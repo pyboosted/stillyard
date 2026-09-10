@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b05-e317-71b3-9730-e8ffe4b4a69d",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b05-e314-78f2-9acc-a90a66d24612",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b05-e328-7940-bee6-3242e348bd60",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b06-3a86-7421-afc2-27322f5e9e65",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b06-3a86-7421-afc2-27429ad78825",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789038813975,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789038814300,
+  "finished_unix_millis": 1789038836599,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-consumers-20260910z10e/wc2/consumer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-consumers-20260910z10e/wc2/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-consumers-20260910z10e/wc2/review.json",
+      "--model",
+      "sonnet"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-consumers-20260910z10e/wc2",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-consumers-20260910z10e/wc2/consumer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-consumers-20260910z10e/wc2/review.json"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "acceptance",
+        "value": "W-C2"
+      },
+      {
+        "key": "round",
+        "value": "z10e-confirmation"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 600,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b05-e328-7940-bee6-3242e348bd60",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789038813992,
+      "started_unix_millis": 1789038814131,
+      "deadline_unix_millis": 1789039414131,
+      "finished_unix_millis": 1789038836599,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b05-e317-71b3-9730-e8ffe4b4a69d",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b05-e328-7940-bee6-3242e348bd60",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b05-e328-7940-bee6-325d6f5131e8",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789038814300,
+        "exited_unix_millis": 1789038836341,
+        "resolved_unix_millis": 1789038836355
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b05-e328-7940-bee6-325d6f5131e8",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 1201743,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1201743,
+            "start_ticks": 8492086,
+            "pid_namespace_inode": 4026534297,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b05-aa0f-7f21-a411-4cae2a4d5a8b",
+          "started_unix_millis": 1789038814300,
+          "finished_unix_millis": 1789038836355,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b05-e328-7940-bee6-3266218d5e16",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"duration_api_ms\":21857,\"stop_reason\":\"tool_use\",\"session_id\":\"075eb430-5eb1-410b-aff0-b3dba07c2ffb\",\"total_cost_usd\":0.056285,\"usage\":{\"input_tokens\":2,\"cache_creation_input_tokens\":8454,\"cache_read_input_tokens\":0,\"output_tokens\":1926,\"output_tokens_details\":{\"thinking_tokens\":1372},\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":8454,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"not_available\",\"iterations\":[{\"input_tokens\":2,\"output_tokens\":1926,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":8454,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":8454},\"type\":\"message\"}],\"speed\":\"standard\"},\"modelUsage\":{\"claude-haiku-4-5-20251001\":{\"inputTokens\":3120,\"outputTokens\":17,\"cacheReadInputTokens\":0,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.003205,\"contextWindow\":200000,\"maxOutputTokens\":32000,\"thinkingTokens\":0,\"canonicalModel\":\"claude-haiku-4-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"},\"claude-sonnet-5\":{\"inputTokens\":2,\"outputTokens\":1926,\"cacheReadInputTokens\":0,\"cacheCreationInputTokens\":8454,\"webSearchRequests\":0,\"costUSD\":0.05308,\"contextWindow\":1000000,\"maxOutputTokens\":64000,\"thinkingTokens\":1372,\"canonicalModel\":\"claude-sonnet-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"fast_mode_disabled_reason\":\"sdk_opt_in_required\",\"subagent_stats\":{\"spawned\":0,\"requested\":{\"background\":0,\"foreground\":0,\"unset\":0},\"started_in_background\":0,\"max_depth\":0,\"spawned_by_subagents\":0,\"completed\":0,\"failed\":0,\"killed\":{\"parent\":0,\"user\":0,\"system\":0},\"refused\":{\"depth_limit\":0,\"concurrency_limit\":0,\"budget\":0},\"by_type\":{}},\"is_error\":false,\"num_turns\":2,\"subtype\":\"success\",\"api_error_status\":null,\"result\":\"{\\\"findings\\\":[\\\"bootstrap_controller.rs: Controller::start validates that the parent Job has a non-zero timeout_seconds, but never bounds the caller-supplied `timeout: Duration` (used to compute controller_deadline) against the Job's remaining timeout budget. A caller could pass a `timeout` longer than the Job's own deadline, letting the native child's wait in `finish()` outlive the Job's finite-timeout guarantee that the primary-role check was meant to enforce.\\\",\\\"The task asks to check 'Linux and native success conjunction' (i.e., how the native Controller's exit status is combined with the Linux subject's outcome/seal), but neither provided file shows this logic: bootstrap_controller.rs only returns the native exit code from finish(), and cross_os_reset.rs's Subject only relays mailbox files (including seal.json) without any combination with a native result. No code evidencing this conjunction was supplied, so it cannot be confirmed as correctly implemented.\\\"],\\\"summary\\\":\\\"Reviewed bootstrap_controller.rs and cross_os_reset.rs. Primary-role/finite-timeout preflight, Job-containment (no breakaway), and narrow mailbox export are implemented as expected with concrete evidence. Two gaps found: the controller's own spawn timeout isn't validated against the Job's remaining timeout, and no code was provided showing how native and Linux success are conjoined.\\\\\\\"\\\",\\\"verdict\\\":\\\"findings\\\"}\",\"structured_output\":{\"findings\":[\"bootstrap_controller.rs: Controller::start validates that the parent Job has a non-zero timeout_seconds, but never bounds the caller-supplied `timeout: Duration` (used to compute controller_deadline) against the Job's remaining timeout budget. A caller could pass a `timeout` longer than the Job's own deadline, letting the native child's wait in `finish()` outlive the Job's finite-timeout guarantee that the primary-role check was meant to enforce.\",\"The task asks to check 'Linux and native success conjunction' (i.e., how the native Controller's exit status is combined with the Linux subject's outcome/seal), but neither provided file shows this logic: bootstrap_controller.rs only returns the native exit code from finish(), and cross_os_reset.rs's Subject only relays mailbox files (including seal.json) without any combination with a native result. No code evidencing this conjunction was supplied, so it cannot be confirmed as correctly implemented.\"],\"summary\":\"Reviewed bootstrap_controller.rs and cross_os_reset.rs. Primary-role/finite-timeout preflight, Job-containment (no breakaway), and narrow mailbox export are implemented as expected with concrete evidence. Two gaps found: the controller's own spawn timeout isn't validated against the Job's remaining timeout, and no code was provided showing how native and Linux success are conjoined.\\\"\",\"verdict\":\"findings\"},\"ttft_ms\":15702,\"type\":\"result\",\"duration_ms\":20623,\"uuid\":\"72740cb8-59b9-4534-9484-22b1b2a2aa35\",\"ttft_stream_ms\":1289,\"time_to_request_ms\":47,\"first_content_frame_ms\":1558,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b06-3a86-7421-afc2-27322f5e9e65",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 1203571,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1203571,
+            "start_ticks": 8494314,
+            "pid_namespace_inode": 4026534421,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b05-aa0f-7f21-a411-4cae2a4d5a8b",
+          "started_unix_millis": 1789038836542,
+          "finished_unix_millis": 1789038836597,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b06-3a86-7421-afc2-27429ad78825",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-sonnet-5\"], \"selected_family_models\": [\"claude-sonnet-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"findings\": [\"bootstrap_controller.rs: Controller::start validates that the parent Job has a non-zero timeout_seconds, but never bounds the caller-supplied `timeout: Duration` (used to compute controller_deadline) against the Job's remaining timeout budget. A caller could pass a `timeout` longer than the Job's own deadline, letting the native child's wait in `finish()` outlive the Job's finite-timeout guarantee that the primary-role check was meant to enforce.\", \"The task asks to check 'Linux and native success conjunction' (i.e., how the native Controller's exit status is combined with the Linux subject's outcome/seal), but neither provided file shows this logic: bootstrap_controller.rs only returns the native exit code from finish(), and cross_os_reset.rs's Subject only relays mailbox files (including seal.json) without any combination with a native result. No code evidencing this conjunction was supplied, so it cannot be confirmed as correctly implemented.\"], \"summary\": \"Reviewed bootstrap_controller.rs and cross_os_reset.rs. Primary-role/finite-timeout preflight, Job-containment (no breakaway), and narrow mailbox export are implemented as expected with concrete evidence. Two gaps found: the controller's own spawn timeout isn't validated against the Job's remaining timeout, and no code was provided showing how native and Linux success are conjoined.\\\"\", \"verdict\": \"findings\"}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b05-e349-7762-8094-5c5401eb7b99",
+      "lease_id": "01a08b05-e328-7940-bee6-327c0b10b117",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08b05-e328-7940-bee6-327c0b10b117"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b05-e317-71b3-9730-e8ffe4b4a69d",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b05-e328-7940-bee6-3242e348bd60"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08b05-aa0f-7f21-a411-4cae2a4d5a8b"
+}

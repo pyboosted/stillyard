@@ -1,0 +1,15 @@
+{
+  "rounds": 256,
+  "bytes_per_round": 4155195,
+  "bytes_hashed": 1063729920,
+  "payload_sha256": "5f99e8c3bccf603dd072092f06f7a9a1c541b741285f68a5391aeb95ef45e8b9",
+  "source_files_sha256": "838f56a3083cc41c4b1349eb8a08f367a65a2cb1474536932a9934932f829ecc",
+  "wall_seconds": 0.9915109879948432,
+  "cpu_seconds": 0.9892155170000001,
+  "invocation": {
+    "STILLYARD_JOB_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b05-e310-7eb2-87b0-437d7b57799b",
+    "STILLYARD_ATTEMPT": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b05-e323-7800-a123-57203bac78e6",
+    "STILLYARD_INVOCATION_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-6d88-78e3-8965-d664db647239",
+    "STILLYARD_ENDPOINT": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock"
+  }
+}

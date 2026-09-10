@@ -1,0 +1,187 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a07-d8eb-75b1-9b82-ace0c3635ebb",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a07-d8ea-7771-8c38-0811bde9c549",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a07-d8f0-77a0-8319-e34d5727f79c",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a07-d8f0-77a0-8319-e35cf0ec7b1d",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a07-d8f0-77a0-8319-e36754cd6883",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789022165227,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789022165484,
+  "finished_unix_millis": 1789022173607,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/home/pythonic/.cargo/bin/cargo",
+    "args": [
+      "clippy",
+      "--locked",
+      "--workspace",
+      "--all-features",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-quiet-retry-20260910z3",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CARGO_BUILD_JOBS": "4",
+        "CARGO_HOME": "/home/pythonic/.cargo",
+        "CARGO_TARGET_DIR": "/home/pythonic/Development/stillyard-mr3-quiet-retry-20260910z3/target/scheduled-linux",
+        "HOME": "/home/pythonic",
+        "PATH": "/home/pythonic/.cargo/bin:/usr/bin:/bin",
+        "RUSTUP_HOME": "/home/pythonic/.rustup",
+        "RUSTUP_TOOLCHAIN": "stable-x86_64-unknown-linux-gnu"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-clippy"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1800,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a07-d8f0-77a0-8319-e34d5727f79c",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789022165231,
+      "started_unix_millis": 1789022165311,
+      "deadline_unix_millis": 1789023965311,
+      "finished_unix_millis": 1789022173607,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a07-d8eb-75b1-9b82-ace0c3635ebb",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a07-d8f0-77a0-8319-e34d5727f79c",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a07-d8f0-77a0-8319-e35cf0ec7b1d",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789022165484,
+        "exited_unix_millis": 1789022173584,
+        "resolved_unix_millis": 1789022173594
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a07-d8f0-77a0-8319-e35cf0ec7b1d",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 58507,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 58507,
+            "start_ticks": 6827205,
+            "pid_namespace_inode": 4026534152,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71",
+          "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608",
+          "started_unix_millis": 1789022165484,
+          "finished_unix_millis": 1789022173594,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a07-d8f0-77a0-8319-e36754cd6883",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": "    Checking stillyard v0.1.0-alpha.20 (/home/pythonic/Development/stillyard-mr3-quiet-retry-20260910z3)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.89s\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a07-d90d-71d3-8070-bea4c024204e",
+      "lease_id": "01a08a07-d8f0-77a0-8319-e37d737945aa",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08a07-d8f0-77a0-8319-e37d737945aa"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a07-d8eb-75b1-9b82-ace0c3635ebb",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a07-d8f0-77a0-8319-e34d5727f79c"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608"
+}

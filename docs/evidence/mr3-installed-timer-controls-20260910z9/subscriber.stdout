@@ -1,0 +1,8 @@
+{
+  "outcome": {
+    "outcome": "pending",
+    "reason": "client_deadline"
+  },
+  "exit_source": "scheduler",
+  "exit_code": 25
+}

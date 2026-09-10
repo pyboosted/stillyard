@@ -1,0 +1,196 @@
+Read-only consumer review of the installed Stillyard native bootstrap companion and its acceptance control. Check the current-primary role and finite-timeout validation before spawn; Linux and native success conjunction; ordinary descendant containment; narrow public mailbox export. Give concrete evidence-backed findings only. Do not assume unprovided code or invoke tools. This is a live W-C2 consumer run, not a declaration of full MR3 acceptance.
+
+FILE src/bootstrap_controller.rs
+//! Optional native companion for protected cross-OS bootstrap acceptance.
+//! It inherits the primary's Windows Job Object, streams, environment and Lease.
+use std::ffi::OsString;
+use std::path::Path;
+use std::process::{Child, Command, Stdio};
+use std::time::{Duration, Instant};
+use stillyard::{Client, Error, ProcessIdentity, Result};
+
+pub struct Controller {
+    child: Option<Child>,
+    deadline: Instant,
+}
+impl Controller {
+    pub fn start(
+        client: &Client,
+        executable: &Path,
+        args: &[OsString],
+        timeout: Duration,
+    ) -> Result<Self> {
+        if !executable.is_absolute() || !executable.is_file() {
+            return Err(Error::InvalidSpec(
+                "native controller requires an existing absolute executable".into(),
+            ));
+        }
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let parent = client
+            .submission_context(deadline, None)?
+            .parent
+            .ok_or_else(|| {
+                Error::InvalidSpec(
+                    "native controller requires a bounded native Stillyard Job".into(),
+                )
+            })?;
+        let job = client.status(parent.job_id, deadline, None)?;
+        let primary = job
+            .attempts
+            .iter()
+            .flat_map(|attempt| &attempt.invocations)
+            .find(|invocation| invocation.invocation_id == parent.invocation_id);
+        if job.invocation_id != Some(parent.invocation_id)
+            || job.attempt_id != Some(parent.attempt_id)
+            || job.cancel_requested
+            || job.spec.timeout_seconds.is_none_or(|seconds| seconds == 0)
+            || !primary.is_some_and(|invocation| {
+                invocation.role == stillyard::InvocationRole::Primary
+                    && matches!(
+                        invocation.root_identity,
+                        Some(ProcessIdentity::Windows { pid, .. }) if pid == std::process::id()
+                    )
+            })
+        {
+            return Err(Error::InvalidSpec(
+                "native controller requires the current primary root with a finite Job timeout"
+                    .into(),
+            ));
+        }
+        // No CREATE_BREAKAWAY_FROM_JOB or detached launch. The ordinary Job
+        // accounts for this native work even if the later BootstrapArm rejects.
+        let controller_deadline = Instant::now().checked_add(timeout).ok_or_else(|| {
+            Error::InvalidSpec("native controller timeout exceeds the monotonic clock range".into())
+        })?;
+        let child = Command::new(executable)
+            .args(args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .spawn()?;
+        Ok(Self {
+            child: Some(child),
+            deadline: controller_deadline,
+        })
+    }
+    pub fn finish(mut self) -> Result<i32> {
+        use std::os::windows::io::AsRawHandle;
+        use windows_sys::Win32::Foundation::{WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT};
+        use windows_sys::Win32::System::Threading::WaitForSingleObject;
+        let child = self.child.as_mut().expect("controller is present");
+        let millis = self
+            .deadline
+            .saturating_duration_since(Instant::now())
+            .as_millis()
+            .min(u128::from(u32::MAX - 1)) as u32;
+        // SAFETY: Child owns this live process handle throughout the bounded wait.
+        let result = unsafe { WaitForSingleObject(child.as_raw_handle(), millis) };
+        match result {
+            WAIT_OBJECT_0 => {}
+            WAIT_TIMEOUT => {
+                return Err(Error::Unavailable(
+                    "native controller exceeded its bootstrap companion deadline".into(),
+                ));
+            }
+            WAIT_FAILED => return Err(std::io::Error::last_os_error().into()),
+            _ => {
+                return Err(Error::Unavailable(
+                    "unexpected native controller wait result".into(),
+                ));
+            }
+        }
+        let status = child.wait()?;
+        self.child.take();
+        Ok(if status.success() {
+            0
+        } else {
+            status.code().unwrap_or(1).clamp(1, 255)
+        })
+    }
+}
+impl Drop for Controller {
+    fn drop(&mut self) {
+        if let Some(child) = &mut self.child {
+            let _ = child.kill();
+            // This is only prompt root cancellation. The daemon recursively
+            // cleans the enclosing Windows Job before releasing its Lease;
+            // a Linux bootstrap obligation still requires its separate seal.
+        }
+    }
+}
+
+FILE tests/support/cross_os_reset.rs
+//! Mailbox orchestration only; the Linux subject uses the real executor journal.
+//! The installed CLI is the outer Job primary and owns protected bootstrap.
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
+use uuid::Uuid;
+
+pub struct Subject {
+    mailbox: PathBuf,
+    finished: bool,
+}
+impl Subject {
+    pub fn start() -> Self {
+        let mailbox = PathBuf::from(std::env::var_os("MR_WSL_FAULT_MAILBOX_WINDOWS").unwrap());
+        assert!(mailbox.is_absolute() && mailbox.is_dir());
+        let subject = Self {
+            mailbox,
+            finished: false,
+        };
+        subject.publish("controller-ready.json", &true);
+        subject
+    }
+    pub fn receive<T: serde::de::DeserializeOwned>(&self, name: &str) -> T {
+        let until = Instant::now() + Duration::from_secs(60);
+        loop {
+            match std::fs::read(self.mailbox.join(name)) {
+                Ok(bytes) => return serde_json::from_slice(&bytes).unwrap(),
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::NotFound && Instant::now() < until =>
+                {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => panic!("Linux subject {name}: deadline or mailbox failure: {error}"),
+            }
+        }
+    }
+    pub fn publish(&self, name: &str, value: &impl serde::Serialize) {
+        let stage = self.mailbox.join(format!(".{}", Uuid::now_v7()));
+        std::fs::write(&stage, serde_json::to_vec(value).unwrap()).unwrap();
+        std::fs::rename(stage, self.mailbox.join(name)).unwrap();
+    }
+    pub fn finish(&mut self) {
+        let destination = PathBuf::from(std::env::var_os("MR_WSL_FAULT_EVIDENCE").unwrap());
+        std::fs::create_dir_all(&destination).unwrap();
+        // Configuration includes a fixture pairing secret: never export it.
+        // The launcher separately requires the installed primary's bootstrap seal.
+        for name in [
+            "manager.json",
+            "allocation.json",
+            "intent.json",
+            "ticket.json",
+            "live.json",
+            "capacity-reduced.json",
+            "capacity-restored.json",
+            "live-after-capacity-reduction.json",
+            "peer-fenced.json",
+            "live-after-peer-fence.json",
+            "guest-reset-rejected.json",
+            "live-after-coordinator-reset.json",
+            "seal.json",
+        ] {
+            std::fs::copy(self.mailbox.join(name), destination.join(name)).unwrap();
+        }
+        self.finished = true;
+    }
+}
+impl Drop for Subject {
+    fn drop(&mut self) {
+        if !self.finished {
+            // Best effort even during unwinding; outer bootstrap still owns
+            // recursive cleanup when either subject fails or stops responding.
+            let _ = std::fs::write(self.mailbox.join("abort.json"), b"true");
+        }
+    }
+}

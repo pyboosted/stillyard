@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d1-3bce-75b0-b4be-94f78c51552c",
+  "scenario": "probe",
+  "grant_ids": [
+    "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089d1-4371-7dc3-aeff-5988c236f090",
+    "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089d1-8318-7f92-929c-ca6eb9386634"
+  ]
+}

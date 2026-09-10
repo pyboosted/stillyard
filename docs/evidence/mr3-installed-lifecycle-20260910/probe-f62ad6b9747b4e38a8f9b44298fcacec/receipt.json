@@ -1,0 +1,87 @@
+{
+  "version": 5,
+  "idempotency_key": "4d105db7-b2ca-4c2f-90ea-8fa64a1ff5e9",
+  "payload_hash": "5f518e31125c04ef8e4ee74ce3d3fe83babb30e4df5055258baccbcb76b54944",
+  "endpoint": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock",
+  "store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+  "parent": null,
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089c6-6d33-7573-b9ee-0b36b3beb4eb",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089c6-6d35-7ea3-8d6f-39bfd8d49420",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1789017877813,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [
+        {
+          "code": "condition_waiting",
+          "detail": "{\"predicate\":{\"kind\":\"probe\",\"probe\":{\"executable\":\"/usr/bin/python3\",\"args\":[\"-c\",\"print('independent probe')\"],\"working_directory\":\"/home/pythonic/Development/stillyard-installed-lifecycle-20260910/probe-f62ad6b9747b4e38a8f9b44298fcacec\",\"environment\":{\"set\":{},\"unset\":[]},\"resources\":{\"cpu_units\":null,\"ram_mb\":null,\"cargo_slots\":1,\"gpu_slots\":null,\"custom\":{},\"shared_fences\":[],\"exclusive_fences\":[],\"impacts\":[]},\"timeout_seconds\":10,\"interval_seconds\":1,\"accepted_exit_codes\":[0]}},\"deadline\":{\"kind\":\"relative\",\"seconds\":60},\"on_deadline\":\"failed\"}"
+        }
+      ],
+      "queue_rank": 1,
+      "reservation": null,
+      "conditions": [
+        {
+          "condition_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089c6-6d35-7ea3-8d6f-39cd7fbb6c88",
+          "condition_index": 0,
+          "state": "waiting",
+          "spec": {
+            "predicate": {
+              "kind": "probe",
+              "probe": {
+                "executable": "/usr/bin/python3",
+                "args": [
+                  "-c",
+                  "print('independent probe')"
+                ],
+                "working_directory": "/home/pythonic/Development/stillyard-installed-lifecycle-20260910/probe-f62ad6b9747b4e38a8f9b44298fcacec",
+                "environment": {
+                  "set": {},
+                  "unset": []
+                },
+                "resources": {
+                  "cpu_units": null,
+                  "ram_mb": null,
+                  "cargo_slots": 1,
+                  "gpu_slots": null,
+                  "custom": {},
+                  "shared_fences": [],
+                  "exclusive_fences": [],
+                  "impacts": []
+                },
+                "timeout_seconds": 10,
+                "interval_seconds": 1,
+                "accepted_exit_codes": [
+                  0
+                ]
+              }
+            },
+            "deadline": {
+              "kind": "relative",
+              "seconds": 60
+            },
+            "on_deadline": "failed"
+          },
+          "deadline_unix_millis": 1789017937813,
+          "last_observation": null,
+          "probe_invocation_id": null
+        }
+      ],
+      "estimate": {
+        "confidence": "unknown",
+        "start_in_millis": null,
+        "assumptions": [
+          "filesystem transitions and executable probes have no honest completion ETA"
+        ]
+      },
+      "parent": null,
+      "managed_policy_admission": null,
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a089c4-5729-7b82-a52f-9c5685702d88"
+    }
+  }
+}

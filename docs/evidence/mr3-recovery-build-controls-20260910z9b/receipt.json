@@ -1,0 +1,41 @@
+{
+  "version": 5,
+  "idempotency_key": "b51ae34f-7b60-4172-bce7-021e5885b9bb",
+  "payload_hash": "5ccde250c59fda3272dc2b7e45d545c998c6ebf3463d9ec2365b37ba49fa9944",
+  "endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+  "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+  "parent": null,
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad4-8a1b-7213-93ee-b2f7c61d1727",
+      "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad4-8a1c-7e10-b9dd-1197ddfc6223",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1789035579932,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [
+        {
+          "code": "authority_held",
+          "detail": "Durable admission hold; process exit and store reset do not release it"
+        }
+      ],
+      "queue_rank": 1,
+      "reservation": null,
+      "conditions": [],
+      "estimate": {
+        "confidence": "estimated",
+        "start_in_millis": 134965,
+        "assumptions": [
+          "conservative snapshot estimate from declared durations of running Jobs and the current effective-priority order; aging or new reservations may reorder queued work, and orthogonal work may start sooner"
+        ]
+      },
+      "parent": null,
+      "managed_policy_admission": null,
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a08ac7-381b-7a10-9ddc-ebcf3379ac3d"
+    }
+  }
+}

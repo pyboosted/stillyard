@@ -1,0 +1,143 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08836-a0ad-7790-a465-71c80624eb1b",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08836-a0ac-7110-a9d1-03a2546fc624",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0883b-d400-7820-9a3f-acada9e8974e",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0883b-d3ff-7ee3-a77a-0965c5bd8ec4",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0883b-d3ff-7ee3-a77a-097a13444026",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788991676589,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788992017422,
+  "finished_unix_millis": 1788992714881,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr2-final-review-20260910f\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr2-final-review-20260910f",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr2-final-focused-review"
+      }
+    ],
+    "expected_duration_seconds": 360,
+    "timeout_seconds": 1530,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0883b-d400-7820-9a3f-acada9e8974e",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1788992017407,
+      "started_unix_millis": 1788992017407,
+      "deadline_unix_millis": 1788993547407,
+      "finished_unix_millis": 1788992714881,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08836-a0ad-7790-a465-71c80624eb1b",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0883b-d400-7820-9a3f-acada9e8974e",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0883b-d3ff-7ee3-a77a-0965c5bd8ec4",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1788992017422,
+        "exited_unix_millis": 1788992714875,
+        "resolved_unix_millis": 1788992714879
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0883b-d3ff-7ee3-a77a-0965c5bd8ec4",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 36808,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 36808,
+            "creation_filetime_100ns": 134334656174184632
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "38246f2e6c04b3983d98b30e9da4434f26ed27afd63f25e9a504f7b2c5f0d732",
+          "daemon_generation": "01a08727-6971-79a1-a1b3-fd73badf9036",
+          "started_unix_millis": 1788992017422,
+          "finished_unix_millis": 1788992714879,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0883b-d3ff-7ee3-a77a-097a13444026",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "main_retirement` removes the participant entirely.\\n\\n## 2. CONFIRM \u2014 stalled retirement is fail-closed and the repair converges\\n**Severity: none (accept). Functions: `Store::reconcile_pending_domain_retirement`, `Store::retire_machine_domain`, `Store::apply_domain_retirement`, `Store::prepare_machine_reset_recovery`.**\\n\\nTrace for the `divergent` fixture (fault at `after_retirement_journal`, extra SQL Armed row injected):\\n\\n1. Startup \u2192 `attach_authority` \u2192 `reconcile_pending_domain_retirement` first (before `reconcile_pending_machine_commit` / `validate_machine_history` / native admission). `apply_domain_retirement` hits `\\\"SQL contains start rights outside the accepted retirement inventory\\\"` (`InvalidState`) \u2192 `record_reset` \u2192 `Ok(())`. Fence + debit retained; `admission_blocker` returns `authority_retirement_pending`; the daemon stays inspectable. `snapshot.pending_machine_operation` surfaces the operation id (matches the fixture's `gated.pending_machine_operation` assertion).\\n2. `machine_recover` \u2192 `prepare_machine_reset_recovery`. The marker check does **not** early-return because `pending_machine_operation.is_some()`, so the rebuild runs; it deletes only the pending domain's `machine_domain_retirements` row and preserves every unrelated receipt.\\n3. The rebuild sources grants from `snapshot.machine_obligations`, which is the identical `registry.machine_permissions` that `domain_clearance_preview` filtered when the audit was written. `proposed_machine_commit` and `check_retirement_pairing` both refuse while `pending_domain_retirement.is_some()`, and `validate_retirements` rejects a load with both a pending commit and a pending retirement \u2014 so that inventory provably cannot have drifted. The injected extra row is destroyed by the `DELETE FROM machine_grants` batch.\\n4. Trailing `reconcile_pending_domain_retirement()` therefore matches every row against `audit.preview.inventory.grants` and commits, then `finish_domain_retirement` drops the debit and the participant.\\n\\nThe replay path is also correct: after prepare, `retired_domain_receipt` returns `None` while the pending slot names that domain, so `retire_machine_domain` does not short-circuit before the SQL commit; after completion it returns the immutable original receipt. A repeated stalled call re-enters `prepare_domain_retirement`, matches the on-disk audit and the retained receipt, returns without re-publishing, fails apply again, and returns `retirement_stalled` \u2014 idempotent, no fence churn.\\n\\nI also checked the direction that would be a genuine safety hole: the rebuild writing an Armed grant that a manager has already sealed Released. It cannot happen, because `finish_machine_commit` removes Released grants from `machine_permissions`, so the reset-independent registry \u2014 not the rolled-back SQL \u2014 is the rebuild's source of truth. `import_inventory`'s `old.state == GrantState::Released` guard would hard-fail such a case anyway.\\n\\n## 3. FINDING \u2014 same-UUID repair gate can be re-armed indefinitely by post-gate submissions (liveness, not safety)\\n**Severity: medium. Decision impact: affects the claim that covered same-UUID repair converges; not a safety blocker. Functions: `Store::rollback_native_history_quiescent`, `prepare_machine_reset_recovery`, `finish_machine_reset_recovery`.**\\n\\n`rollback_native_history_quiescent` requires `NOT EXISTS(SELECT 1 FROM jobs WHERE state!='final')` \u2014 i.e. *any* non-final Job row, regardless of whether it predates the reset gate or was ever admitted.\\n\\nEvidence that new rows can appear while the gate is up, from the fixture itself: in the `reset` branch of `retirement_fixture`, `client.machine_recover(...)` asserts `blocker.is_some()`, and the very next statements submit `waiter` with `.unwrap()` and later assert `!after-retirement.txt.exists()`. So submission is **accepted** while the authority blocker is set; only admission/execution is gated. (The `reset` branch survives this only because the store UUID differs, which short-circuits the quiescence conjunct entirely.)\\n\\nConcrete trace in the same-UUID path:\\n\\n```\\ngate set \u2192 client submits J (accepted, state != 'final', never admissible)\\nmachine_recover \u2192 prepare_machine_reset_recovery\\n  \u2192 history.store_uuid == self.store_uuid && !rollback_native_history_quiescent()\\n  \u2192 return Ok(snapshot)          // rebuild never runs\\noperator cancels J \u2192 another submit lands \u2192 repeat\\n```\\n\\nThe divergent fixture masks this by canceling `waiter` with no competing client. The mechanism is demonstrated by the code plus the fixture; the trigger (a client that keeps submitting, e.g. a CI wrapper) is environmental. Note this is intentional for *rolled-back* rows \u2014 the brief is explicit that unfinished native rows must be canceled through the normal API \u2014 but the predicate does not distinguish rolled-back rows from rows accepted after the gate, and only the former carry the resurrection risk the comment describes.\\n\\nThe machine side has the same shape (see Gap A below), which is why I treat this as a repair-starvation theme rather than a one-off.\\n\\n## 4. FINDING \u2014 the `retired_domain` receipt diagnostic is suppressed exactly during a stalled retirement\\n**Severity: low (diagnostics). Functions: `Authority::retired_domain_receipt`, `retired_installation_receipt`, `Store::machine_connect_begin`.**\\n\\n`retired_domain_receipt` returns `None` whenever `pending_domain_retirement.domain_id == domain`, and `retired_installation_receipt` funnels through it. So for a returning manager during a pending-and-stalled retirement:\\n\\n```\\nmachine_connect_begin\\n  \u2192 reconcile_pending_domain_retirement()   // stalls, Ok(())\\n  \u2192 retired_installation_receipt(...)       // None  (pending suppression)\\n  \u2192 participants()/machine_participant()     // anchor + SQL row still present\\n  \u2192 reserve_machine_connection()             // is_retired_domain() == true (no pending filter)\\n  \u2192 Err(io \\\"retired domain cannot reconnect\\\") \u2192 StoreError::Io, no code, no receipt\\n```\\n\\nThe operator loses the `retired_domain` code, the operation ID and the serialized receipt in precisely the window where a stalled retirement is being diagnosed. Secondarily, `retired_installation_receipt` uses `find(...)` with `installation_nonce == nonce || manager_store_uuid == store`; if the pending entry is encountered first in `BTreeMap` order, a *different*, fully-retired match later in the map is never consulted.\\n\\nSuppression is correct for `snapshot().retired_domains` (an unfinished retirement must not be published as complete); it is wrong for the connect-time diagnostic, where a distinct code such as `retirement_pending` carrying the operation ID would be strictly better than an untyped `Io`.\\n\\n## 5. FINDING \u2014 `future \u2264 4 MiB` is an induction invariant that is never verified at load\\n**Severity: low\u2013medium, upgrade-only. Functions: `Authority::load`, `check_publication`, `encode_registry`.**\\n\\nThe reservation is enforced only at admission time. A registry produced by a build *without* the 64 KiB/hold term (the reservation caps live holds at ~59 today; `MAX_HOLDS` is still 1024) can be loaded with `future \u226b 4 MiB`. Check 1's `&& future > prior_future` escape then permits each `force_release` (it lowers `future`) even though each one raises `encoded` by up to ~6.4 KiB with a maximally escaped reason. After enough releases, `encode_registry` hits the hard `\\\"authority registry exceeds durable byte budget; retire existing obligations\\\"` error, and there is no implemented path to shrink \u2014 the remaining holds become unreleasable.\\n\\n`load()` validates `valid_reason` for `hold.reason`/`release_reason` but nothing bounds `requester`/`released_by` `ProcessIdentity` strings, so the 64 KiB bound also rests on those being daemon-derived rather than caller-supplied. That is true on the paths I can see (`Store::hold_authority` / `force_release_authority` take the peer identity), but it is an unstated assumption, not an enforced one.\\n\\nThis is not introduced by the delta \u2014 it is the pre-existing hazard the delta fixes going forward \u2014 but the fix is not retroactive and is invisible until an operator is halfway through releasing.\\n\\n## 6. Minor observations (non-blocking)\\n- `apply_domain_retirement` runs `save_grant` (which writes the just-Released grants) and *then* `UPDATE machine_candidates SET state='canceled' ... WHERE domain_id=?1`, overwriting whatever candidate state `save_grant` set for those rows. Harmless today because the domain leaves `participants`, but it makes the retired domain's candidate/grant states disagree with what `prepare_machine_reset_recovery` would rebuild (`'released'`).\\n- An audit file written by `prepare_domain_retirement` whose subsequent `publish` fails is never GC'd; `prune_machine_blobs` correctly leaves `domain-retirement-*.json` alone (asserted by the fixture). Recovery requires a fresh operation ID \u2014 reusing the old one yields `retirement_conflict` (\\\"retirement operation payload conflict\\\") rather than the more suggestive \\\"inventory changed\\\" message. Accepted GC/UX item per the brief.\\n- `storage_budget`'s `new_admission_headroom_bytes` mirrors check 2 exactly (including the strict-vs-nonstrict off-by-one), and its `bytes` proxy is length-faithful to `encode_registry` because the `\\\"0\\\".repeat(64)` checksum has the same width and `publish` keeps `pending_machine_blob` consistent in the in-memory `Ready` registry. No discrepancy.\\n\\n---\\n\\n# Evidence Gaps\\n\\n**A. Is `proposed_machine_commit` gated by the reset/blocker state?** I inspected its actual predicates: retired domain, pending retirement, anchor committed + exact session, existing pending commit. There is **no `coordinator.pending_reset` check**, unlike `record_native_start`, `establish_native_coverage` and `retirement_candidates`, which all test `pending_reset.is_none()`. If the exchange path does not consult `authority_blocker()`, a paired manager can Arm new Grants while a reset gate is set; those grants then make `finish_machine_reset_recovery`'s `covered` query and `expected.machine_obligations.is_empty()` false, blocking epoch rotation for as long as the manager keeps arming. This is the machine-side twin of Finding 3. I am marking it a gap rather than a bug because `machine_exchange` was not supplied and the rights are durably charged either way \u2014 no double-allocation follows, only starvation. **Question:** does `machine_exchange` call `check_authority_release()` (or equivalent) before dispatching commands?\\n\\n**B. Does `machine_queue::save_grant` re-insert `machine_ticket_identities` from `grant.tickets`?** The rebuild batch drops that table and re-inserts nothing explicitly; reconstruction can only come from `save_grant`. If it does not, a same-UUID rebuild silently drops the `invocation_id` PK / `containment_id` UNIQUE fence on issued Ticket identities for every surviving manager. `machine_queue.rs` was not supplied. This has direct decision impact on whether the repair is safe for a *surviving* peer.\\n\\n**C. The same-UUID divergent repair is never exercised with a peer that holds rights.** `other_rights` is computed only when `stage.is_none() && !reset`, and `divergent` requires `stage == Some(\\\"after_retirement_journal\\\")`, so at rebuild time the peer has no Grants and no Tickets \u2014 the fixture then retires it with `accept_risk: false`, which only succeeds because its inventory is empty. Neither the `reset` nor the `divergent` branch drives an authenticated exchange by a surviving manager *after* a rebuild. So \\\"the rebuild preserves an unrelated manager's issued rights\\\" is asserted only for the no-rebuild paths (`assert_eq!(preview, expected, \\\"retirement changed another manager's issued rights\\\")` is in the `else if !divergent` arm).\\n\\n**D. `crate::machine::MAX_DOMAINS`** was not supplied; my participant-count bound (~240, byte-limited) is derived from the reservation arithmetic and is independent of it, but the interaction of the two limits is asserted rather than checked.\\n\\n**E. `bootstrap::validate_proof`'s 4096-byte cgroup path bound** is brief-asserted, not visible. The 64 KiB hold reservation has ~2\u00d7 margin over my worst-case estimate, so this is not tight, but it is the one input to the release bound I could not read.\\n\\n---\\n\\n# Recommendations\\n\\n1. **Scope the same-UUID quiescence predicate to rows that can actually be resurrected** (Finding 3): require final/canceled only for Jobs that predate the reset gate, or that carry any lease/containment/root record \u2014 a never-admitted Job accepted after the gate cannot hold rolled-back native state. Alternatively reject `submit` with the active blocker while a same-UUID repair is pending. Either removes the operator-vs-client race without weakening the \\\"no dropped native rows\\\" property. Add one fixture variant that submits a second Job between the cancel and `machine_recover` and asserts the repair still converges.\\n2. **Return a typed pending-retirement diagnostic from `machine_connect_begin`** (Finding 4) rather than falling through to `reserve_machine_connection`'s untyped `Io`; also make `retired_installation_receipt` scan past a suppressed pending entry instead of short-circuiting on it.\\n3. **Verify the reservation invariant at load** (Finding 5): compute `future(R)` in `Authority::load` (or surface it in `AuthoritySnapshot.detail`) and report explicitly when a registry was admitted under weaker reservation rules, so the condition is visible before the first unreleasable hold rather than after.\\n4. **Answer Gap A explicitly.** If `machine_exchange` does not gate on `admission_blocker()`, add a `pending_reset.is_none()` predicate to `proposed_machine_commit` for symmetry with `record_native_start`.\\n5. **Answer Gap B, then close Gap C** with a `retirement_fixture(Some(\\\"after_retirement_journal\\\"), false, true)` variant that enables the `other_rights` branch and asserts the peer's `machine_clearance_preview` is byte-identical across the rebuild \u2014 this is the single highest-value test delta for the reviewed change.\\n6. Non-blocking: reorder the candidate cancel before `save_grant` in `apply_domain_retirement`; consider GC of orphan `domain-retirement-*.json` whose operation is neither pending nor in `retired_domains`.\\n\\n---\\n\\n# Confidence\\n\\n**High** on Findings 1 and 2: both are derived directly from the supplied predicates, and the byte arithmetic is closed-form with the escape-ratio worst cases (6\u00d7 for control-char JSON escaping) taken as given. The one input I could not read (Gap E) has ~2\u00d7 margin.\\n\\n**Medium-high** on Finding 3: the code predicate is certain; the inference that `submit` is accepted while blocked rests on the `reset` branch's successful `.unwrap()` after `machine_recover` reports a blocker, which I read as dispositive but did not confirm against `submit`'s own body.\\n\\n**Medium** on Finding 5: the mechanism is certain; whether an installed alpha.16 store realistically carries enough live holds with maximally escaped release reasons to reach the hard cap is not something I can establish from the supplied context.\\n\\n**Low-confidence, deliberately filed as gaps not bugs:** A and B. Both would change my assessment materially \u2014 B in the direction of a safety finding for surviving peers, A in the direction of upgrading Finding 3 to a systemic starvation defect.\\n\\n**Verdict (scoped):** For the two deltas under review \u2014 metadata reservations and stalled-retirement / same-UUID repair \u2014 I **confirm both fixes** and find **no reproducible safety defect and no demonstrated safety blocker**. One demonstrated liveness mechanism (Finding 3) qualifies the claim that covered same-UUID repair converges under continued client load; it does not weaken any fence, debit, or containment guarantee. This verdict covers the supplied `e` sources only; it does not extend to Gaps A\u2013C, to WSL/Linux runtime containment, to live-consumer acceptance, or to the pending `f` and phase-level MSRV/release/installation gates.\",\n        \"ttft_ms\": 601895,\n        \"type\": \"result\",\n        \"duration_ms\": 695671,\n        \"uuid\": \"4911d65f-6bb4-4988-8ed6-9eca1dfe182f\",\n        \"ttft_stream_ms\": 2441,\n        \"time_to_request_ms\": 58,\n        \"first_content_frame_ms\": 2743,\n        \"queued_turn_count\": 0\n      },\n      \"stderr\": \"\"\n    }\n  ]\n}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08727-6971-79a1-a1b3-fd73badf9036"
+}

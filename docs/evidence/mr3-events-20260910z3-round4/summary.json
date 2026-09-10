@@ -1,0 +1,15 @@
+{
+  "event_count": 611,
+  "selected_jobs": [
+    "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a2a-d319-7010-a8e0-9d0f517b5405",
+    "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d1d6-75a2-805e-b5db972db36c",
+    "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d6b8-7091-ab79-35d321fce8d8",
+    "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-ef85-7d52-a817-163a845cac40"
+  ],
+  "maximum_cargo_debit_in_selected_window": 1,
+  "continuous_from_sequence": 1,
+  "last_cursor": {
+    "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+    "sequence": 611
+  }
+}

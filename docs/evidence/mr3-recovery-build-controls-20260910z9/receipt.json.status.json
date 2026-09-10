@@ -1,0 +1,168 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-6b56-71e1-b86f-55f435bdaf6a",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-6b55-74a0-960e-d72e961e2d0c",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-d8c3-71a1-9e19-28555ecaa308",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-d8c3-71a1-9e19-2864f8cd056c",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-d8c3-71a1-9e19-287c51944a30",
+  "root_exit_code": 1,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789035506518,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789035534563,
+  "finished_unix_millis": 1789035534915,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+    "args": [
+      "C:\\Development\\stillyard-mr3-recovery-build-controls-20260910z9\\test-wsl-recovery-build.py"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr3-recovery-build-controls-20260910z9",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "PYTHONUTF8": "1"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "recovery-build-provenance-controls"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 60,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-d8c3-71a1-9e19-28555ecaa308",
+      "attempt_index": 1,
+      "verdict": "process_failed",
+      "reason_code": null,
+      "created_unix_millis": 1789035534530,
+      "started_unix_millis": 1789035534530,
+      "deadline_unix_millis": 1789035594530,
+      "finished_unix_millis": 1789035534915,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-6b56-71e1-b86f-55f435bdaf6a",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-d8c3-71a1-9e19-28555ecaa308",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-d8c3-71a1-9e19-2864f8cd056c",
+        "verdict": "process_failed",
+        "root_exit_code": 1,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789035534563,
+        "exited_unix_millis": 1789035534880,
+        "resolved_unix_millis": 1789035534910
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-d8c3-71a1-9e19-2864f8cd056c",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 46280,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 46280,
+            "creation_filetime_100ns": 134335091345343632
+          },
+          "root_exit_code": 1,
+          "exit_classification": null,
+          "executable_hash": "85b71d8c6ec1905935f74be0c9869aae198d00e98f39df699ec66f9c5a84cecd",
+          "daemon_generation": "01a08ac7-381b-7a10-9ddc-ebcf3379ac3d",
+          "started_unix_millis": 1789035534563,
+          "finished_unix_millis": 1789035534910,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-d8c3-71a1-9e19-287c51944a30",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": "EEE\r\n======================================================================\r\nERROR: test_accepts_actual_work_and_seal_binding (__main__.BootstrapBuild.test_accepts_actual_work_and_seal_binding)\r\n----------------------------------------------------------------------\r\nTraceback (most recent call last):\r\n  File \"C:\\Development\\stillyard-mr3-recovery-build-controls-20260910z9\\test-wsl-recovery-build.py\", line 18, in setUp\r\n    'executable':str(Path.home()/'.cargo/bin/cargo'),'distribution':'isolated-fixture','user':Path.home().name,\r\n                     ~~~~~~~~~^^\r\n  File \"C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\pathlib\\_abc.py\", line 758, in home\r\n    return cls(\"~\").expanduser()\r\n           ~~~~~~~~~~~~~~~~~~~^^\r\n  File \"C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\pathlib\\_local.py\", line 808, in expanduser\r\n    raise RuntimeError(\"Could not determine home directory.\")\r\nRuntimeError: Could not determine home directory.\r\n\r\n======================================================================\r\nERROR: test_rejects_missing_duplicate_foreign_or_unsealed_holds (__main__.BootstrapBuild.test_rejects_missing_duplicate_foreign_or_unsealed_holds)\r\n----------------------------------------------------------------------\r\nTraceback (most recent call last):\r\n  File \"C:\\Development\\stillyard-mr3-recovery-build-controls-20260910z9\\test-wsl-recovery-build.py\", line 18, in setUp\r\n    'executable':str(Path.home()/'.cargo/bin/cargo'),'distribution':'isolated-fixture','user':Path.home().name,\r\n                     ~~~~~~~~~^^\r\n  File \"C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\pathlib\\_abc.py\", line 758, in home\r\n    return cls(\"~\").expanduser()\r\n           ~~~~~~~~~~~~~~~~~~~^^\r\n  File \"C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\pathlib\\_local.py\", line 808, in expanduser\r\n    raise RuntimeError(\"Could not determine home directory.\")\r\nRuntimeError: Could not determine home directory.\r\n\r\n======================================================================\r\nERROR: test_rejects_unsuccessful_job_and_different_candidate (__main__.BootstrapBuild.test_rejects_unsuccessful_job_and_different_candidate)\r\n----------------------------------------------------------------------\r\nTraceback (most recent call last):\r\n  File \"C:\\Development\\stillyard-mr3-recovery-build-controls-20260910z9\\test-wsl-recovery-build.py\", line 18, in setUp\r\n    'executable':str(Path.home()/'.cargo/bin/cargo'),'distribution':'isolated-fixture','user':Path.home().name,\r\n                     ~~~~~~~~~^^\r\n  File \"C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\pathlib\\_abc.py\", line 758, in home\r\n    return cls(\"~\").expanduser()\r\n           ~~~~~~~~~~~~~~~~~~~^^\r\n  File \"C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\pathlib\\_local.py\", line 808, in expanduser\r\n    raise RuntimeError(\"Could not determine home directory.\")\r\nRuntimeError: Could not determine home directory.\r\n\r\n----------------------------------------------------------------------\r\nRan 3 tests in 0.017s\r\n\r\nFAILED (errors=3)\r\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-d8c3-71a1-9e19-28806cee05b1",
+      "lease_id": "01a08ad3-d8c3-71a1-9e19-28806cee05b1",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+        "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+        "lease_id": "01a08ad3-d8c3-71a1-9e19-28806cee05b1"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-6b56-71e1-b86f-55f435bdaf6a",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-d8c3-71a1-9e19-28555ecaa308"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08ac7-381b-7a10-9ddc-ebcf3379ac3d"
+}

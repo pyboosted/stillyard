@@ -1,0 +1,36 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+  "args": [
+    "bootstrap",
+    "run",
+    "--spec",
+    "C:\\Development\\stillyard-mr2-opus-review-20260909o\\work.json"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr2-opus-review-20260909o",
+  "resources": {
+    "cargo_slots": 1,
+    "custom": {
+      "claude2": 3
+    },
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr2-opus-review"
+    },
+    {
+      "key": "source",
+      "value": "b0d7b6cd15f22f7fe9b8f840946364588b516e68688c542399f5895b1784f46d"
+    }
+  ],
+  "timeout_seconds": 1530,
+  "expected_duration_seconds": 300
+}

@@ -1,0 +1,6 @@
+{
+  "idempotency_key": "ba982611-826a-4462-8794-6b093e3cd887",
+  "endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+  "authorization_status": "read-only authorized",
+  "controller_sha256": "a875e2afb2ca899b6fa01890bc3b6f5697595536f2b0dcfeb760d273848694d3"
+}

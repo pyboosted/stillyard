@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ad7-62ed-7dd1-b825-3d982fcf4222",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ad7-62e1-7ff3-b727-a38f4fdbd138",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ad7-62fa-7932-a464-cc22684d7901",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08add-817c-7cd2-b76f-5201a36ce5ee",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08add-817c-7cd2-b76f-521d3ae88385",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789035766509,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789035766918,
+  "finished_unix_millis": 1789036167730,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-mr3-opus-release-recovery-20260910z9/d8d528a59d1b458fa06ca9a661d25e4d/reviewer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-mr3-opus-release-recovery-20260910z9/d8d528a59d1b458fa06ca9a661d25e4d/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-mr3-opus-release-recovery-20260910z9/d8d528a59d1b458fa06ca9a661d25e4d/review.json",
+      "--model",
+      "opus",
+      "--effort",
+      "high"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-release-recovery-20260910z9/d8d528a59d1b458fa06ca9a661d25e4d",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-mr3-opus-release-recovery-20260910z9/d8d528a59d1b458fa06ca9a661d25e4d/reviewer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-mr3-opus-release-recovery-20260910z9/d8d528a59d1b458fa06ca9a661d25e4d/review.json",
+          "--expected-model-prefix",
+          "claude-opus-"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr3-opus-release-recovery"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ad7-62fa-7932-a464-cc22684d7901",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789035766521,
+      "started_unix_millis": 1789035766687,
+      "deadline_unix_millis": 1789036966687,
+      "finished_unix_millis": 1789036167730,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ad7-62ed-7dd1-b825-3d982fcf4222",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ad7-62fa-7932-a464-cc22684d7901",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ad7-62fa-7932-a464-cc3609a5aa16",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789035766918,
+        "exited_unix_millis": 1789036167531,
+        "resolved_unix_millis": 1789036167545
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ad7-62fa-7932-a464-cc3609a5aa16",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 968637,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 968637,
+            "start_ticks": 8187345,
+            "pid_namespace_inode": 4026534296,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08ad5-7601-7410-a51f-54dda4aed237",
+          "started_unix_millis": 1789035766918,
+          "finished_unix_millis": 1789036167545,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ad7-62fa-7932-a464-cc4d41f9da6b",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "(\\\\\\\"pinned old daemon did not exit\\\\\\\")`. Related ordering point: the non-SQLite evidence (`cgroup.events`, `children`, journal `unsealed`) is captured *before* the stop, and the write lock fences the store, not the kernel or the journal file \u2014 so the emptiness proof recorded in `barrier.json` is up to 25 s stale at the moment of `os.replace`. Re-verify the journal/cgroup after the pidfd wait and immediately before replacement.\\\",\\\"[MEDIUM-LOW \u2014 the one path that retains resources has no post-condition] `--allow-sealed-release-pending` is the only mode that swaps the binary while `leases.state='granted'` rows exist; `sql_barrier` returns `sealed_release_pending` with each `{lease_id, job_id, seals}` and it is persisted into `barrier.json`. Nothing after the restart checks that those lease ids actually reached `released`: the post-replacement loop only waits for `after[\\\\\\\"machine_scheduling\\\\\\\"][\\\\\\\"blocker\\\\\\\"] is None` and then `save(\\\\\\\"after.json\\\\\\\", after)`. Given the module's own contract (\\\\\\\"only the daemon protocol may release its resources\\\\\\\"), the helper should reopen the store read-only after reconnect and assert every retained `lease_id` is `released` with its grant sealed, failing loudly otherwise \u2014 otherwise a silently stuck release is indistinguishable from success in the evidence directory.\\\",\\\"[LOW-MEDIUM \u2014 ineffective path containment in the barrier] `upgrade-wsl-daemon.py::executor_barrier` validates the cgroup path from the anchor with `if not executors.is_relative_to(\\\\\\\"/sys/fs/cgroup\\\\\\\") or executors.is_symlink()`. `is_relative_to` is purely lexical and does not normalize `..`: `Path(\\\\\\\"/sys/fs/cgroup/../../tmp/fake\\\\\\\").is_relative_to(\\\\\\\"/sys/fs/cgroup\\\\\\\")` is `True` because `/sys/fs/cgroup` appears in `.parents`. Only the leaf is symlink-checked, so a symlinked intermediate component also passes, and `iterdir()`/`read_text()` then follow it. A mis-set or tampered `configuration.executor_cgroup` can point the emptiness proof at an ordinary directory holding a fabricated `cgroup.events` containing `populated 0`, defeating the barrier that the whole upgrade depends on. Use `resolve(strict=True)` plus a re-check, and confirm the filesystem is cgroup2.\\\",\\\"[LOW \u2014 inconsistent identifier canonicalization, fails closed] `wsl_maintenance.sealed_pending_leases` builds `keys = {store_uuid + '~' + row[0] for row in invocations}` from raw DB text and compares that against journal keys, `attached_tickets.invocation_id` and `attached_local_cleanup.invocation_id`, while the containment comparison in the same loop normalizes (`record['containment'] != store_uuid + '~' + str(uuid.UUID(containment))`) and `sql_barrier`'s cleared loop normalizes invocations too (`store_uuid + '~' + str(uuid.UUID(invocation))`). Any formatting drift between the store and the journal makes the retained-lease path raise rather than compare, and a non-UUID invocation id is never rejected on this path. Normalize invocation ids once, at the top, in both functions.\\\",\\\"[LOW \u2014 regression coverage does not cover the regression] The fixture exercises only an *accepted* cancellation: it asserts `revision == 2`, then `reply(&tx, &secret, Outcome::Accepted { revision })`, then `assert!(!queue::maintain(&tx).unwrap())`. The behaviour the fix exists for \u2014 a cancellation that is stale-rejected repeatedly \u2014 is never simulated, so nothing pins the retry semantics called out in finding 1; a change to `local + 1` would still pass. Two further gaps: after each `maintain` the fixture pulls a single `manager::pending` and never drains to `None`, so the doc comment's \\\\\\\"At most one maintenance operation is added per turn\\\\\\\" is unverified; and `test-wsl-maintenance.SealedPending` covers exactly one retained lease with only local-table mutations \u2014 there is no case with the two concurrently retained leases this recovery actually used, and no case with a journal record bound to a foreign lease (`records[key]['lease']` pointing at a second granted lease) exercising the `keys != journal_keys` check.\\\"],\\\"summary\\\":\\\"The ordering half of the fix is sound: hoisting the `ready_release` branch above the stale-candidate branch in `queue.rs::maintain` genuinely breaks the reported deadlock, and the fixture pins it (`Command::Release` before `CancelCandidate`, then `revision == 2`). The revision half is open-loop and incomplete: the cancel revision is derived from `candidate_json` which is never rewritten, and `accepted()` discards the coordinator's `revision` via `Outcome::Accepted { .. }`, so a rejected cancel is retried with the identical value forever \u2014 and because that branch returns above the poll branch, it starves arming of all other ready candidates. Two accounting flaws in `cleanup.rs`: the inventory-recovery branch hardcodes `user_code_released: false` for issued tickets using only boundary/proof digests, contradicting the `possibly_released` model the accompanying Python barrier enforces, and `record_attached_cleanup` can write two contradictory cleanups in one transaction because it never asserts `consumed = 0` alongside a `NeverReleased` proof. In the helper, the upgrade holds `BEGIN IMMEDIATE` across `systemctl stop` and the pidfd wait (shutdown-write deadlock risk, and cgroup/journal evidence stale by up to ~25 s at replacement), `is_relative_to(\\\\\\\\\\\\\\\"/sys/fs/cgroup\\\\\\\\\\\\\\\")` is lexical so `..` and symlinked intermediates pass, and the one mode that retains granted leases across the swap has no post-restart check that those lease ids actually reached `released`. Scoped to the recovery slice as requested; not an MR3 exit judgement.\\\",\\\"verdict\\\":\\\"findings\\\"}\",\"structured_output\":{\"findings\":[\"[HIGH \u2014 liveness, fix is incomplete] `queue.rs::maintain` stale branch derives the new revision from local state only and never reconciles it: `SELECT ... json_extract(p.candidate_json,'$.revision')` feeds `revision.checked_add(1)`, and the incremented value is never written back to `candidate_json`. The reply path drops the authoritative value \u2014 `accepted()` matches `Outcome::Accepted { .. }` (note the `..`) and discards `revision`, even though the protocol clearly carries it (the fixture replies `Outcome::Accepted { revision: 1 }`). So every retry recomputes `local + 1`, i.e. the *same* number after a rejection. If the coordinator's revision is ever ahead by more than one (an accepted `CandidateUpsert` refresh from the `refresh` path is the obvious source, and any duplicate/reordered command is another), `CancelCandidate{revision}` is rejected on every turn forever. Because that branch does `return Ok(true)` *above* the candidate-poll branch, one permanently-rejected candidate blocks polling and `Arm` for every other ready candidate \u2014 the original starvation, relocated from sealed releases onto new work. Remedy: persist the coordinator-reported revision from the accept/reject outcome (or from the inspected grant's `candidate`) into `candidate_json` and cancel at `observed + 1`.\",\"[MEDIUM \u2014 duplicate command amplification] The stale branch has no in-flight guard, unlike every sibling branch: the armed path writes `UPDATE attached_local_plans SET release_pending=1` before `seal_release`, `ready_release` is de-duplicated by `g.seal_json IS NULL`, and the poll path writes `SET poll_ms=?2` under `t.poll_ms<=?3`. The unarmed cancel path writes nothing, and its selection `ORDER BY t.ready_ms,p.rowid LIMIT 1` is deterministic over a row whose `ready_ms` does not change, so each `maintain` turn re-enqueues another `CancelCandidate` for the identical plan until a reply lands. The same function treats `SELECT COUNT(*) FROM attached_outbox` `>= 64` as hard backpressure \u2014 and that branch itself calls `pending(tx, Command::Acknowledge{..})` and returns, doing no other maintenance \u2014 so duplicate cancels consume the bounded outbox and can wedge releases and polling behind the overflow branch.\",\"[MEDIUM-HIGH \u2014 resource accounting safety] `cleanup.rs::apply` hardcodes `user_code_released: false` for every ticket recovered from `attached_grants ... json_each(g.grant_json,'$.tickets')`. The only local evidence joined in is `attached_local_cleanup`, whose schema is `(invocation_id, boundary_sha256, proof_sha256)` \u2014 it does not carry the executor seal's `possibly_released` bit. This directly contradicts the model the accompanying barrier enforces: `wsl_maintenance.sql_barrier` raises unless `seal['possibly_released'] != (record['release_intent'] is not None)` is false, i.e. a journal record for an *issued* ticket must have `possibly_released == True`. Tickets listed in a grant snapshot are by definition issued, so the Rust path reports \\\"never released\\\" for exactly the population the Python barrier classifies as possibly released, under-reporting consumption of the shared debit to the coordinator. The comment \\\"Its durable request and executor seal prove an unused obligation\\\" is not backed by any stored field; thread `possibly_released` into `attached_local_cleanup` and use it, or refuse to synthesize cleanup for these rows.\",\"[MEDIUM \u2014 contradictory derivation inside one transaction] `cleanup.rs::record_attached_cleanup` with `never = Some(..)` reads `ticket_json` from `attached_tickets`, writes `user_code_released: false` via `manager::release::record_unused_cleanup`, then unconditionally calls `apply(&tx)`. `apply`'s first loop selects `t.ticket_json,t.consumed ... WHERE t.cleanup_json IS NULL` and calls `manager::record_cleanup` with `user_code_released: consumed` \u2014 for that same ticket, in the same transaction, from the opposite source of truth. Nothing asserts `consumed = 0` when a `NeverReleased` proof is supplied, even though the row is already in hand; a `consumed = 1` ticket produces two mutually contradictory cleanup records. Add an explicit `InvalidState` check on `consumed` before calling `record_unused_cleanup`.\",\"[MEDIUM \u2014 upgrade helper holds the store's write lock across daemon shutdown] In `upgrade-wsl-daemon.py::main`, `db.execute(\\\"BEGIN IMMEDIATE\\\")` is followed by `executor_barrier(...)`, `save(\\\"barrier.json\\\", ...)`, `subprocess.run([\\\"systemctl\\\",\\\"--user\\\",\\\"stop\\\",\\\"stillyard.service\\\"], check=True, timeout=20)`, `poll.poll(5000)`, the link/replace, and only then `ROLLBACK` in the `finally`. The exclusive write transaction is therefore held for the entire stop plus exit wait (~25 s), so any SQLite write the daemon performs during clean shutdown blocks on the upgrader and either fails or times out the stop; the symptom surfaces only as the generic `RuntimeError(\\\"pinned old daemon did not exit\\\")`. Related ordering point: the non-SQLite evidence (`cgroup.events`, `children`, journal `unsealed`) is captured *before* the stop, and the write lock fences the store, not the kernel or the journal file \u2014 so the emptiness proof recorded in `barrier.json` is up to 25 s stale at the moment of `os.replace`. Re-verify the journal/cgroup after the pidfd wait and immediately before replacement.\",\"[MEDIUM-LOW \u2014 the one path that retains resources has no post-condition] `--allow-sealed-release-pending` is the only mode that swaps the binary while `leases.state='granted'` rows exist; `sql_barrier` returns `sealed_release_pending` with each `{lease_id, job_id, seals}` and it is persisted into `barrier.json`. Nothing after the restart checks that those lease ids actually reached `released`: the post-replacement loop only waits for `after[\\\"machine_scheduling\\\"][\\\"blocker\\\"] is None` and then `save(\\\"after.json\\\", after)`. Given the module's own contract (\\\"only the daemon protocol may release its resources\\\"), the helper should reopen the store read-only after reconnect and assert every retained `lease_id` is `released` with its grant sealed, failing loudly otherwise \u2014 otherwise a silently stuck release is indistinguishable from success in the evidence directory.\",\"[LOW-MEDIUM \u2014 ineffective path containment in the barrier] `upgrade-wsl-daemon.py::executor_barrier` validates the cgroup path from the anchor with `if not executors.is_relative_to(\\\"/sys/fs/cgroup\\\") or executors.is_symlink()`. `is_relative_to` is purely lexical and does not normalize `..`: `Path(\\\"/sys/fs/cgroup/../../tmp/fake\\\").is_relative_to(\\\"/sys/fs/cgroup\\\")` is `True` because `/sys/fs/cgroup` appears in `.parents`. Only the leaf is symlink-checked, so a symlinked intermediate component also passes, and `iterdir()`/`read_text()` then follow it. A mis-set or tampered `configuration.executor_cgroup` can point the emptiness proof at an ordinary directory holding a fabricated `cgroup.events` containing `populated 0`, defeating the barrier that the whole upgrade depends on. Use `resolve(strict=True)` plus a re-check, and confirm the filesystem is cgroup2.\",\"[LOW \u2014 inconsistent identifier canonicalization, fails closed] `wsl_maintenance.sealed_pending_leases` builds `keys = {store_uuid + '~' + row[0] for row in invocations}` from raw DB text and compares that against journal keys, `attached_tickets.invocation_id` and `attached_local_cleanup.invocation_id`, while the containment comparison in the same loop normalizes (`record['containment'] != store_uuid + '~' + str(uuid.UUID(containment))`) and `sql_barrier`'s cleared loop normalizes invocations too (`store_uuid + '~' + str(uuid.UUID(invocation))`). Any formatting drift between the store and the journal makes the retained-lease path raise rather than compare, and a non-UUID invocation id is never rejected on this path. Normalize invocation ids once, at the top, in both functions.\",\"[LOW \u2014 regression coverage does not cover the regression] The fixture exercises only an *accepted* cancellation: it asserts `revision == 2`, then `reply(&tx, &secret, Outcome::Accepted { revision })`, then `assert!(!queue::maintain(&tx).unwrap())`. The behaviour the fix exists for \u2014 a cancellation that is stale-rejected repeatedly \u2014 is never simulated, so nothing pins the retry semantics called out in finding 1; a change to `local + 1` would still pass. Two further gaps: after each `maintain` the fixture pulls a single `manager::pending` and never drains to `None`, so the doc comment's \\\"At most one maintenance operation is added per turn\\\" is unverified; and `test-wsl-maintenance.SealedPending` covers exactly one retained lease with only local-table mutations \u2014 there is no case with the two concurrently retained leases this recovery actually used, and no case with a journal record bound to a foreign lease (`records[key]['lease']` pointing at a second granted lease) exercising the `keys != journal_keys` check.\"],\"summary\":\"The ordering half of the fix is sound: hoisting the `ready_release` branch above the stale-candidate branch in `queue.rs::maintain` genuinely breaks the reported deadlock, and the fixture pins it (`Command::Release` before `CancelCandidate`, then `revision == 2`). The revision half is open-loop and incomplete: the cancel revision is derived from `candidate_json` which is never rewritten, and `accepted()` discards the coordinator's `revision` via `Outcome::Accepted { .. }`, so a rejected cancel is retried with the identical value forever \u2014 and because that branch returns above the poll branch, it starves arming of all other ready candidates. Two accounting flaws in `cleanup.rs`: the inventory-recovery branch hardcodes `user_code_released: false` for issued tickets using only boundary/proof digests, contradicting the `possibly_released` model the accompanying Python barrier enforces, and `record_attached_cleanup` can write two contradictory cleanups in one transaction because it never asserts `consumed = 0` alongside a `NeverReleased` proof. In the helper, the upgrade holds `BEGIN IMMEDIATE` across `systemctl stop` and the pidfd wait (shutdown-write deadlock risk, and cgroup/journal evidence stale by up to ~25 s at replacement), `is_relative_to(\\\\\\\"/sys/fs/cgroup\\\\\\\")` is lexical so `..` and symlinked intermediates pass, and the one mode that retains granted leases across the swap has no post-restart check that those lease ids actually reached `released`. Scoped to the recovery slice as requested; not an MR3 exit judgement.\",\"verdict\":\"findings\"},\"ttft_ms\":351430,\"type\":\"result\",\"duration_ms\":398323,\"uuid\":\"90a1f878-3c9e-442f-bdd8-eb60955021e3\",\"ttft_stream_ms\":1782,\"time_to_request_ms\":34,\"first_content_frame_ms\":2155,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08add-817c-7cd2-b76f-5201a36ce5ee",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 1002314,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1002314,
+            "start_ticks": 8227427,
+            "pid_namespace_inode": 4026534294,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08ad5-7601-7410-a51f-54dda4aed237",
+          "started_unix_millis": 1789036167673,
+          "finished_unix_millis": 1789036167728,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08add-817c-7cd2-b76f-521d3ae88385",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-opus-5\"], \"selected_family_models\": [\"claude-opus-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"findings\": [\"[HIGH \\u2014 liveness, fix is incomplete] `queue.rs::maintain` stale branch derives the new revision from local state only and never reconciles it: `SELECT ... json_extract(p.candidate_json,'$.revision')` feeds `revision.checked_add(1)`, and the incremented value is never written back to `candidate_json`. The reply path drops the authoritative value \\u2014 `accepted()` matches `Outcome::Accepted { .. }` (note the `..`) and discards `revision`, even though the protocol clearly carries it (the fixture replies `Outcome::Accepted { revision: 1 }`). So every retry recomputes `local + 1`, i.e. the *same* number after a rejection. If the coordinator's revision is ever ahead by more than one (an accepted `CandidateUpsert` refresh from the `refresh` path is the obvious source, and any duplicate/reordered command is another), `CancelCandidate{revision}` is rejected on every turn forever. Because that branch does `return Ok(true)` *above* the candidate-poll branch, one permanently-rejected candidate blocks polling and `Arm` for every other ready candidate \\u2014 the original starvation, relocated from sealed releases onto new work. Remedy: persist the coordinator-reported revision from the accept/reject outcome (or from the inspected grant's `candidate`) into `candidate_json` and cancel at `observed + 1`.\", \"[MEDIUM \\u2014 duplicate command amplification] The stale branch has no in-flight guard, unlike every sibling branch: the armed path writes `UPDATE attached_local_plans SET release_pending=1` before `seal_release`, `ready_release` is de-duplicated by `g.seal_json IS NULL`, and the poll path writes `SET poll_ms=?2` under `t.poll_ms<=?3`. The unarmed cancel path writes nothing, and its selection `ORDER BY t.ready_ms,p.rowid LIMIT 1` is deterministic over a row whose `ready_ms` does not change, so each `maintain` turn re-enqueues another `CancelCandidate` for the identical plan until a reply lands. The same function treats `SELECT COUNT(*) FROM attached_outbox` `>= 64` as hard backpressure \\u2014 and that branch itself calls `pending(tx, Command::Acknowledge{..})` and returns, doing no other maintenance \\u2014 so duplicate cancels consume the bounded outbox and can wedge releases and polling behind the overflow branch.\", \"[MEDIUM-HIGH \\u2014 resource accounting safety] `cleanup.rs::apply` hardcodes `user_code_released: false` for every ticket recovered from `attached_grants ... json_each(g.grant_json,'$.tickets')`. The only local evidence joined in is `attached_local_cleanup`, whose schema is `(invocation_id, boundary_sha256, proof_sha256)` \\u2014 it does not carry the executor seal's `possibly_released` bit. This directly contradicts the model the accompanying barrier enforces: `wsl_maintenance.sql_barrier` raises unless `seal['possibly_released'] != (record['release_intent'] is not None)` is false, i.e. a journal record for an *issued* ticket must have `possibly_released == True`. Tickets listed in a grant snapshot are by definition issued, so the Rust path reports \\\"never released\\\" for exactly the population the Python barrier classifies as possibly released, under-reporting consumption of the shared debit to the coordinator. The comment \\\"Its durable request and executor seal prove an unused obligation\\\" is not backed by any stored field; thread `possibly_released` into `attached_local_cleanup` and use it, or refuse to synthesize cleanup for these rows.\", \"[MEDIUM \\u2014 contradictory derivation inside one transaction] `cleanup.rs::record_attached_cleanup` with `never = Some(..)` reads `ticket_json` from `attached_tickets`, writes `user_code_released: false` via `manager::release::record_unused_cleanup`, then unconditionally calls `apply(&tx)`. `apply`'s first loop selects `t.ticket_json,t.consumed ... WHERE t.cleanup_json IS NULL` and calls `manager::record_cleanup` with `user_code_released: consumed` \\u2014 for that same ticket, in the same transaction, from the opposite source of truth. Nothing asserts `consumed = 0` when a `NeverReleased` proof is supplied, even though the row is already in hand; a `consumed = 1` ticket produces two mutually contradictory cleanup records. Add an explicit `InvalidState` check on `consumed` before calling `record_unused_cleanup`.\", \"[MEDIUM \\u2014 upgrade helper holds the store's write lock across daemon shutdown] In `upgrade-wsl-daemon.py::main`, `db.execute(\\\"BEGIN IMMEDIATE\\\")` is followed by `executor_barrier(...)`, `save(\\\"barrier.json\\\", ...)`, `subprocess.run([\\\"systemctl\\\",\\\"--user\\\",\\\"stop\\\",\\\"stillyard.service\\\"], check=True, timeout=20)`, `poll.poll(5000)`, the link/replace, and only then `ROLLBACK` in the `finally`. The exclusive write transaction is therefore held for the entire stop plus exit wait (~25 s), so any SQLite write the daemon performs during clean shutdown blocks on the upgrader and either fails or times out the stop; the symptom surfaces only as the generic `RuntimeError(\\\"pinned old daemon did not exit\\\")`. Related ordering point: the non-SQLite evidence (`cgroup.events`, `children`, journal `unsealed`) is captured *before* the stop, and the write lock fences the store, not the kernel or the journal file \\u2014 so the emptiness proof recorded in `barrier.json` is up to 25 s stale at the moment of `os.replace`. Re-verify the journal/cgroup after the pidfd wait and immediately before replacement.\", \"[MEDIUM-LOW \\u2014 the one path that retains resources has no post-condition] `--allow-sealed-release-pending` is the only mode that swaps the binary while `leases.state='granted'` rows exist; `sql_barrier` returns `sealed_release_pending` with each `{lease_id, job_id, seals}` and it is persisted into `barrier.json`. Nothing after the restart checks that those lease ids actually reached `released`: the post-replacement loop only waits for `after[\\\"machine_scheduling\\\"][\\\"blocker\\\"] is None` and then `save(\\\"after.json\\\", after)`. Given the module's own contract (\\\"only the daemon protocol may release its resources\\\"), the helper should reopen the store read-only after reconnect and assert every retained `lease_id` is `released` with its grant sealed, failing loudly otherwise \\u2014 otherwise a silently stuck release is indistinguishable from success in the evidence directory.\", \"[LOW-MEDIUM \\u2014 ineffective path containment in the barrier] `upgrade-wsl-daemon.py::executor_barrier` validates the cgroup path from the anchor with `if not executors.is_relative_to(\\\"/sys/fs/cgroup\\\") or executors.is_symlink()`. `is_relative_to` is purely lexical and does not normalize `..`: `Path(\\\"/sys/fs/cgroup/../../tmp/fake\\\").is_relative_to(\\\"/sys/fs/cgroup\\\")` is `True` because `/sys/fs/cgroup` appears in `.parents`. Only the leaf is symlink-checked, so a symlinked intermediate component also passes, and `iterdir()`/`read_text()` then follow it. A mis-set or tampered `configuration.executor_cgroup` can point the emptiness proof at an ordinary directory holding a fabricated `cgroup.events` containing `populated 0`, defeating the barrier that the whole upgrade depends on. Use `resolve(strict=True)` plus a re-check, and confirm the filesystem is cgroup2.\", \"[LOW \\u2014 inconsistent identifier canonicalization, fails closed] `wsl_maintenance.sealed_pending_leases` builds `keys = {store_uuid + '~' + row[0] for row in invocations}` from raw DB text and compares that against journal keys, `attached_tickets.invocation_id` and `attached_local_cleanup.invocation_id`, while the containment comparison in the same loop normalizes (`record['containment'] != store_uuid + '~' + str(uuid.UUID(containment))`) and `sql_barrier`'s cleared loop normalizes invocations too (`store_uuid + '~' + str(uuid.UUID(invocation))`). Any formatting drift between the store and the journal makes the retained-lease path raise rather than compare, and a non-UUID invocation id is never rejected on this path. Normalize invocation ids once, at the top, in both functions.\", \"[LOW \\u2014 regression coverage does not cover the regression] The fixture exercises only an *accepted* cancellation: it asserts `revision == 2`, then `reply(&tx, &secret, Outcome::Accepted { revision })`, then `assert!(!queue::maintain(&tx).unwrap())`. The behaviour the fix exists for \\u2014 a cancellation that is stale-rejected repeatedly \\u2014 is never simulated, so nothing pins the retry semantics called out in finding 1; a change to `local + 1` would still pass. Two further gaps: after each `maintain` the fixture pulls a single `manager::pending` and never drains to `None`, so the doc comment's \\\"At most one maintenance operation is added per turn\\\" is unverified; and `test-wsl-maintenance.SealedPending` covers exactly one retained lease with only local-table mutations \\u2014 there is no case with the two concurrently retained leases this recovery actually used, and no case with a journal record bound to a foreign lease (`records[key]['lease']` pointing at a second granted lease) exercising the `keys != journal_keys` check.\"], \"summary\": \"The ordering half of the fix is sound: hoisting the `ready_release` branch above the stale-candidate branch in `queue.rs::maintain` genuinely breaks the reported deadlock, and the fixture pins it (`Command::Release` before `CancelCandidate`, then `revision == 2`). The revision half is open-loop and incomplete: the cancel revision is derived from `candidate_json` which is never rewritten, and `accepted()` discards the coordinator's `revision` via `Outcome::Accepted { .. }`, so a rejected cancel is retried with the identical value forever \\u2014 and because that branch returns above the poll branch, it starves arming of all other ready candidates. Two accounting flaws in `cleanup.rs`: the inventory-recovery branch hardcodes `user_code_released: false` for issued tickets using only boundary/proof digests, contradicting the `possibly_released` model the accompanying Python barrier enforces, and `record_attached_cleanup` can write two contradictory cleanups in one transaction because it never asserts `consumed = 0` alongside a `NeverReleased` proof. In the helper, the upgrade holds `BEGIN IMMEDIATE` across `systemctl stop` and the pidfd wait (shutdown-write deadlock risk, and cgroup/journal evidence stale by up to ~25 s at replacement), `is_relative_to(\\\\\\\"/sys/fs/cgroup\\\\\\\")` is lexical so `..` and symlinked intermediates pass, and the one mode that retains granted leases across the swap has no post-restart check that those lease ids actually reached `released`. Scoped to the recovery slice as requested; not an MR3 exit judgement.\", \"verdict\": \"findings\"}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad7-6333-7651-9a0e-5262b53e84b8",
+      "lease_id": "01a08ad7-62fa-7932-a464-cc51d782c52d",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08ad7-62fa-7932-a464-cc51d782c52d"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ad7-62ed-7dd1-b825-3d982fcf4222",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ad7-62fa-7932-a464-cc22684d7901"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08ade-f588-79e1-b441-a47c40c531b8"
+}

@@ -1,0 +1,278 @@
+{
+  "before": {
+    "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+    "daemon_generation": "01a08ab5-a7b5-7390-93bf-5b08447a574d",
+    "version": "0.1.0-alpha.20",
+    "pid": 51924,
+    "process_identity": {
+      "platform": "windows",
+      "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+      "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+      "pid": 51924,
+      "creation_filetime_100ns": 134335071557503927
+    },
+    "endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+    "store_path": "\\\\?\\C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\data",
+    "config_path": "\\\\?\\C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\data\\config.json",
+    "capacities": {
+      "cpu_units": 0,
+      "ram_mb": 32768,
+      "cargo_slots": 1,
+      "gpu_slots": 1,
+      "custom": {
+        "claude1_slots": 4,
+        "claude2_slots": 4,
+        "codex1_slots": 4,
+        "codex2_slots": 4,
+        "grok_slots": 4,
+        "opencode_slots": 4,
+        "vram_mb:GPU-a1144c26-a15c-cba1-3b7a-870c755ef08a": 30000
+      }
+    },
+    "resources": {
+      "cpu_units": {
+        "capacity": 0,
+        "granted": 0,
+        "reserved": 0
+      },
+      "ram_mb": {
+        "capacity": 32768,
+        "granted": 0,
+        "reserved": 0
+      },
+      "cargo_slots": {
+        "capacity": 1,
+        "granted": 0,
+        "reserved": 0
+      },
+      "gpu_slots": {
+        "capacity": 1,
+        "granted": 0,
+        "reserved": 0
+      },
+      "custom": {
+        "claude1_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "claude2_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "codex1_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "codex2_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "grok_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "opencode_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "vram_mb:gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a": {
+          "capacity": 30000,
+          "granted": 0,
+          "reserved": 0
+        }
+      }
+    },
+    "machine_scheduling": {
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domains": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "machine_scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+        "native_domain": "01a08727-697d-7002-b4e5-c9c5feed5486"
+      },
+      "mode": "coordinator",
+      "observed_unix_millis": 1789034706318,
+      "configuration_sha256": "7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978",
+      "resources": [
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "cargo_slots"
+          },
+          "capacity": 1,
+          "granted": 1,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "claude1_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "claude2_slots"
+          },
+          "capacity": 4,
+          "granted": 1,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "codex1_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "codex2_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "cpu_units"
+          },
+          "capacity": 0,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "gpu_slots"
+          },
+          "capacity": 1,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "grok_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "opencode_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "ram_mb"
+          },
+          "capacity": 32768,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "vram_mb:gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a"
+          },
+          "capacity": 30000,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "05d9f444-6a6f-4027-9a2e-3f2803924245",
+            "kind": "scalar",
+            "resource_id": "ram_mb"
+          },
+          "capacity": 32768,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+            "kind": "scalar",
+            "resource_id": "cargo_slots"
+          },
+          "capacity": 2,
+          "granted": 1,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+            "kind": "scalar",
+            "resource_id": "ram_mb"
+          },
+          "capacity": 16384,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        }
+      ],
+      "blocker": null
+    },
+    "config_sha256": "7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978",
+    "queued_jobs": 0,
+    "running_jobs": 0
+  },
+  "action": "same-image coordinator restart with previously accepted cargo capacity 2; all remote grants retained",
+  "remote_grants_before": [
+    [
+      "{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08aba-f87e-7a52-952f-9365fb533a99\"}",
+      "armed",
+      "{\"queue_accepted_unix_millis\":1789033904264,\"queue_sequence\":9326,\"uncertainty_reason\":null,\"risk_clearance\":null,\"grant_id\":\"01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aba-f893-7751-9947-2c2df8cf441f\",\"candidate\":{\"key\":{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08aba-f87e-7a52-952f-9365fb533a99\"},\"owner\":{\"kind\":\"work\",\"job_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f876-7b20-ae01-572fb95e7f95\",\"attempt_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-933bb2182c9d\"},\"revision\":1,\"priority\":0,\"claims\":{\"scalars\":{\"cargo_slots\":0,\"claude2_slots\":1,\"cpu_units\":0,\"gpu_slots\":0,\"ram_mb\":0},\"shared_fences\":[],\"exclusive_fences\":[],\"impacts\":[]},\"configuration_sha256\":\"7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978\",\"observed\":null,\"quiet\":null},\"offer_nonce\":\"01a08aba-f893-7751-9947-2c3851cd1d91\",\"state\":\"armed\",\"offered_unix_millis\":1789033904274,\"offer_deadline_unix_millis\":1789033909274,\"armed_unix_millis\":1789033904292,\"released_unix_millis\":null,\"tickets\":[{\"invocation_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-9342c1376ca0\",\"containment_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-935676bb9182\",\"role\":\"primary\",\"role_index\":0,\"release_sequence\":1,\"executable_sha256\":\"52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41\",\"boundary_sha256\":\"e0902448b3e5dd716aff0c9b3fe160ba8b309d75705216a4bc7bb770112b9e37\",\"readiness_challenge\":\"01a08aba-f95e-7500-9f52-792a9c83e296\",\"previous_cleanup\":null},{\"invocation_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abe-c251-7cf2-b907-2fc75a0c88f9\",\"containment_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abe-c251-7cf2-b907-2fd5a41a2b01\",\"role\":\"postcondition\",\"role_index\":0,\"release_sequence\":2,\"executable_sha256\":\"52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41\",\"boundary_sha256\":\"021ac6b0897808df09ef48415f94f81e75353d6ce2c55f5da4341fe1ac714d61\",\"readiness_challenge\":\"01a08abe-c306-7872-9d8a-bebda52c8c30\",\"previous_cleanup\":{\"invocation_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-9342c1376ca0\",\"release_sequence\":1,\"boundary_sha256\":\"e0902448b3e5dd716aff0c9b3fe160ba8b309d75705216a4bc7bb770112b9e37\",\"proof_sha256\":\"07d7f16c6210eb7a2ec56afc5d4e172df08fbb22f4148029144e1b8637099b89\",\"user_code_released\":true}}],\"sealed_release\":null}"
+    ],
+    [
+      "{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08abb-0a1e-7a83-b7c5-c5347eb0dea8\"}",
+      "armed",
+      "{\"queue_accepted_unix_millis\":1789033908775,\"queue_sequence\":9328,\"uncertainty_reason\":null,\"risk_clearance\":null,\"grant_id\":\"01a05f1f-858c-7880-8c15-d55875da9e6b~01a08abd-229e-71a0-96b6-7d85e2497ee2\",\"candidate\":{\"key\":{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08abb-0a1e-7a83-b7c5-c5347eb0dea8\"},\"owner\":{\"kind\":\"work\",\"job_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a17-73f2-9fbb-b4b8aa1d7cc7\",\"attempt_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1d-7802-9867-53e746ef956c\"},\"revision\":1,\"priority\":0,\"claims\":{\"scalars\":{\"cargo_slots\":1,\"cpu_units\":0,\"gpu_slots\":0,\"ram_mb\":0},\"shared_fences\":[],\"exclusive_fences\":[],\"impacts\":[\"cpu_heavy\"]},\"configuration_sha256\":\"7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978\",\"observed\":null,\"quiet\":null},\"offer_nonce\":\"01a08abd-229e-71a0-96b6-7d95f6e927d4\",\"state\":\"armed\",\"offered_unix_millis\":1789034046109,\"offer_deadline_unix_millis\":1789034051109,\"armed_unix_millis\":1789034046184,\"released_unix_millis\":null,\"tickets\":[{\"invocation_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1e-7a83-b7c5-c518364a4a23\",\"containment_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1e-7a83-b7c5-c52ac57115a0\",\"role\":\"primary\",\"role_index\":0,\"release_sequence\":1,\"executable_sha256\":\"dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71\",\"boundary_sha256\":\"76f0cf0774be19aec3116262e4cd4943a827c8d9e8865bc4be8f58125a9e2f01\",\"readiness_challenge\":\"01a08abd-23d0-7301-bba9-c2618057ffd9\",\"previous_cleanup\":null}],\"sealed_release\":null}"
+    ]
+  ],
+  "image_sha256": "4c00cd15ff79cca684674a67902a3ff64d53efb3cf7caf7cc9493447f4f83366",
+  "prior_config_sha256": "b056f7a33392c5814eb37a800b8980bd92965cf1b2a8162afd17d3131bde4c6d"
+}

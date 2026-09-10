@@ -1,0 +1,32 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+  "args": [
+    "bootstrap",
+    "run",
+    "--spec",
+    "C:\\Development\\stillyard-mr2-retirement-review-20260910c\\work.json"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr2-retirement-review-20260910c",
+  "resources": {
+    "cargo_slots": 1,
+    "custom": {
+      "claude2_slots": 2
+    },
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr2-retirement-focused-review"
+    }
+  ],
+  "timeout_seconds": 1530,
+  "expected_duration_seconds": 480
+}

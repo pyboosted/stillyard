@@ -1,0 +1,18 @@
+{
+  "distribution": "Ubuntu-SSD",
+  "user": "pythonic",
+  "executable": "/home/pythonic/Development/stillyard-mr3-bootstrap-controls-20260910z7/target/scheduled-linux/debug/deps/stillyard-8d19002362520820",
+  "args": [
+    "linux_executor_cross_os_reset_subject",
+    "--ignored",
+    "--nocapture"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-mr3-bootstrap-controls-20260910z7",
+  "timeout_seconds": 240,
+  "delegate_test_cgroup": true,
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "STILLYARD_TEST_EXECUTABLE": "/home/pythonic/Development/stillyard-mr3-bootstrap-controls-20260910z7/target/scheduled-linux/debug/stillyard",
+    "MR_WSL_FAULT_MAILBOX": "/mnt/c/Development/stillyard-mr3-cross-os-fault-evidence-20260910z7/cross-os-reset-489df69309f4469cb92317532f8953ee/private-mailbox"
+  }
+}

@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2003-7d50-83b1-0f9de19e3d2a",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-1fff-7552-b2be-904e993e3195",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2008-78c3-ba09-17273c848ffb",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-99f7-76b1-814d-0257d8fe37a3",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-99f7-76b1-814d-026b84d1d338",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789041647619,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789041647919,
+  "finished_unix_millis": 1789041679047,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-consumers-20260910z11d/wc2/consumer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-consumers-20260910z11d/wc2/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-consumers-20260910z11d/wc2/review.json",
+      "--model",
+      "sonnet"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-consumers-20260910z11d/wc2",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-consumers-20260910z11d/wc2/consumer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-consumers-20260910z11d/wc2/review.json"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "acceptance",
+        "value": "W-C2"
+      },
+      {
+        "key": "round",
+        "value": "z11d-confirmation"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 600,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2008-78c3-ba09-17273c848ffb",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789041647623,
+      "started_unix_millis": 1789041647749,
+      "deadline_unix_millis": 1789042247749,
+      "finished_unix_millis": 1789041679047,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2003-7d50-83b1-0f9de19e3d2a",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2008-78c3-ba09-17273c848ffb",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2008-78c3-ba09-17366f535e16",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789041647919,
+        "exited_unix_millis": 1789041678806,
+        "resolved_unix_millis": 1789041678832
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2008-78c3-ba09-17366f535e16",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 1479670,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1479670,
+            "start_ticks": 8775451,
+            "pid_namespace_inode": 4026534152,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b2f-b3e1-7b93-9dce-92828505ee47",
+          "started_unix_millis": 1789041647919,
+          "finished_unix_millis": 1789041678832,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2008-78c3-ba09-1748d8486883",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"duration_api_ms\":30239,\"stop_reason\":\"tool_use\",\"session_id\":\"3e6bceb2-0927-43ce-9ef2-1df257ad9af1\",\"total_cost_usd\":0.053027,\"usage\":{\"input_tokens\":4,\"cache_creation_input_tokens\":5785,\"cache_read_input_tokens\":13370,\"output_tokens\":2400,\"output_tokens_details\":{\"thinking_tokens\":1995},\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":5785,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"not_available\",\"iterations\":[{\"input_tokens\":2,\"output_tokens\":270,\"cache_read_input_tokens\":8454,\"cache_creation_input_tokens\":2247,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":2247},\"type\":\"message\"}],\"speed\":\"standard\"},\"modelUsage\":{\"claude-haiku-4-5-20251001\":{\"inputTokens\":3120,\"outputTokens\":17,\"cacheReadInputTokens\":0,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.003205,\"contextWindow\":200000,\"maxOutputTokens\":32000,\"thinkingTokens\":0,\"canonicalModel\":\"claude-haiku-4-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"},\"claude-sonnet-5\":{\"inputTokens\":4,\"outputTokens\":2400,\"cacheReadInputTokens\":13370,\"cacheCreationInputTokens\":5785,\"webSearchRequests\":0,\"costUSD\":0.049822,\"contextWindow\":1000000,\"maxOutputTokens\":64000,\"thinkingTokens\":1995,\"canonicalModel\":\"claude-sonnet-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"fast_mode_disabled_reason\":\"sdk_opt_in_required\",\"subagent_stats\":{\"spawned\":0,\"requested\":{\"background\":0,\"foreground\":0,\"unset\":0},\"started_in_background\":0,\"max_depth\":0,\"spawned_by_subagents\":0,\"completed\":0,\"failed\":0,\"killed\":{\"parent\":0,\"user\":0,\"system\":0},\"refused\":{\"depth_limit\":0,\"concurrency_limit\":0,\"budget\":0},\"by_type\":{}},\"is_error\":false,\"num_turns\":3,\"subtype\":\"success\",\"api_error_status\":null,\"result\":\"{\\\"verdict\\\":\\\"pass\\\",\\\"summary\\\":\\\"Reviewed src/bootstrap_controller.rs and tests/support/cross_os_reset.rs read-only. The current-primary role check, finite-timeout validation, Job-based descendant containment, and narrow named-file mailbox export are all present and consistent in the provided code; no concrete evidence of violation was found. Note: the code combining native controller success with the Linux subject's seal/outcome is not present in these two files, so that conjunction could not be directly verified here (not assumed as a defect since the relevant code wasn't provided).\\\",\\\"findings\\\":[]}\",\"structured_output\":{\"verdict\":\"pass\",\"summary\":\"Reviewed src/bootstrap_controller.rs and tests/support/cross_os_reset.rs read-only. The current-primary role check, finite-timeout validation, Job-based descendant containment, and narrow named-file mailbox export are all present and consistent in the provided code; no concrete evidence of violation was found. Note: the code combining native controller success with the Linux subject's seal/outcome is not present in these two files, so that conjunction could not be directly verified here (not assumed as a defect since the relevant code wasn't provided).\",\"findings\":[]},\"ttft_ms\":24464,\"type\":\"result\",\"duration_ms\":28938,\"uuid\":\"5d3d2ab0-e615-4030-a60d-1e6f0ecd6e06\",\"ttft_stream_ms\":1221,\"time_to_request_ms\":41,\"first_content_frame_ms\":1507,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-99f7-76b1-814d-0257d8fe37a3",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 1482128,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1482128,
+            "start_ticks": 8778558,
+            "pid_namespace_inode": 4026534279,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b2f-b3e1-7b93-9dce-92828505ee47",
+          "started_unix_millis": 1789041678982,
+          "finished_unix_millis": 1789041679044,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-99f7-76b1-814d-026b84d1d338",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-sonnet-5\"], \"selected_family_models\": [\"claude-sonnet-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"verdict\": \"pass\", \"summary\": \"Reviewed src/bootstrap_controller.rs and tests/support/cross_os_reset.rs read-only. The current-primary role check, finite-timeout validation, Job-based descendant containment, and narrow named-file mailbox export are all present and consistent in the provided code; no concrete evidence of violation was found. Note: the code combining native controller success with the Linux subject's seal/outcome is not present in these two files, so that conjunction could not be directly verified here (not assumed as a defect since the relevant code wasn't provided).\", \"findings\": []}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b31-2020-7292-af74-6950b89f5200",
+      "lease_id": "01a08b31-2008-78c3-ba09-175da58a716d",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08b31-2008-78c3-ba09-175da58a716d"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2003-7d50-83b1-0f9de19e3d2a",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2008-78c3-ba09-17273c848ffb"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08b2f-b3e1-7b93-9dce-92828505ee47"
+}

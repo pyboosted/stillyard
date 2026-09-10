@@ -1,0 +1,38 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Windows\\System32\\wsl.exe",
+  "args": [
+    "--distribution",
+    "Ubuntu-SSD",
+    "--user",
+    "pythonic",
+    "--cd",
+    "/home/pythonic/Development/stillyard",
+    "--exec",
+    "/usr/bin/python3",
+    "-c",
+    "import json,os,pathlib,time; p=pathlib.Path('/home/pythonic/Development/stillyard/docs/evidence/mr0-20260909/bootstrap-probe'); p.with_suffix(\".started.json\").write_text(json.dumps({\"pid\":os.getpid(),\"cwd\":os.getcwd(),\"cgroup\":pathlib.Path(\"/proc/self/cgroup\").read_text(),\"time\":time.time()})); print(\"bootstrap stdout\",flush=True); print(\"bootstrap stderr\",file=__import__(\"sys\").stderr,flush=True); time.sleep(8); p.with_suffix(\".finished.json\").write_text(json.dumps({\"pid\":os.getpid(),\"time\":time.time()}))"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr0-baseline-20260909b",
+  "environment": {
+    "set": {
+      "USERPROFILE": "C:\\Users\\User",
+      "SYSTEMDRIVE": "C:",
+      "PATH": "C:\\Windows\\System32;C:\\Windows"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr0-bootstrap-negative-control"
+    }
+  ],
+  "timeout_seconds": 2
+}

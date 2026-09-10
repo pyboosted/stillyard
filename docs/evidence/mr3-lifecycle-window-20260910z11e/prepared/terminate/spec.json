@@ -1,0 +1,32 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+  "args": [
+    "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11e\\controller.py",
+    "--operation",
+    "terminate",
+    "--evidence-directory",
+    "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11e\\terminate\\result",
+    "--foreign-work-agreed"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11e",
+  "environment": {
+    "set": {
+      "SystemRoot": "C:\\Windows",
+      "USERPROFILE": "C:\\Users\\User",
+      "PATH": "C:\\Windows\\System32;C:\\Windows"
+    }
+  },
+  "resources": {},
+  "timeout_seconds": 2300,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr3-lifecycle-terminate"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "build_job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a9-a325-72c1-aff3-eb106a41f02c",
+  "candidate": "/home/pythonic/Development/stillyard-mr3-installed-observation-20260910x2/target/scheduled-linux/release/stillyard",
+  "candidate_sha256": "67bd08e3743dfdf3b3da1a913d554f10c56fff3d3c681959893af09487829744",
+  "installed": "/home/pythonic/.local/share/stillyard/bin/stillyard",
+  "helper_sha256": "dd7138013f9317dae07d7ed0a27bc8725ae828f7664b9d725b49d4655fe1762c",
+  "unit": "/home/pythonic/.config/systemd/user/stillyard.service",
+  "unit_text": "[Unit]\nDescription=Stillyard attached Windows/WSL scheduler\n\n[Service]\nType=simple\nExecStartPre=/usr/bin/python3 \"/home/pythonic/.local/share/stillyard/libexec/wsl-service.py\" delegate --executors \"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service/executors\" --ram-mb 16384\nExecStart=\"/home/pythonic/.local/share/stillyard/bin/stillyard\" daemon\nWorkingDirectory=\"/home/pythonic/.local/share/stillyard\"\nDelegate=cpu memory pids\nDelegateSubgroup=manager\nSlice=app.slice\nKillMode=process\nRestart=on-failure\nRestartSec=2\nUMask=0077\nUnsetEnvironment=STILLYARD_STORE STILLYARD_ENDPOINT STILLYARD_JOB_ID STILLYARD_ATTEMPT STILLYARD_INVOCATION_ID STILLYARD_ROLE\n\n[Install]\nWantedBy=default.target\n",
+  "host_configuration": {
+    "resources": {
+      "ram_mb": 16384,
+      "cargo_slots": 2,
+      "custom": {
+        "claude1_slots": 4,
+        "claude2_slots": 4,
+        "codex1_slots": 4,
+        "codex2_slots": 4,
+        "grok_slots": 4,
+        "opencode_slots": 4
+      }
+    },
+    "impact_incompatibilities": {
+      "cpu_heavy": [],
+      "measurement": [
+        "cpu_heavy",
+        "gpu_heavy"
+      ]
+    },
+    "observation": {
+      "ram_safety_margin_mb": 1024,
+      "process_rules": {
+        "block": [
+          "cargo",
+          "rustc",
+          "rust-analyzer"
+        ],
+        "ignore": []
+      }
+    }
+  },
+  "executor_cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service/executors",
+  "interop_alias": "/home/pythonic/.local/share/stillyard/interop.sock",
+  "applied": true
+}

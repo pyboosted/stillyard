@@ -1,0 +1,80 @@
+[
+  {
+    "side": "windows",
+    "gate": "build-release",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b01-4a28-7472-9c6a-045e3f095e11",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "check",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aff-585e-7043-bf93-bb66bde14fb0",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "clippy",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08afc-a5d8-7e61-b465-40e6baf677d1",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "fmt-write",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af5-e9e6-7490-bf62-a8a320e84440",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "msrv-test",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aff-0788-72f1-8cc5-3431d769f3c2",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "test",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08afc-ded5-7201-a193-1d46b0b584a0",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "wsl-bootstrap-msrv-test",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08afc-2094-7f00-9b45-f6d27f824bd4",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "wsl-bootstrap-test",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b0-7bf0-a5ca-a39e2420781d",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-msrv-test",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08afb-0f27-7e91-87c6-1d89b9d6be5f",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-test",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08afa-72f4-7e51-87ea-7c9e7e470c45",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-check",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aff-5176-77f1-916f-dc12601ea79c",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-clippy",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08afa-4b86-7150-86c6-a1b37e9cdf87",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-build-release",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b02-4a4f-7502-82ab-10b378ff2edf",
+    "outcome": "succeeded"
+  }
+]

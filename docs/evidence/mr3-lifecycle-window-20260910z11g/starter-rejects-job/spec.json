@@ -1,0 +1,31 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+  "args": [
+    "-c",
+    "import os,subprocess,sys; from pathlib import Path; env={k:v for k,v in os.environ.items() if not k.startswith(\"STILLYARD_\")}; p=subprocess.run([sys.executable,sys.argv[1],\"--exchange-directory\",sys.argv[2],\"--approval-file\",sys.argv[3]],env=env,capture_output=True,text=True); print(p.stderr); assert p.returncode!=0 and \"external starter must not belong to a Windows Job\" in p.stderr; assert not Path(sys.argv[2]).exists(); print(\"ACTUAL WINDOWS JOB MEMBERSHIP REJECTED WITHOUT ENVIRONMENT HINTS\")",
+    "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11g\\starter.py",
+    "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11g\\starter-rejects-job\\must-not-exist",
+    "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11g\\starter-rejects-job\\absent-approval.json"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11g",
+  "environment": {
+    "set": {
+      "SystemRoot": "C:\\Windows",
+      "USERPROFILE": "C:\\Users\\User",
+      "PATH": "C:\\Windows\\System32;C:\\Windows"
+    }
+  },
+  "resources": {},
+  "timeout_seconds": 40,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr3-external-starter-job-rejection"
+    }
+  ]
+}

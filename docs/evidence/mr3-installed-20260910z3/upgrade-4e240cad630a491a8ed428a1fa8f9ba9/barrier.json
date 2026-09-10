@@ -1,0 +1,16 @@
+{
+  "job_count": 34,
+  "granted_leases": 0,
+  "blocking_containment": 0,
+  "executor": {
+    "journal_sha256": "9db5d589f47922f36b17e8440223f53cebcf81174c412904d11f5c7f1ffbcdf0",
+    "records": 43,
+    "unsealed": 0,
+    "executors": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service/executors",
+    "events": {
+      "populated": "0",
+      "frozen": "0"
+    },
+    "children": []
+  }
+}

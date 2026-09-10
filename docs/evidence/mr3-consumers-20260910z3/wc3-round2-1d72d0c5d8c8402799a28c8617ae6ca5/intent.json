@@ -1,0 +1,5 @@
+{
+  "idempotency_key": "725c641d-f433-48d8-808a-eda832ce8a8b",
+  "state": "prepared_not_submitted",
+  "consumer_sha256": "b43265239a3d6a7736873d99d7d438dc0521c715db716b65a5b48e4f10180024"
+}

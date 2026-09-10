@@ -1,0 +1,56 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "/home/pythonic/Development/stillyard-mr3-opus-release-recovery-20260910z9/d8d528a59d1b458fa06ca9a661d25e4d/reviewer.py",
+    "review",
+    "--cli",
+    "/home/pythonic/.local/bin/claude-current",
+    "--brief",
+    "/home/pythonic/Development/stillyard-mr3-opus-release-recovery-20260910z9/d8d528a59d1b458fa06ca9a661d25e4d/brief.txt",
+    "--output",
+    "/home/pythonic/Development/stillyard-mr3-opus-release-recovery-20260910z9/d8d528a59d1b458fa06ca9a661d25e4d/review.json",
+    "--model",
+    "opus",
+    "--effort",
+    "high"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-release-recovery-20260910z9/d8d528a59d1b458fa06ca9a661d25e4d",
+  "environment": {
+    "set": {
+      "HOME": "/home/pythonic",
+      "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+      "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin",
+      "LANG": "C.UTF-8"
+    }
+  },
+  "resources": {
+    "custom": {
+      "claude2_slots": 1
+    }
+  },
+  "postconditions": [
+    {
+      "executable": "/usr/bin/python3",
+      "args": [
+        "/home/pythonic/Development/stillyard-mr3-opus-release-recovery-20260910z9/d8d528a59d1b458fa06ca9a661d25e4d/reviewer.py",
+        "validate-review",
+        "--input",
+        "/home/pythonic/Development/stillyard-mr3-opus-release-recovery-20260910z9/d8d528a59d1b458fa06ca9a661d25e4d/review.json",
+        "--expected-model-prefix",
+        "claude-opus-"
+      ]
+    }
+  ],
+  "timeout_seconds": 1200,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr3-opus-release-recovery"
+    }
+  ]
+}

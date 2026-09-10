@@ -1,0 +1,28 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-8228-7563-a0aa-5b55f1c39650",
+  "job_outcome": "timed_out",
+  "cli_exit_code": 21,
+  "windows_containment": {
+    "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-822b-7321-b8ec-81d1db1474f8",
+    "state": "empty",
+    "strength": "windows_job_object",
+    "incident_id": null,
+    "incident": null,
+    "resolution": null,
+    "resolution_audit": null
+  },
+  "recorded_descendant": {
+    "pid": 920733,
+    "start_ticks": "19870629",
+    "cgroup": "0::/init.scope\n"
+  },
+  "descendant_after_job_final": {
+    "pid": 920733,
+    "start_ticks": "19870629",
+    "state": "S"
+  },
+  "matching_descendant_alive_after_windows_empty": true,
+  "bootstrap_acceptance": "failed",
+  "descendant_still_running_at_end": false,
+  "natural_completion_marker": true
+}

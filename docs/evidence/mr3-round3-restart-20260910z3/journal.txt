@@ -1,0 +1,20 @@
+Sep 10 10:02:10 theserver systemd[7255]: stillyard.service: Unit process 82863 (stillyard.exe) remains running after unit stopped.
+Sep 10 10:02:10 theserver systemd[7255]: Stopped stillyard.service - Stillyard attached Windows/WSL scheduler.
+Sep 10 10:02:10 theserver systemd[7255]: stillyard.service: Consumed 15.024s CPU time over 14min 29.292s wall clock time, 237.3M memory peak.
+Sep 10 10:02:47 theserver systemd[7255]: Started stillyard.service - Stillyard attached Windows/WSL scheduler.
+Sep 10 10:02:47 theserver python3[102070]: {"kind": "wsl_delegation", "executors": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service/executors", "memory_max": "17179869184", "controllers": "cpu memory pids"}
+Sep 10 10:04:47 theserver python3[102070]: stillyard attached coordinator unavailable: invalid durable state: coordinator configuration changed; full inventory is required
+Sep 10 10:08:43 theserver systemd[7255]: Stopping stillyard.service - Stillyard attached Windows/WSL scheduler...
+Sep 10 10:08:43 theserver systemd[7255]: stillyard.service: Unit process 106946 (stillyard.exe) remains running after unit stopped.
+Sep 10 10:08:43 theserver systemd[7255]: Stopped stillyard.service - Stillyard attached Windows/WSL scheduler.
+Sep 10 10:08:43 theserver systemd[7255]: stillyard.service: Consumed 2min 23.520s CPU time over 5min 55.891s wall clock time, 2.4G memory peak.
+Sep 10 10:08:43 theserver systemd[7255]: stillyard.service: Found left-over process 106946 (stillyard.exe) in control group while starting unit. Ignoring.
+Sep 10 10:08:43 theserver systemd[7255]: stillyard.service: This usually indicates unclean termination of a previous run, or service implementation deficiencies.
+Sep 10 10:08:43 theserver systemd[7255]: stillyard.service: Failed to spawn executor: Device or resource busy
+Sep 10 10:08:43 theserver systemd[7255]: stillyard.service: Failed to spawn 'start' task: Device or resource busy
+Sep 10 10:08:43 theserver systemd[7255]: stillyard.service: Failed with result 'resources'.
+Sep 10 10:08:43 theserver systemd[7255]: stillyard.service: Unit process 106946 (stillyard.exe) remains running after unit stopped.
+Sep 10 10:08:43 theserver systemd[7255]: Failed to start stillyard.service - Stillyard attached Windows/WSL scheduler.
+Sep 10 10:08:45 theserver systemd[7255]: stillyard.service: Scheduled restart job, restart counter is at 1.
+Sep 10 10:08:45 theserver systemd[7255]: Started stillyard.service - Stillyard attached Windows/WSL scheduler.
+Sep 10 10:08:45 theserver python3[128628]: {"kind": "wsl_delegation", "executors": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service/executors", "memory_max": "17179869184", "controllers": "cpu memory pids"}

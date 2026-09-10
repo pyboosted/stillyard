@@ -1,0 +1,63 @@
+{
+  "job_count": 88,
+  "executor": {
+    "sql_clearance": {
+      "granted_leases": 2,
+      "sealed_release_pending": [
+        {
+          "lease_id": "01a08aba-f87e-7a52-952f-9365fb533a99",
+          "job_id": "01a08aba-f876-7b20-ae01-572fb95e7f95",
+          "seals": [
+            {
+              "invocation": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-9342c1376ca0",
+              "seal_id": "01a08abe-c1ff-78c3-aa83-1edfb857ef91",
+              "proof_sha256": "07d7f16c6210eb7a2ec56afc5d4e172df08fbb22f4148029144e1b8637099b89"
+            },
+            {
+              "invocation": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abe-c251-7cf2-b907-2fc75a0c88f9",
+              "seal_id": "01a08abe-c3ca-7d12-9ae3-7396751f54fd",
+              "proof_sha256": "f923f55541ebcf732cf8c5bd00d905b6cd5d9219321f4f256bed9a8fde04b7f8"
+            }
+          ]
+        },
+        {
+          "lease_id": "01a08abb-0a1e-7a83-b7c5-c5347eb0dea8",
+          "job_id": "01a08abb-0a17-73f2-9fbb-b4b8aa1d7cc7",
+          "seals": [
+            {
+              "invocation": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1e-7a83-b7c5-c518364a4a23",
+              "seal_id": "01a08abd-4768-7c80-ae12-50e8e5d15945",
+              "proof_sha256": "7a4b864418668868809fa31e506d961830a5c82e1969f5b2e29a894712de3f5e"
+            }
+          ]
+        }
+      ],
+      "blocking_containments": 0,
+      "historical_proven_empty": [
+        {
+          "containment": "01a08a42-28b7-7d31-85e6-9233c16bc9cb",
+          "invocation": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a42-28b7-7d31-85e6-9229e52b2ce2",
+          "resolution": "proven_empty",
+          "seal_id": "01a08a42-31ab-7e61-ab07-055a5499042c",
+          "boundary_sha256": "7d48d011ca3d37fcf6321930e93822380206db3716c0d7679498e109b68ce9b8"
+        },
+        {
+          "containment": "01a08a44-28fe-70b1-ab11-4fd0d990d5b4",
+          "invocation": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a44-28fe-70b1-ab11-4fcdd0ba1df0",
+          "resolution": "proven_empty",
+          "seal_id": "01a08a44-2e25-7290-bc19-696e17322228",
+          "boundary_sha256": "0bfa66a775fee91be014754a37d84d49b23a8d38583b225c1409c13eeb360c1d"
+        }
+      ]
+    },
+    "journal_sha256": "2ff4bd8779004587609ff0f07b0a0abdd687e6d19652b17197dec61faac159b7",
+    "records": 106,
+    "unsealed": 0,
+    "executors": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service/executors",
+    "events": {
+      "populated": "0",
+      "frozen": "0"
+    },
+    "children": []
+  }
+}

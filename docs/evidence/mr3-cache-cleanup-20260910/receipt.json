@@ -1,0 +1,65 @@
+{
+  "started_unix": 1789028991.8532314,
+  "scope": "Only the eight user-listed Linux target directories",
+  "directories": [
+    {
+      "path": "/home/pythonic/Development/stillyard-mr3-attached-anchor-20260910n/target",
+      "allocated_bytes_before": 12760801280,
+      "removed": true
+    },
+    {
+      "path": "/home/pythonic/Development/stillyard-mr3-attached-queue-20260910p/target",
+      "allocated_bytes_before": 13270245376,
+      "removed": true
+    },
+    {
+      "path": "/home/pythonic/Development/stillyard-mr3-attached-ticket-20260910q/target",
+      "allocated_bytes_before": 13276921856,
+      "removed": true
+    },
+    {
+      "path": "/home/pythonic/Development/stillyard-mr3-attached-runtime-20260910r/target",
+      "allocated_bytes_before": 13396426752,
+      "removed": true
+    },
+    {
+      "path": "/home/pythonic/Development/stillyard-mr3-attached-startup-20260910s/target",
+      "allocated_bytes_before": 12636819456,
+      "removed": true
+    },
+    {
+      "path": "/home/pythonic/Development/stillyard-mr3-attached-recovery-20260910t/target",
+      "allocated_bytes_before": 12632850432,
+      "removed": true
+    },
+    {
+      "path": "/home/pythonic/Development/stillyard-mr3-linux-observation-20260910u/target",
+      "allocated_bytes_before": 13437718528,
+      "removed": true
+    },
+    {
+      "path": "/home/pythonic/Development/stillyard-mr3-linux-regression-20260910v2/target",
+      "allocated_bytes_before": 13542817792,
+      "removed": true
+    }
+  ],
+  "scheduler_barrier": {
+    "linux_active_jobs": [],
+    "windows_queued": 0,
+    "windows_running": 0,
+    "windows_generation": "01a08a29-e57b-7c90-a1a7-1c56e73cc496"
+  },
+  "process_references": [],
+  "free_bytes_before": 59963465728,
+  "free_bytes_after": 164917673984,
+  "allocated_bytes_removed": 104954601472,
+  "observed_free_bytes_increase": 104954208256,
+  "preserved": [
+    "Source snapshots and evidence",
+    "Installed daemons and their stores/journals",
+    "z3 installed-source and rollback artifacts",
+    "z5 current candidate targets",
+    "Windows snapshot targets"
+  ],
+  "finished_unix": 1789028996.082665
+}

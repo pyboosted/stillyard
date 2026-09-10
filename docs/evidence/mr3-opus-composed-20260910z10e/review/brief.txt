@@ -1,0 +1,4981 @@
+Read-only focused follow-up review of M-A04 crash/duplicate acceptance and M-A07 stale/new executor identity in installed Windows/WSL Stillyard. Your prior scoped review found no product defect and asked for explicit cleanup bits/digests and post-Ticket TTL evidence. Both are implemented and stable/MSRV/full native gates passed on exact source 838f56a3083cc41c4b1349eb8a08f367a65a2cb1474536932a9934932f829ecc, now installed. Assess whether these two rows can be accepted from composed evidence, distinguishing actual kernel/process/coordinator controls from modeled protocol replies. Do not declare all MR3 complete: lifecycle VM/distro/logout/suspend, final consumer/idle and exit review remain separate. Do not demand every Cartesian permutation. Point out material missing guarantees only, with exact evidence. The five SIGKILL test points preserve one Invocation, starts 0/0/0/1/1, retain Lease until real cleanup and modeled authenticated ack, duplicate ack false. Executor possibly_released != manager consumed at journal-intent-before-SQL gap, intentionally: continuous manager SQL proves consume callback never happened; both facts are asserted. Native four-stage coordinator tests exercise actual journal/SQL/ack crashes; full helper supplied below. z8 cross-OS test used actual Windows coordinator and Linux executor, retained live root+descendant across coordinator/guest store reset, pairing damage, same Ticket with new executor incarnation, old-writer fencing and real cleanup; sealed outer bootstrap Hold. z9 installed bridge loss and z3 actual daemon kill additionally test live installed Driver. Return concise JSON verdict, separate M-A04/M-A07 coverage decisions, concrete findings and limitations. No tools, no edits.
+
+FILE src/store/attached/tests/crash.rs
+//! Real manager-process deaths around durable/kernel release boundaries.
+//! Protocol replies are the existing authenticated model fixture; native
+//! coordinator crash/replay controls and installed bridge loss are separate.
+use super::*;
+use std::path::Path;
+use std::process::{Child, Command as ProcessCommand};
+use std::time::{Duration, Instant};
+
+struct Subject(Child);
+impl Drop for Subject {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+fn read(path: &Path) -> serde_json::Value {
+    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+}
+
+#[test]
+#[ignore = "only the protected crash matrix controller launches this child"]
+fn linux_attached_runtime_crash_subject() {
+    assert!(std::env::var_os("STILLYARD_TEST_RUNTIME_CRASH_ROOT").is_some());
+    attached_fixture(true, "root_exit");
+    panic!("selected real runtime checkpoint was not reached");
+}
+
+#[test]
+#[ignore = "requires protected nested cgroup delegation and prebuilt Linux stub"]
+fn linux_attached_runtime_crash_commit_boundaries() {
+    assert!(std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").is_some());
+    for stage in ["ready", "release-intent", "consumed", "released", "sealed"] {
+        let root = crate::test_support::durable_tempdir().unwrap();
+        let output = std::fs::File::create(root.path().join("subject.log")).unwrap();
+        let mut subject = Subject(
+            ProcessCommand::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "store::attached::tests::crash::linux_attached_runtime_crash_subject",
+                    "--ignored",
+                    "--nocapture",
+                ])
+                .env("STILLYARD_TEST_RUNTIME_CRASH_ROOT", root.path())
+                .env("STILLYARD_TEST_RUNTIME_CRASH", stage)
+                .stdout(output.try_clone().unwrap())
+                .stderr(output)
+                .spawn()
+                .unwrap(),
+        );
+        let until = Instant::now() + Duration::from_secs(45);
+        while !root.path().join("checkpoint.json").exists() {
+            assert!(
+                subject.0.try_wait().unwrap().is_none(),
+                "subject exited before {stage}: {}",
+                std::fs::read_to_string(root.path().join("subject.log")).unwrap()
+            );
+            assert!(Instant::now() < until, "subject missed {stage}");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let checkpoint = read(&root.path().join("checkpoint.json"));
+        assert_eq!(checkpoint["pid"], subject.0.id());
+        assert_eq!(checkpoint["stage"], stage);
+        let fixture = read(&root.path().join("fixture.json"));
+        let paths = StorePaths::new(std::path::PathBuf::from(fixture["store"].as_str().unwrap()));
+        assert!(paths.root.starts_with(root.path()));
+        let stdout = Path::new(fixture["stdout"].as_str().unwrap());
+        if matches!(stage, "released" | "sealed") {
+            while !std::fs::read_to_string(stdout)
+                .unwrap_or_default()
+                .contains("attached-kernel-runtime")
+            {
+                assert!(
+                    Instant::now() < until,
+                    "released code never produced its real marker"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        } else {
+            assert!(
+                !std::fs::read_to_string(stdout)
+                    .unwrap_or_default()
+                    .contains("attached-kernel-runtime")
+            );
+        }
+        // A real SIGKILL of the exact owned Child, not an injected Result error.
+        subject.0.kill().unwrap();
+        assert!(!subject.0.wait().unwrap().success());
+        let journal_path = paths.root.join("attachment/executor");
+        let before = read(&journal_path.join("state.json"));
+        let invocation: InvocationId =
+            serde_json::from_value(fixture["invocation"].clone()).unwrap();
+        let key = invocation.to_string();
+        let record = &before["state"]["records"][&key];
+        assert_eq!(record["seal"].is_null(), stage != "sealed");
+        assert_eq!(record["release_intent"].is_null(), stage == "ready");
+        let sql = Connection::open(&paths.database).unwrap();
+        let consumed: Option<bool> = sql
+            .query_row(
+                "SELECT consumed FROM attached_tickets WHERE invocation_id=?1",
+                [&key],
+                |row| row.get(0),
+            )
+            .optional()
+            .unwrap();
+        assert_eq!(
+            consumed,
+            match stage {
+                "ready" => None,
+                "release-intent" => Some(false),
+                _ => Some(true),
+            }
+        );
+        assert_eq!(
+            sql.query_row(
+                "SELECT COUNT(*) FROM leases WHERE state='granted'",
+                [],
+                |r| r.get::<_, u64>(0)
+            )
+            .unwrap(),
+            1
+        );
+        drop(sql);
+        let mut store = Store::open(paths.clone()).unwrap();
+        let config = installation::load(&paths.root).unwrap().unwrap();
+        let registry = crate::runner::linux::installed_registry(
+            &journal_path,
+            config.journal,
+            store.store_uuid(),
+            config.pairing.installation.domain_id,
+            store.daemon_generation(),
+            root.path().join("unused.sock").display().to_string(),
+        )
+        .unwrap();
+        let candidates = store.reconciliation_candidates(0, 32).unwrap();
+        assert_eq!(
+            candidates.len(),
+            1,
+            "crashed launch must remain uncertain until actual cleanup: {stage}"
+        );
+        let candidate = &candidates[0];
+        assert_eq!(candidate.invocation_id, invocation);
+        assert_eq!(
+            registry
+                .reconcile(candidate, Instant::now() + Duration::from_secs(15))
+                .unwrap(),
+            crate::ReconciliationResult::ProvenEmpty
+        );
+        registry.persist_cleanup(&mut store, invocation).unwrap();
+        store
+            .commit_containment_resolution(
+                candidate,
+                crate::ContainmentResolution::ProvenEmpty,
+                crate::ReconciliationResult::ProvenEmpty,
+                crate::ClearanceOrigin::Automatic,
+                None,
+                None,
+            )
+            .unwrap()
+            .unwrap();
+        let seals = registry.durable_seals().unwrap();
+        assert_eq!(seals.len(), 1);
+        let after = read(&journal_path.join("state.json"));
+        if stage == "sealed" {
+            assert_eq!(record["seal"], after["state"]["records"][&key]["seal"]);
+        }
+        assert!(!Path::new(record["boundary"]["path"].as_str().unwrap()).exists());
+        assert_eq!(
+            store
+                .connection
+                .query_row(
+                    "SELECT COUNT(*) FROM leases WHERE state='granted'",
+                    [],
+                    |r| r.get::<_, u64>(0)
+                )
+                .unwrap(),
+            1,
+            "kernel cleanup must not bypass coordinator acknowledgement"
+        );
+        let secret = PairingSecret::from_anchor(config.pairing.secret);
+        let tx = store.connection.transaction().unwrap();
+        assert!(queue::maintain(&tx).unwrap());
+        let pending = manager::pending(&tx, &secret).unwrap().unwrap();
+        let Command::Release { release } = &pending.command else {
+            panic!(
+                "crashed launch did not request sealed release at {stage}: {:?}",
+                pending.command
+            );
+        };
+        assert_eq!(
+            after["state"]["records"][&key]["seal"]["possibly_released"],
+            stage != "ready"
+        );
+        if let Some(consumed) = consumed {
+            assert_eq!(release.tickets.len(), 1);
+            let cleanup = &release.tickets[0];
+            assert_eq!(cleanup.invocation_id, invocation);
+            assert_eq!(cleanup.boundary_sha256, seals[0].1);
+            assert_eq!(cleanup.proof_sha256, seals[0].2);
+            // The executor seal is conservative about the intent/SQL gap.
+            // Continuous manager SQL independently proves whether consumption
+            // committed; no kernel resume is possible before that commit.
+            assert_eq!(cleanup.user_code_released, consumed);
+        } else {
+            assert!(release.tickets.is_empty());
+        }
+        let grant: String = tx
+            .query_row(
+                "SELECT grant_json FROM attached_grants WHERE allocation_key=?1",
+                [serde_json::to_string(&release.key).unwrap()],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let outcome = Outcome::Released {
+            grant_id: serde_json::from_str::<crate::machine::GrantSnapshot>(&grant)
+                .unwrap()
+                .grant_id,
+            sealed_sequence: release.sealed_sequence,
+        };
+        reply(&tx, &secret, outcome.clone());
+        // The same authenticated reply is replayed without another transition.
+        assert!(
+            !accept(
+                &tx,
+                &pending,
+                &crate::machine::Reply {
+                    coordinator_revision: 1,
+                    session: pending.session.clone(),
+                    operation_id: pending.operation_id,
+                    request_sequence: pending.request_sequence,
+                    outcome
+                }
+            )
+            .unwrap()
+        );
+        tx.commit().unwrap();
+        assert_eq!(
+            store
+                .connection
+                .query_row(
+                    "SELECT COUNT(*) FROM leases WHERE state='granted'",
+                    [],
+                    |r| r.get::<_, u64>(0)
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            store
+                .connection
+                .query_row("SELECT COUNT(*) FROM invocations", [], |r| r
+                    .get::<_, u64>(0))
+                .unwrap(),
+            1
+        );
+        let starts = std::fs::read_to_string(stdout)
+            .unwrap_or_default()
+            .matches("attached-kernel-runtime")
+            .count();
+        assert_eq!(starts, usize::from(matches!(stage, "released" | "sealed")));
+        println!(
+            "{}",
+            serde_json::json!({"stage":stage,"actual_process_killed":true,"user_starts":starts,
+            "consumed":consumed,"seal":after["state"]["records"][&key]["seal"],"released_after_ack":true})
+        );
+    }
+}
+
+FILE src/runner/linux/runtime.rs
+//! One Invocation on the tracer thread; shared lifecycle owns all settlement.
+use super::launch::{LaunchSpec, PreparedLaunch};
+use crate::machine::manager::release::{Disposition, NeverReleased};
+use crate::runner::lifecycle::{self, RunProgress, RunResult};
+use crate::runner::{LiveContainments, ReconciliationWake};
+use crate::store::{PreparedJob, ReleaseAuthorization, Store, StoreError};
+use crate::{InvocationRole, LogStream, ProcessIdentity};
+use std::cell::{Cell, RefCell};
+use std::fs::File;
+use std::io;
+use std::os::fd::OwnedFd;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+fn lock(store: &Arc<Mutex<Store>>) -> RunResult<std::sync::MutexGuard<'_, Store>> {
+    store
+        .lock()
+        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()).into())
+}
+fn protocol_error(error: impl std::fmt::Display) -> crate::machine::manager::JournalError {
+    crate::machine::manager::JournalError::History(error.to_string())
+}
+
+pub(in crate::runner) fn execute(
+    job: &PreparedJob,
+    store: &Arc<Mutex<Store>>,
+    endpoint: &str,
+    live: &LiveContainments,
+    observation: &crate::host_observation::HostObservationService,
+    progress: &mut RunProgress,
+    wake: &ReconciliationWake,
+) -> RunResult<(u32, bool)> {
+    let (lease, parent, generation) = lock(store)?.attached_launch_identity(job)?;
+    #[cfg(test)]
+    let parent = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT")
+        .map(std::path::PathBuf::from)
+        .unwrap_or(parent);
+    let helper = std::env::current_exe()?;
+    #[cfg(test)]
+    let helper = std::env::var_os("STILLYARD_TEST_EXECUTABLE")
+        .map(std::path::PathBuf::from)
+        .unwrap_or(helper);
+    let context = live.linux_server_context(crate::ManagedParent {
+        job_id: job.job_id,
+        attempt_id: job.attempt_id,
+        invocation_id: job.invocation_id,
+    })?;
+    // Caller variables reach only the final executable, never the trusted stub.
+    let mut environment = job.spec.environment.set.clone();
+    for name in &job.spec.environment.unset {
+        environment.remove(name);
+    }
+    for (name, value) in [
+        ("STILLYARD_JOB_ID", job.job_id.to_string()),
+        ("STILLYARD_ATTEMPT", job.attempt_id.to_string()),
+        ("STILLYARD_INVOCATION_ID", job.invocation_id.to_string()),
+        ("STILLYARD_ENDPOINT", endpoint.into()),
+        ("STILLYARD_DAEMON_ID", job.job_id.store_uuid().to_string()),
+        (
+            "STILLYARD_ROLE",
+            match job.role {
+                InvocationRole::Primary => "primary",
+                InvocationRole::Probe => "probe",
+                InvocationRole::Postcondition => "postcondition",
+            }
+            .into(),
+        ),
+        (
+            crate::identity::attestation::ENVIRONMENT,
+            serde_json::to_string(&context)?,
+        ),
+    ] {
+        environment.insert(name.into(), value);
+    }
+    if let Some(result) = &job.primary_result {
+        environment.insert(
+            "STILLYARD_PRIMARY_RESULT".into(),
+            serde_json::to_string(result)?,
+        );
+    }
+    let spec = LaunchSpec {
+        executable: job.spec.executable.clone(),
+        args: job.spec.args.clone(),
+        working_directory: job.spec.working_directory.clone(),
+        environment,
+    };
+    let stdin = super::input::open(job)?;
+    let creator =
+        crate::identity::linux::Process::open(std::process::id(), unsafe { libc::geteuid() })?;
+    let mut launch = None;
+    let mut drains = Vec::new();
+    let mut never: Option<Box<NeverReleased>> = None;
+    // A failed journal/CG creation is uncertain until its recorded obligation
+    // can be sealed. A failed OS call is never interpreted as no children.
+    progress.cleanup_proven = false;
+    let execution = (|| -> RunResult<(u32, bool)> {
+        let boundary = Arc::new(live.linux.with_journal(|journal| {
+            journal.create(
+                &parent,
+                job.invocation_id,
+                job.containment_id,
+                lease,
+                generation,
+                creator.identity.clone(),
+            )
+        })?);
+        live.linux
+            .register(job.invocation_id, Arc::clone(&boundary))?;
+        launch = Some(PreparedLaunch::prepare(
+            &boundary,
+            &helper,
+            &spec,
+            stdin,
+            Instant::now() + Duration::from_secs(30),
+        )?);
+        let child = launch.as_mut().unwrap();
+        live.linux
+            .with_journal(|journal| journal.ready(job.invocation_id, child))?;
+        #[cfg(test)]
+        crate::test_support::linux_runtime_checkpoint("ready");
+        let boundary_hash = live
+            .linux
+            .with_journal(|journal| journal.records()?[&job.invocation_id].boundary_sha256())?;
+        let root = child.root.identity.clone();
+        let ProcessIdentity::Linux { pid, .. } = root else {
+            return Err(io::Error::other("non-Linux prepared root").into());
+        };
+        for (input, path, stream) in [
+            (
+                File::from(OwnedFd::from(
+                    child
+                        .wrapper
+                        .stdout
+                        .take()
+                        .ok_or_else(|| io::Error::other("stdout pipe missing"))?,
+                )),
+                job.stdout_path.clone(),
+                LogStream::Stdout,
+            ),
+            (
+                File::from(OwnedFd::from(
+                    child
+                        .wrapper
+                        .stderr
+                        .take()
+                        .ok_or_else(|| io::Error::other("stderr pipe missing"))?,
+                )),
+                job.stderr_path.clone(),
+                LogStream::Stderr,
+            ),
+        ] {
+            drains.push(crate::runner::logs::spawn_drain(
+                input,
+                path,
+                job.job_id,
+                stream,
+                Arc::clone(store),
+                job.role == InvocationRole::Primary,
+            )?);
+        }
+        lock(store)?.request_attached_ticket(
+            job,
+            &root,
+            &child.requested_sha256,
+            &boundary_hash,
+        )?;
+        wake();
+        let until = Instant::now()
+            + Duration::from_secs(
+                job.spec
+                    .quiet
+                    .as_ref()
+                    .map_or(5, |q| q.wait_budget_seconds.saturating_add(5)),
+            );
+        let mut retry_at = Instant::now() + Duration::from_secs(1);
+        let ticket = loop {
+            if let Some(stop) = lifecycle::pending_stop_verdict(job, store, is_guarded(job))? {
+                progress.canceled = stop.verdict == crate::AttemptVerdict::Canceled;
+                progress.timed_out = stop.verdict == crate::AttemptVerdict::TimedOut;
+                if is_guarded(job) {
+                    progress.never_run_reason = Some(stop.reason.clone());
+                }
+                return Err(io::Error::other(stop.reason).into());
+            }
+            if let Some(ticket) = lock(store)?.attached_ticket(job.invocation_id)? {
+                break ticket;
+            }
+            if Instant::now() >= retry_at {
+                let retried = lock(store)?.retry_waiting_attached_ticket(job.invocation_id)?;
+                if retried {
+                    wake();
+                }
+                retry_at = Instant::now() + Duration::from_secs(1);
+            }
+            if Instant::now() >= until {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "Invocation Ticket response deadline",
+                )
+                .into());
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        let barrier = live.linux_releases.barrier(job.invocation_id)?;
+        let executable_hash = child.requested_sha256.clone();
+        live.linux
+            .with_journal(|journal| journal.release_intent(&ticket))?;
+        #[cfg(test)]
+        crate::test_support::linux_runtime_checkpoint("release-intent");
+        let runtime_deadline = Cell::new(job.attempt_deadline_unix_millis);
+        let evidence_expiry = Cell::new(u64::MAX);
+        let consumed = Cell::new(false);
+        let deferred = RefCell::new(None::<String>);
+        let mut release =
+            |sample: Option<&crate::host_observation::HostSample>| -> RunResult<Disposition> {
+                let mut guard = lock(store)?;
+                let locked = RefCell::new(&mut *guard);
+                let disposition = barrier.release(
+                    &ticket,
+                    generation,
+                    || {
+                        let mut store = locked.borrow_mut();
+                        store.check_authority_release().map_err(protocol_error)?;
+                        if !store
+                            .attached_observation_ready(job, lease, sample)
+                            .map_err(protocol_error)?
+                        {
+                            return Ok(false);
+                        }
+                        if store
+                            .invocation_stop_requested(job.job_id)
+                            .map_err(protocol_error)?
+                        {
+                            return Ok(false);
+                        }
+                        let (wall, monotonic) = crate::host_observation::observation_clock()?;
+                        if runtime_deadline
+                            .get()
+                            .is_some_and(|deadline| wall >= deadline)
+                            || monotonic >= evidence_expiry.get()
+                        {
+                            return Ok(false);
+                        }
+                        if is_guarded(job)
+                            && store
+                                .pre_resume_defer_reason(job.job_id)
+                                .map_err(protocol_error)?
+                                .is_some()
+                        {
+                            return Ok(false);
+                        }
+                        if let Some(sample) = sample {
+                            let Some(wall_age) = wall
+                                .checked_sub(sample.captured_unix_millis)
+                                .and_then(|n| u64::try_from(n).ok())
+                            else {
+                                return Ok(false);
+                            };
+                            let Some(age) = monotonic.checked_sub(sample.captured_monotonic_millis)
+                            else {
+                                return Ok(false);
+                            };
+                            if wall_age.abs_diff(age)
+                                > observation.release_discontinuity_limit_millis()
+                            {
+                                return Ok(false);
+                            }
+                        }
+                        Ok(true)
+                    },
+                    || {
+                        let mut store = locked.borrow_mut();
+                        let (wall, monotonic) = crate::host_observation::observation_clock()?;
+                        let moment =
+                            sample.map(|sample| crate::host_observation::ObservationMoment {
+                                sample,
+                                now_unix_millis: wall,
+                                now_monotonic_millis: monotonic,
+                                live_clock: true,
+                            });
+                        let authorization = if is_guarded(job) {
+                            if job.spec.quiet.is_some() {
+                                store.authorize_release_with_ticket(
+                                    job,
+                                    moment.ok_or_else(|| {
+                                        protocol_error("quiet sample unavailable")
+                                    })?,
+                                    Some(&ticket),
+                                )
+                            } else {
+                                store.authorize_condition_release_with_ticket(
+                                    job,
+                                    moment,
+                                    Some(&ticket),
+                                )
+                            }
+                        } else {
+                            store
+                                .mark_started_with_ticket(
+                                    job,
+                                    pid,
+                                    &executable_hash,
+                                    Some(&root),
+                                    Some(&ticket),
+                                )
+                                .map(|()| ReleaseAuthorization::Authorized {
+                                    runtime_deadline_unix_millis: job.attempt_deadline_unix_millis,
+                                    evidence_expires_monotonic_millis: u64::MAX,
+                                })
+                        }
+                        .map_err(protocol_error)?;
+                        match authorization {
+                            ReleaseAuthorization::Authorized {
+                                runtime_deadline_unix_millis,
+                                evidence_expires_monotonic_millis,
+                            } => {
+                                runtime_deadline.set(runtime_deadline_unix_millis);
+                                evidence_expiry.set(evidence_expires_monotonic_millis);
+                                consumed.set(true);
+                                Ok(true)
+                            }
+                            ReleaseAuthorization::Deferred { reason } => {
+                                *deferred.borrow_mut() = Some(reason.clone());
+                                Err(protocol_error(reason))
+                            }
+                        }
+                    },
+                    || {
+                        #[cfg(test)]
+                        crate::test_support::linux_runtime_checkpoint("consumed");
+                        child.release()?;
+                        #[cfg(test)]
+                        crate::test_support::linux_runtime_checkpoint("released");
+                        Ok(())
+                    },
+                )?;
+                Ok(disposition)
+            };
+        let released = if job.spec.requires_host_observation() {
+            observation
+                .with_release_sample(pid, |sample| release(Some(sample)))
+                .map_err(io::Error::other)
+                .and_then(|result| result.map_err(io::Error::other))
+        } else {
+            release(None).map_err(io::Error::other)
+        };
+        progress.durable_release_authorized = consumed.get();
+        progress.never_run_reason = deferred.into_inner();
+        match released? {
+            Disposition::Released => {
+                progress.user_code_released = true;
+                progress.release_authorized = true;
+            }
+            Disposition::NeverReleased(proof) => {
+                never = Some(proof);
+                if is_guarded(job) {
+                    progress.never_run_reason =
+                        Some("readiness expired after Ticket commit".into());
+                }
+                return Err(io::Error::other("kernel release prevented after commit").into());
+            }
+            Disposition::AlreadyConsumed => {
+                return Err(io::Error::other("Ticket already consumed").into());
+            }
+            Disposition::Uncertain(error) => {
+                progress.user_code_released = true;
+                return Err(error.into());
+            }
+        }
+        loop {
+            if let Some(exit) = child.poll_root()? {
+                progress.exit_code = Some(exit);
+                lock(store)?.mark_root_exited(job, exit)?;
+                return Ok((exit as u32, false));
+            }
+            if lock(store)?.invocation_stop_requested(job.job_id)? {
+                progress.canceled = true;
+                return Ok((22, false));
+            }
+            if runtime_deadline.get().is_some_and(|deadline| {
+                crate::host_observation::observation_clock()
+                    .map_or(true, |(wall, _)| wall >= deadline)
+            }) {
+                progress.timed_out = true;
+                return Ok((21, true));
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    })();
+    let cleanup = (|| -> RunResult<()> {
+        let seal = live
+            .linux
+            .cleanup(job.invocation_id, Instant::now() + Duration::from_secs(30))?;
+        #[cfg(test)]
+        crate::test_support::linux_runtime_checkpoint("sealed");
+        lock(store)?.record_attached_cleanup(
+            job.invocation_id,
+            &seal.boundary_sha256,
+            &seal.sha256()?,
+            never.as_deref(),
+        )?;
+        live.linux_releases.retire(job.invocation_id)?;
+        progress.cleanup_proven = true;
+        if let Some(child) = launch.as_mut() {
+            if let Some(exit) = child.reap_after_cleanup(Instant::now() + Duration::from_secs(5))? {
+                progress.exit_code = Some(exit);
+                if progress.durable_release_authorized {
+                    lock(store)?.mark_root_exited(job, exit)?;
+                }
+            }
+        }
+        for drain in drains.drain(..) {
+            drain
+                .join()
+                .map_err(|_| io::Error::other("log drain panicked"))??;
+        }
+        Ok(())
+    })();
+    wake();
+    if !progress.cleanup_proven {
+        if let Ok(mut locked) = store.lock() {
+            lifecycle::persist_uncertain_cleanup(&mut locked, job, progress)?;
+            progress.uncertainty_persisted = true;
+        }
+    }
+    cleanup?;
+    execution.map(|(code, timed_out)| {
+        (
+            progress.exit_code.map_or(code, |exit| exit as u32),
+            timed_out,
+        )
+    })
+}
+
+fn is_guarded(job: &PreparedJob) -> bool {
+    job.role == InvocationRole::Primary
+        && (job.spec.quiet.is_some() || !job.spec.conditions.is_empty())
+}
+
+FILE src/test_support.rs
+//! Durable model fixtures use the checkout filesystem, not Linux's tmpfs /tmp.
+//! IPC-only fixtures retain short temporary socket paths independently.
+
+pub(crate) fn durable_tempdir() -> std::io::Result<tempfile::TempDir> {
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR"))?;
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700))?;
+        Ok(temp)
+    }
+    #[cfg(not(target_os = "linux"))]
+    tempfile::tempdir()
+}
+
+/// Test-binary-only rendezvous. The owning test controller kills this exact
+/// child process; installed release binaries contain neither hook nor switch.
+#[cfg(target_os = "linux")]
+pub(crate) fn linux_runtime_checkpoint(stage: &str) {
+    use std::os::unix::fs::MetadataExt;
+    if std::env::var("STILLYARD_TEST_RUNTIME_CRASH").as_deref() != Ok(stage) {
+        return;
+    }
+    let root =
+        std::path::PathBuf::from(std::env::var_os("STILLYARD_TEST_RUNTIME_CRASH_ROOT").unwrap());
+    let metadata = std::fs::symlink_metadata(&root).unwrap();
+    assert!(metadata.is_dir() && metadata.mode() & 0o077 == 0);
+    // SAFETY: geteuid has no preconditions.
+    assert_eq!(metadata.uid(), unsafe { libc::geteuid() });
+    assert!(
+        root.canonicalize()
+            .unwrap()
+            .starts_with(env!("CARGO_MANIFEST_DIR"))
+    );
+    let file = root.join("checkpoint.json");
+    std::fs::write(
+        root.join("checkpoint.next"),
+        serde_json::to_vec(&serde_json::json!({
+            "stage": stage, "pid": std::process::id()
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    std::fs::rename(root.join("checkpoint.next"), file).unwrap();
+    loop {
+        std::thread::park();
+    }
+}
+
+FILE src/runner/linux/journal.rs
+//! Reset-independent executor obligations. A missing cgroup is never a seal.
+use super::cgroup::{Boundary, Identity};
+use crate::{ContainmentId, InvocationId, ProcessIdentity};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
+use std::fs::{File, OpenOptions};
+use std::io::{self, Read, Write};
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
+use std::path::{Path, PathBuf};
+use std::time::Instant;
+use uuid::Uuid;
+
+const MAX_BYTES: usize = 16 * 1024 * 1024;
+const MAX_RECORDS: usize = 16_384;
+const MAX_ACTIVE: usize = 1024;
+
+#[cfg(test)]
+thread_local! {
+    static FAIL_BEFORE_SEAL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Anchor {
+    pub(super) journal: Uuid,
+    pub(super) store: Uuid,
+    pub(super) domain: crate::ExecutionDomainId,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct State {
+    version: u32,
+    anchor: Anchor,
+    records: BTreeMap<InvocationId, Record>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Record {
+    pub(super) containment: ContainmentId,
+    pub(super) lease: Uuid,
+    pub(super) daemon_generation: Uuid,
+    pub(super) creator: ProcessIdentity,
+    pub(super) boundary: Option<Identity>,
+    pub(super) root: Option<ProcessIdentity>,
+    pub(super) executable_sha256: Option<String>,
+    pub(super) release_intent: Option<crate::machine::InvocationTicket>,
+    pub(super) seal: Option<Seal>,
+}
+
+impl Record {
+    pub(super) fn boundary_sha256(&self) -> io::Result<String> {
+        let boundary = self
+            .boundary
+            .as_ref()
+            .ok_or_else(|| invalid("missing executor boundary"))?;
+        digest(&(
+            self.containment,
+            self.lease,
+            self.daemon_generation,
+            &self.creator,
+            boundary,
+            &self.root,
+            &self.executable_sha256,
+        ))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Seal {
+    pub(super) invocation: InvocationId,
+    pub(super) boundary_sha256: String,
+    pub(super) seal_id: Uuid,
+    pub(super) possibly_released: bool,
+}
+impl Seal {
+    pub(super) fn sha256(&self) -> io::Result<String> {
+        digest(self)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Envelope {
+    state: State,
+    sha256: String,
+}
+
+pub(super) struct Journal {
+    directory: PathBuf,
+    directory_guard: File,
+    _lock: File,
+    state: State,
+    poisoned: bool,
+}
+
+fn invalid(message: &str) -> io::Error {
+    io::Error::other(message)
+}
+pub(super) fn digest(value: &impl Serialize) -> io::Result<String> {
+    Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(value)?)))
+}
+fn owned(path: &Path, directory: bool) -> io::Result<File> {
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(
+            libc::O_NOFOLLOW | libc::O_CLOEXEC | if directory { libc::O_DIRECTORY } else { 0 },
+        )
+        .open(path)?;
+    let meta = file.metadata()?;
+    // SAFETY: geteuid has no preconditions.
+    if meta.uid() != unsafe { libc::geteuid() }
+        || meta.mode() & 0o077 != 0
+        || (directory && !meta.is_dir())
+        || (!directory && !meta.is_file())
+    {
+        return Err(invalid(
+            "executor history must be an owner-only regular file/directory",
+        ));
+    }
+    Ok(file)
+}
+fn read(path: &Path) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    owned(path, false)?
+        .take(MAX_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > MAX_BYTES {
+        return Err(invalid("executor history exceeds size bound"));
+    }
+    Ok(bytes)
+}
+fn publish(directory: &Path, name: &str, bytes: &[u8], replace: bool) -> io::Result<()> {
+    if bytes.len() > MAX_BYTES {
+        return Err(invalid("executor history exceeds size bound"));
+    }
+    let temporary = directory.join(format!(".publish-{}", Uuid::now_v7()));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&temporary)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    let target = directory.join(name);
+    if replace {
+        std::fs::rename(&temporary, &target)?;
+    } else {
+        std::fs::hard_link(&temporary, &target)?;
+        std::fs::remove_file(&temporary)?;
+    }
+    File::open(directory)?.sync_all()
+}
+
+impl Journal {
+    /// Called only by explicit installation after an empty-work inventory. An
+    /// existing, missing or damaged installation is never initialized on open.
+    pub(super) fn initialize(directory: &Path, anchor: Anchor) -> io::Result<Self> {
+        if anchor.journal.is_nil() || anchor.store.is_nil() || anchor.domain.0.is_nil() {
+            return Err(invalid("nil executor installation identity"));
+        }
+        let parent = directory
+            .parent()
+            .ok_or_else(|| invalid("executor journal has no parent"))?;
+        owned(parent, true)?;
+        crate::filesystem::require_durable_local_filesystem(parent)?;
+        std::fs::DirBuilder::new().mode(0o700).create(directory)?;
+        File::open(parent)?.sync_all()?;
+        let state = State {
+            version: 1,
+            anchor: anchor.clone(),
+            records: BTreeMap::new(),
+        };
+        publish(
+            directory,
+            "anchor.json",
+            &serde_json::to_vec(&anchor)?,
+            false,
+        )?;
+        let envelope = Envelope {
+            sha256: digest(&state)?,
+            state,
+        };
+        publish(
+            directory,
+            "state.json",
+            &serde_json::to_vec(&envelope)?,
+            false,
+        )?;
+        Self::open(directory, &anchor)
+    }
+
+    pub(super) fn open(directory: &Path, expected: &Anchor) -> io::Result<Self> {
+        let directory_guard = owned(directory, true)?;
+        crate::filesystem::require_durable_local_filesystem(directory)?;
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(directory.join("executor.lock"))?;
+        let guard = owned(&directory.join("executor.lock"), false)?;
+        if (guard.metadata()?.dev(), guard.metadata()?.ino())
+            != (lock.metadata()?.dev(), lock.metadata()?.ino())
+        {
+            return Err(invalid("executor lock was replaced"));
+        }
+        fs2::FileExt::try_lock_exclusive(&lock)?;
+        let anchor: Anchor = serde_json::from_slice(&read(&directory.join("anchor.json"))?)?;
+        let envelope: Envelope = serde_json::from_slice(&read(&directory.join("state.json"))?)?;
+        if &anchor != expected
+            || envelope.state.anchor != anchor
+            || envelope.state.version != 1
+            || digest(&envelope.state)? != envelope.sha256
+            || envelope.state.records.len() > MAX_RECORDS
+        {
+            return Err(invalid("executor history/anchor is unknown or mismatched"));
+        }
+        for (invocation, record) in &envelope.state.records {
+            if invocation.store_uuid() != anchor.store
+                || record.containment.store_uuid() != anchor.store
+                || record.lease.is_nil()
+                || record.daemon_generation.is_nil()
+            {
+                return Err(invalid("executor history contains a foreign obligation"));
+            }
+            if let Some(seal) = &record.seal {
+                if seal.invocation != *invocation
+                    || seal.seal_id.is_nil()
+                    || seal.boundary_sha256 != record.boundary_sha256()?
+                    || seal.possibly_released != record.release_intent.is_some()
+                {
+                    return Err(invalid("invalid executor seal"));
+                }
+            }
+        }
+        Ok(Self {
+            directory: directory.to_owned(),
+            directory_guard,
+            _lock: lock,
+            state: envelope.state,
+            poisoned: false,
+        })
+    }
+
+    fn check(&self) -> io::Result<()> {
+        if self.poisoned {
+            return Err(invalid(
+                "executor publication failed; history requires recovery",
+            ));
+        }
+        let meta = owned(&self.directory, true)?.metadata()?;
+        let pin = self.directory_guard.metadata()?;
+        if (meta.dev(), meta.ino()) != (pin.dev(), pin.ino()) || pin.nlink() == 0 {
+            return Err(invalid("executor journal directory was replaced"));
+        }
+        let anchor: Anchor = serde_json::from_slice(&read(&self.directory.join("anchor.json"))?)?;
+        let disk: Envelope = serde_json::from_slice(&read(&self.directory.join("state.json"))?)?;
+        if anchor != self.state.anchor
+            || disk.sha256 != digest(&disk.state)?
+            || digest(&self.state)? != disk.sha256
+        {
+            return Err(invalid("executor history changed outside its writer"));
+        }
+        Ok(())
+    }
+    fn commit(&mut self, state: State) -> io::Result<()> {
+        self.check()?;
+        let envelope = Envelope {
+            sha256: digest(&state)?,
+            state,
+        };
+        // Once publication is attempted, even an fsync error is an uncertain
+        // commit. This process must not continue from its old in-memory state.
+        self.poisoned = true;
+        publish(
+            &self.directory,
+            "state.json",
+            &serde_json::to_vec(&envelope)?,
+            true,
+        )?;
+        self.state = envelope.state;
+        self.poisoned = false;
+        Ok(())
+    }
+    pub(super) fn records(&self) -> io::Result<&BTreeMap<InvocationId, Record>> {
+        self.check()?;
+        Ok(&self.state.records)
+    }
+
+    pub(super) fn create(
+        &mut self,
+        parent: &Path,
+        invocation: InvocationId,
+        containment: ContainmentId,
+        lease: Uuid,
+        generation: Uuid,
+        creator: ProcessIdentity,
+    ) -> io::Result<Boundary> {
+        self.check()?;
+        let active = self
+            .state
+            .records
+            .values()
+            .filter(|r| r.seal.is_none())
+            .count();
+        // Reserve serialized space for every pending ticket and seal as well
+        // as disk space. Exhaustion rejects new obligations, never cleanup.
+        if serde_json::to_vec(&self.state)?
+            .len()
+            .saturating_add((active + 1) * 16_384)
+            > MAX_BYTES - 1024 * 1024
+        {
+            return Err(invalid("executor history cleanup headroom unavailable"));
+        }
+        if invocation.store_uuid() != self.state.anchor.store
+            || containment.store_uuid() != self.state.anchor.store
+            || lease.is_nil()
+            || generation.is_nil()
+            || self.state.records.contains_key(&invocation)
+            || self.state.records.len() >= MAX_RECORDS
+            || active >= MAX_ACTIVE
+            || !matches!(creator, ProcessIdentity::Linux { .. })
+        {
+            return Err(invalid(
+                "duplicate, foreign or over-budget executor creation intent",
+            ));
+        }
+        let mut space = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+        // SAFETY: pinned journal directory and writable statvfs storage.
+        if unsafe { libc::fstatvfs(self.directory_guard.as_raw_fd(), space.as_mut_ptr()) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: successful fstatvfs initialized the structure.
+        let space = unsafe { space.assume_init() };
+        if u128::from(space.f_bavail) * u128::from(space.f_frsize)
+            < (MAX_BYTES as u128 * 3 + (active as u128 + 1) * 65536)
+        {
+            return Err(invalid("executor cleanup publication headroom unavailable"));
+        }
+        let mut next = self.state.clone();
+        next.records.insert(
+            invocation,
+            Record {
+                containment,
+                lease,
+                daemon_generation: generation,
+                creator,
+                boundary: None,
+                root: None,
+                executable_sha256: None,
+                release_intent: None,
+                seal: None,
+            },
+        );
+        self.commit(next)?;
+        let boundary = Boundary::create(parent, invocation.entity_uuid())?;
+        let mut next = self.state.clone();
+        next.records.get_mut(&invocation).unwrap().boundary = Some(boundary.identity.clone());
+        self.commit(next)?;
+        Ok(boundary)
+    }
+
+    pub(super) fn ready(
+        &mut self,
+        invocation: InvocationId,
+        launch: &super::launch::PreparedLaunch,
+    ) -> io::Result<()> {
+        let mut next = self.state.clone();
+        let record = next
+            .records
+            .get_mut(&invocation)
+            .ok_or_else(|| invalid("unknown executor intent"))?;
+        if record.seal.is_some() || record.root.is_some() || record.release_intent.is_some() {
+            return Err(invalid("executor root was already prepared or sealed"));
+        }
+        let boundary = Boundary::reopen(
+            record
+                .boundary
+                .as_ref()
+                .ok_or_else(|| invalid("executor boundary not committed"))?,
+        )?;
+        if !boundary.contains_process(launch.root.proc_handle())? {
+            return Err(invalid("prepared root left the recorded boundary"));
+        }
+        record.root = Some(launch.root.identity.clone());
+        record.executable_sha256 = Some(launch.requested_sha256.clone());
+        self.commit(next)
+    }
+
+    /// Call before SQLite ticket consumption. A crash after this point is
+    /// possibly-released even if the kernel barrier was never actually resumed.
+    pub(super) fn release_intent(
+        &mut self,
+        ticket: &crate::machine::InvocationTicket,
+    ) -> io::Result<()> {
+        if serde_json::to_vec(ticket)?.len() > 8192 {
+            return Err(invalid("executor ticket exceeds reserved history bound"));
+        }
+        let mut next = self.state.clone();
+        let record = next
+            .records
+            .get_mut(&ticket.intent.invocation_id)
+            .ok_or_else(|| invalid("unknown executor ticket"))?;
+        if record.seal.is_some()
+            || record.release_intent.is_some()
+            || record.root.is_none()
+            || ticket.key.manager_store_uuid != next.anchor.store
+            || ticket.key.domain_id != next.anchor.domain
+            || ticket.key.lease_id != record.lease
+            || ticket.intent.containment_id != record.containment
+            || record.executable_sha256.as_deref() != Some(ticket.intent.executable_sha256.as_str())
+            || record.boundary_sha256()? != ticket.intent.boundary_sha256
+        {
+            return Err(invalid(
+                "ticket does not match an unreleased prepared executor intent",
+            ));
+        }
+        record.release_intent = Some(ticket.clone());
+        self.commit(next)
+    }
+
+    pub(super) fn cleanup(
+        &mut self,
+        invocation: InvocationId,
+        deadline: Instant,
+    ) -> io::Result<Seal> {
+        self.check()?;
+        let record = self
+            .state
+            .records
+            .get(&invocation)
+            .ok_or_else(|| invalid("unknown executor cleanup"))?;
+        if let Some(seal) = &record.seal {
+            return Ok(seal.clone());
+        }
+        let identity = record.boundary.as_ref().ok_or_else(|| {
+            invalid("creation interrupted before boundary identity; cleanup unknown")
+        })?;
+        Boundary::reopen(identity)?.kill_and_seal(deadline)?;
+        #[cfg(test)]
+        if FAIL_BEFORE_SEAL.replace(false) {
+            return Err(invalid("injected crash after removal before durable seal"));
+        }
+        let seal = Seal {
+            invocation,
+            boundary_sha256: record.boundary_sha256()?,
+            seal_id: Uuid::now_v7(),
+            possibly_released: record.release_intent.is_some(),
+        };
+        let mut next = self.state.clone();
+        next.records.get_mut(&invocation).unwrap().seal = Some(seal.clone());
+        self.commit(next)?;
+        Ok(seal)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    use std::time::Duration;
+
+    fn anchor() -> Anchor {
+        Anchor {
+            journal: Uuid::now_v7(),
+            store: Uuid::now_v7(),
+            domain: crate::ExecutionDomainId(Uuid::now_v7()),
+        }
+    }
+    fn current() -> ProcessIdentity {
+        // SAFETY: geteuid has no preconditions.
+        crate::identity::linux::Process::open(std::process::id(), unsafe { libc::geteuid() })
+            .unwrap()
+            .identity
+    }
+
+    #[test]
+    fn linux_executor_journal_never_reinitializes_missing_or_corrupt_history() {
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let anchor = anchor();
+        assert!(Journal::open(&path, &anchor).is_err());
+        let journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        assert!(
+            Journal::open(&path, &anchor).is_err(),
+            "duplicate writer acquired executor history"
+        );
+        drop(journal);
+        assert!(Journal::initialize(&path, anchor.clone()).is_err());
+        let mut wrong = anchor.clone();
+        wrong.store = Uuid::now_v7();
+        assert!(Journal::open(&path, &wrong).is_err());
+        let journal = Journal::open(&path, &anchor).unwrap();
+        let original = std::fs::read(path.join("state.json")).unwrap();
+        std::fs::write(path.join("state.json"), b"{}").unwrap();
+        assert!(
+            journal.records().is_err(),
+            "live writer accepted external history loss"
+        );
+        drop(journal);
+        assert!(Journal::open(&path, &anchor).is_err());
+        std::fs::write(path.join("state.json"), original).unwrap();
+        std::fs::remove_file(path.join("anchor.json")).unwrap();
+        assert!(Journal::open(&path, &anchor).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires delegated cgroup under a protected system bootstrap Job"]
+    fn linux_executor_journal_recovers_live_boundary_and_seals_once() {
+        let root = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap();
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let helper = temp.path().join("stillyard");
+        std::fs::copy(
+            std::env::var_os("STILLYARD_TEST_EXECUTABLE").unwrap(),
+            &helper,
+        )
+        .unwrap();
+        let anchor = anchor();
+        let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+        let containment = ContainmentId::from_parts(anchor.store, Uuid::now_v7());
+        let lease = Uuid::now_v7();
+        let generation = Uuid::now_v7();
+        let mut journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        let boundary = journal
+            .create(
+                Path::new(&root),
+                invocation,
+                containment,
+                lease,
+                generation,
+                current(),
+            )
+            .unwrap();
+        let spec=super::super::launch::LaunchSpec {executable:"/usr/bin/python3".into(),args:vec!["-c".into(),"import subprocess,time; subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(60)']); time.sleep(60)".into()],working_directory:temp.path().into(),environment:BTreeMap::new()};
+        let mut launch = super::super::launch::PreparedLaunch::prepare(
+            &boundary,
+            &helper,
+            &spec,
+            File::open("/dev/null").unwrap(),
+            Instant::now() + Duration::from_secs(15),
+        )
+        .unwrap();
+        journal.ready(invocation, &launch).unwrap();
+        let session = crate::machine::SessionIdentity {
+            machine_id: Uuid::now_v7(),
+            authority_epoch: Uuid::now_v7(),
+            domain_id: anchor.domain,
+            manager_store_uuid: anchor.store,
+            executor_incarnation: Uuid::now_v7(),
+            connection_epoch: 1,
+        };
+        let ticket = crate::machine::InvocationTicket {
+            grant_id: crate::GrantId::from_parts(Uuid::now_v7(), Uuid::now_v7()),
+            key: crate::machine::AllocationKey {
+                machine_id: session.machine_id,
+                authority_epoch: session.authority_epoch,
+                domain_id: anchor.domain,
+                manager_store_uuid: anchor.store,
+                lease_id: lease,
+            },
+            offer_nonce: Uuid::now_v7(),
+            intent: crate::machine::InvocationIntent {
+                invocation_id: invocation,
+                containment_id: containment,
+                role: crate::InvocationRole::Primary,
+                role_index: 0,
+                release_sequence: 1,
+                executable_sha256: launch.requested_sha256.clone(),
+                boundary_sha256: journal.records().unwrap()[&invocation]
+                    .boundary_sha256()
+                    .unwrap(),
+                readiness_challenge: Uuid::now_v7(),
+                previous_cleanup: None,
+            },
+            configuration_sha256: "a".repeat(64),
+            issued_unix_millis: 1,
+            host_observation_generation: Uuid::now_v7(),
+            host_sample_unix_millis: 1,
+            session,
+        };
+        journal.release_intent(&ticket).unwrap();
+        assert!(
+            journal.release_intent(&ticket).is_err(),
+            "a release intent was reused"
+        );
+        launch.release().unwrap();
+        assert!(boundary.populated().unwrap(), "live boundary disappeared");
+        drop(journal);
+        let mut journal = Journal::open(&path, &anchor).unwrap();
+        assert!(journal.records().unwrap()[&invocation].seal.is_none());
+        let seal = journal
+            .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+            .unwrap();
+        assert!(seal.possibly_released);
+        drop(journal);
+        let mut journal = Journal::open(&path, &anchor).unwrap();
+        assert_eq!(journal.cleanup(invocation, Instant::now()).unwrap(), seal);
+        assert_eq!(seal.sha256().unwrap().len(), 64);
+        assert!(
+            journal
+                .create(
+                    Path::new(&root),
+                    invocation,
+                    containment,
+                    lease,
+                    generation,
+                    current()
+                )
+                .is_err()
+        );
+        assert!(Boundary::reopen(&boundary.identity).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires delegated cgroup under a protected system bootstrap Job"]
+    fn linux_executor_journal_absence_after_seal_gap_retains_uncertainty() {
+        let root = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap();
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let anchor = anchor();
+        let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+        let mut journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        journal
+            .create(
+                Path::new(&root),
+                invocation,
+                ContainmentId::from_parts(anchor.store, Uuid::now_v7()),
+                Uuid::now_v7(),
+                Uuid::now_v7(),
+                current(),
+            )
+            .unwrap();
+        FAIL_BEFORE_SEAL.set(true);
+        assert!(
+            journal
+                .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+                .is_err()
+        );
+        drop(journal);
+        let mut recovered = Journal::open(&path, &anchor).unwrap();
+        assert!(recovered.records().unwrap()[&invocation].seal.is_none());
+        assert!(
+            recovered
+                .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+                .is_err(),
+            "missing cgroup was accepted as a seal"
+        );
+    }
+}
+
+#[cfg(test)]
+mod cross_os;
+
+FILE src/runner/linux/registry.rs
+//! Live peer membership and recovery share the same pinned executor history.
+use super::cgroup::Boundary;
+use super::journal::Journal;
+use crate::{InvocationId, ReconciliationResult};
+use std::collections::HashMap;
+use std::io;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Instant;
+
+#[derive(Clone, Default)]
+pub(crate) struct Registry {
+    signer: Arc<OnceLock<crate::identity::attestation::Signer>>,
+    journal: Arc<Mutex<Option<Journal>>>,
+    active: Arc<Mutex<HashMap<InvocationId, Entry>>>,
+}
+
+enum Entry {
+    Live(Arc<Boundary>),
+    Sealed,
+    Uninspectable,
+}
+fn poisoned() -> io::Error {
+    io::Error::other("Linux containment registry mutex poisoned")
+}
+
+impl Registry {
+    pub(crate) fn durable_seals(&self) -> io::Result<Vec<(InvocationId, String, String)>> {
+        self.with_journal(|journal| {
+            journal
+                .records()?
+                .values()
+                .filter_map(|record| record.seal.as_ref())
+                .map(|seal| {
+                    Ok((
+                        seal.invocation,
+                        seal.boundary_sha256.clone(),
+                        seal.sha256()?,
+                    ))
+                })
+                .collect()
+        })
+    }
+    pub(crate) fn persist_cleanup(
+        &self,
+        store: &mut crate::store::Store,
+        invocation: InvocationId,
+    ) -> crate::store::StoreResult<()> {
+        let (boundary, proof) = self.with_journal(|journal| {
+            let seal = journal
+                .records()?
+                .get(&invocation)
+                .and_then(|record| record.seal.as_ref())
+                .ok_or_else(|| {
+                    io::Error::other("reconciled Invocation has no durable executor seal")
+                })?;
+            Ok((seal.boundary_sha256.clone(), seal.sha256()?))
+        })?;
+        store.record_attached_cleanup(invocation, &boundary, &proof, None)
+    }
+    pub(super) fn install(
+        &self,
+        journal: Journal,
+        signer: crate::identity::attestation::Signer,
+    ) -> io::Result<()> {
+        let mut current = self.journal.lock().map_err(|_| poisoned())?;
+        if current.is_some() {
+            return Err(io::Error::other(
+                "Linux executor history is already installed",
+            ));
+        }
+        let mut entries = self.active.lock().map_err(|_| poisoned())?;
+        for (id, record) in journal.records()? {
+            entries.insert(
+                *id,
+                if record.seal.is_some() {
+                    Entry::Sealed
+                } else {
+                    record
+                        .boundary
+                        .as_ref()
+                        .and_then(|identity| Boundary::reopen(identity).ok())
+                        .map_or(Entry::Uninspectable, |boundary| {
+                            Entry::Live(Arc::new(boundary))
+                        })
+                },
+            );
+        }
+        self.signer
+            .set(signer)
+            .map_err(|_| io::Error::other("Linux daemon signer is already installed"))?;
+        *current = Some(journal);
+        Ok(())
+    }
+
+    pub(crate) fn server_context(
+        &self,
+        parent: crate::ManagedParent,
+    ) -> io::Result<crate::identity::attestation::ManagedServer> {
+        self.signer
+            .get()
+            .ok_or_else(|| io::Error::other("Linux daemon signer is unavailable"))?
+            .context(parent)
+    }
+    pub(crate) fn sign_response(
+        &self,
+        parent: crate::ManagedParent,
+        nonce: [u8; 32],
+        request_sha256: String,
+        response: crate::protocol::Response,
+    ) -> io::Result<crate::identity::attestation::Proof> {
+        self.signer
+            .get()
+            .ok_or_else(|| io::Error::other("Linux daemon signer is unavailable"))?
+            .sign(parent, nonce, request_sha256, response)
+    }
+
+    pub(super) fn with_journal<T>(
+        &self,
+        action: impl FnOnce(&mut Journal) -> io::Result<T>,
+    ) -> io::Result<T> {
+        let mut guard = self.journal.lock().map_err(|_| poisoned())?;
+        action(
+            guard
+                .as_mut()
+                .ok_or_else(|| io::Error::other("Linux executor history is unavailable"))?,
+        )
+    }
+
+    pub(super) fn register(&self, id: InvocationId, boundary: Arc<Boundary>) -> io::Result<()> {
+        self.with_journal(|journal| {
+            let records = journal.records()?;
+            let record = records
+                .get(&id)
+                .ok_or_else(|| io::Error::other("uncommitted containment registration"))?;
+            if record.seal.is_some() || record.boundary.as_ref() != Some(&boundary.identity) {
+                return Err(io::Error::other(
+                    "containment registration disagrees with history",
+                ));
+            }
+            let mut active = self.active.lock().map_err(|_| poisoned())?;
+            if active.contains_key(&id) {
+                return Err(io::Error::other("duplicate Linux containment registration"));
+            }
+            active.insert(id, Entry::Live(boundary));
+            Ok(())
+        })
+    }
+
+    pub(crate) fn contains(
+        &self,
+        id: InvocationId,
+        process_handle: usize,
+    ) -> io::Result<Option<bool>> {
+        let active = self.active.lock().map_err(|_| poisoned())?;
+        match active.get(&id) {
+            Some(Entry::Live(boundary)) => boundary.contains_process(process_handle).map(Some),
+            Some(Entry::Sealed) => Ok(Some(false)),
+            Some(Entry::Uninspectable) | None => Ok(None),
+        }
+    }
+    pub(crate) fn inspect(&self, id: InvocationId) -> io::Result<Option<ReconciliationResult>> {
+        // Empty-but-unsealed never releases a Lease. Keep the membership handle
+        // and negative tombstone until the durable Store transition completes.
+        let active = self.active.lock().map_err(|_| poisoned())?;
+        Ok(match active.get(&id) {
+            Some(Entry::Sealed) => Some(ReconciliationResult::ProvenEmpty),
+            Some(Entry::Live(boundary)) => Some(match boundary.populated() {
+                Ok(true) => ReconciliationResult::BoundaryNotEmpty,
+                _ => ReconciliationResult::BoundaryUninspectable,
+            }),
+            Some(Entry::Uninspectable) => Some(ReconciliationResult::BoundaryUninspectable),
+            None => None,
+        })
+    }
+    pub(crate) fn clear(&self, id: InvocationId) {
+        if let Ok(mut entries) = self.active.lock() {
+            entries.remove(&id);
+        }
+    }
+    pub(super) fn cleanup(
+        &self,
+        id: InvocationId,
+        deadline: Instant,
+    ) -> io::Result<super::journal::Seal> {
+        self.with_journal(|journal| {
+            let seal = journal.cleanup(id, deadline)?;
+            self.active
+                .lock()
+                .map_err(|_| poisoned())?
+                .insert(id, Entry::Sealed);
+            Ok(seal)
+        })
+    }
+    pub(crate) fn reconcile(
+        &self,
+        candidate: &crate::store::ReconciliationCandidate,
+        deadline: Instant,
+    ) -> io::Result<ReconciliationResult> {
+        self.with_journal(|journal| {
+            let record = journal
+                .records()?
+                .get(&candidate.invocation_id)
+                .ok_or_else(|| io::Error::other("unknown Linux reconciliation obligation"))?;
+            if record.containment != candidate.containment_id
+                || Some(record.daemon_generation) != candidate.daemon_generation
+                || candidate
+                    .root_identity
+                    .as_ref()
+                    .is_some_and(|root| record.root.as_ref() != Some(root))
+            {
+                return Err(io::Error::other(
+                    "Linux reconciliation identity disagrees with executor history",
+                ));
+            }
+            journal.cleanup(candidate.invocation_id, deadline)?;
+            self.active
+                .lock()
+                .map_err(|_| poisoned())?
+                .insert(candidate.invocation_id, Entry::Sealed);
+            Ok(ReconciliationResult::ProvenEmpty)
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    use uuid::Uuid;
+
+    #[test]
+    #[ignore = "requires delegated cgroup under a protected system bootstrap Job"]
+    fn linux_registry_requires_durable_seal_and_matches_reconciliation_identity() {
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let anchor = super::super::journal::Anchor {
+            journal: Uuid::now_v7(),
+            store: Uuid::now_v7(),
+            domain: crate::ExecutionDomainId(Uuid::now_v7()),
+        };
+        let journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        let generation = Uuid::now_v7();
+        let registry = Registry::default();
+        registry
+            .install(
+                journal,
+                crate::identity::attestation::Signer::new(
+                    anchor.store,
+                    generation,
+                    "/tmp/registry-fixture".into(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+        let containment = crate::ContainmentId::from_parts(anchor.store, Uuid::now_v7());
+        // SAFETY: geteuid has no preconditions.
+        let process =
+            crate::identity::linux::Process::open(std::process::id(), unsafe { libc::geteuid() })
+                .unwrap();
+        let parent = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap();
+        let boundary = registry
+            .with_journal(|j| {
+                j.create(
+                    std::path::Path::new(&parent),
+                    invocation,
+                    containment,
+                    Uuid::now_v7(),
+                    generation,
+                    process.identity.clone(),
+                )
+            })
+            .unwrap();
+        registry.register(invocation, Arc::new(boundary)).unwrap();
+        assert_eq!(
+            registry
+                .contains(invocation, process.proc_handle())
+                .unwrap(),
+            Some(false)
+        );
+        assert_eq!(
+            registry.inspect(invocation).unwrap(),
+            Some(ReconciliationResult::BoundaryUninspectable),
+            "empty live cgroup bypassed durable sealing"
+        );
+        let mut candidate = crate::store::ReconciliationCandidate {
+            containment_id: crate::ContainmentId::from_parts(anchor.store, Uuid::now_v7()),
+            invocation_id: invocation,
+            attempt_id: crate::AttemptId::from_parts(anchor.store, Uuid::now_v7()),
+            version: 1,
+            host_id: None,
+            boot_id: None,
+            daemon_generation: Some(generation),
+            root_pid_recorded: false,
+            root_identity: None,
+            prior_daemon_identity: None,
+            incident_sequence: 1,
+        };
+        assert!(
+            registry
+                .reconcile(
+                    &candidate,
+                    Instant::now() + std::time::Duration::from_secs(5)
+                )
+                .is_err()
+        );
+        candidate.containment_id = containment;
+        assert_eq!(
+            registry
+                .reconcile(
+                    &candidate,
+                    Instant::now() + std::time::Duration::from_secs(5)
+                )
+                .unwrap(),
+            ReconciliationResult::ProvenEmpty
+        );
+        assert_eq!(
+            registry.inspect(invocation).unwrap(),
+            Some(ReconciliationResult::ProvenEmpty)
+        );
+        assert_eq!(
+            registry
+                .contains(invocation, process.proc_handle())
+                .unwrap(),
+            Some(false)
+        );
+        registry.clear(invocation);
+        assert_eq!(
+            registry
+                .contains(invocation, process.proc_handle())
+                .unwrap(),
+            None
+        );
+        drop(registry);
+        let registry = Registry::default();
+        registry
+            .install(
+                Journal::open(&path, &anchor).unwrap(),
+                crate::identity::attestation::Signer::new(
+                    anchor.store,
+                    Uuid::now_v7(),
+                    "/tmp/registry-fixture".into(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(
+            registry.inspect(invocation).unwrap(),
+            Some(ReconciliationResult::ProvenEmpty)
+        );
+    }
+}
+
+FILE src/machine/manager/release.rs
+//! Local cancellation/freshness barrier. Hold it from the last readiness check
+//! through the durable start commit and actual platform release.
+use super::*;
+use std::sync::Mutex;
+
+pub struct ReleaseBarrier {
+    state: Mutex<State>,
+}
+struct State {
+    session: SessionIdentity,
+    generation: Uuid,
+    configuration: String,
+    canceled: bool,
+    challenge: Option<Challenge>,
+    attempted: bool,
+}
+struct Challenge {
+    operation: Uuid,
+    intent: InvocationIntent,
+    key: AllocationKey,
+    nonce: Uuid,
+    clock: (i64, u64),
+}
+/// Produced only when this barrier committed consumption but did not call the
+/// OS release function. Platform whole-boundary cleanup is still required.
+#[derive(Debug)]
+pub struct NeverReleased {
+    ticket: InvocationTicket,
+}
+#[derive(Debug)]
+pub enum Disposition {
+    Released,
+    AlreadyConsumed,
+    NeverReleased(Box<NeverReleased>),
+    Uncertain(std::io::Error),
+}
+
+impl ReleaseBarrier {
+    pub fn new(session: SessionIdentity, generation: Uuid, configuration: String) -> Result<Self> {
+        if generation.is_nil()
+            || configuration.len() != 64
+            || !configuration.bytes().all(|b| b.is_ascii_hexdigit())
+        {
+            return Err(invalid(
+                "release barrier needs current provider and configuration identities",
+            ));
+        }
+        Ok(Self {
+            state: Mutex::new(State {
+                session,
+                generation,
+                configuration,
+                canceled: false,
+                challenge: None,
+                attempted: false,
+            }),
+        })
+    }
+
+    /// Invoke before the first transmission. Retry keeps the ORIGINAL clock;
+    /// reconnect needs a new Invocation challenge, never a rejuvenated ticket.
+    pub fn challenge(&self, request: &Request) -> Result<()> {
+        self.challenge_at(request, crate::host_observation::observation_clock()?)
+    }
+    fn challenge_at(&self, request: &Request, clock: (i64, u64)) -> Result<()> {
+        request.validate()?;
+        let Command::AuthorizeInvocation {
+            key,
+            offer_nonce,
+            intent,
+        } = &request.command
+        else {
+            return Err(invalid("release challenge requires an Invocation request"));
+        };
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| invalid("release barrier poisoned"))?;
+        if request.session != state.session || state.canceled || state.attempted {
+            return Err(invalid("release barrier was fenced"));
+        }
+        if let Some(old) = &state.challenge {
+            if old.operation != request.operation_id
+                || old.intent != *intent
+                || old.key != *key
+                || old.nonce != *offer_nonce
+            {
+                return Err(invalid(
+                    "one release barrier cannot authorize another Invocation",
+                ));
+            }
+            return Ok(());
+        }
+        state.challenge = Some(Challenge {
+            operation: request.operation_id,
+            intent: intent.clone(),
+            key: key.clone(),
+            nonce: *offer_nonce,
+            clock,
+        });
+        Ok(())
+    }
+
+    /// Serialize known disconnect, cancel and provider/session invalidation with
+    /// actual release. A canceled barrier is never reopened by reconnect.
+    pub fn cancel(&self) -> Result<()> {
+        self.state
+            .lock()
+            .map_err(|_| invalid("release barrier poisoned"))?
+            .canceled = true;
+        Ok(())
+    }
+
+    /// `commit` atomically consumes the ticket with Invocation lifecycle and
+    /// commits SQLite. `local_ready` runs twice under this barrier. No callback
+    /// may re-enter the barrier. An OS release error retains uncertainty.
+    pub fn release(
+        &self,
+        ticket: &InvocationTicket,
+        generation: Uuid,
+        local_ready: impl FnMut() -> Result<bool>,
+        commit: impl FnOnce() -> Result<bool>,
+        release: impl FnOnce() -> std::io::Result<()>,
+    ) -> Result<Disposition> {
+        self.release_with_clock(
+            ticket,
+            generation,
+            local_ready,
+            commit,
+            release,
+            crate::host_observation::observation_clock,
+        )
+    }
+    fn release_with_clock(
+        &self,
+        ticket: &InvocationTicket,
+        generation: Uuid,
+        mut local_ready: impl FnMut() -> Result<bool>,
+        commit: impl FnOnce() -> Result<bool>,
+        release: impl FnOnce() -> std::io::Result<()>,
+        mut clock: impl FnMut() -> std::io::Result<(i64, u64)>,
+    ) -> Result<Disposition> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| invalid("release barrier poisoned"))?;
+        let challenge = state
+            .challenge
+            .as_ref()
+            .ok_or_else(|| invalid("ticket has no local send challenge"))?;
+        if state.canceled
+            || state.attempted
+            || state.generation != generation
+            || state.session != ticket.session
+            || state.configuration != ticket.configuration_sha256
+            || challenge.intent != ticket.intent
+            || challenge.key != ticket.key
+            || challenge.nonce != ticket.offer_nonce
+            || !fresh(challenge.clock, clock()?)
+            || !local_ready()?
+        {
+            return Err(invalid(
+                "ticket is stale, canceled, used or locally unready",
+            ));
+        }
+        let sent = challenge.clock;
+        state.attempted = true;
+        if !commit()? {
+            return Ok(Disposition::AlreadyConsumed);
+        }
+        // Once committed, any pre-release failure proves only that THIS barrier
+        // did not resume the child. Persist cleanup before retiring the ticket.
+        if !local_ready().unwrap_or(false) || !clock().is_ok_and(|now| fresh(sent, now)) {
+            return Ok(Disposition::NeverReleased(Box::new(NeverReleased {
+                ticket: ticket.clone(),
+            })));
+        }
+        Ok(match release() {
+            Ok(()) => Disposition::Released,
+            Err(error) => Disposition::Uncertain(error),
+        })
+    }
+}
+
+fn fresh(sent: (i64, u64), now: (i64, u64)) -> bool {
+    let Some(boot) = now.1.checked_sub(sent.1) else {
+        return false;
+    };
+    let Some(wall) = now
+        .0
+        .checked_sub(sent.0)
+        .and_then(|n| u64::try_from(n).ok())
+    else {
+        return false;
+    };
+    boot <= 250 && wall <= 250 && boot.abs_diff(wall) <= 50
+}
+
+/// Pair the barrier's no-release result with a platform whole-boundary proof.
+/// Losing this transient result is conservative: recover consumed as possibly
+/// released. It never gives permission to consume that same ticket again.
+pub fn record_unused_cleanup(
+    tx: &Transaction<'_>,
+    proof: &NeverReleased,
+    cleanup: &TicketCleanup,
+) -> Result<()> {
+    let (json, consumed, prior): (String, bool, Option<String>) = tx.query_row(
+        "SELECT ticket_json,consumed,cleanup_json FROM attached_tickets WHERE invocation_id=?1",
+        [cleanup.invocation_id.to_string()],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    )?;
+    let ticket = &proof.ticket;
+    let encoded = serde_json::to_string(cleanup)?;
+    if json != serde_json::to_string(ticket)?
+        || !consumed
+        || cleanup.user_code_released
+        || cleanup.invocation_id != ticket.intent.invocation_id
+        || cleanup.release_sequence != ticket.intent.release_sequence
+        || cleanup.boundary_sha256 != ticket.intent.boundary_sha256
+        || cleanup.proof_sha256.len() != 64
+        || !cleanup.proof_sha256.bytes().all(|b| b.is_ascii_hexdigit())
+        || prior.is_some_and(|p| p != encoded)
+    {
+        return Err(invalid(
+            "unused cleanup does not match the committed never-released ticket",
+        ));
+    }
+    tx.execute(
+        "UPDATE attached_tickets SET cleanup_json=?2 WHERE invocation_id=?1",
+        params![cleanup.invocation_id.to_string(), encoded],
+    )?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn fixture() -> (ReleaseBarrier, Request, InvocationTicket, Uuid) {
+        let store = Uuid::now_v7();
+        let session = SessionIdentity {
+            machine_id: Uuid::now_v7(),
+            authority_epoch: Uuid::now_v7(),
+            domain_id: crate::ExecutionDomainId(Uuid::now_v7()),
+            manager_store_uuid: store,
+            executor_incarnation: Uuid::now_v7(),
+            connection_epoch: 1,
+        };
+        let key = AllocationKey {
+            machine_id: session.machine_id,
+            authority_epoch: session.authority_epoch,
+            domain_id: session.domain_id,
+            manager_store_uuid: store,
+            lease_id: Uuid::now_v7(),
+        };
+        let intent = InvocationIntent {
+            invocation_id: format!("{store}~{}", Uuid::now_v7()).parse().unwrap(),
+            containment_id: format!("{store}~{}", Uuid::now_v7()).parse().unwrap(),
+            role: crate::InvocationRole::Primary,
+            role_index: 0,
+            release_sequence: 1,
+            executable_sha256: "a".repeat(64),
+            boundary_sha256: "b".repeat(64),
+            readiness_challenge: Uuid::now_v7(),
+            previous_cleanup: None,
+        };
+        let nonce = Uuid::now_v7();
+        let request = Request::new(
+            session.clone(),
+            1,
+            Uuid::now_v7(),
+            Command::AuthorizeInvocation {
+                key: key.clone(),
+                offer_nonce: nonce,
+                intent: intent.clone(),
+            },
+        )
+        .unwrap();
+        let ticket = InvocationTicket {
+            grant_id: format!("{store}~{}", Uuid::now_v7()).parse().unwrap(),
+            key,
+            offer_nonce: nonce,
+            intent,
+            configuration_sha256: "c".repeat(64),
+            issued_unix_millis: 9,
+            host_observation_generation: Uuid::now_v7(),
+            host_sample_unix_millis: 9,
+            session: session.clone(),
+        };
+        let generation = Uuid::now_v7();
+        (
+            ReleaseBarrier::new(session, generation, "c".repeat(64)).unwrap(),
+            request,
+            ticket,
+            generation,
+        )
+    }
+
+    #[test]
+    fn retry_cannot_rejuvenate_a_delayed_ticket_and_cancel_fences_release() {
+        let (barrier, request, ticket, generation) = fixture();
+        barrier.challenge_at(&request, (1000, 1000)).unwrap();
+        barrier.challenge_at(&request, (1200, 1200)).unwrap();
+        assert!(
+            barrier
+                .release_with_clock(
+                    &ticket,
+                    generation,
+                    || Ok(true),
+                    || panic!("stale ticket committed"),
+                    || panic!("stale ticket released"),
+                    || Ok((1251, 1251))
+                )
+                .is_err()
+        );
+        barrier.cancel().unwrap();
+        assert!(
+            barrier
+                .release_with_clock(
+                    &ticket,
+                    generation,
+                    || Ok(true),
+                    || panic!("canceled ticket committed"),
+                    || panic!("canceled ticket released"),
+                    || Ok((1100, 1100))
+                )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn loss_of_readiness_after_commit_proves_no_release_without_replaying_consumption() {
+        let (barrier, request, ticket, generation) = fixture();
+        barrier.challenge_at(&request, (1000, 1000)).unwrap();
+        let mut checks = 0;
+        let result = barrier
+            .release_with_clock(
+                &ticket,
+                generation,
+                || {
+                    checks += 1;
+                    Ok(checks == 1)
+                },
+                || Ok(true),
+                || panic!("unready child released"),
+                || Ok((1100, 1100)),
+            )
+            .unwrap();
+        assert!(matches!(result, Disposition::NeverReleased(_)));
+        assert!(
+            barrier
+                .release_with_clock(
+                    &ticket,
+                    generation,
+                    || Ok(true),
+                    || panic!("consumption replayed"),
+                    || panic!("release replayed"),
+                    || Ok((1100, 1100))
+                )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn delay_in_final_local_check_is_rechecked_before_os_release() {
+        let (barrier, request, ticket, generation) = fixture();
+        barrier.challenge_at(&request, (1000, 1000)).unwrap();
+        let mut clocks = 0;
+        let result = barrier
+            .release_with_clock(
+                &ticket,
+                generation,
+                || Ok(true),
+                || Ok(true),
+                || panic!("expired final barrier released"),
+                || {
+                    clocks += 1;
+                    Ok(if clocks == 1 {
+                        (1100, 1100)
+                    } else {
+                        (1300, 1300)
+                    })
+                },
+            )
+            .unwrap();
+        assert!(matches!(result, Disposition::NeverReleased(_)));
+    }
+    #[test]
+    fn local_send_age_detects_delay_suspend_and_clock_discontinuity() {
+        assert!(fresh((1000, 1000), (1250, 1250)));
+        for now in [
+            (1251, 1251),
+            (999, 1000),
+            (1000, 999),
+            (1250, 1000),
+            (5000, 1001),
+        ] {
+            assert!(!fresh((1000, 1000), now));
+        }
+    }
+
+    #[test]
+    fn unused_after_commit_keeps_consumption_and_requires_exact_cleanup_before_sealing() {
+        let (barrier, request, ticket, generation) = fixture();
+        let mut c = Connection::open_in_memory().unwrap();
+        let tx = c.transaction().unwrap();
+        initialize(&tx, ticket.key.manager_store_uuid).unwrap();
+        tx.execute(
+            "UPDATE attached_peer SET session_json=?1",
+            [serde_json::to_string(&ticket.session).unwrap()],
+        )
+        .unwrap();
+        let store = ticket.key.manager_store_uuid;
+        let grant = GrantSnapshot {
+            risk_clearance: None,
+            queue_accepted_unix_millis: 1,
+            queue_sequence: 1,
+            uncertainty_reason: None,
+            grant_id: ticket.grant_id,
+            candidate: Candidate {
+                key: ticket.key.clone(),
+                owner: AllocationOwner::Work {
+                    job_id: format!("{store}~{}", Uuid::now_v7()).parse().unwrap(),
+                    attempt_id: format!("{store}~{}", Uuid::now_v7()).parse().unwrap(),
+                },
+                revision: 1,
+                priority: 0,
+                claims: Claims::default(),
+                configuration_sha256: ticket.configuration_sha256.clone(),
+                observed: None,
+                quiet: None,
+            },
+            offer_nonce: ticket.offer_nonce,
+            state: GrantState::Armed,
+            offered_unix_millis: 1,
+            offer_deadline_unix_millis: 2,
+            armed_unix_millis: Some(1),
+            released_unix_millis: None,
+            tickets: vec![ticket.intent.clone()],
+            sealed_release: None,
+        };
+        let key = serde_json::to_string(&ticket.key).unwrap();
+        tx.execute(
+            "INSERT INTO attached_grants VALUES (?1,?2,NULL)",
+            params![key, serde_json::to_string(&grant).unwrap()],
+        )
+        .unwrap();
+        tx.execute(
+            "INSERT INTO attached_tickets VALUES (?1,?2,?3,0,NULL)",
+            params![
+                ticket.intent.invocation_id.to_string(),
+                key,
+                serde_json::to_string(&ticket).unwrap()
+            ],
+        )
+        .unwrap();
+        tx.commit().unwrap();
+        barrier.challenge_at(&request, (1000, 1000)).unwrap();
+        let mut checks = 0;
+        let result = barrier
+            .release_with_clock(
+                &ticket,
+                generation,
+                || {
+                    checks += 1;
+                    Ok(checks == 1)
+                },
+                || {
+                    let tx = c.transaction()?;
+                    let consumed = consume_ticket(&tx, &ticket)?;
+                    tx.commit()?;
+                    Ok(consumed)
+                },
+                || panic!("unready child was resumed"),
+                || Ok((1100, 1100)),
+            )
+            .unwrap();
+        let Disposition::NeverReleased(proof) = result else {
+            panic!("expected pre-release failure after commit");
+        };
+        let tx = c.transaction().unwrap();
+        assert!(seal_release(&tx, &ticket.key, Uuid::now_v7()).is_err());
+        tx.rollback().unwrap();
+        let cleanup = TicketCleanup {
+            invocation_id: ticket.intent.invocation_id,
+            release_sequence: ticket.intent.release_sequence,
+            boundary_sha256: ticket.intent.boundary_sha256.clone(),
+            proof_sha256: "d".repeat(64),
+            user_code_released: false,
+        };
+        let tx = c.transaction().unwrap();
+        assert!(
+            record_cleanup(&tx, &cleanup).is_err(),
+            "untyped cleanup erased consumption"
+        );
+        let mut wrong = cleanup.clone();
+        wrong.boundary_sha256 = "e".repeat(64);
+        assert!(record_unused_cleanup(&tx, &proof, &wrong).is_err());
+        record_unused_cleanup(&tx, &proof, &cleanup).unwrap();
+        record_unused_cleanup(&tx, &proof, &cleanup).unwrap();
+        assert!(consume_ticket(&tx, &ticket).is_err());
+        seal_release(&tx, &ticket.key, Uuid::now_v7()).unwrap();
+        tx.commit().unwrap();
+        assert_eq!(
+            c.query_row("SELECT consumed FROM attached_tickets", [], |r| r
+                .get::<_, u64>(0))
+                .unwrap(),
+            1
+        );
+        let pending = pending(&c, &PairingSecret::generate().unwrap())
+            .unwrap()
+            .unwrap();
+        assert!(
+            matches!(pending.command,Command::Release { release } if release.tickets==vec![cleanup])
+        );
+    }
+}
+
+FILE tests/support/machine_manager.rs
+use super::*;
+use stillyard::machine::{self as m, manager as journal};
+
+fn manager_database(path: &std::path::Path) -> rusqlite::Connection {
+    let c = rusqlite::Connection::open(path).unwrap();
+    c.execute_batch(
+        "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;
+        CREATE TABLE IF NOT EXISTS local_lease(id TEXT PRIMARY KEY,state TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS local_invocation(id TEXT PRIMARY KEY,starts INTEGER NOT NULL);",
+    )
+    .unwrap();
+    c
+}
+
+#[test]
+fn durable_manager_outbox_recovers_lost_arm_and_release_without_a_second_start() {
+    manager_fixture(false);
+}
+#[test]
+fn durable_manager_recovers_retired_ticket_reply_and_rotated_coordinator_authority() {
+    manager_fixture(true);
+}
+fn manager_fixture(reset_after_ticket: bool) {
+    let temp = tempfile::tempdir().unwrap();
+    let pinned = copied_daemon(temp.path());
+    let store = temp.path().join("coordinator");
+    std::fs::create_dir_all(&store).unwrap();
+    let mut config = HostConfig::default();
+    config.resources.cargo_slots = 1;
+    std::fs::write(
+        store.join("config.json"),
+        serde_json::to_vec(&config).unwrap(),
+    )
+    .unwrap();
+    let endpoint = format!(r"\\.\pipe\stillyard-manager-outbox-{}", Uuid::now_v7());
+    let mut daemon = spawn_daemon(&pinned, &store, &endpoint);
+    let client = connect(&pinned, &endpoint);
+    let deadline = || Instant::now() + Duration::from_secs(10);
+    let authority = client.authority_status(deadline(), None).unwrap();
+    let domains = authority.domains.unwrap();
+    let secret = m::PairingSecret::generate().unwrap();
+    let registration = m::PairingRegistration {
+        installation: m::InstallationIdentity {
+            installation_nonce: Uuid::now_v7(),
+            domain_id: stillyard::ExecutionDomainId(Uuid::now_v7()),
+            owner_uid: 1000,
+            runtime_registration: "durable-test-manager".into(),
+            role: m::ParticipantRole::Executor,
+        },
+        manager_store_uuid: Uuid::now_v7(),
+        parent_domain: domains.machine_scope,
+        budgets: Default::default(),
+        aliases: Default::default(),
+        secret: *secret.anchor_bytes(),
+    };
+    client
+        .pair_machine_domain(registration.clone(), deadline())
+        .unwrap();
+    let call = |command: &str, input: serde_json::Value| {
+        let path = temp.path().join(format!("request-{}.json", Uuid::now_v7()));
+        std::fs::write(&path, serde_json::to_vec(&input).unwrap()).unwrap();
+        let result = Command::new(&pinned)
+            .args(["--endpoint", &endpoint, "machine", command, "--spec"])
+            .arg(path)
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        serde_json::from_slice::<serde_json::Value>(&result.stdout).unwrap()
+    };
+    let connect_manager = || {
+        let hello = m::ConnectHello {
+            installation_nonce: registration.installation.installation_nonce,
+            manager_store_uuid: registration.manager_store_uuid,
+            executor_incarnation: Uuid::now_v7(),
+            executor_protocol: 25,
+            executor_nonce: [7; 32],
+        };
+        let challenge: m::ConnectChallenge =
+            serde_json::from_value(call("connect-begin", serde_json::to_value(hello).unwrap()))
+                .unwrap();
+        let tag = secret.sign_challenge(&challenge).unwrap();
+        let participant: m::ParticipantSnapshot = serde_json::from_value(call(
+            "connect-finish",
+            serde_json::json!({"challenge":challenge,"tag":tag}),
+        ))
+        .unwrap();
+        (challenge, participant)
+    };
+    let (challenge, participant) = connect_manager();
+    let path = temp.path().join("manager.sqlite3");
+    let mut local = manager_database(&path);
+    let tx = local.transaction().unwrap();
+    journal::initialize(&tx, registration.manager_store_uuid).unwrap();
+    journal::bind(&tx, &challenge.session, &participant).unwrap();
+    tx.commit().unwrap();
+    let send = |request: &m::Request| -> m::Reply {
+        serde_json::from_value(call("exchange", serde_json::to_value(request).unwrap())).unwrap()
+    };
+    let apply = |local: &mut rusqlite::Connection, request: &m::Request, reply: &m::Reply| {
+        let tx = local.transaction().unwrap();
+        let changed = journal::accept(&tx, request, reply).unwrap();
+        if changed && matches!(reply.outcome, m::Outcome::Grant { .. }) {
+            tx.execute("UPDATE local_lease SET state='armed'", [])
+                .unwrap();
+        }
+        if changed && matches!(reply.outcome, m::Outcome::Released { .. }) {
+            tx.execute("UPDATE local_lease SET state='released'", [])
+                .unwrap();
+        }
+        tx.commit().unwrap();
+        changed
+    };
+    let exchange = |local: &mut rusqlite::Connection, command: m::Command| -> m::Reply {
+        let tx = local.transaction().unwrap();
+        journal::enqueue(&tx, Uuid::now_v7(), &command).unwrap();
+        tx.commit().unwrap();
+        let request = journal::pending(local, &secret).unwrap().unwrap();
+        let reply = send(&request);
+        assert!(apply(local, &request, &reply));
+        reply
+    };
+    let configuration = client
+        .daemon_status(deadline(), None)
+        .unwrap()
+        .config_sha256;
+    let cut = Uuid::now_v7();
+    exchange(
+        &mut local,
+        m::Command::ReconcileBegin {
+            snapshot_id: cut,
+            begin_sequence: 0,
+            end_sequence: 0,
+            page_count: 0,
+            digest: m::payload_hash(&Vec::<Vec<m::ReconcileAllocation>>::new()).unwrap(),
+            configuration_sha256: configuration.clone(),
+        },
+    );
+    assert!(matches!(
+        exchange(&mut local, m::Command::ReconcileCommit { snapshot_id: cut }).outcome,
+        m::Outcome::Reconciled { .. }
+    ));
+    assert!(
+        matches!(exchange(&mut local,m::Command::InspectPage { after:None,limit:1 }).outcome,
+        m::Outcome::InventoryPage { grants,next:None,configuration_sha256 } if grants.is_empty() && configuration_sha256 == configuration)
+    );
+    assert!(
+        matches!(exchange(&mut local,m::Command::InspectPage { after:None,limit:257 }).outcome,
+        m::Outcome::Rejected { code,.. } if code == "limit_exceeded")
+    );
+    let key = m::AllocationKey {
+        machine_id: domains.machine_id,
+        authority_epoch: challenge.session.authority_epoch,
+        domain_id: registration.installation.domain_id,
+        manager_store_uuid: registration.manager_store_uuid,
+        lease_id: Uuid::now_v7(),
+    };
+    let candidate = m::Candidate {
+        key: key.clone(),
+        owner: m::AllocationOwner::Work {
+            job_id: durable_id(key.manager_store_uuid),
+            attempt_id: durable_id(key.manager_store_uuid),
+        },
+        revision: 1,
+        priority: 0,
+        claims: m::Claims {
+            scalars: [("cargo_slots".into(), 1)].into(),
+            ..Default::default()
+        },
+        configuration_sha256: configuration.clone(),
+        observed: None,
+        quiet: None,
+    };
+    exchange(&mut local, m::Command::CandidateUpsert { candidate });
+    let until = deadline();
+    let grant = loop {
+        let reply = exchange(
+            &mut local,
+            m::Command::Inspect {
+                key: Some(key.clone()),
+            },
+        );
+        if let m::Outcome::Inspection { mut grants, .. } = reply.outcome {
+            if grants
+                .first()
+                .is_some_and(|g| g.state == m::GrantState::Offered)
+            {
+                break grants.remove(0);
+            }
+        }
+        assert!(Instant::now() < until);
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    let tx = local.transaction().unwrap();
+    tx.execute(
+        "INSERT INTO local_lease VALUES (?1,'arming')",
+        [key.lease_id.to_string()],
+    )
+    .unwrap();
+    journal::enqueue(
+        &tx,
+        Uuid::now_v7(),
+        &m::Command::Arm {
+            key: key.clone(),
+            offer_nonce: grant.offer_nonce,
+        },
+    )
+    .unwrap();
+    tx.commit().unwrap();
+    let arm = journal::pending(&local, &secret).unwrap().unwrap();
+    let lost = send(&arm);
+    assert!(matches!(lost.outcome, m::Outcome::Grant { .. }));
+    daemon.kill_and_wait();
+    daemon = spawn_daemon(&pinned, &store, &endpoint);
+    connect_uninitialized(&pinned, &endpoint);
+    drop(local);
+    local = manager_database(&path);
+    assert_eq!(
+        journal::pending(&local, &secret).unwrap(),
+        Some(arm.clone())
+    );
+    let replay = send(&arm);
+    assert_eq!(replay.outcome, lost.outcome);
+    assert!(apply(&mut local, &arm, &replay));
+    assert!(!apply(&mut local, &arm, &replay));
+    let mut native = command_spec(temp.path(), "echo admitted>after-manager-release.txt");
+    native.resources.cargo_slots = Some(1);
+    let native = client
+        .submit(
+            native,
+            &SubmitOptions::new(Uuid::now_v7()),
+            deadline(),
+            None,
+        )
+        .unwrap()
+        .job_id;
+    let intent = m::InvocationIntent {
+        invocation_id: durable_id(key.manager_store_uuid),
+        containment_id: durable_id(key.manager_store_uuid),
+        role: InvocationRole::Primary,
+        role_index: 0,
+        release_sequence: 1,
+        executable_sha256: "a".repeat(64),
+        boundary_sha256: "b".repeat(64),
+        readiness_challenge: Uuid::now_v7(),
+        previous_cleanup: None,
+    };
+    if reset_after_ticket {
+        let tx = local.transaction().unwrap();
+        journal::enqueue(
+            &tx,
+            Uuid::now_v7(),
+            &m::Command::AuthorizeInvocation {
+                key: key.clone(),
+                offer_nonce: grant.offer_nonce,
+                intent: intent.clone(),
+            },
+        )
+        .unwrap();
+        tx.commit().unwrap();
+        let request = journal::pending(&local, &secret).unwrap().unwrap();
+        let lost = send(&request);
+        assert!(matches!(lost.outcome, m::Outcome::Ticket { .. }));
+        daemon.kill_and_wait();
+        for name in [
+            "stillyard.sqlite3",
+            "stillyard.sqlite3-wal",
+            "stillyard.sqlite3-shm",
+        ] {
+            let file = store.join(name);
+            if file.exists() {
+                std::fs::remove_file(file).unwrap();
+            }
+        }
+        daemon = spawn_daemon(&pinned, &store, &endpoint);
+        let reset = connect_uninitialized(&pinned, &endpoint);
+        let reconstructed = reset.machine_recover(deadline()).unwrap();
+        assert!(reconstructed.blocker.is_some());
+        let mut canary = command_spec(temp.path(), "echo recovered>after-retired-ticket.txt");
+        canary.resources.cargo_slots = Some(1);
+        let waiter = reset
+            .submit(
+                canary,
+                &SubmitOptions::new(Uuid::now_v7()),
+                deadline(),
+                None,
+            )
+            .unwrap()
+            .job_id;
+        let (session, peer) = connect_manager();
+        assert_eq!(peer.retired_sequence_floor, request.request_sequence);
+        let tx = local.transaction().unwrap();
+        assert!(journal::bind(&tx, &session.session, &peer).is_err());
+        journal::recovery::begin(&tx, &session.session, &peer).unwrap();
+        assert!(journal::recovery::acknowledge_abandoned(&tx, &[request.operation_id]).is_err());
+        tx.commit().unwrap();
+        drop(local);
+        local = manager_database(&path);
+        while let Some(command) = journal::recovery::next_page(&local).unwrap() {
+            let reply = exchange(&mut local, command);
+            let m::Outcome::InventoryPage { grants, .. } = reply.outcome else {
+                panic!("recovery inventory page");
+            };
+            let retained = grants
+                .iter()
+                .find(|g| g.grant_id == grant.grant_id)
+                .unwrap();
+            assert_eq!(
+                retained.queue_accepted_unix_millis,
+                grant.queue_accepted_unix_millis
+            );
+            assert_eq!(retained.queue_sequence, grant.queue_sequence);
+        }
+        assert!(!temp.path().join("after-retired-ticket.txt").exists());
+        assert_eq!(
+            local
+                .query_row("SELECT COUNT(*) FROM attached_tickets", [], |r| r
+                    .get::<_, u64>(0))
+                .unwrap(),
+            0
+        );
+        let tx = local.transaction().unwrap();
+        assert!(journal::seal_release(&tx, &key, Uuid::now_v7()).is_err());
+        tx.rollback().unwrap();
+        let tx = local.transaction().unwrap();
+        journal::record_cleanup(
+            &tx,
+            &m::TicketCleanup {
+                invocation_id: intent.invocation_id,
+                release_sequence: intent.release_sequence,
+                boundary_sha256: intent.boundary_sha256.clone(),
+                proof_sha256: "c".repeat(64),
+                user_code_released: false,
+            },
+        )
+        .unwrap();
+        journal::seal_release(&tx, &key, Uuid::now_v7()).unwrap();
+        tx.commit().unwrap();
+        for command in journal::recovery::reconciliation(&local).unwrap() {
+            let result = exchange(&mut local, command);
+            assert!(
+                !matches!(result.outcome, m::Outcome::Rejected { .. }),
+                "{result:?}"
+            );
+        }
+        let cleared = reset.machine_recover(deadline()).unwrap();
+        assert!(cleared.blocker.is_none());
+        assert_ne!(cleared.epoch, reconstructed.epoch);
+        let abandoned = journal::recovery::abandoned(&local).unwrap();
+        assert!(abandoned.iter().any(|(id, _)| *id == request.operation_id));
+        let tx = local.transaction().unwrap();
+        // The fixture has no started local Invocation; its superseded pending
+        // lifecycle intent is settled together with this archive acknowledgement.
+        assert_eq!(
+            journal::recovery::acknowledge_abandoned(&tx, &[request.operation_id]).unwrap(),
+            1
+        );
+        assert_eq!(
+            journal::recovery::acknowledge_abandoned(&tx, &[request.operation_id]).unwrap(),
+            0
+        );
+        tx.commit().unwrap();
+        assert_eq!(
+            reset.wait(waiter, deadline(), None).unwrap().outcome,
+            Some(stillyard::JobOutcome::Succeeded)
+        );
+        let (session, peer) = connect_manager();
+        let tx = local.transaction().unwrap();
+        assert!(journal::bind(&tx, &session.session, &peer).is_err());
+        journal::recovery::begin(&tx, &session.session, &peer).unwrap();
+        tx.commit().unwrap();
+        while let Some(command) = journal::recovery::next_page(&local).unwrap() {
+            exchange(&mut local, command);
+        }
+        for command in journal::recovery::reconciliation(&local).unwrap() {
+            let result = exchange(&mut local, command);
+            assert!(
+                !matches!(result.outcome, m::Outcome::Rejected { .. }),
+                "{result:?}"
+            );
+        }
+        let mut new_candidate = grant.candidate.clone();
+        new_candidate.key.authority_epoch = session.session.authority_epoch;
+        new_candidate.key.lease_id = Uuid::now_v7();
+        assert!(matches!(
+            exchange(
+                &mut local,
+                m::Command::CandidateUpsert {
+                    candidate: new_candidate
+                }
+            )
+            .outcome,
+            m::Outcome::Accepted { .. }
+        ));
+        assert_eq!(
+            local
+                .query_row("SELECT COUNT(*) FROM local_invocation", [], |r| r
+                    .get::<_, u64>(0))
+                .unwrap(),
+            0
+        );
+        daemon.kill_and_wait();
+        return;
+    }
+    let reply = exchange(
+        &mut local,
+        m::Command::AuthorizeInvocation {
+            key: key.clone(),
+            offer_nonce: grant.offer_nonce,
+            intent: intent.clone(),
+        },
+    );
+    let m::Outcome::Ticket { ticket } = reply.outcome else {
+        panic!("ticket not authorized");
+    };
+    let tx = local.transaction().unwrap();
+    assert!(journal::consume_ticket(&tx, &ticket).unwrap());
+    tx.execute(
+        "INSERT INTO local_invocation VALUES (?1,1)",
+        [intent.invocation_id.to_string()],
+    )
+    .unwrap();
+    tx.commit().unwrap();
+    drop(local);
+    local = manager_database(&path);
+    let tx = local.transaction().unwrap();
+    assert!(!journal::consume_ticket(&tx, &ticket).unwrap());
+    tx.commit().unwrap();
+    // A reset manager has a new SQLite identity. Its empty local database
+    // cannot authenticate the old manager's release rights or free the token.
+    let reset_store = Uuid::now_v7();
+    let mut empty_manager = manager_database(&temp.path().join("reset-manager.sqlite3"));
+    let tx = empty_manager.transaction().unwrap();
+    journal::initialize(&tx, reset_store).unwrap();
+    assert!(journal::bind(&tx, &challenge.session, &participant).is_err());
+    tx.rollback().unwrap();
+    let changed_hello = m::ConnectHello {
+        installation_nonce: registration.installation.installation_nonce,
+        manager_store_uuid: reset_store,
+        executor_incarnation: Uuid::now_v7(),
+        executor_protocol: 25,
+        executor_nonce: [8; 32],
+    };
+    let changed_path = temp.path().join("reset-manager-hello.json");
+    std::fs::write(&changed_path, serde_json::to_vec(&changed_hello).unwrap()).unwrap();
+    assert!(
+        !Command::new(&pinned)
+            .args([
+                "--endpoint",
+                &endpoint,
+                "machine",
+                "connect-begin",
+                "--spec"
+            ])
+            .arg(changed_path)
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    assert_eq!(
+        client
+            .authority_status(deadline(), None)
+            .unwrap()
+            .machine_obligations
+            .len(),
+        1
+    );
+    assert!(!temp.path().join("after-manager-release.txt").exists());
+
+    let (reconnected, participant) = connect_manager();
+    let tx = local.transaction().unwrap();
+    journal::bind(&tx, &reconnected.session, &participant).unwrap();
+    tx.commit().unwrap();
+    let records = vec![vec![m::ReconcileAllocation {
+        key: key.clone(),
+        offer_nonce: grant.offer_nonce,
+        tickets: vec![intent.clone()],
+        sealed_release: None,
+    }]];
+    let cut = Uuid::now_v7();
+    exchange(
+        &mut local,
+        m::Command::ReconcileBegin {
+            snapshot_id: cut,
+            begin_sequence: 0,
+            end_sequence: participant.accepted_sequence,
+            page_count: 1,
+            digest: m::payload_hash(&records).unwrap(),
+            configuration_sha256: configuration,
+        },
+    );
+    exchange(
+        &mut local,
+        m::Command::ReconcilePage {
+            snapshot_id: cut,
+            index: 0,
+            allocations: records[0].clone(),
+        },
+    );
+    assert!(matches!(
+        exchange(&mut local, m::Command::ReconcileCommit { snapshot_id: cut }).outcome,
+        m::Outcome::Reconciled { .. }
+    ));
+    assert!(!temp.path().join("after-manager-release.txt").exists());
+    let tx = local.transaction().unwrap();
+    assert!(
+        journal::consume_ticket(&tx, &ticket).is_err(),
+        "old session could release the ticket after reconnect"
+    );
+    assert!(journal::seal_release(&tx, &key, Uuid::now_v7()).is_err());
+    tx.rollback().unwrap();
+    let uncertain = exchange(
+        &mut local,
+        m::Command::ReportUncertain {
+            key: key.clone(),
+            offer_nonce: grant.offer_nonce,
+            reason: "fixture boundary requires explicit empty proof".into(),
+        },
+    );
+    assert!(
+        matches!(uncertain.outcome,m::Outcome::Grant { grant } if grant.state==m::GrantState::Uncertain && grant.uncertainty_reason.is_some())
+    );
+    assert_eq!(
+        client
+            .authority_status(deadline(), None)
+            .unwrap()
+            .machine_obligations[0]
+            .state,
+        m::GrantState::Uncertain
+    );
+    assert!(!temp.path().join("after-manager-release.txt").exists());
+    let preview = client
+        .machine_clearance_preview(key.domain_id, deadline())
+        .unwrap();
+    assert_eq!(preview.sha256, m::payload_hash(&preview.inventory).unwrap());
+    assert_eq!(preview.inventory.manager_store_uuid, key.manager_store_uuid);
+    assert_eq!(preview.inventory.grants.len(), 1);
+    assert_eq!(preview.inventory.grants[0].tickets, vec![intent.clone()]);
+    assert_eq!(
+        preview,
+        client
+            .machine_clearance_preview(key.domain_id, deadline())
+            .unwrap()
+    );
+    let cleanup = m::TicketCleanup {
+        invocation_id: intent.invocation_id,
+        release_sequence: 1,
+        boundary_sha256: intent.boundary_sha256,
+        proof_sha256: "c".repeat(64),
+        user_code_released: true,
+    };
+    let tx = local.transaction().unwrap();
+    journal::record_cleanup(&tx, &cleanup).unwrap();
+    journal::seal_release(&tx, &key, Uuid::now_v7()).unwrap();
+    tx.execute("UPDATE local_lease SET state='releasing'", [])
+        .unwrap();
+    tx.commit().unwrap();
+    let release = journal::pending(&local, &secret).unwrap().unwrap();
+    let lost = send(&release);
+    assert!(matches!(lost.outcome, m::Outcome::Released { .. }));
+    assert_eq!(
+        client.wait(native, deadline(), None).unwrap().outcome,
+        Some(stillyard::JobOutcome::Succeeded)
+    );
+    daemon.kill_and_wait();
+    let _replacement = spawn_daemon(&pinned, &store, &endpoint);
+    connect_uninitialized(&pinned, &endpoint);
+    drop(local);
+    local = manager_database(&path);
+    assert_eq!(
+        journal::pending(&local, &secret).unwrap(),
+        Some(release.clone())
+    );
+    let repeated = send(&release);
+    assert_eq!(repeated.outcome, lost.outcome);
+    assert!(apply(&mut local, &release, &repeated));
+    assert!(!apply(&mut local, &release, &repeated));
+    assert_eq!(
+        client.wait(native, deadline(), None).unwrap().outcome,
+        Some(stillyard::JobOutcome::Succeeded)
+    );
+    assert_eq!(
+        local
+            .query_row("SELECT SUM(starts) FROM local_invocation", [], |r| r
+                .get::<_, u64>(0))
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        local
+            .query_row("SELECT state FROM local_lease", [], |r| r
+                .get::<_, String>(0))
+            .unwrap(),
+        "released"
+    );
+    assert!(matches!(
+        exchange(
+            &mut local,
+            m::Command::Acknowledge {
+                through_sequence: release.request_sequence
+            }
+        )
+        .outcome,
+        m::Outcome::Acknowledged { .. }
+    ));
+    assert!(journal::pending(&local, &secret).unwrap().is_none());
+    let mut reused = grant.candidate.clone();
+    reused.revision += 1;
+    assert!(
+        matches!(exchange(&mut local,m::Command::CandidateUpsert { candidate:reused }).outcome,
+        m::Outcome::Rejected { code,.. } if code=="stale"),
+        "compaction allowed a retired Lease key to acquire another Grant"
+    );
+    assert!(
+        client
+            .authority_status(deadline(), None)
+            .unwrap()
+            .machine_obligations
+            .is_empty()
+    );
+}
+
+FILE tests/support/cross_os_reset.rs
+//! Mailbox orchestration only; the Linux subject uses the real executor journal.
+//! The installed CLI is the outer Job primary and owns protected bootstrap.
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
+use uuid::Uuid;
+
+pub struct Subject {
+    mailbox: PathBuf,
+    finished: bool,
+}
+impl Subject {
+    pub fn start() -> Self {
+        let mailbox = PathBuf::from(std::env::var_os("MR_WSL_FAULT_MAILBOX_WINDOWS").unwrap());
+        assert!(mailbox.is_absolute() && mailbox.is_dir());
+        let subject = Self {
+            mailbox,
+            finished: false,
+        };
+        subject.publish("controller-ready.json", &true);
+        subject
+    }
+    pub fn receive<T: serde::de::DeserializeOwned>(&self, name: &str) -> T {
+        let until = Instant::now() + Duration::from_secs(60);
+        loop {
+            match std::fs::read(self.mailbox.join(name)) {
+                Ok(bytes) => return serde_json::from_slice(&bytes).unwrap(),
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::NotFound && Instant::now() < until =>
+                {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => panic!("Linux subject {name}: deadline or mailbox failure: {error}"),
+            }
+        }
+    }
+    pub fn publish(&self, name: &str, value: &impl serde::Serialize) {
+        let stage = self.mailbox.join(format!(".{}", Uuid::now_v7()));
+        std::fs::write(&stage, serde_json::to_vec(value).unwrap()).unwrap();
+        std::fs::rename(stage, self.mailbox.join(name)).unwrap();
+    }
+    pub fn finish(&mut self) {
+        let destination = PathBuf::from(std::env::var_os("MR_WSL_FAULT_EVIDENCE").unwrap());
+        std::fs::create_dir_all(&destination).unwrap();
+        // Configuration includes a fixture pairing secret: never export it.
+        // The launcher separately requires the installed primary's bootstrap seal.
+        for name in [
+            "manager.json",
+            "allocation.json",
+            "intent.json",
+            "ticket.json",
+            "live.json",
+            "capacity-reduced.json",
+            "capacity-restored.json",
+            "live-after-capacity-reduction.json",
+            "peer-fenced.json",
+            "live-after-peer-fence.json",
+            "guest-reset-rejected.json",
+            "live-after-coordinator-reset.json",
+            "seal.json",
+        ] {
+            std::fs::copy(self.mailbox.join(name), destination.join(name)).unwrap();
+        }
+        self.finished = true;
+    }
+}
+impl Drop for Subject {
+    fn drop(&mut self) {
+        if !self.finished {
+            // Best effort even during unwinding; outer bootstrap still owns
+            // recursive cleanup when either subject fails or stops responding.
+            let _ = std::fs::write(self.mailbox.join("abort.json"), b"true");
+        }
+    }
+}
+
+FILE docs/evidence/mr3-opus-crash-boundaries-20260910z10d/triage.md
+# Scoped M-A04 review disposition
+
+Review confirms actual process deaths at all five checkpoints, no repeated user
+launch and retained Lease until actual cleanup and acknowledgement. No product
+defect found. This is not the overall MR-3 exit review.
+
+1. Accept explicit assertion of the recovered Release TicketCleanup and its
+actual seal digests. Reject equating two distinct evidence bits: executor
+possibly_released means release_intent was recorded before manager SQL; local
+continuous SQL consumed=false independently proves the kernel release callback
+could not have run. The release-intent checkpoint intentionally has executor
+possibly_released=true and manager user_code_released=false. The consumed
+checkpoint has both true even though the real start count is zero; a lost
+transient NeverReleased proof cannot downgrade durable consumption. z10e checks
+both contracts and the exact cleanup hashes, plus empty Ticket set at ready.
+
+2. Existing native acceptance already waits 5.5 s after Arm and asserts the
+canary stays pending beyond the 5 s Offer TTL (isolated_daemon.rs). The omitted
+helper body was not included in the review brief. Still accept an additional
+5.5 s after actual Ticket issuance with the same pending-canary assertion;
+this pins the stronger issued-Ticket case directly rather than inferring it.
+
+Both additions are test-only and pending z10e gates. Other MR-3 rows, final
+consumer confirmation, idle helpers and lifecycle coverage remain separate.
+
+FILE docs/evidence/mr3-crash-boundaries-20260910z10e/jobs.json
+[
+  {
+    "side": "windows",
+    "gate": "build-release",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b01-4a28-7472-9c6a-045e3f095e11",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "check",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aff-585e-7043-bf93-bb66bde14fb0",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "clippy",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08afc-a5d8-7e61-b465-40e6baf677d1",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "fmt-write",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af5-e9e6-7490-bf62-a8a320e84440",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "msrv-test",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aff-0788-72f1-8cc5-3431d769f3c2",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "test",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08afc-ded5-7201-a193-1d46b0b584a0",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "wsl-bootstrap-msrv-test",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08afc-2094-7f00-9b45-f6d27f824bd4",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "wsl-bootstrap-test",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b0-7bf0-a5ca-a39e2420781d",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-msrv-test",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08afb-0f27-7e91-87c6-1d89b9d6be5f",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-test",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08afa-72f4-7e51-87ea-7c9e7e470c45",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-check",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aff-5176-77f1-916f-dc12601ea79c",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-clippy",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08afa-4b86-7150-86c6-a1b37e9cdf87",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-build-release",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b02-4a4f-7502-82ab-10b378ff2edf",
+    "outcome": "succeeded"
+  }
+]
+
+NATIVE TESTS AND COMPLETE FIXTURE
+fn machine_arm_release_crash_boundaries_recover_without_freeing_live_rights() {
+    for stage in ["before_journal", "after_journal", "after_sql", "after_ack"] {
+        machine_allocation_fixture(Some(stage), Some(InvocationRole::Primary), false);
+    }
+}
+
+#[test]
+fn machine_probe_ticket_cannot_borrow_work_or_postcondition_authority() {
+    machine_allocation_fixture(None, Some(InvocationRole::Probe), false);
+}
+
+#[test]
+#[ignore = "requires native system Job and prebuilt protected Linux executor subject"]
+fn machine_cross_os_reset_retains_live_linux_executor_and_guest_history() {
+    machine_allocation_fixture(None, None, true);
+}
+
+fn machine_allocation_fixture(
+    fault_stage: Option<&str>,
+    ticket_role: Option<InvocationRole>,
+    live_linux: bool,
+) {
+    use stillyard::machine::{
+        AllocationKey, AllocationOwner, Candidate, Claims, Command as MachineOperation,
+        ConnectChallenge, ConnectHello, InstallationIdentity, Outcome, PairingRegistration,
+        PairingSecret, ParticipantRole, ParticipantSnapshot, Reply, Request as MachineRequest,
+    };
+    let temp = tempfile::tempdir().unwrap();
+    let pinned = copied_daemon(temp.path());
+    let store = temp.path().join("machine-store");
+    std::fs::create_dir_all(&store).unwrap();
+    let mut config = HostConfig::default();
+    config.resources.cargo_slots = 1;
+    config.resources.custom.insert("side_lane".into(), 1);
+    config
+        .impact_incompatibilities
+        .insert("cpu_heavy".into(), vec!["measurement".into()]);
+    std::fs::write(
+        store.join("config.json"),
+        serde_json::to_vec(&config).unwrap(),
+    )
+    .unwrap();
+    let endpoint = format!(r"\\.\pipe\stillyard-machine-{}", Uuid::now_v7());
+    let spawn = || {
+        let mut command = Command::new(&pinned);
+        command
+            .args(["--endpoint", &endpoint, "daemon", "--store"])
+            .arg(&store)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        if fault_stage.is_some() {
+            command.env("STILLYARD_ISOLATED_MACHINE_FAULT_ROOT", &store);
+        }
+        ChildGuard::new(command.spawn().unwrap())
+    };
+    let mut daemon = spawn();
+    let client = connect(&pinned, &endpoint);
+    let deadline = || Instant::now() + Duration::from_secs(10);
+    let topology = client
+        .authority_status(deadline(), None)
+        .unwrap()
+        .domains
+        .unwrap();
+    let mut linux = live_linux.then(cross_os_reset::Subject::start);
+    let linux_identity = linux.as_ref().map(|subject| {
+        let value: serde_json::Value = subject.receive("manager.json");
+        (
+            serde_json::from_value::<Uuid>(value["store_uuid"].clone()).unwrap(),
+            serde_json::from_value::<u32>(value["uid"].clone()).unwrap(),
+        )
+    });
+    let secret = PairingSecret::generate().unwrap();
+    let registration = PairingRegistration {
+        installation: InstallationIdentity {
+            installation_nonce: Uuid::now_v7(),
+            domain_id: stillyard::ExecutionDomainId(Uuid::now_v7()),
+            owner_uid: linux_identity.map_or(1000, |value| value.1),
+            runtime_registration: "isolated-protocol-fixture".into(),
+            role: ParticipantRole::Executor,
+        },
+        manager_store_uuid: linux_identity.map_or_else(Uuid::now_v7, |value| value.0),
+        parent_domain: topology.machine_scope,
+        budgets: Default::default(),
+        aliases: Default::default(),
+        secret: *secret.anchor_bytes(),
+    };
+    if let Some(subject) = &linux {
+        subject.publish(
+            "configuration.json",
+            &serde_json::json!({
+                "version":1,"pairing":registration,"coordinator_installation":topology.machine_id,
+                "machine_id":topology.machine_id,"bridge_executable":"/isolated-test/unused-bridge",
+                "bridge_sha256":"a".repeat(64),"coordinator_endpoint":endpoint,
+                "interop_socket":"/run/WSL/unused-test-socket",
+                "executor_cgroup":"/sys/fs/cgroup/isolated-reset-profile",
+                "journal":Uuid::now_v7()
+            }),
+        );
+    }
+    let paired = client
+        .pair_machine_domain(registration.clone(), deadline())
+        .unwrap();
+    assert_eq!(paired.connection_epoch, 0);
+    assert!(paired.reconciliation_required);
+    assert_eq!(
+        client
+            .pair_machine_domain(registration.clone(), deadline())
+            .unwrap(),
+        paired
+    );
+    let mut conflict = registration.clone();
+    conflict.secret[0] ^= 1;
+    assert!(client.pair_machine_domain(conflict, deadline()).is_err());
+    let hello = ConnectHello {
+        installation_nonce: registration.installation.installation_nonce,
+        manager_store_uuid: registration.manager_store_uuid,
+        executor_incarnation: Uuid::now_v7(),
+        executor_protocol: 25,
+        executor_nonce: [3; 32],
+    };
+    // Knowing the public hello does not make an arbitrary client the installed bridge.
+    assert!(
+        client
+            .machine_connect_begin(hello.clone(), deadline())
+            .is_err()
+    );
+    let call = |command: &str, input: serde_json::Value| {
+        let path = temp.path().join(format!("machine-{}.json", Uuid::now_v7()));
+        std::fs::write(&path, serde_json::to_vec(&input).unwrap()).unwrap();
+        Command::new(&pinned)
+            .args(["--endpoint", &endpoint, "machine", command, "--spec"])
+            .arg(path)
+            .output()
+            .unwrap()
+    };
+    let begin = call("connect-begin", serde_json::to_value(&hello).unwrap());
+    assert!(
+        begin.status.success(),
+        "{}",
+        String::from_utf8_lossy(&begin.stderr)
+    );
+    let challenge: ConnectChallenge = serde_json::from_slice(&begin.stdout).unwrap();
+    let tag = secret.sign_challenge(&challenge).unwrap();
+    let mut wrong = tag;
+    wrong[0] ^= 1;
+    assert!(
+        !call(
+            "connect-finish",
+            serde_json::json!({"challenge":challenge, "tag":wrong})
+        )
+        .status
+        .success()
+    );
+    let authenticated = call(
+        "connect-finish",
+        serde_json::json!({"challenge":challenge, "tag":tag}),
+    );
+    assert!(
+        authenticated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&authenticated.stderr)
+    );
+    let authenticated: ParticipantSnapshot = serde_json::from_slice(&authenticated.stdout).unwrap();
+    assert_eq!(authenticated.connection_epoch, 1);
+    assert!(authenticated.reconciliation_required);
+    assert!(
+        !call(
+            "connect-finish",
+            serde_json::json!({"challenge":challenge, "tag":tag})
+        )
+        .status
+        .success()
+    );
+
+    let configuration = client
+        .daemon_status(deadline(), None)
+        .unwrap()
+        .config_sha256;
+    let operation = |sequence, command| {
+        let mut request =
+            MachineRequest::new(challenge.session.clone(), sequence, Uuid::now_v7(), command)
+                .unwrap();
+        secret.sign_request(&mut request).unwrap();
+        request
+    };
+    let exchange = |request: &MachineRequest| {
+        let response = call("exchange", serde_json::to_value(request).unwrap());
+        assert!(
+            response.status.success(),
+            "{}",
+            String::from_utf8_lossy(&response.stderr)
+        );
+        serde_json::from_slice::<Reply>(&response.stdout).unwrap()
+    };
+    let crash_and_restart = |daemon: &mut ChildGuard, request: &MachineRequest| {
+        if let Some(stage) = fault_stage {
+            use std::io::Write;
+            let mut intent = std::fs::File::create(store.join("machine-fault.json")).unwrap();
+            intent
+                .write_all(&serde_json::to_vec(&(request.operation_id, stage)).unwrap())
+                .unwrap();
+            intent.sync_all().unwrap();
+            drop(intent);
+            let failed = call("exchange", serde_json::to_value(request).unwrap());
+            assert!(!failed.status.success(), "fault did not interrupt {stage}");
+            assert_eq!(
+                wait_for_exit(daemon.child_mut(), Duration::from_secs(10)).code(),
+                Some(86)
+            );
+            assert_eq!(
+                std::fs::read_to_string(
+                    store.join(format!("machine-fault-{}.fired", request.operation_id))
+                )
+                .unwrap(),
+                stage
+            );
+            daemon.kill_and_wait();
+            *daemon = spawn();
+            let restarted = connect_uninitialized(&pinned, &endpoint);
+            let authority = restarted.authority_status(deadline(), None).unwrap();
+            assert!(
+                authority.pending_machine_operation.is_none(),
+                "journal recovery did not finish at {stage}"
+            );
+            assert!(
+                authority.blocker.is_none(),
+                "journal recovery retained gate at {stage}: {:?}",
+                authority.blocker
+            );
+        }
+    };
+    let snapshot_id = Uuid::now_v7();
+    let begin_request = operation(
+        1,
+        MachineOperation::ReconcileBegin {
+            snapshot_id,
+            begin_sequence: 0,
+            end_sequence: 0,
+            page_count: 0,
+            digest: stillyard::machine::payload_hash(&Vec::<
+                Vec<stillyard::machine::ReconcileAllocation>,
+            >::new())
+            .unwrap(),
+            configuration_sha256: configuration.clone(),
+        },
+    );
+    let mut unauthenticated = begin_request.clone();
+    unauthenticated.authentication = [0; 32];
+    assert!(
+        !call("exchange", serde_json::to_value(&unauthenticated).unwrap())
+            .status
+            .success()
+    );
+    assert_eq!(
+        client
+            .machine_participant(registration.installation.domain_id, deadline())
+            .unwrap()
+            .accepted_sequence,
+        0
+    );
+    assert!(matches!(
+        exchange(&begin_request).outcome,
+        Outcome::Accepted { .. }
+    ));
+    for bad in [
+        operation(3, MachineOperation::Inspect { key: None }),
+        operation(1, MachineOperation::Inspect { key: None }),
+    ] {
+        assert!(
+            !call("exchange", serde_json::to_value(&bad).unwrap())
+                .status
+                .success(),
+            "authenticated reordered/conflicting request advanced durable history"
+        );
+    }
+    let mut moved = begin_request.clone();
+    moved.request_sequence = 2;
+    secret.sign_request(&mut moved).unwrap();
+    assert!(
+        !call("exchange", serde_json::to_value(&moved).unwrap())
+            .status
+            .success(),
+        "one operation UUID acquired a second durable sequence"
+    );
+    assert_eq!(
+        client
+            .machine_participant(registration.installation.domain_id, deadline())
+            .unwrap()
+            .accepted_sequence,
+        1
+    );
+    let commit_request = operation(2, MachineOperation::ReconcileCommit { snapshot_id });
+    assert!(matches!(
+        exchange(&commit_request).outcome,
+        Outcome::Reconciled { .. }
+    ));
+    let manager = registration.manager_store_uuid;
+    let candidate = Candidate {
+        key: AllocationKey {
+            machine_id: topology.machine_id,
+            authority_epoch: challenge.session.authority_epoch,
+            domain_id: registration.installation.domain_id,
+            manager_store_uuid: manager,
+            lease_id: Uuid::now_v7(),
+        },
+        owner: if ticket_role == Some(InvocationRole::Probe) {
+            AllocationOwner::Probe {
+                job_id: durable_id(manager),
+                invocation_id: durable_id(manager),
+            }
+        } else {
+            AllocationOwner::Work {
+                job_id: format!("{manager}~{}", Uuid::now_v7()).parse().unwrap(),
+                attempt_id: format!("{manager}~{}", Uuid::now_v7()).parse().unwrap(),
+            }
+        },
+        revision: 1,
+        priority: 0,
+        claims: Claims {
+            scalars: [("cargo_slots".into(), 1)].into(),
+            ..Claims::default()
+        },
+        configuration_sha256: configuration,
+        observed: None,
+        quiet: None,
+    };
+    let advertise = operation(
+        3,
+        MachineOperation::CandidateUpsert {
+            candidate: candidate.clone(),
+        },
+    );
+    let accepted = exchange(&advertise);
+    assert!(matches!(
+        accepted.outcome,
+        Outcome::Accepted { revision: 1 }
+    ));
+    assert_eq!(exchange(&advertise).outcome, accepted.outcome);
+    let offer_deadline = deadline();
+    loop {
+        let status = client.daemon_status(deadline(), None).unwrap();
+        if status
+            .machine_scheduling
+            .unwrap()
+            .resources
+            .iter()
+            .any(|r| r.resource.resource_id == "cargo_slots" && r.offered == 1)
+        {
+            break;
+        }
+        assert!(
+            Instant::now() < offer_deadline,
+            "remote candidate was not offered"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let marker = temp.path().join("after-offer.txt");
+    let mut native = command_spec(temp.path(), "echo released>after-offer.txt");
+    native.resources.cargo_slots = Some(1);
+    let native = client
+        .submit(
+            native,
+            &SubmitOptions::new(Uuid::now_v7()),
+            deadline(),
+            None,
+        )
+        .unwrap()
+        .job_id;
+    assert!(!matches!(
+        client.wait_outcome(native, Instant::now() + Duration::from_millis(200), None),
+        WaitOutcome::Final { .. }
+    ));
+    assert!(
+        !marker.exists(),
+        "native work ignored the offered machine token"
+    );
+    let inspection = exchange(&operation(
+        4,
+        MachineOperation::Inspect {
+            key: Some(candidate.key.clone()),
+        },
+    ));
+    let Outcome::Inspection { grants, .. } = inspection.outcome else {
+        panic!("expected Grant inspection");
+    };
+    let offered = &grants[0];
+    let arm = operation(
+        5,
+        MachineOperation::Arm {
+            key: candidate.key.clone(),
+            offer_nonce: offered.offer_nonce,
+        },
+    );
+    crash_and_restart(&mut daemon, &arm);
+    let armed = exchange(&arm);
+    assert!(
+        matches!(armed.outcome,Outcome::Grant {ref grant} if grant.state==stillyard::machine::GrantState::Armed)
+    );
+    assert_eq!(exchange(&arm).outcome, armed.outcome);
+    std::thread::sleep(Duration::from_millis(5500));
+    assert!(!matches!(
+        client.wait_outcome(native, Instant::now() + Duration::from_millis(200), None),
+        WaitOutcome::Final { .. }
+    ));
+    assert!(
+        !marker.exists(),
+        "armed Grant expired with its original Offer TTL"
+    );
+    let sequence = std::cell::Cell::new(6);
+    let next = |command| {
+        let current = sequence.get();
+        sequence.set(current + 1);
+        operation(current, command)
+    };
+    if fault_stage.is_none() && ticket_role.is_none() {
+        // Capacity reduction cannot revoke a possibly used Grant or create free
+        // tokens. A new ticket also needs the current configuration.
+        let mut reduced = config.clone();
+        reduced.resources.cargo_slots = 0;
+        daemon.kill_and_wait();
+        std::fs::write(
+            store.join("config.json"),
+            serde_json::to_vec(&reduced).unwrap(),
+        )
+        .unwrap();
+        daemon = spawn_daemon(&pinned, &store, &endpoint);
+        let reduced_client = connect_uninitialized(&pinned, &endpoint);
+        let snapshot = reduced_client.daemon_status(deadline(), None).unwrap();
+        let machine = snapshot.machine_scheduling.unwrap();
+        assert!(
+            machine
+                .resources
+                .iter()
+                .any(|r| r.resource.resource_id == "cargo_slots"
+                    && r.capacity == 0
+                    && r.granted == 1),
+            "capacity reduction hid the outstanding machine debit"
+        );
+        assert!(!marker.exists());
+        let stale_intent = stillyard::machine::InvocationIntent {
+            invocation_id: durable_id(manager),
+            containment_id: durable_id(manager),
+            role: InvocationRole::Primary,
+            role_index: 0,
+            release_sequence: 1,
+            executable_sha256: "a".repeat(64),
+            boundary_sha256: "b".repeat(64),
+            readiness_challenge: Uuid::now_v7(),
+            previous_cleanup: None,
+        };
+        assert!(
+            matches!(
+                exchange(&next(MachineOperation::AuthorizeInvocation {
+                    key: candidate.key.clone(),
+                    offer_nonce: offered.offer_nonce,
+                    intent: stale_intent
+                }))
+                .outcome,
+                Outcome::Rejected { .. }
+            ),
+            "new ticket used a stale configuration after capacity reduction"
+        );
+        assert_eq!(
+            reduced_client
+                .authority_status(deadline(), None)
+                .unwrap()
+                .machine_obligations
+                .len(),
+            1
+        );
+        daemon.kill_and_wait();
+        std::fs::write(
+            store.join("config.json"),
+            serde_json::to_vec(&config).unwrap(),
+        )
+        .unwrap();
+        daemon = spawn_daemon(&pinned, &store, &endpoint);
+        connect_uninitialized(&pinned, &endpoint);
+    }
+    let proof = |intent: &stillyard::machine::InvocationIntent| stillyard::machine::TicketCleanup {
+        invocation_id: intent.invocation_id,
+        release_sequence: intent.release_sequence,
+        boundary_sha256: intent.boundary_sha256.clone(),
+        proof_sha256: stillyard::machine::payload_hash(intent).unwrap(),
+        user_code_released: true,
+    };
+    let mut issued = Vec::new();
+    if let Some(role) = ticket_role {
+        use stillyard::machine::InvocationIntent;
+        let primary = InvocationIntent {
+            invocation_id: match candidate.owner {
+                AllocationOwner::Probe { invocation_id, .. } => invocation_id,
+                _ => durable_id(manager),
+            },
+            containment_id: durable_id(manager),
+            role,
+            role_index: 0,
+            release_sequence: 1,
+            executable_sha256: "a".repeat(64),
+            boundary_sha256: "b".repeat(64),
+            readiness_challenge: Uuid::now_v7(),
+            previous_cleanup: None,
+        };
+        let authorize = |intent| MachineOperation::AuthorizeInvocation {
+            key: candidate.key.clone(),
+            offer_nonce: offered.offer_nonce,
+            intent,
+        };
+        let mut wrong_role = primary.clone();
+        wrong_role.role = InvocationRole::Postcondition;
+        assert!(matches!(
+            exchange(&next(authorize(wrong_role))).outcome,
+            Outcome::Rejected { .. }
+        ));
+        let launch = next(authorize(primary.clone()));
+        crash_and_restart(&mut daemon, &launch);
+        let ticket = exchange(&launch);
+        assert!(
+            matches!(ticket.outcome, Outcome::Ticket { .. }),
+            "{:?}",
+            ticket.outcome
+        );
+        assert_eq!(exchange(&launch).outcome, ticket.outcome);
+        assert!(matches!(
+            exchange(&next(authorize(primary.clone()))).outcome,
+            Outcome::Rejected { .. }
+        ));
+        issued.push(primary.clone());
+        let mut postcondition = InvocationIntent {
+            invocation_id: durable_id(manager),
+            containment_id: durable_id(manager),
+            role: InvocationRole::Postcondition,
+            role_index: 0,
+            release_sequence: 2,
+            executable_sha256: "c".repeat(64),
+            boundary_sha256: "d".repeat(64),
+            readiness_challenge: Uuid::now_v7(),
+            previous_cleanup: None,
+        };
+        assert!(matches!(
+            exchange(&next(authorize(postcondition.clone()))).outcome,
+            Outcome::Rejected { .. }
+        ));
+        postcondition.previous_cleanup = Some(proof(&primary));
+        let launch = next(authorize(postcondition.clone()));
+        if role == InvocationRole::Primary {
+            crash_and_restart(&mut daemon, &launch);
+            let ticket = exchange(&launch);
+            assert!(
+                matches!(ticket.outcome, Outcome::Ticket { .. }),
+                "{:?}",
+                ticket.outcome
+            );
+            assert_eq!(exchange(&launch).outcome, ticket.outcome);
+            issued.push(postcondition);
+        } else {
+            assert!(matches!(
+                exchange(&launch).outcome,
+                Outcome::Rejected { .. }
+            ));
+        }
+        assert!(
+            !marker.exists(),
+            "ticket or primary cleanup freed the work Grant"
+        );
+        // Issuing a Ticket must not introduce a new expiry for an Armed Grant.
+        // This also passes the original Offer deadline with a durable Ticket.
+        std::thread::sleep(Duration::from_millis(5500));
+        assert!(!matches!(
+            client.wait_outcome(native, Instant::now() + Duration::from_millis(200), None),
+            WaitOutcome::Final { .. }
+        ));
+        assert!(!marker.exists(), "issued Ticket introduced a TTL release");
+        let incomplete = next(MachineOperation::Release {
+            release: stillyard::machine::SealedRelease {
+                key: candidate.key.clone(),
+                offer_nonce: offered.offer_nonce,
+                sealed_sequence: 1,
+                tickets: vec![],
+            },
+        });
+        assert!(matches!(
+            exchange(&incomplete).outcome,
+            Outcome::Rejected { .. }
+        ));
+    }
+    // The participant acknowledges only durable replies. Compaction must work
+    // across the same crash boundaries while keeping the live Grant and tickets.
+    let acknowledge = next(MachineOperation::Acknowledge {
+        through_sequence: 3,
+    });
+    crash_and_restart(&mut daemon, &acknowledge);
+    assert!(matches!(
+        exchange(&acknowledge).outcome,
+        Outcome::Acknowledged {
+            through_sequence: 3
+        }
+    ));
+    assert_eq!(
+        exchange(&acknowledge).outcome,
+        Outcome::Acknowledged {
+            through_sequence: 3
+        }
+    );
+    assert!(
+        !call("exchange", serde_json::to_value(&advertise).unwrap())
+            .status
+            .success(),
+        "compacted operation was reinterpreted as new work"
+    );
+    let retained = client.authority_status(deadline(), None).unwrap();
+    assert_eq!(retained.machine_obligations.len(), 1);
+    assert_eq!(retained.machine_obligations[0].tickets, issued);
+    assert!(!marker.exists(), "acknowledgement freed the active Grant");
+
+    assert!(matches!(
+        exchange(&next(MachineOperation::Withdraw {
+            key: candidate.key.clone(),
+            revision: 2
+        }))
+        .outcome,
+        Outcome::Accepted { .. }
+    ));
+    let authority = client.authority_status(deadline(), None).unwrap();
+    assert_eq!(authority.machine_obligations.len(), 1);
+    assert_eq!(authority.machine_obligations[0].grant_id, offered.grant_id);
+    assert_eq!(authority.machine_obligations[0].tickets, issued);
+    let seal = stillyard::machine::SealedRelease {
+        key: candidate.key.clone(),
+        offer_nonce: offered.offer_nonce,
+        sealed_sequence: 1,
+        tickets: issued.iter().map(proof).collect(),
+    };
+    let release = if fault_stage.is_some() {
+        let snapshot_id = Uuid::now_v7();
+        let pages = vec![vec![stillyard::machine::ReconcileAllocation {
+            key: candidate.key.clone(),
+            offer_nonce: offered.offer_nonce,
+            tickets: issued.clone(),
+            sealed_release: Some(seal),
+        }]];
+        let end_sequence = sequence.get() - 1;
+        assert!(matches!(
+            exchange(&next(MachineOperation::ReconcileBegin {
+                snapshot_id,
+                begin_sequence: 0,
+                end_sequence,
+                page_count: 1,
+                digest: stillyard::machine::payload_hash(&pages).unwrap(),
+                configuration_sha256: candidate.configuration_sha256.clone(),
+            }))
+            .outcome,
+            Outcome::Accepted { .. }
+        ));
+        assert!(
+            matches!(
+                exchange(&next(MachineOperation::ReconcileCommit { snapshot_id })).outcome,
+                Outcome::Rejected { .. }
+            ),
+            "an incomplete snapshot released outstanding rights"
+        );
+        let page = next(MachineOperation::ReconcilePage {
+            snapshot_id,
+            index: 0,
+            allocations: pages[0].clone(),
+        });
+        let accepted = exchange(&page);
+        assert!(matches!(accepted.outcome, Outcome::Accepted { .. }));
+        assert_eq!(exchange(&page).outcome, accepted.outcome);
+        next(MachineOperation::ReconcileCommit { snapshot_id })
+    } else {
+        next(MachineOperation::Release { release: seal })
+    };
+    crash_and_restart(&mut daemon, &release);
+    let released = exchange(&release);
+    assert!(
+        matches!(
+            released.outcome,
+            Outcome::Released { .. } | Outcome::Reconciled { .. }
+        ),
+        "{:?}",
+        released.outcome
+    );
+    assert_eq!(exchange(&release).outcome, released.outcome);
+    // An old Arm reply is historical data, never a new debit or a fresh ticket.
+    assert_eq!(exchange(&arm).outcome, armed.outcome);
+    assert!(
+        client
+            .authority_status(deadline(), None)
+            .unwrap()
+            .machine_obligations
+            .is_empty()
+    );
+    assert!(matches!(
+        client.wait_outcome(native, deadline(), None),
+        WaitOutcome::Final { .. }
+    ));
+    assert!(marker.exists());
+
+    let mut cursor = None;
+    let mut events = Vec::new();
+    loop {
+        let page = client.machine_events(cursor, 2, deadline()).unwrap();
+        assert!(!page.gap);
+        assert!(page.events.len() <= 2);
+        events.extend(page.events);
+        cursor = Some(page.cursor);
+        if !page.more {
+            break;
+        }
+    }
+    assert!(
+        events
+            .windows(2)
+            .all(|pair| pair[0].cursor.sequence < pair[1].cursor.sequence)
+    );
+    let allocation_events = events
+        .iter()
+        .filter(|e| e.grant_id == offered.grant_id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        allocation_events.len(),
+        3 + issued.len(),
+        "replay or recovery duplicated allocation events"
+    );
+    assert_eq!(
+        allocation_events[0].state,
+        stillyard::machine::GrantState::Offered
+    );
+    assert_eq!(
+        allocation_events[1].state,
+        stillyard::machine::GrantState::Armed
+    );
+    let last = allocation_events.last().unwrap();
+    assert_eq!(last.state, stillyard::machine::GrantState::Released);
+    assert_eq!(last.tickets_issued as usize, issued.len());
+    let native_grant = client.status(native, deadline(), None).unwrap().allocations[0].grant_id;
+    let native_start = events
+        .iter()
+        .find(|e| e.grant_id == native_grant && e.state == stillyard::machine::GrantState::Armed)
+        .expect("native and attached allocation events share the stream");
+    assert!(native_start.native);
+    assert!(
+        native_start.cursor.sequence > last.cursor.sequence,
+        "native token was granted before attached release committed"
+    );
+    assert!(client.machine_events(cursor, 257, deadline()).is_err());
+
+    if ticket_role.is_none() && fault_stage.is_none() {
+        let wait_file = |path: &Path| {
+            let limit = deadline();
+            while !path.exists() {
+                assert!(Instant::now() < limit, "native holder did not start");
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        };
+        for canceled in [true, false] {
+            let mut unused = candidate.clone();
+            unused.key.lease_id = Uuid::now_v7();
+            unused.owner = AllocationOwner::Work {
+                job_id: durable_id(manager),
+                attempt_id: durable_id(manager),
+            };
+            unused.claims.scalars = [("side_lane".into(), 1)].into();
+            assert!(matches!(
+                exchange(&next(MachineOperation::CandidateUpsert {
+                    candidate: unused.clone()
+                }))
+                .outcome,
+                Outcome::Accepted { .. }
+            ));
+            let limit = deadline();
+            let offer = loop {
+                if let Outcome::Inspection { mut grants, .. } =
+                    exchange(&next(MachineOperation::Inspect {
+                        key: Some(unused.key.clone()),
+                    }))
+                    .outcome
+                {
+                    if grants
+                        .first()
+                        .is_some_and(|g| g.state == stillyard::machine::GrantState::Offered)
+                    {
+                        break grants.remove(0);
+                    }
+                }
+                assert!(Instant::now() < limit, "unused candidate was not offered");
+                std::thread::sleep(Duration::from_millis(20));
+            };
+            if canceled {
+                exchange(&next(MachineOperation::CancelCandidate {
+                    key: unused.key.clone(),
+                    revision: 2,
+                }));
+            } else {
+                std::thread::sleep(Duration::from_millis(5_500));
+            }
+            assert!(
+                matches!(
+                    exchange(&next(MachineOperation::Arm {
+                        key: unused.key.clone(),
+                        offer_nonce: offer.offer_nonce
+                    }))
+                    .outcome,
+                    Outcome::Rejected { .. }
+                ),
+                "canceled/expired Offer authorized new starts"
+            );
+            let inspected = exchange(&next(MachineOperation::Inspect {
+                key: Some(unused.key.clone()),
+            }));
+            assert!(
+                matches!(inspected.outcome,Outcome::Inspection { ref grants, .. } if grants[0].state == stillyard::machine::GrantState::Expired)
+            );
+            if !canceled {
+                exchange(&next(MachineOperation::CancelCandidate {
+                    key: unused.key.clone(),
+                    revision: 2,
+                }));
+            }
+            unused.revision = 3;
+            assert!(
+                matches!(
+                    exchange(&next(MachineOperation::CandidateUpsert {
+                        candidate: unused
+                    }))
+                    .outcome,
+                    Outcome::Rejected { .. }
+                ),
+                "cancelled allocation was revived by a higher readiness revision"
+            );
+            assert!(
+                client
+                    .authority_status(deadline(), None)
+                    .unwrap()
+                    .machine_obligations
+                    .is_empty()
+            );
+        }
+        let mut holder = command_spec(
+            temp.path(),
+            "echo started>reservation-holder.txt & C:\\Windows\\System32\\ping.exe -n 5 127.0.0.1 >nul",
+        );
+        holder.resources.cargo_slots = Some(1);
+        let holder = client
+            .submit(
+                holder,
+                &SubmitOptions::new(Uuid::now_v7()),
+                deadline(),
+                None,
+            )
+            .unwrap()
+            .job_id;
+        wait_file(&temp.path().join("reservation-holder.txt"));
+        let fresh_candidate = |scalars, priority, configuration: String| {
+            let mut fresh = candidate.clone();
+            fresh.key.lease_id = Uuid::now_v7();
+            fresh.owner = AllocationOwner::Work {
+                job_id: durable_id(manager),
+                attempt_id: durable_id(manager),
+            };
+            fresh.claims.scalars = scalars;
+            fresh.priority = priority;
+            fresh.configuration_sha256 = configuration;
+            fresh
+        };
+        let high = fresh_candidate(
+            [("cargo_slots".into(), 1)].into(),
+            stillyard::MAX_JOB_PRIORITY,
+            candidate.configuration_sha256.clone(),
+        );
+        assert!(matches!(
+            exchange(&next(MachineOperation::CandidateUpsert {
+                candidate: high.clone()
+            }))
+            .outcome,
+            Outcome::Accepted { .. }
+        ));
+        let limit = deadline();
+        loop {
+            if client
+                .daemon_status(deadline(), None)
+                .unwrap()
+                .machine_scheduling
+                .unwrap()
+                .resources
+                .iter()
+                .any(|r| r.resource.resource_id == "cargo_slots" && r.reserved == 1)
+            {
+                break;
+            }
+            assert!(
+                Instant::now() < limit,
+                "attached candidate did not reserve the busy token"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let compatible = fresh_candidate(
+            [("side_lane".into(), 1)].into(),
+            0,
+            candidate.configuration_sha256.clone(),
+        );
+        assert!(matches!(
+            exchange(&next(MachineOperation::CandidateUpsert {
+                candidate: compatible.clone()
+            }))
+            .outcome,
+            Outcome::Accepted { .. }
+        ));
+        let inspect_offer = |key: &AllocationKey| {
+            let limit = deadline();
+            loop {
+                let inspected = exchange(&next(MachineOperation::Inspect {
+                    key: Some(key.clone()),
+                }));
+                if let Outcome::Inspection { grants, .. } = inspected.outcome {
+                    if let Some(grant) = grants
+                        .into_iter()
+                        .find(|g| g.state == stillyard::machine::GrantState::Offered)
+                    {
+                        break grant;
+                    }
+                }
+                assert!(
+                    Instant::now() < limit,
+                    "compatible candidate or reservation conversion was hidden"
+                );
+                std::thread::sleep(Duration::from_millis(25));
+            }
+        };
+        inspect_offer(&compatible.key);
+        assert!(
+            !matches!(
+                client.wait_outcome(holder, Instant::now() + Duration::from_millis(20), None),
+                WaitOutcome::Final { .. }
+            ),
+            "compatible work started only after full serialization"
+        );
+        let mut waiting = command_spec(temp.path(), "echo started>reservation-waiter.txt");
+        waiting.resources.cargo_slots = Some(1);
+        let waiting = client
+            .submit(
+                waiting,
+                &SubmitOptions::new(Uuid::now_v7()),
+                deadline(),
+                None,
+            )
+            .unwrap()
+            .job_id;
+        assert!(matches!(
+            client.wait_outcome(holder, deadline(), None),
+            WaitOutcome::Final { .. }
+        ));
+        inspect_offer(&high.key);
+        assert!(
+            !temp.path().join("reservation-waiter.txt").exists(),
+            "native waiter stole the attached reservation on conversion"
+        );
+        for key in [&high.key, &compatible.key] {
+            assert!(matches!(
+                exchange(&next(MachineOperation::Withdraw {
+                    key: key.clone(),
+                    revision: 2
+                }))
+                .outcome,
+                Outcome::Accepted { .. }
+            ));
+        }
+        assert!(matches!(
+            client.wait_outcome(waiting, deadline(), None),
+            WaitOutcome::Final { .. }
+        ));
+        assert!(temp.path().join("reservation-waiter.txt").exists());
+
+        // With capacity two the coordinator must permit a real native holder
+        // concurrently with an attached Armed allocation.
+        daemon.kill_and_wait();
+        config.resources.cargo_slots = 2;
+        std::fs::write(
+            store.join("config.json"),
+            serde_json::to_vec(&config).unwrap(),
+        )
+        .unwrap();
+        daemon = spawn();
+        let restarted = connect_uninitialized(&pinned, &endpoint);
+        let configuration = restarted
+            .daemon_status(deadline(), None)
+            .unwrap()
+            .config_sha256;
+        let concurrent = fresh_candidate([("cargo_slots".into(), 1)].into(), 0, configuration);
+        assert!(matches!(
+            exchange(&next(MachineOperation::CandidateUpsert {
+                candidate: concurrent.clone()
+            }))
+            .outcome,
+            Outcome::Accepted { .. }
+        ));
+        let grant = inspect_offer(&concurrent.key);
+        assert!(matches!(
+            exchange(&next(MachineOperation::Arm {
+                key: concurrent.key.clone(),
+                offer_nonce: grant.offer_nonce
+            }))
+            .outcome,
+            Outcome::Grant { .. }
+        ));
+        let mut native = command_spec(
+            temp.path(),
+            "echo started>two-slot-holder.txt & C:\\Windows\\System32\\ping.exe -n 3 127.0.0.1 >nul",
+        );
+        native.resources.cargo_slots = Some(1);
+        let native = restarted
+            .submit(
+                native,
+                &SubmitOptions::new(Uuid::now_v7()),
+                deadline(),
+                None,
+            )
+            .unwrap()
+            .job_id;
+        wait_file(&temp.path().join("two-slot-holder.txt"));
+        let native_status = restarted.status(native, deadline(), None).unwrap();
+        assert_eq!(native_status.allocations.len(), 1);
+        let native_grant = &native_status.allocations[0];
+        assert_eq!(native_grant.state, stillyard::machine::GrantState::Armed);
+        assert_eq!(
+            native_grant.key.as_ref().unwrap().domain_id,
+            topology.native_domain
+        );
+        assert_eq!(native_grant.grant_id.entity_uuid(), native_grant.lease_id);
+        assert_ne!(native_grant.grant_id, grant.grant_id);
+        let native_rights = restarted
+            .authority_status(deadline(), None)
+            .unwrap()
+            .native_obligations;
+        assert_eq!(native_rights.len(), 1);
+        assert_eq!(native_rights[0].allocation.grant_id, native_grant.grant_id);
+        assert_eq!(
+            Some(native_rights[0].invocation_id),
+            native_status.invocation_id
+        );
+        assert_eq!(
+            native_rights[0].root_identity,
+            native_status.attempts[0].invocations[0]
+                .root_identity
+                .clone()
+                .unwrap()
+        );
+        assert!(
+            restarted
+                .daemon_status(deadline(), None)
+                .unwrap()
+                .machine_scheduling
+                .unwrap()
+                .resources
+                .iter()
+                .any(|r| r.resource.resource_id == "cargo_slots"
+                    && r.capacity == 2
+                    && r.granted == 2)
+        );
+        assert!(matches!(
+            exchange(&next(MachineOperation::Release {
+                release: stillyard::machine::SealedRelease {
+                    key: concurrent.key,
+                    offer_nonce: grant.offer_nonce,
+                    sealed_sequence: 1,
+                    tickets: vec![]
+                }
+            }))
+            .outcome,
+            Outcome::Released { .. }
+        ));
+        assert!(matches!(
+            restarted.wait_outcome(native, deadline(), None),
+            WaitOutcome::Final { .. }
+        ));
+        let completed = restarted.status(native, deadline(), None).unwrap();
+        assert_eq!(completed.allocations[0].grant_id, native_grant.grant_id);
+        assert_eq!(
+            completed.allocations[0].state,
+            stillyard::machine::GrantState::Released
+        );
+        assert!(
+            restarted
+                .authority_status(deadline(), None)
+                .unwrap()
+                .native_obligations
+                .is_empty()
+        );
+
+        let mut noisy = command_spec(
+            temp.path(),
+            "echo started>impact-holder.txt & C:\\Windows\\System32\\ping.exe -n 3 127.0.0.1 >nul",
+        );
+        noisy.resources.cargo_slots = Some(1);
+        noisy.resources.impacts.push("cpu_heavy".into());
+        let noisy = restarted
+            .submit(noisy, &SubmitOptions::new(Uuid::now_v7()), deadline(), None)
+            .unwrap()
+            .job_id;
+        wait_file(&temp.path().join("impact-holder.txt"));
+        let configuration = restarted
+            .daemon_status(deadline(), None)
+            .unwrap()
+            .config_sha256;
+        let mut measurement = fresh_candidate([("cargo_slots".into(), 1)].into(), 0, configuration);
+        measurement.claims.impacts.push("measurement".into());
+        measurement.quiet = Some(QuietPolicy {
+            stable_seconds: 1,
+            max_sample_age_seconds: 1,
+            wait_budget_seconds: 5,
+            detectors: vec![QuietDetector::CpuUtilization { max_percent: 100 }],
+        });
+        assert!(matches!(
+            exchange(&next(MachineOperation::CandidateUpsert {
+                candidate: measurement.clone()
+            }))
+            .outcome,
+            Outcome::Accepted { .. }
+        ));
+        std::thread::sleep(Duration::from_millis(200));
+        let inspection = exchange(&next(MachineOperation::Inspect {
+            key: Some(measurement.key.clone()),
+        }));
+        assert!(
+            matches!(inspection.outcome, Outcome::Inspection { ref grants, .. } if grants.is_empty()),
+            "managed impact did not block a measurement despite spare scalar capacity"
+        );
+        assert!(matches!(
+            restarted.wait_outcome(noisy, deadline(), None),
+            WaitOutcome::Final { .. }
+        ));
+        let grant = inspect_offer(&measurement.key);
+        assert!(matches!(
+            exchange(&next(MachineOperation::Arm {
+                key: measurement.key.clone(),
+                offer_nonce: grant.offer_nonce
+            }))
+            .outcome,
+            Outcome::Grant { .. }
+        ));
+        let intent = stillyard::machine::InvocationIntent {
+            invocation_id: durable_id(manager),
+            containment_id: durable_id(manager),
+            role: InvocationRole::Primary,
+            role_index: 0,
+            release_sequence: 1,
+            executable_sha256: "e".repeat(64),
+            boundary_sha256: "f".repeat(64),
+            readiness_challenge: Uuid::now_v7(),
+            previous_cleanup: None,
+        };
+        let authorize = || MachineOperation::AuthorizeInvocation {
+            key: measurement.key.clone(),
+            offer_nonce: grant.offer_nonce,
+            intent: intent.clone(),
+        };
+        let first = next(authorize());
+        let first_at = Instant::now();
+        let waiting = exchange(&first);
+        assert!(
+            matches!(waiting.outcome, Outcome::Rejected { .. }),
+            "one host sample incorrectly satisfied a stable interval"
+        );
+        let (issued_request, ticket) = loop {
+            std::thread::sleep(Duration::from_millis(100));
+            let request = next(authorize());
+            let response = exchange(&request);
+            if matches!(response.outcome, Outcome::Ticket { .. }) {
+                break (request, response);
+            }
+            assert!(
+                first_at.elapsed() < Duration::from_secs(5),
+                "quiet ticket failed to converge: {:?}",
+                response.outcome
+            );
+        };
+        assert!(
+            first_at.elapsed() >= Duration::from_secs(1),
+            "quiet ticket bypassed the stable interval"
+        );
+        std::thread::sleep(Duration::from_millis(300));
+        assert_eq!(
+            exchange(&issued_request).outcome,
+            ticket.outcome,
+            "replay refreshed an expired single-use ticket"
+        );
+        assert_eq!(
+            exchange(&first).outcome,
+            waiting.outcome,
+            "old rejected operation was reevaluated as new readiness"
+        );
+        assert!(
+            matches!(
+                exchange(&next(authorize())).outcome,
+                Outcome::Rejected { .. }
+            ),
+            "another operation reused an issued Invocation"
+        );
+        assert!(matches!(
+            exchange(&next(MachineOperation::Release {
+                release: stillyard::machine::SealedRelease {
+                    key: measurement.key,
+                    offer_nonce: grant.offer_nonce,
+                    sealed_sequence: 1,
+                    tickets: vec![proof(&intent)],
+                }
+            }))
+            .outcome,
+            Outcome::Released { .. }
+        ));
+    }
+
+    // Retain an independently armed fake executor alongside the native reset
+    // canary. Reconstructing an empty coordinator must preserve BOTH inventories.
+    let mut reset_candidate = candidate.clone();
+    reset_candidate.key.lease_id = Uuid::now_v7();
+    reset_candidate.owner = AllocationOwner::Work {
+        job_id: durable_id(manager),
+        attempt_id: durable_id(manager),
+    };
+    reset_candidate.claims.scalars = [("side_lane".into(), 1)].into();
+    reset_candidate.configuration_sha256 = client
+        .daemon_status(deadline(), None)
+        .unwrap()
+        .config_sha256;
+    assert!(matches!(
+        exchange(&next(MachineOperation::CandidateUpsert {
+            candidate: reset_candidate.clone()
+        }))
+        .outcome,
+        Outcome::Accepted { .. }
+    ));
+    let limit = deadline();
+    let reset_grant = loop {
+        let reply = exchange(&next(MachineOperation::Inspect {
+            key: Some(reset_candidate.key.clone()),
+        }));
+        if let Outcome::Inspection { mut grants, .. } = reply.outcome {
+            if grants
+                .first()
+                .is_some_and(|g| g.state == stillyard::machine::GrantState::Offered)
+            {
+                break grants.remove(0);
+            }
+        }
+        assert!(Instant::now() < limit, "reset participant was not offered");
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    assert!(matches!(
+        exchange(&next(MachineOperation::Arm {
+            key: reset_candidate.key.clone(),
+            offer_nonce: reset_grant.offer_nonce
+        }))
+        .outcome,
+        Outcome::Grant { .. }
+    ));
+    let mut reset_intent = stillyard::machine::InvocationIntent {
+        invocation_id: durable_id(manager),
+        containment_id: durable_id(manager),
+        role: InvocationRole::Primary,
+        role_index: 0,
+        release_sequence: 1,
+        executable_sha256: "e".repeat(64),
+        boundary_sha256: "f".repeat(64),
+        readiness_challenge: Uuid::now_v7(),
+        previous_cleanup: None,
+    };
+    if let Some(subject) = &linux {
+        subject.publish("allocation.json", &reset_candidate.key);
+        reset_intent = subject.receive("intent.json");
+    }
+    let reset_ticket = match exchange(&next(MachineOperation::AuthorizeInvocation {
+        key: reset_candidate.key.clone(),
+        offer_nonce: reset_grant.offer_nonce,
+        intent: reset_intent.clone(),
+    }))
+    .outcome
+    {
+        Outcome::Ticket { ticket } => ticket,
+        other => panic!("reset Invocation was not authorized: {other:?}"),
+    };
+    if let Some(subject) = &linux {
+        subject.publish("ticket.json", &reset_ticket);
+        let live: serde_json::Value = subject.receive("live.json");
+        assert_eq!(live["populated"], true);
+        assert_eq!(live["user_started"], true);
+        // Lower a real live executor's claimed token, then restore it.
+        // An already accepted native canary must remain pending in both cases.
+        let capacity_marker = temp.path().join("capacity-overlap.txt");
+        let mut canary = command_spec(temp.path(), "echo forbidden>capacity-overlap.txt");
+        canary.resources.custom.insert("side_lane".into(), 1);
+        let canary = client
+            .submit(
+                canary,
+                &SubmitOptions::new(Uuid::now_v7()),
+                deadline(),
+                None,
+            )
+            .unwrap()
+            .job_id;
+        assert!(
+            client
+                .status(canary, deadline(), None)
+                .unwrap()
+                .started_unix_millis
+                .is_none()
+        );
+        let mut reduced = config.clone();
+        reduced.resources.custom.insert("side_lane".into(), 0);
+        daemon.kill_and_wait();
+        std::fs::write(
+            store.join("config.json"),
+            serde_json::to_vec(&reduced).unwrap(),
+        )
+        .unwrap();
+        daemon = spawn_daemon(&pinned, &store, &endpoint);
+        let reduced_client = connect_uninitialized(&pinned, &endpoint);
+        let reduced_status = reduced_client.daemon_status(deadline(), None).unwrap();
+        assert!(
+            reduced_status
+                .machine_scheduling
+                .as_ref()
+                .unwrap()
+                .resources
+                .iter()
+                .any(|r| r.resource.resource_id == "side_lane"
+                    && r.capacity == 0
+                    && r.granted == 1)
+        );
+        let pending = reduced_client.status(canary, deadline(), None).unwrap();
+        assert!(pending.started_unix_millis.is_none() && !pending.is_final());
+        assert!(!capacity_marker.exists());
+        subject.publish(
+            "capacity-reduced.json",
+            &serde_json::json!({"coordinator": reduced_status, "pending_canary": pending}),
+        );
+        let witness: serde_json::Value = subject.receive("live-after-capacity-reduction.json");
+        assert_eq!(witness["populated"], true);
+        assert_eq!(witness["unsealed"], true);
+        daemon.kill_and_wait();
+        std::fs::write(
+            store.join("config.json"),
+            serde_json::to_vec(&config).unwrap(),
+        )
+        .unwrap();
+        daemon = spawn_daemon(&pinned, &store, &endpoint);
+        let restored_client = connect_uninitialized(&pinned, &endpoint);
+        let restored_status = restored_client.daemon_status(deadline(), None).unwrap();
+        assert!(
+            restored_status
+                .machine_scheduling
+                .as_ref()
+                .unwrap()
+                .resources
+                .iter()
+                .any(|r| r.resource.resource_id == "side_lane"
+                    && r.capacity == 1
+                    && r.granted == 1)
+        );
+        let pending = restored_client.status(canary, deadline(), None).unwrap();
+        assert!(pending.started_unix_millis.is_none() && !pending.is_final());
+        assert!(!capacity_marker.exists());
+        subject.publish(
+            "capacity-restored.json",
+            &serde_json::json!({"coordinator": restored_status, "pending_canary": pending}),
+        );
+        assert!(restored_client.cancel(&[canary], deadline(), None).unwrap()[0].is_final());
+        subject.publish("reset-guest.json", &true);
+        let reset: serde_json::Value = subject.receive("guest-reset-rejected.json");
+        assert_eq!(reset["populated"], true);
+        assert_eq!(reset["unsealed"], true);
+        assert!(
+            reset["store_reset_rejection"]
+                .as_str()
+                .unwrap()
+                .contains("admission remains fenced")
+        );
+        assert!(reset["missing_anchor_rejection"].as_str().is_some());
+        assert!(
+            reset["corrupt_anchor_rejection"]
+                .as_str()
+                .unwrap()
+                .contains("key must be a string")
+        );
+    }
+
+    let reconnect_hello = if live_linux {
+        ConnectHello {
+            executor_incarnation: Uuid::now_v7(),
+            executor_nonce: [5; 32],
+            ..hello.clone()
+        }
+    } else {
+        hello.clone()
+    };
+    let abandoned = call(
+        "connect-begin",
+        serde_json::to_value(&reconnect_hello).unwrap(),
+    );
+    assert!(abandoned.status.success());
+    let abandoned: ConnectChallenge = serde_json::from_slice(&abandoned.stdout).unwrap();
+    let abandoned_tag = secret.sign_challenge(&abandoned).unwrap();
+    let begin = call(
+        "connect-begin",
+        serde_json::to_value(&reconnect_hello).unwrap(),
+    );
+    assert!(begin.status.success());
+    let second: ConnectChallenge = serde_json::from_slice(&begin.stdout).unwrap();
+    assert_ne!(second.coordinator_nonce, challenge.coordinator_nonce);
+    assert_eq!(abandoned.session.connection_epoch, 2);
+    assert_eq!(second.session.connection_epoch, 3);
+    assert!(
+        !call(
+            "connect-finish",
+            serde_json::json!({"challenge":abandoned, "tag":abandoned_tag})
+        )
+        .status
+        .success(),
+        "abandoned challenge reused its reserved connection epoch"
+    );
+    let second_tag = secret.sign_challenge(&second).unwrap();
+    assert!(
+        call(
+            "connect-finish",
+            serde_json::json!({"challenge":second, "tag":second_tag})
+        )
+        .status
+        .success()
+    );
+    assert!(
+        !call(
+            "connect-finish",
+            serde_json::json!({"challenge":challenge, "tag":tag})
+        )
+        .status
+        .success()
+    );
+
+    assert!(
+        !call("exchange", serde_json::to_value(&arm).unwrap())
+            .status
+            .success(),
+        "new connection left the old authenticated writer active"
+    );
+    if let Some(subject) = &linux {
+        assert_ne!(
+            hello.executor_incarnation,
+            reconnect_hello.executor_incarnation
+        );
+        let retained = client
+            .authority_status(deadline(), None)
+            .unwrap()
+            .machine_obligations;
+        assert_eq!(retained.len(), 1);
+        assert_eq!(retained[0].tickets, vec![reset_intent.clone()]);
+        subject.publish("peer-fenced.json", &serde_json::json!({
+            "old_incarnation": hello.executor_incarnation, "new_incarnation": reconnect_hello.executor_incarnation,
+            "old_session": challenge.session, "new_session": second.session,
+            "old_writer_rejected": true, "retained_grants": retained
+        }));
+        let witness: serde_json::Value = subject.receive("live-after-peer-fence.json");
+        assert_eq!(witness["populated"], true);
+        assert_eq!(witness["unsealed"], true);
+    }
+    daemon.kill_and_wait();
+    daemon = spawn_daemon(&pinned, &store, &endpoint);
+    let restarted = connect_uninitialized(&pinned, &endpoint);
+    assert_eq!(
+        restarted
+            .machine_participant(registration.installation.domain_id, deadline())
+            .unwrap()
+            .connection_epoch,
+        3
+    );
+    let mut live = command_spec(
+        temp.path(),
+        "echo started>before-native-reset.txt & C:\\Windows\\System32\\ping.exe -n 30 127.0.0.1 >nul",
+    );
+    live.resources.cargo_slots = Some(1);
+    let live = restarted
+        .submit(live, &SubmitOptions::new(Uuid::now_v7()), deadline(), None)
+        .unwrap()
+        .job_id;
+    let limit = deadline();
+    while !temp.path().join("before-native-reset.txt").exists() {
+        assert!(Instant::now() < limit, "native reset canary did not start");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let native_before_reset = restarted
+        .authority_status(deadline(), None)
+        .unwrap()
+        .native_obligations;
+    assert_eq!(native_before_reset.len(), 1);
+    assert!(
+        matches!(native_before_reset[0].allocation.owner, AllocationOwner::Work { job_id, .. } if job_id == live)
+    );
+    daemon.kill_and_wait();
+    for suffix in ["", "-wal", "-shm"] {
+        let path = store.join(format!("stillyard.sqlite3{suffix}"));
+        if path.exists() {
+            std::fs::remove_file(path).unwrap();
+        }
+    }
+    let mut replacement = spawn_daemon(&pinned, &store, &endpoint);
+    let reset = connect_uninitialized(&pinned, &endpoint);
+    assert_eq!(
+        reset
+            .authority_status(deadline(), None)
+            .unwrap()
+            .native_obligations,
+        native_before_reset,
+        "SQLite reset erased the native process inventory"
+    );
+    assert!(
+        reset.machine_events(cursor, 2, deadline()).is_err(),
+        "replacement event history accepted an old store cursor"
+    );
+    assert_eq!(
+        reset
+            .authority_status(deadline(), None)
+            .unwrap()
+            .blocker
+            .as_deref(),
+        Some("authority_reconciliation_required")
+    );
+    assert!(
+        reset
+            .pair_machine_domain(registration.clone(), deadline())
+            .is_err()
+    );
+    let recovered = reset.machine_recover(deadline()).unwrap();
+    assert_eq!(recovered.machine_obligations.len(), 1);
+    assert_eq!(
+        recovered.machine_obligations[0].grant_id,
+        reset_grant.grant_id
+    );
+    assert_eq!(
+        recovered.machine_obligations[0].tickets,
+        vec![reset_intent.clone()]
+    );
+    assert_eq!(recovered.native_obligations, native_before_reset);
+    assert_eq!(
+        recovered.blocker.as_deref(),
+        Some("authority_reconciliation_required")
+    );
+    // Repeating recovery is harmless; disappearance of the native process alone
+    // cannot release the executor's possibly consumed ticket.
+    assert_eq!(reset.machine_recover(deadline()).unwrap(), recovered);
+    if let Some(subject) = &linux {
+        subject.publish("coordinator-reset-observed.json", &true);
+        let live: serde_json::Value = subject.receive("live-after-coordinator-reset.json");
+        assert_eq!(live["populated"], true);
+        assert_eq!(live["unsealed"], true);
+    }
+    let mut after_reset = command_spec(temp.path(), "echo admitted>after-coordinator-reset.txt");
+    after_reset.resources.cargo_slots = Some(1);
+    if live_linux {
+        after_reset.resources.custom.insert("side_lane".into(), 1);
+    }
+    let after_reset = reset
+        .submit(
+            after_reset,
+            &SubmitOptions::new(Uuid::now_v7()),
+            deadline(),
+            None,
+        )
+        .unwrap()
+        .job_id;
+    assert!(!temp.path().join("after-coordinator-reset.txt").exists());
+    let begin = call(
+        "connect-begin",
+        serde_json::to_value(&reconnect_hello).unwrap(),
+    );
+    assert!(
+        begin.status.success(),
+        "{}",
+        String::from_utf8_lossy(&begin.stderr)
+    );
+    let resumed: ConnectChallenge = serde_json::from_slice(&begin.stdout).unwrap();
+    assert_eq!(resumed.session.connection_epoch, 4);
+    let resumed_tag = secret.sign_challenge(&resumed).unwrap();
+    let finish = call(
+        "connect-finish",
+        serde_json::json!({"challenge":resumed,"tag":resumed_tag}),
+    );
+    assert!(finish.status.success());
+    let participant: ParticipantSnapshot = serde_json::from_slice(&finish.stdout).unwrap();
+    assert!(participant.retired_sequence_floor > 0);
+    let sequence = std::cell::Cell::new(participant.accepted_sequence + 1);
+    let resumed_next = |command| {
+        let n = sequence.get();
+        sequence.set(n + 1);
+        let mut r =
+            MachineRequest::new(resumed.session.clone(), n, Uuid::now_v7(), command).unwrap();
+        secret.sign_request(&mut r).unwrap();
+        r
+    };
+    let missing = Uuid::now_v7();
+    let end = sequence.get() - 1;
+    let empty_pages = Vec::<Vec<stillyard::machine::ReconcileAllocation>>::new();
+    assert!(matches!(
+        exchange(&resumed_next(MachineOperation::ReconcileBegin {
+            snapshot_id: missing,
+            begin_sequence: 0,
+            end_sequence: end,
+            page_count: 0,
+            digest: stillyard::machine::payload_hash(&empty_pages).unwrap(),
+            configuration_sha256: reset_candidate.configuration_sha256.clone(),
+        }))
+        .outcome,
+        Outcome::Accepted { .. }
+    ));
+    assert!(matches!(
+        exchange(&resumed_next(MachineOperation::ReconcileCommit {
+            snapshot_id: missing
+        }))
+        .outcome,
+        Outcome::Rejected { .. }
+    ));
+    assert!(reset.machine_recover(deadline()).unwrap().blocker.is_some());
+    assert!(!temp.path().join("after-coordinator-reset.txt").exists());
+    let reset_cleanup = if let Some(subject) = &mut linux {
+        subject.publish("cleanup.json", &true);
+        let sealed: serde_json::Value = subject.receive("seal.json");
+        let cleanup = stillyard::machine::TicketCleanup {
+            invocation_id: reset_intent.invocation_id,
+            release_sequence: reset_intent.release_sequence,
+            boundary_sha256: reset_intent.boundary_sha256.clone(),
+            proof_sha256: sealed["proof_sha256"].as_str().unwrap().to_owned(),
+            user_code_released: sealed["seal"]["possibly_released"].as_bool().unwrap(),
+        };
+        assert_eq!(
+            sealed["seal"]["boundary_sha256"],
+            reset_intent.boundary_sha256
+        );
+        subject.finish();
+        cleanup
+    } else {
+        proof(&reset_intent)
+    };
+    let pages = vec![vec![stillyard::machine::ReconcileAllocation {
+        key: reset_candidate.key.clone(),
+        offer_nonce: reset_grant.offer_nonce,
+        tickets: vec![reset_intent.clone()],
+        sealed_release: Some(stillyard::machine::SealedRelease {
+            key: reset_candidate.key.clone(),
+            offer_nonce: reset_grant.offer_nonce,
+            sealed_sequence: 1,
+            tickets: vec![reset_cleanup],
+        }),
+    }]];
+    let complete = Uuid::now_v7();
+    let end = sequence.get() - 1;
+    assert!(matches!(
+        exchange(&resumed_next(MachineOperation::ReconcileBegin {
+            snapshot_id: complete,
+            begin_sequence: 0,
+            end_sequence: end,
+            page_count: 1,
+            digest: stillyard::machine::payload_hash(&pages).unwrap(),
+            configuration_sha256: reset_candidate.configuration_sha256.clone(),
+        }))
+        .outcome,
+        Outcome::Accepted { .. }
+    ));
+    assert!(matches!(
+        exchange(&resumed_next(MachineOperation::ReconcilePage {
+            snapshot_id: complete,
+            index: 0,
+            allocations: pages[0].clone(),
+        }))
+        .outcome,
+        Outcome::Accepted { .. }
+    ));
+    assert!(matches!(
+        exchange(&resumed_next(MachineOperation::ReconcileCommit {
+            snapshot_id: complete
+        }))
+        .outcome,
+        Outcome::Reconciled { .. }
+    ));
+    let cleared = reset.machine_recover(deadline()).unwrap();
+    assert!(
+        cleared.blocker.is_none(),
+        "recovery did not converge: {:?}",
+        cleared.blocker
+    );
+    assert_ne!(cleared.epoch, recovered.epoch);
+    assert!(cleared.native_obligations.is_empty());
+    assert!(cleared.machine_obligations.is_empty());
+    assert!(
+        !call(
+            "exchange",
+            serde_json::to_value(resumed_next(MachineOperation::Inspect { key: None })).unwrap()
+        )
+        .status
+        .success(),
+        "retired authority epoch accepted an old writer"
+    );
+    assert_eq!(
+        reset.wait(after_reset, deadline(), None).unwrap().outcome,
+        Some(stillyard::JobOutcome::Succeeded)
+    );
+    assert!(temp.path().join("after-coordinator-reset.txt").exists());
+    let rollback_pending = if fault_stage.is_none() && ticket_role.is_none() {
+        let hold = Uuid::now_v7();
+        reset
+            .hold_authority(hold, "queue before rollback".into(), deadline(), None)
+            .unwrap();
+        let options = SubmitOptions::new(Uuid::now_v7());
+        let spec = command_spec(temp.path(), "echo forbidden>rollback-queued.txt");
+        let id = reset
+            .submit(spec.clone(), &options, deadline(), None)
+            .unwrap()
+            .job_id;
+        Some((id, hold, spec, options))
+    } else {
+        None
+    };
+    replacement.kill_and_wait();
+    let database = rusqlite::Connection::open(store.join("stillyard.sqlite3")).unwrap();
+    database
+        .execute(
+            "UPDATE machine_domains SET accepted_sequence=accepted_sequence-1",
+            [],
+        )
+        .unwrap();
+    drop(database);
+    let mut rollback_daemon = spawn_daemon(&pinned, &store, &endpoint);
+    let rollback = connect_uninitialized(&pinned, &endpoint);
+    assert_eq!(
+        rollback
+            .authority_status(deadline(), None)
+            .unwrap()
+            .blocker
+            .as_deref(),
+        Some("authority_reconciliation_required"),
+        "partial SQL rollback bypassed the external accepted-sequence checkpoint"
+    );
+    assert!(
+        rollback
+            .machine_recover(deadline())
+            .unwrap()
+            .blocker
+            .is_some(),
+        "same-store rollback was silently treated as a reconstructed empty store"
+    );
+    if let Some((pending, hold, pending_spec, pending_options)) = rollback_pending {
+        assert_eq!(
+            rollback
+                .submit(pending_spec, &pending_options, deadline(), None)
+                .unwrap()
+                .job_id,
+            pending,
+            "repair gate blocked recovery of an existing receipt"
+        );
+        let rejected = rollback
+            .submit(
+                command_spec(temp.path(), "echo forbidden>new-during-repair.txt"),
+                &SubmitOptions::new(Uuid::now_v7()),
+                deadline(),
+                None,
+            )
+            .unwrap_err();
+        assert!(
+            rejected.to_string().contains("authority_repair_pending"),
+            "{rejected}"
+        );
+        rollback
+            .force_release_authority(
+                hold,
+                "fixture queue retained by rollback gate".into(),
+                deadline(),
+                None,
+            )
+            .unwrap();
+        assert!(
+            rollback
+                .machine_recover(deadline())
+                .unwrap()
+                .blocker
+                .is_some()
+        );
+        assert!(!temp.path().join("rollback-queued.txt").exists());
+        // Ordinary explicit cancellation resolves possibly resurrected native
+        // history. Recovery itself does not drop or silently cancel any Job.
+        rollback.cancel(&[pending], deadline(), None).unwrap();
+        assert_eq!(
+            rollback.wait(pending, deadline(), None).unwrap().outcome,
+            Some(stillyard::JobOutcome::Canceled)
+        );
+        // A new client cannot replenish the queue after cancellation, including a batch.
+        let batch = BatchSpec {
+            spec_version: SPEC_VERSION,
+            jobs: vec![BatchMember {
+                name: "new".into(),
+                spec: command_spec(temp.path(), "exit 0"),
+                dependencies: vec![],
+            }],
+        };
+        let rejected = rollback
+            .submit_batch(batch, &SubmitOptions::new(Uuid::now_v7()), deadline(), None)
+            .unwrap_err();
+        assert!(
+            rejected.to_string().contains("authority_repair_pending"),
+            "{rejected}"
+        );
+        let p = rollback
+            .machine_clearance_preview(registration.installation.domain_id, deadline())
+            .unwrap();
+        assert!(p.inventory.grants.is_empty());
+        rollback
+            .retire_machine_domain(
+                stillyard::machine::DomainRetirementRequest {
+                    operation_id: Uuid::now_v7(),
+                    domain_id: registration.installation.domain_id,
+                    expected_inventory_sha256: p.sha256,
+                    reason: "empty fixture manager retired during rollback repair".into(),
+                    accept_risk: false,
+                },
+                deadline(),
+            )
+            .unwrap();
+        // Detection pinned the detecting daemon identity; a restart establishes
+        // its death rather than treating its own current generation as proof.
+        assert!(
+            rollback
+                .machine_recover(deadline())
+                .unwrap()
+                .blocker
+                .is_some()
+        );
+        rollback_daemon.kill_and_wait();
+        rollback_daemon = spawn_daemon(&pinned, &store, &endpoint);
+        let repaired = connect_uninitialized(&pinned, &endpoint);
+        let snapshot = repaired.machine_recover(deadline()).unwrap();
+        assert!(snapshot.blocker.is_none(), "{:?}", snapshot.blocker);
+        assert_ne!(snapshot.epoch, cleared.epoch);
+        assert_eq!(
+            repaired
+                .status(after_reset, deadline(), None)
+                .unwrap()
+                .outcome,
+            Some(stillyard::JobOutcome::Succeeded)
+        );
+        assert_eq!(
+            repaired.status(pending, deadline(), None).unwrap().outcome,
+            Some(stillyard::JobOutcome::Canceled)
+        );
+        assert!(!temp.path().join("rollback-queued.txt").exists());
+        let fresh = repaired
+            .submit(
+                command_spec(temp.path(), "echo repaired>after-rollback-repair.txt"),
+                &SubmitOptions::new(Uuid::now_v7()),
+                deadline(),
+                None,
+            )
+            .unwrap()
+            .job_id;
+        assert_eq!(fresh.store_uuid(), after_reset.store_uuid());
+        assert_eq!(
+            repaired.wait(fresh, deadline(), None).unwrap().outcome,
+            Some(stillyard::JobOutcome::Succeeded)
+        );
+        assert!(temp.path().join("after-rollback-repair.txt").exists());
+        rollback_daemon.kill_and_wait();
+    }
+}

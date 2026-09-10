@@ -1,0 +1,20 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import ast,pathlib,runpy; [ast.parse(p.read_text(),filename=str(p)) for p in pathlib.Path('.').glob('*.py')]; runpy.run_path('test-machine-resource-consumer.py',run_name='__main__')"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-python-controls-20260910z3/f1fd38bf84c848339ff3525d6d3533cc",
+  "timeout_seconds": 60,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "python-consumer-controls"
+    }
+  ]
+}

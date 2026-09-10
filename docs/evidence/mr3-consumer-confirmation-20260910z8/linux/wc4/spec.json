@@ -1,0 +1,46 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "/home/pythonic/Development/stillyard-consumers-20260910z8/wc4/consumer.py",
+    "measure",
+    "--repository-root",
+    "/home/pythonic/Development/stillyard-mr3-live-controls-20260910z8",
+    "--source-manifest",
+    "/home/pythonic/Development/stillyard-consumers-20260910z8/wc4/source.json",
+    "--output",
+    "/home/pythonic/Development/stillyard-consumers-20260910z8/wc4/measurement.json"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-consumers-20260910z8/wc4",
+  "resources": {
+    "impacts": [
+      "measurement"
+    ]
+  },
+  "quiet": {
+    "stable_seconds": 3,
+    "max_sample_age_seconds": 2,
+    "wait_budget_seconds": 240,
+    "detectors": [
+      {
+        "kind": "cpu_utilization",
+        "max_percent": 40
+      }
+    ]
+  },
+  "timeout_seconds": 180,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "acceptance",
+      "value": "W-C4"
+    },
+    {
+      "key": "round",
+      "value": "z8-confirmation"
+    }
+  ]
+}

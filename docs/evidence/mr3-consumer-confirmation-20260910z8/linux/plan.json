@@ -1,0 +1,7 @@
+{
+  "source_files_sha256": "103ff0bcad1df790ade627d2dcde9300044e200ccb1b4a271430a066cb72eef5",
+  "purpose": "one final-installed z8 confirmation round after three accepted z3 rounds",
+  "measurement": "256 SHA256 passes over verified nonempty source; finite positive cpu and wall durations",
+  "expected_machine_cargo_slots": 1,
+  "scratch_cache": "moved from completed z3 scratch, no copy"
+}

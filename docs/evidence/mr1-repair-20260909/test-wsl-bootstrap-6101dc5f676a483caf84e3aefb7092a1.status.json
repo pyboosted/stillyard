@@ -1,0 +1,160 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08723-3676-7070-ac67-e82d2eb27984",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08723-3675-7df0-99ff-80d07da8a0b7",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08725-9254-7780-aec8-72be3a1e22d4",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08725-9253-7793-965a-b9ed0be7c979",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08725-9253-7793-965a-b9fe5b403d45",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788973626998,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788973781600,
+  "finished_unix_millis": 1788973806015,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\.cargo\\bin\\cargo.exe",
+    "args": [
+      "test",
+      "--test",
+      "isolated_daemon",
+      "wsl_bootstrap_",
+      "--",
+      "--ignored",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr1-native-20260909e",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CARGO_HOME": "C:\\Users\\User\\.cargo",
+        "CARGO_TARGET_DIR": "C:\\Development\\stillyard-mr1-native-20260909e\\target\\scheduled",
+        "COMSPEC": "C:\\WINDOWS\\System32\\cmd.exe",
+        "INCLUDE": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\include;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\VS\\include;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\ucrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\um;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\shared;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\winrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\cppwinrt",
+        "LIB": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\lib\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\lib\\10.0.26100.0\\ucrt\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\\\lib\\10.0.26100.0\\\\um\\x64",
+        "MR_WINDOWS_PYTHON": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "MR_WSL_TEST_DISTRO": "Ubuntu-SSD",
+        "MR_WSL_TEST_USER": "pythonic",
+        "PATH": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\VCPackages;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\TestWindow;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Current\\bin\\Roslyn;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Team Tools\\DiagnosticsHub\\Collector;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\Extensions\\Microsoft\\CodeCoverage.Console;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\\\MSBuild\\Current\\Bin\\amd64;C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\Tools\\;C:\\WINDOWS\\System32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\Ninja;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\Linux\\bin\\ConnectionManagerExe;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\vcpkg;C:\\Users\\User\\.cargo\\bin;C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Mozilla.sccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\sccache-v0.16.0-x86_64-pc-windows-msvc;C:\\Program Files\\Git\\cmd;C:\\Program Files\\CMake\\bin",
+        "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+        "RUSTUP_HOME": "C:\\Users\\User\\.rustup",
+        "SCCACHE_DIR": "C:\\Development\\.sccache",
+        "SYSTEMDRIVE": "C:",
+        "USERPROFILE": "C:\\Users\\User"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "test-wsl-bootstrap"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1800,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08725-9254-7780-aec8-72be3a1e22d4",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1788973781587,
+      "started_unix_millis": 1788973781587,
+      "deadline_unix_millis": 1788975581587,
+      "finished_unix_millis": 1788973806015,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08723-3676-7070-ac67-e82d2eb27984",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08725-9254-7780-aec8-72be3a1e22d4",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08725-9253-7793-965a-b9ed0be7c979",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1788973781600,
+        "exited_unix_millis": 1788973806006,
+        "resolved_unix_millis": 1788973806012
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08725-9253-7793-965a-b9ed0be7c979",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 46040,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 46040,
+            "creation_filetime_100ns": 134334473815970557
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "6f4bef66261261fcb43131be8720bab817d403a09edec7455c371974b90bdb7e",
+          "daemon_generation": "01a086e8-b524-70b1-b563-4b2eb76ce274",
+          "started_unix_millis": 1788973781600,
+          "finished_unix_millis": 1788973806012,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08725-9253-7793-965a-b9fe5b403d45",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "operation_id\":\"01a08725-b981-7bc3-9d2e-d6b68a4742b3\",\"request_sha256\":\"21a2a06a8854be8241de6e5e8963f5092006e0512d0b060fb1529be9acc4ca8d\",\"boot_id\":\"08af9757-cbec-4d73-8d66-bdb520bffd29\",\"uid\":1000,\"cgroup_path\":\"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a08725-b981-7bc3-9d2e-d6b68a4742b3.service/work\",\"cgroup_inode\":21118,\"phase\":\"sealed_empty\",\"root_exit_code\":0,\"termination\":\"exited\"}},{\"id\":\"01a08725-bbd2-7e21-a7a1-ad8f3070747a\",\"reason\":\"WSL bootstrap obligation\",\"requester\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":46680,\"creation_filetime_100ns\":134334473924628457},\"released\":true,\"release_reason\":\"trusted Linux supervisor sealed its empty cgroup\",\"released_by\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":46680,\"creation_filetime_100ns\":134334473924628457},\"bootstrap\":{\"parent\":{\"job_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-bbcf-7951-b89f-dcbb7a050dc0\",\"attempt_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-bbd2-7e21-a7a1-adb8d070627c\",\"invocation_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-bbd2-7e21-a7a1-ad8f3070747a\"},\"work\":{\"operation_id\":\"01a08725-bbd2-7e21-a7a1-ad8f3070747a\",\"distribution\":\"Ubuntu-SSD\",\"user\":\"pythonic\",\"executable\":\"/usr/bin/python3\",\"args\":[\"-c\",\"import sys; sys.exit(25)\"],\"working_directory\":\"/tmp\",\"environment\":{\"PATH\":\"/usr/bin:/bin\"},\"timeout_seconds\":10},\"request_sha256\":\"89819d10c747b30faaf9543c7a23ab661258a6522fc78320ba976b7c068fb180\"},\"cleanup_proof\":{\"operation_id\":\"01a08725-bbd2-7e21-a7a1-ad8f3070747a\",\"request_sha256\":\"89819d10c747b30faaf9543c7a23ab661258a6522fc78320ba976b7c068fb180\",\"boot_id\":\"08af9757-cbec-4d73-8d66-bdb520bffd29\",\"uid\":1000,\"cgroup_path\":\"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a08725-bbd2-7e21-a7a1-ad8f3070747a.service/work\",\"cgroup_inode\":21205,\"phase\":\"sealed_empty\",\"root_exit_code\":25,\"termination\":\"exited\"}},{\"id\":\"01a08725-be1e-74a1-95b9-3cf1c196cafb\",\"reason\":\"WSL bootstrap obligation\",\"requester\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":30200,\"creation_filetime_100ns\":134334473930481526},\"released\":true,\"release_reason\":\"trusted Linux supervisor sealed its empty cgroup\",\"released_by\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":30200,\"creation_filetime_100ns\":134334473930481526},\"bootstrap\":{\"parent\":{\"job_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-be1b-7973-a74b-838020b007b4\",\"attempt_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-be1f-79a1-a079-6a23f8c71fac\",\"invocation_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-be1e-74a1-95b9-3cf1c196cafb\"},\"work\":{\"operation_id\":\"01a08725-be1e-74a1-95b9-3cf1c196cafb\",\"distribution\":\"Ubuntu-SSD\",\"user\":\"pythonic\",\"executable\":\"/usr/bin/python3\",\"args\":[\"-c\",\"import subprocess,time; subprocess.Popen(['/usr/bin/python3','-c','import time; time.sleep(10)'],start_new_session=True); time.sleep(20)\"],\"working_directory\":\"/tmp\",\"environment\":{\"PATH\":\"/usr/bin:/bin\"},\"timeout_seconds\":1},\"request_sha256\":\"c4b3b9565b1ba1ab6b0bbf40790dfed1fc6b6e1e1995a67c0c5569653536a58c\"},\"cleanup_proof\":{\"operation_id\":\"01a08725-be1e-74a1-95b9-3cf1c196cafb\",\"request_sha256\":\"c4b3b9565b1ba1ab6b0bbf40790dfed1fc6b6e1e1995a67c0c5569653536a58c\",\"boot_id\":\"08af9757-cbec-4d73-8d66-bdb520bffd29\",\"uid\":1000,\"cgroup_path\":\"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a08725-be1e-74a1-95b9-3cf1c196cafb.service/work\",\"cgroup_inode\":21292,\"phase\":\"sealed_empty\",\"root_exit_code\":-9,\"termination\":\"timed_out\"}},{\"id\":\"01a08725-c44f-75f0-9a05-fa4c3c830e7b\",\"reason\":\"WSL bootstrap obligation\",\"requester\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":31032,\"creation_filetime_100ns\":134334473946411383},\"released\":true,\"release_reason\":\"trusted Linux supervisor sealed its empty cgroup\",\"released_by\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":55044,\"creation_filetime_100ns\":134334474001136748},\"bootstrap\":{\"parent\":{\"job_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-c44c-71f2-981c-15e71537a53a\",\"attempt_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-c44f-75f0-9a05-fa796156c4fe\",\"invocation_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-c44f-75f0-9a05-fa4c3c830e7b\"},\"work\":{\"operation_id\":\"01a08725-c44f-75f0-9a05-fa4c3c830e7b\",\"distribution\":\"Ubuntu-SSD\",\"user\":\"pythonic\",\"executable\":\"/usr/bin/python3\",\"args\":[\"-c\",\"import time; print('long-work-started',flush=True); time.sleep(15)\"],\"working_directory\":\"/tmp\",\"environment\":{\"PATH\":\"/usr/bin:/bin\"},\"timeout_seconds\":20},\"request_sha256\":\"d0fecf53659ca3ceeb7e87a5ee0700229c4ac5ebe3d011d6cac081bbf8699bc7\"},\"cleanup_proof\":{\"operation_id\":\"01a08725-c44f-75f0-9a05-fa4c3c830e7b\",\"request_sha256\":\"d0fecf53659ca3ceeb7e87a5ee0700229c4ac5ebe3d011d6cac081bbf8699bc7\",\"boot_id\":\"08af9757-cbec-4d73-8d66-bdb520bffd29\",\"uid\":1000,\"cgroup_path\":\"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a08725-c44f-75f0-9a05-fa4c3c830e7b.service/work\",\"cgroup_inode\":21379,\"phase\":\"sealed_empty\",\"root_exit_code\":-9,\"termination\":\"intermediary_lost\"}},{\"id\":\"01a08725-db75-7d20-9178-6853ef143f16\",\"reason\":\"WSL bootstrap obligation\",\"requester\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":10724,\"creation_filetime_100ns\":134334474005781854},\"released\":false,\"release_reason\":null,\"released_by\":null,\"bootstrap\":{\"parent\":{\"job_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-db72-7e32-b29c-04adf7ff2b9a\",\"attempt_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-db75-7d20-9178-6886e88161c9\",\"invocation_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-db75-7d20-9178-6853ef143f16\"},\"work\":{\"operation_id\":\"01a08725-db75-7d20-9178-6853ef143f16\",\"distribution\":\"Ubuntu-SSD\",\"user\":\"pythonic\",\"executable\":\"/usr/bin/python3\",\"args\":[\"-c\",\"import time; print('reset-control-running',flush=True); time.sleep(20)\"],\"working_directory\":\"/tmp\",\"environment\":{\"PATH\":\"/usr/bin:/bin\"},\"timeout_seconds\":25},\"request_sha256\":\"085b0fe053f1329522f0dc7b66cfe13bcee50f9289e6f595f90e97a55d4ed403\"}}]}\nbootstrap reconciled after reset: {\"epoch\":\"01a08725-b974-7461-afdf-3f5ab216dfd6\",\"domains\":{\"machine_id\":\"01a08725-b974-7461-afdf-3f685b1943b8\",\"machine_scope\":\"01a08725-b974-7461-afdf-3f7a1ad6cf3d\",\"native_domain\":\"01a08725-b974-7461-afdf-3f80caacc324\"},\"blocker\":null,\"detail\":null,\"holds\":[{\"id\":\"01a08725-b981-7bc3-9d2e-d6b68a4742b3\",\"reason\":\"WSL bootstrap obligation\",\"requester\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":54936,\"creation_filetime_100ns\":134334473918676909},\"released\":true,\"release_reason\":\"trusted Linux supervisor sealed its empty cgroup\",\"released_by\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":54936,\"creation_filetime_100ns\":134334473918676909},\"bootstrap\":{\"parent\":{\"job_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-b97d-76d2-9828-ff555f94c0a8\",\"attempt_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-b981-7bc3-9d2e-d6e7229b3b09\",\"invocation_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-b981-7bc3-9d2e-d6b68a4742b3\"},\"work\":{\"operation_id\":\"01a08725-b981-7bc3-9d2e-d6b68a4742b3\",\"distribution\":\"Ubuntu-SSD\",\"user\":\"pythonic\",\"executable\":\"/usr/bin/python3\",\"args\":[\"-c\",\"import errno,os,subprocess,sys\\ntry:\\n subprocess.run(['/mnt/c/Windows/System32/cmd.exe','/d','/c','exit 0'],check=False)\\nexcept OSError as error:\\n assert error.errno == errno.EACCES\\nelse:\\n raise RuntimeError('Windows interop escaped the Linux boundary')\\nprint('linux-stdout:'+os.getcwd(),flush=True)\\nprint('linux-stderr',file=sys.stderr,flush=True)\"],\"working_directory\":\"/tmp\",\"environment\":{\"PATH\":\"/usr/bin:/bin\"},\"timeout_seconds\":10},\"request_sha256\":\"21a2a06a8854be8241de6e5e8963f5092006e0512d0b060fb1529be9acc4ca8d\"},\"cleanup_proof\":{\"operation_id\":\"01a08725-b981-7bc3-9d2e-d6b68a4742b3\",\"request_sha256\":\"21a2a06a8854be8241de6e5e8963f5092006e0512d0b060fb1529be9acc4ca8d\",\"boot_id\":\"08af9757-cbec-4d73-8d66-bdb520bffd29\",\"uid\":1000,\"cgroup_path\":\"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a08725-b981-7bc3-9d2e-d6b68a4742b3.service/work\",\"cgroup_inode\":21118,\"phase\":\"sealed_empty\",\"root_exit_code\":0,\"termination\":\"exited\"}},{\"id\":\"01a08725-bbd2-7e21-a7a1-ad8f3070747a\",\"reason\":\"WSL bootstrap obligation\",\"requester\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":46680,\"creation_filetime_100ns\":134334473924628457},\"released\":true,\"release_reason\":\"trusted Linux supervisor sealed its empty cgroup\",\"released_by\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":46680,\"creation_filetime_100ns\":134334473924628457},\"bootstrap\":{\"parent\":{\"job_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-bbcf-7951-b89f-dcbb7a050dc0\",\"attempt_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-bbd2-7e21-a7a1-adb8d070627c\",\"invocation_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-bbd2-7e21-a7a1-ad8f3070747a\"},\"work\":{\"operation_id\":\"01a08725-bbd2-7e21-a7a1-ad8f3070747a\",\"distribution\":\"Ubuntu-SSD\",\"user\":\"pythonic\",\"executable\":\"/usr/bin/python3\",\"args\":[\"-c\",\"import sys; sys.exit(25)\"],\"working_directory\":\"/tmp\",\"environment\":{\"PATH\":\"/usr/bin:/bin\"},\"timeout_seconds\":10},\"request_sha256\":\"89819d10c747b30faaf9543c7a23ab661258a6522fc78320ba976b7c068fb180\"},\"cleanup_proof\":{\"operation_id\":\"01a08725-bbd2-7e21-a7a1-ad8f3070747a\",\"request_sha256\":\"89819d10c747b30faaf9543c7a23ab661258a6522fc78320ba976b7c068fb180\",\"boot_id\":\"08af9757-cbec-4d73-8d66-bdb520bffd29\",\"uid\":1000,\"cgroup_path\":\"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a08725-bbd2-7e21-a7a1-ad8f3070747a.service/work\",\"cgroup_inode\":21205,\"phase\":\"sealed_empty\",\"root_exit_code\":25,\"termination\":\"exited\"}},{\"id\":\"01a08725-be1e-74a1-95b9-3cf1c196cafb\",\"reason\":\"WSL bootstrap obligation\",\"requester\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":30200,\"creation_filetime_100ns\":134334473930481526},\"released\":true,\"release_reason\":\"trusted Linux supervisor sealed its empty cgroup\",\"released_by\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":30200,\"creation_filetime_100ns\":134334473930481526},\"bootstrap\":{\"parent\":{\"job_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-be1b-7973-a74b-838020b007b4\",\"attempt_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-be1f-79a1-a079-6a23f8c71fac\",\"invocation_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-be1e-74a1-95b9-3cf1c196cafb\"},\"work\":{\"operation_id\":\"01a08725-be1e-74a1-95b9-3cf1c196cafb\",\"distribution\":\"Ubuntu-SSD\",\"user\":\"pythonic\",\"executable\":\"/usr/bin/python3\",\"args\":[\"-c\",\"import subprocess,time; subprocess.Popen(['/usr/bin/python3','-c','import time; time.sleep(10)'],start_new_session=True); time.sleep(20)\"],\"working_directory\":\"/tmp\",\"environment\":{\"PATH\":\"/usr/bin:/bin\"},\"timeout_seconds\":1},\"request_sha256\":\"c4b3b9565b1ba1ab6b0bbf40790dfed1fc6b6e1e1995a67c0c5569653536a58c\"},\"cleanup_proof\":{\"operation_id\":\"01a08725-be1e-74a1-95b9-3cf1c196cafb\",\"request_sha256\":\"c4b3b9565b1ba1ab6b0bbf40790dfed1fc6b6e1e1995a67c0c5569653536a58c\",\"boot_id\":\"08af9757-cbec-4d73-8d66-bdb520bffd29\",\"uid\":1000,\"cgroup_path\":\"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a08725-be1e-74a1-95b9-3cf1c196cafb.service/work\",\"cgroup_inode\":21292,\"phase\":\"sealed_empty\",\"root_exit_code\":-9,\"termination\":\"timed_out\"}},{\"id\":\"01a08725-c44f-75f0-9a05-fa4c3c830e7b\",\"reason\":\"WSL bootstrap obligation\",\"requester\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":31032,\"creation_filetime_100ns\":134334473946411383},\"released\":true,\"release_reason\":\"trusted Linux supervisor sealed its empty cgroup\",\"released_by\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":55044,\"creation_filetime_100ns\":134334474001136748},\"bootstrap\":{\"parent\":{\"job_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-c44c-71f2-981c-15e71537a53a\",\"attempt_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-c44f-75f0-9a05-fa796156c4fe\",\"invocation_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-c44f-75f0-9a05-fa4c3c830e7b\"},\"work\":{\"operation_id\":\"01a08725-c44f-75f0-9a05-fa4c3c830e7b\",\"distribution\":\"Ubuntu-SSD\",\"user\":\"pythonic\",\"executable\":\"/usr/bin/python3\",\"args\":[\"-c\",\"import time; print('long-work-started',flush=True); time.sleep(15)\"],\"working_directory\":\"/tmp\",\"environment\":{\"PATH\":\"/usr/bin:/bin\"},\"timeout_seconds\":20},\"request_sha256\":\"d0fecf53659ca3ceeb7e87a5ee0700229c4ac5ebe3d011d6cac081bbf8699bc7\"},\"cleanup_proof\":{\"operation_id\":\"01a08725-c44f-75f0-9a05-fa4c3c830e7b\",\"request_sha256\":\"d0fecf53659ca3ceeb7e87a5ee0700229c4ac5ebe3d011d6cac081bbf8699bc7\",\"boot_id\":\"08af9757-cbec-4d73-8d66-bdb520bffd29\",\"uid\":1000,\"cgroup_path\":\"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a08725-c44f-75f0-9a05-fa4c3c830e7b.service/work\",\"cgroup_inode\":21379,\"phase\":\"sealed_empty\",\"root_exit_code\":-9,\"termination\":\"intermediary_lost\"}},{\"id\":\"01a08725-db75-7d20-9178-6853ef143f16\",\"reason\":\"WSL bootstrap obligation\",\"requester\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":10724,\"creation_filetime_100ns\":134334474005781854},\"released\":true,\"release_reason\":\"trusted Linux supervisor sealed its empty cgroup\",\"released_by\":{\"platform\":\"windows\",\"host_id\":\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\",\"boot_id\":\"3472a414-3353-11f1-8eac-b29d069fdb29\",\"pid\":42692,\"creation_filetime_100ns\":134334474057896505},\"bootstrap\":{\"parent\":{\"job_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-db72-7e32-b29c-04adf7ff2b9a\",\"attempt_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-db75-7d20-9178-6886e88161c9\",\"invocation_id\":\"01a08725-b967-7563-9824-5f7aa86d0ee9~01a08725-db75-7d20-9178-6853ef143f16\"},\"work\":{\"operation_id\":\"01a08725-db75-7d20-9178-6853ef143f16\",\"distribution\":\"Ubuntu-SSD\",\"user\":\"pythonic\",\"executable\":\"/usr/bin/python3\",\"args\":[\"-c\",\"import time; print('reset-control-running',flush=True); time.sleep(20)\"],\"working_directory\":\"/tmp\",\"environment\":{\"PATH\":\"/usr/bin:/bin\"},\"timeout_seconds\":25},\"request_sha256\":\"085b0fe053f1329522f0dc7b66cfe13bcee50f9289e6f595f90e97a55d4ed403\"},\"cleanup_proof\":{\"operation_id\":\"01a08725-db75-7d20-9178-6853ef143f16\",\"request_sha256\":\"085b0fe053f1329522f0dc7b66cfe13bcee50f9289e6f595f90e97a55d4ed403\",\"boot_id\":\"08af9757-cbec-4d73-8d66-bdb520bffd29\",\"uid\":1000,\"cgroup_path\":\"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a08725-db75-7d20-9178-6853ef143f16.service/work\",\"cgroup_inode\":21466,\"phase\":\"sealed_empty\",\"root_exit_code\":-9,\"termination\":\"intermediary_lost\"}}]}\nok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 24.22s\n\n",
+          "stderr_tail": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s\n     Running tests\\isolated_daemon.rs (target\\scheduled\\debug\\deps\\isolated_daemon-4e4b81658c3e76dd.exe)\n"
+        }
+      ]
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a086e8-b524-70b1-b563-4b2eb76ce274"
+}

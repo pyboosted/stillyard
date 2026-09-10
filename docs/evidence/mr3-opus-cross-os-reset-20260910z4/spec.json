@@ -1,0 +1,56 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "/home/pythonic/Development/stillyard-mr3-opus-cross-os-reset-20260910z4/fce076493e0d4aada83c821858663d28/reviewer.py",
+    "review",
+    "--cli",
+    "/home/pythonic/.local/bin/claude-current",
+    "--brief",
+    "/home/pythonic/Development/stillyard-mr3-opus-cross-os-reset-20260910z4/fce076493e0d4aada83c821858663d28/brief.txt",
+    "--output",
+    "/home/pythonic/Development/stillyard-mr3-opus-cross-os-reset-20260910z4/fce076493e0d4aada83c821858663d28/review.json",
+    "--model",
+    "opus",
+    "--effort",
+    "high"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-cross-os-reset-20260910z4/fce076493e0d4aada83c821858663d28",
+  "environment": {
+    "set": {
+      "HOME": "/home/pythonic",
+      "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+      "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin",
+      "LANG": "C.UTF-8"
+    }
+  },
+  "resources": {
+    "custom": {
+      "claude2_slots": 1
+    }
+  },
+  "postconditions": [
+    {
+      "executable": "/usr/bin/python3",
+      "args": [
+        "/home/pythonic/Development/stillyard-mr3-opus-cross-os-reset-20260910z4/fce076493e0d4aada83c821858663d28/reviewer.py",
+        "validate-review",
+        "--input",
+        "/home/pythonic/Development/stillyard-mr3-opus-cross-os-reset-20260910z4/fce076493e0d4aada83c821858663d28/review.json",
+        "--expected-model-prefix",
+        "claude-opus-"
+      ]
+    }
+  ],
+  "timeout_seconds": 1200,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr3-opus-installed-recovery"
+    }
+  ]
+}

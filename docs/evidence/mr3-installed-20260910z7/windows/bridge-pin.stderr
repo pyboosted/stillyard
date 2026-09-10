@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/home/pythonic/Development/stillyard-mr3-bootstrap-controls-20260910z7/scripts/rotate-wsl-bridge-pin.py", line 237, in <module>
+    main()
+    ~~~~^^
+  File "/home/pythonic/Development/stillyard-mr3-bootstrap-controls-20260910z7/scripts/rotate-wsl-bridge-pin.py", line 177, in main
+    raise RuntimeError("outstanding local work prevents image-pin rotation")
+RuntimeError: outstanding local work prevents image-pin rotation

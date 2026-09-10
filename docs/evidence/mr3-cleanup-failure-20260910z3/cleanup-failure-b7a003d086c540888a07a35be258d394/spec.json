@@ -1,0 +1,23 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import pathlib,subprocess,time; subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(120)']); pathlib.Path('/home/pythonic/Development/stillyard-mr3-cleanup-failure-evidence-20260910z3/cleanup-failure-b7a003d086c540888a07a35be258d394/running').write_text(\"running\"); p=pathlib.Path('/home/pythonic/Development/stillyard-mr3-cleanup-failure-evidence-20260910z3/cleanup-failure-b7a003d086c540888a07a35be258d394/finish')\nwhile not p.exists(): time.sleep(.02)\nprint(\"root exits leaving descendant\",flush=True)"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-mr3-cleanup-failure-evidence-20260910z3/cleanup-failure-b7a003d086c540888a07a35be258d394",
+  "resources": {
+    "cargo_slots": 1
+  },
+  "timeout_seconds": 120,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "installed-cleanup-failure"
+    }
+  ]
+}

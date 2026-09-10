@@ -1,0 +1,20 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+  "args": [
+    "C:\\Development\\stillyard-mr0-consumer-evidence-20260909\\test-machine-resource-consumer.py"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr0-consumer-evidence-20260909",
+  "resources": {},
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr0-consumer-contract-tests"
+    }
+  ],
+  "timeout_seconds": 60
+}

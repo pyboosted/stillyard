@@ -1,0 +1,109 @@
+{
+  "unix_ns": 1789026541580622165,
+  "monotonic": 72648.264327631,
+  "linux": [
+    {
+      "pid": 301650,
+      "name": "python3",
+      "start_ticks": 7208370,
+      "cpu_ticks": 3,
+      "rss_anon_kib": 8960,
+      "threads": {
+        "301650": {
+          "voluntary": 23,
+          "involuntary": 1
+        }
+      }
+    },
+    {
+      "pid": 301964,
+      "name": "stillyard",
+      "start_ticks": 7209565,
+      "cpu_ticks": 17,
+      "rss_anon_kib": 4424,
+      "threads": {
+        "301964": {
+          "voluntary": 69,
+          "involuntary": 2
+        },
+        "301967": {
+          "voluntary": 77,
+          "involuntary": 0
+        },
+        "301968": {
+          "voluntary": 864,
+          "involuntary": 0
+        }
+      }
+    },
+    {
+      "pid": 301973,
+      "name": "stillyard.exe",
+      "start_ticks": 7209581,
+      "cpu_ticks": 0,
+      "rss_anon_kib": 0,
+      "threads": {
+        "301973": {
+          "voluntary": 315,
+          "involuntary": 0
+        }
+      }
+    },
+    {
+      "pid": 3989858,
+      "name": "Relay(3989859)",
+      "start_ticks": 6323934,
+      "cpu_ticks": 0,
+      "rss_anon_kib": 0,
+      "threads": {
+        "3989858": {
+          "voluntary": 33,
+          "involuntary": 1
+        }
+      }
+    },
+    {
+      "pid": 3989859,
+      "name": "python3",
+      "start_ticks": 6323934,
+      "cpu_ticks": 3,
+      "rss_anon_kib": 8704,
+      "threads": {
+        "3989859": {
+          "voluntary": 7,
+          "involuntary": 1
+        }
+      }
+    }
+  ],
+  "windows": [
+    {
+      "Id": 22556,
+      "ProcessName": "stillyard",
+      "CPU": 0.078125,
+      "PrivateBytes": 1572864,
+      "StartTime": "2026-09-10T07:39:49.1545088Z"
+    },
+    {
+      "Id": 44288,
+      "ProcessName": "stillyard",
+      "CPU": 33.09375,
+      "PrivateBytes": 29974528,
+      "StartTime": "2026-09-10T07:13:16.4559685Z"
+    },
+    {
+      "Id": 46556,
+      "ProcessName": "stillyard",
+      "CPU": 0.03125,
+      "PrivateBytes": 1859584,
+      "StartTime": "2026-09-09T19:18:42.0330735Z"
+    },
+    {
+      "Id": 32592,
+      "ProcessName": "wsl",
+      "CPU": 0,
+      "PrivateBytes": 1372160,
+      "StartTime": "2026-09-10T05:12:12.5245520Z"
+    }
+  ]
+}

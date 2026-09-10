@@ -1,0 +1,208 @@
+{
+  "outcome": {
+    "outcome": "final",
+    "value": {
+      "receipt": {
+        "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-9598-7af0-93e8-8fb6f0e1e207",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-959a-7ca1-8146-c4724f5362af",
+        "submission_state": "accepted",
+        "job_state": "pending",
+        "reason_code": null,
+        "accepted_unix_millis": 1789018150298,
+        "priority": 0,
+        "effective_priority": 0,
+        "blockers": [],
+        "queue_rank": 2,
+        "reservation": null,
+        "conditions": [],
+        "estimate": {
+          "confidence": "estimated",
+          "start_in_millis": 0,
+          "assumptions": [
+            "currently admissible"
+          ]
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a089c4-5729-7b82-a52f-9c5685702d88"
+      },
+      "snapshot": {
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-959a-7ca1-8146-c4724f5362af",
+        "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-9598-7af0-93e8-8fb6f0e1e207",
+        "batch_id": null,
+        "batch_member": null,
+        "state": "final",
+        "outcome": "canceled",
+        "reason_code": null,
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-95a1-75f0-bbb6-70626827dd3d",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-95a1-75f0-bbb6-7078432a01c7",
+        "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-95a1-75f0-bbb6-70817ebb91ca",
+        "root_exit_code": 137,
+        "cancel_requested": true,
+        "accepted_unix_millis": 1789018150298,
+        "priority": 0,
+        "effective_priority": null,
+        "queue_rank": null,
+        "reservation": null,
+        "conditions": [],
+        "started_unix_millis": 1789018152676,
+        "finished_unix_millis": 1789018152824,
+        "spec": {
+          "spec_version": 4,
+          "priority": 0,
+          "executable": "/usr/bin/python3",
+          "args": [
+            "-c",
+            "import pathlib,subprocess; subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(120)']); pathlib.Path('/home/pythonic/Development/stillyard-installed-lifecycle-20260910/cancel-50b83828e8284678ada70ef523fcb3eb/primary-marker').write_text('primary'); print('primary with live descendant',flush=True); import time; time.sleep(120)"
+          ],
+          "working_directory": "/home/pythonic/Development/stillyard-installed-lifecycle-20260910/cancel-50b83828e8284678ada70ef523fcb3eb",
+          "stdin": {
+            "kind": "eof"
+          },
+          "environment": {
+            "set": {},
+            "unset": []
+          },
+          "resources": {
+            "cpu_units": null,
+            "ram_mb": null,
+            "cargo_slots": 1,
+            "gpu_slots": null,
+            "custom": {},
+            "shared_fences": [],
+            "exclusive_fences": [],
+            "impacts": [
+              "cpu_heavy"
+            ]
+          },
+          "observed": null,
+          "conditions": [],
+          "retry": {
+            "max_attempts": 1,
+            "backoff_seconds": 0,
+            "retryable": []
+          },
+          "postconditions": [],
+          "labels": [
+            {
+              "key": "project",
+              "value": "stillyard"
+            },
+            {
+              "key": "gate",
+              "value": "installed-wsl-cancel"
+            }
+          ],
+          "expected_duration_seconds": null,
+          "timeout_seconds": 60,
+          "quiet": null,
+          "artifacts": [],
+          "child_submission_policy": null
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "blockers": [],
+        "attempts": [
+          {
+            "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-95a1-75f0-bbb6-70626827dd3d",
+            "attempt_index": 1,
+            "verdict": "canceled",
+            "reason_code": null,
+            "created_unix_millis": 1789018150304,
+            "started_unix_millis": 1789018152566,
+            "deadline_unix_millis": 1789018212566,
+            "finished_unix_millis": 1789018152824,
+            "primary_result": {
+              "schema_version": 1,
+              "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-959a-7ca1-8146-c4724f5362af",
+              "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-95a1-75f0-bbb6-70626827dd3d",
+              "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-95a1-75f0-bbb6-7078432a01c7",
+              "verdict": "canceled",
+              "root_exit_code": 137,
+              "termination": "cancel",
+              "containment": "empty",
+              "started_unix_millis": 1789018152676,
+              "exited_unix_millis": 1789018152818,
+              "resolved_unix_millis": 1789018152821
+            },
+            "admission": null,
+            "invocations": [
+              {
+                "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-95a1-75f0-bbb6-7078432a01c7",
+                "role": "primary",
+                "role_index": 0,
+                "state": "resolved",
+                "root_pid": 4032723,
+                "root_identity": {
+                  "platform": "linux",
+                  "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+                  "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+                  "pid": 4032723,
+                  "start_ticks": 6425929,
+                  "pid_namespace_inode": 4026533826,
+                  "uid": 1000
+                },
+                "root_exit_code": 137,
+                "exit_classification": null,
+                "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+                "daemon_generation": "01a089c4-5729-7b82-a52f-9c5685702d88",
+                "started_unix_millis": 1789018152676,
+                "finished_unix_millis": 1789018152821,
+                "containment": {
+                  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-95a1-75f0-bbb6-70817ebb91ca",
+                  "state": "empty",
+                  "strength": "linux_cgroup_v2",
+                  "incident_id": null,
+                  "incident": null,
+                  "resolution": null,
+                  "resolution_audit": null
+                },
+                "stdout_tail": "primary with live descendant\n",
+                "stderr_tail": ""
+              }
+            ]
+          }
+        ],
+        "allocations": [
+          {
+            "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089ca-9dde-74f0-8ec1-6c8734b0bccc",
+            "lease_id": "01a089ca-95a1-75f0-bbb6-709c9e22d410",
+            "key": {
+              "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+              "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+              "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+              "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+              "lease_id": "01a089ca-95a1-75f0-bbb6-709c9e22d410"
+            },
+            "owner": {
+              "kind": "work",
+              "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-959a-7ca1-8146-c4724f5362af",
+              "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ca-95a1-75f0-bbb6-70626827dd3d"
+            },
+            "state": "armed",
+            "claims": {
+              "scalars": {
+                "cargo_slots": 1,
+                "cpu_units": 0,
+                "gpu_slots": 0,
+                "ram_mb": 0
+              },
+              "shared_fences": [],
+              "exclusive_fences": [],
+              "impacts": [
+                "cpu_heavy"
+              ]
+            }
+          }
+        ],
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a089c4-5729-7b82-a52f-9c5685702d88"
+      }
+    }
+  },
+  "exit_source": "scheduler",
+  "exit_code": 22
+}

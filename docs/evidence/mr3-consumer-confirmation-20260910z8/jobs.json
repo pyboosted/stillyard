@@ -1,0 +1,32 @@
+[
+  {
+    "side": "linux",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f5f2-7d40-adba-877947e79052",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f63a-7153-af16-9b448b4ef08e",
+    "outcome": "canceled"
+  },
+  {
+    "side": "linux",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f60c-7c50-9827-8a7f3d0739eb",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a17-73f2-9fbb-b4b8aa1d7cc7",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f706-7f61-bdfd-c641e6391ca4",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aba-fe2f-7003-bef0-c63111d73584",
+    "outcome": "succeeded"
+  }
+]

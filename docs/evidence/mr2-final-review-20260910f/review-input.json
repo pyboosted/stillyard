@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "auth": "same-session subscription OAuth/Max verified; provider environment absent, runner guard enabled",
+  "files": {
+    "docs/evidence/mr2-retirement-review-20260910c/codex-disposition.md": "890977ce97088ede9684dacd7e3adf81090c9fca58b5523717f991975f321515",
+    "docs/machine-resource-clearance-design.md": "f7a521d468765f2cdea0c2bd14329f26257f6468dde1c357b9c084f00015096c",
+    "src/authority.rs": "d20378446cf137082ffe89b417f655ee2b7cc298b1db402ab508f40432d2062c",
+    "src/authority/retirement.rs": "21f8ac23fb2880a4dd48afe45ae723f1bda6bd6b1cdfaac7cb68a4fc57b07221",
+    "src/store/machine_clearance.rs": "32f50bb6960cfe17020f576aac955cd49bb39abcabbe820725af78e1374f8790",
+    "src/store/machine_reset.rs": "1157994377ff8d8506ebac8a12ba7f1d9d729d6ec8d2a4f60492469a430d712d",
+    "src/store/authority.rs": "e86bd2d093164b391d5fde8d65748bab02d4119b244c35defd6f3223a02a2d79",
+    "src/store/machine.rs": "ceadd645631780f86f842d05d9058c2c5e18b35face0a7f87ddb8c6ae1c82db6",
+    "src/daemon/transport.rs": "b2b38af24e0bd300abb3896cdf9cc231b6f92d9f10926f459220c1c7b0e9fe9c",
+    "src/daemon/reconciliation.rs": "f3e2d0bb3e23f3c9366621d0d4fe8fd4edcb229cdda4f01ba6948201bd69a281",
+    "src/machine/clearance.rs": "adba111cb3b67c784a69b450c08151071be60d6b29f55e9e1af2d149b288d9f4",
+    "src/machine/manager/recovery.rs": "1e680e5cd27bbfe3813fa00d1b8a1909b51619b8362da566cfc32f7688285f74",
+    "tests/support/machine_clearance.rs": "15848ad3d4419b300ef6dda469f266aecc891163342c1def03769bd6994aade5",
+    "src/instance.rs": "1b65eca9d462de133cf2b9b23743643b5665b7ab174b677fe80c3d6b763267e4"
+  },
+  "brief_sha256": "fad54f6986a3b5d24d5e7e372fd32ff7f3f2ad3ca5c50a46b8f3a4a9fba6d726",
+  "reviewers": 1,
+  "source_files_sha256": "8ba4d5c8034551d15dd8ec5c843b2d9eef2da054911cc86b7ded1a7cd5ac8e74"
+}

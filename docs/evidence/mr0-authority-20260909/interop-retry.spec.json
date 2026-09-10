@@ -1,0 +1,31 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Windows\\System32\\wsl.exe",
+  "args": [
+    "--distribution",
+    "Ubuntu-SSD",
+    "--user",
+    "pythonic",
+    "--cd",
+    "/tmp",
+    "--exec",
+    "/usr/bin/python3",
+    "/mnt/c/Development/stillyard-mr0-authority-evidence-20260909/interop-bcaadda67d114db88852a6bb537b5183.py",
+    "/mnt/c/Development/stillyard-mr0-authority-evidence-20260909/interop-bcaadda67d114db88852a6bb537b5183"
+  ],
+  "working_directory": "C:\\Development",
+  "resources": {
+    "cargo_slots": 1
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr0-interop-boundary"
+    }
+  ],
+  "timeout_seconds": 30
+}

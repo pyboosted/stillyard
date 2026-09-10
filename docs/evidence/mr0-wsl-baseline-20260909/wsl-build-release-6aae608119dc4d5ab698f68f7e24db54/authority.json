@@ -1,0 +1,127 @@
+{
+  "epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+  "blocker": null,
+  "detail": null,
+  "holds": [
+    {
+      "id": "01a086e9-45e7-7bd2-bb30-8674d7343609",
+      "reason": "WSL bootstrap obligation",
+      "requester": {
+        "platform": "windows",
+        "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+        "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+        "pid": 50364,
+        "creation_filetime_100ns": 134334434298739949
+      },
+      "released": true,
+      "release_reason": "trusted Linux supervisor sealed its empty cgroup",
+      "released_by": {
+        "platform": "windows",
+        "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+        "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+        "pid": 50364,
+        "creation_filetime_100ns": 134334434298739949
+      },
+      "bootstrap": {
+        "parent": {
+          "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086e9-45e4-7150-9396-beb9bf24cc89",
+          "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086e9-45e8-7f41-ad0b-1ff3672077bf",
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086e9-45e7-7bd2-bb30-8674d7343609"
+        },
+        "work": {
+          "operation_id": "01a086e9-45e7-7bd2-bb30-8674d7343609",
+          "distribution": "Ubuntu-SSD",
+          "user": "pythonic",
+          "executable": "/home/pythonic/.cargo/bin/cargo",
+          "args": [
+            "check",
+            "--workspace",
+            "--all-features",
+            "--all-targets"
+          ],
+          "working_directory": "/home/pythonic/Development/stillyard-mr0-baseline-alpha15-20260909",
+          "environment": {
+            "CARGO_BUILD_JOBS": "4",
+            "CARGO_HOME": "/home/pythonic/.cargo",
+            "CARGO_TARGET_DIR": "/home/pythonic/Development/stillyard-mr0-baseline-alpha15-20260909/target/scheduled-linux",
+            "HOME": "/home/pythonic",
+            "PATH": "/home/pythonic/.cargo/bin:/usr/bin:/bin",
+            "RUSTUP_HOME": "/home/pythonic/.rustup"
+          },
+          "timeout_seconds": 1800
+        },
+        "request_sha256": "08038b36ebf5aa58865d8060d404e6e671b0773be9cc033f5a1aa3ddd3d66f97"
+      },
+      "cleanup_proof": {
+        "operation_id": "01a086e9-45e7-7bd2-bb30-8674d7343609",
+        "request_sha256": "08038b36ebf5aa58865d8060d404e6e671b0773be9cc033f5a1aa3ddd3d66f97",
+        "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+        "uid": 1000,
+        "cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a086e9-45e7-7bd2-bb30-8674d7343609.service/work",
+        "cgroup_inode": 17237,
+        "phase": "sealed_empty",
+        "root_exit_code": 101,
+        "termination": "exited"
+      }
+    },
+    {
+      "id": "01a086ea-76aa-7cf2-b104-16aa8f1a943b",
+      "reason": "WSL bootstrap obligation",
+      "requester": {
+        "platform": "windows",
+        "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+        "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+        "pid": 51548,
+        "creation_filetime_100ns": 134334435078942416
+      },
+      "released": true,
+      "release_reason": "trusted Linux supervisor sealed its empty cgroup",
+      "released_by": {
+        "platform": "windows",
+        "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+        "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+        "pid": 51548,
+        "creation_filetime_100ns": 134334435078942416
+      },
+      "bootstrap": {
+        "parent": {
+          "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086ea-76a6-7e41-9397-750083d54543",
+          "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086ea-76aa-7cf2-b104-16d04b8499df",
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086ea-76aa-7cf2-b104-16aa8f1a943b"
+        },
+        "work": {
+          "operation_id": "01a086ea-76aa-7cf2-b104-16aa8f1a943b",
+          "distribution": "Ubuntu-SSD",
+          "user": "pythonic",
+          "executable": "/home/pythonic/.cargo/bin/cargo",
+          "args": [
+            "build",
+            "--release"
+          ],
+          "working_directory": "/home/pythonic/Development/stillyard-mr0-baseline-alpha15-20260909",
+          "environment": {
+            "CARGO_BUILD_JOBS": "4",
+            "CARGO_HOME": "/home/pythonic/.cargo",
+            "CARGO_TARGET_DIR": "/home/pythonic/Development/stillyard-mr0-baseline-alpha15-20260909/target/scheduled-linux",
+            "HOME": "/home/pythonic",
+            "PATH": "/home/pythonic/.cargo/bin:/usr/bin:/bin",
+            "RUSTUP_HOME": "/home/pythonic/.rustup"
+          },
+          "timeout_seconds": 1800
+        },
+        "request_sha256": "98d9260906e124c1605a52218d9cdb9d66ddef8e7f5a558ac11fe86ec86fea06"
+      },
+      "cleanup_proof": {
+        "operation_id": "01a086ea-76aa-7cf2-b104-16aa8f1a943b",
+        "request_sha256": "98d9260906e124c1605a52218d9cdb9d66ddef8e7f5a558ac11fe86ec86fea06",
+        "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+        "uid": 1000,
+        "cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a086ea-76aa-7cf2-b104-16aa8f1a943b.service/work",
+        "cgroup_inode": 17392,
+        "phase": "sealed_empty",
+        "root_exit_code": 101,
+        "termination": "exited"
+      }
+    }
+  ]
+}

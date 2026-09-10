@@ -1,0 +1,62 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+  "args": [
+    "bootstrap",
+    "run",
+    "--spec",
+    "C:\\Development\\stillyard-mr3-cross-os-fault-evidence-20260910z11d\\cross-os-reset-2a9e3337f3e84db8b5f9084f8d33a2be\\work.json",
+    "--native-controller",
+    "C:\\Development\\stillyard-mr3-membership-20260910z11d\\target\\scheduled\\debug\\deps\\isolated_daemon-1384df69d7746917.exe",
+    "--",
+    "machine_cross_os_reset_retains_live_linux_executor_and_guest_history",
+    "--ignored",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr3-membership-20260910z11d",
+  "environment": {
+    "set": {
+      "CARGO_HOME": "C:\\Users\\User\\.cargo",
+      "CARGO_TARGET_DIR": "C:\\Development\\stillyard-mr3-membership-20260910z11d\\target\\scheduled",
+      "COMSPEC": "C:\\WINDOWS\\System32\\cmd.exe",
+      "INCLUDE": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\include;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\VS\\include;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\ucrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\um;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\shared;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\winrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\cppwinrt",
+      "LIB": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\lib\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\lib\\10.0.26100.0\\ucrt\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\\\lib\\10.0.26100.0\\\\um\\x64",
+      "PATH": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\VCPackages;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\TestWindow;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Current\\bin\\Roslyn;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Team Tools\\DiagnosticsHub\\Collector;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\Extensions\\Microsoft\\CodeCoverage.Console;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\\\MSBuild\\Current\\Bin\\amd64;C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\Tools\\;C:\\WINDOWS\\System32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\Ninja;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\Linux\\bin\\ConnectionManagerExe;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\vcpkg;C:\\Users\\User\\.cargo\\bin;C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Mozilla.sccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\sccache-v0.16.0-x86_64-pc-windows-msvc;C:\\Program Files\\Git\\cmd;C:\\Program Files\\CMake\\bin",
+      "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+      "RUSTUP_HOME": "C:\\Users\\User\\.rustup",
+      "SCCACHE_DIR": "C:\\Development\\.sccache",
+      "SYSTEMDRIVE": "C:",
+      "USERPROFILE": "C:\\Users\\User",
+      "MR_WSL_FAULT_MAILBOX_WINDOWS": "C:\\Development\\stillyard-mr3-cross-os-fault-evidence-20260910z11d\\cross-os-reset-2a9e3337f3e84db8b5f9084f8d33a2be\\private-mailbox",
+      "MR_WSL_TEST_DISTRO": "Ubuntu-SSD",
+      "MR_WSL_TEST_USER": "pythonic",
+      "MR_WSL_TEST_BINARY": "/home/pythonic/Development/stillyard-mr3-membership-20260910z11d/target/scheduled-linux/debug/deps/stillyard-8d19002362520820",
+      "MR_WSL_TEST_SOURCE": "/home/pythonic/Development/stillyard-mr3-membership-20260910z11d",
+      "MR_WSL_TEST_EXECUTABLE": "/home/pythonic/Development/stillyard-mr3-membership-20260910z11d/target/scheduled-linux/debug/stillyard",
+      "MR_WSL_FAULT_EVIDENCE": "C:\\Development\\stillyard-mr3-cross-os-fault-evidence-20260910z11d\\cross-os-reset-2a9e3337f3e84db8b5f9084f8d33a2be\\subject"
+    },
+    "unset": []
+  },
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "timeout_seconds": 600,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "cross-os-reset"
+    },
+    {
+      "key": "source",
+      "value": "fd0d0246dd699cd8f0f5a2026ccaa24550a0724dc9ef97d8359dbffdcfe4aa4b"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "from": "/mnt/c/Development/stillyard-mr3-live-controls-20260910z8/target",
+    "to": "/mnt/c/Development/stillyard-mr3-release-recovery-20260910z9/target"
+  },
+  {
+    "from": "/home/pythonic/Development/stillyard-mr3-live-controls-20260910z8/target",
+    "to": "/home/pythonic/Development/stillyard-mr3-release-recovery-20260910z9/target"
+  }
+]

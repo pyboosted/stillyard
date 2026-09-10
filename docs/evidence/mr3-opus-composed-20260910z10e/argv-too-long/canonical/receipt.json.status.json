@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1a1b-7e03-a38f-2f798a1c0eba",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1a19-7f62-b576-ff6fc98ce92f",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1a25-7ec2-b225-83a556643395",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1c52-72d3-8ffe-f26497ff0a3e",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1c52-72d3-8ffe-f275e250dd43",
+  "root_exit_code": 1,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789038959131,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789038959362,
+  "finished_unix_millis": 1789038959927,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/e84f625ab23d4b979880134cc8dc36eb/reviewer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/e84f625ab23d4b979880134cc8dc36eb/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/e84f625ab23d4b979880134cc8dc36eb/review.json",
+      "--model",
+      "opus",
+      "--effort",
+      "high"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/e84f625ab23d4b979880134cc8dc36eb",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/e84f625ab23d4b979880134cc8dc36eb/reviewer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/e84f625ab23d4b979880134cc8dc36eb/review.json",
+          "--expected-model-prefix",
+          "claude-opus-"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr3-opus-composed-z10e"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1a25-7ec2-b225-83a556643395",
+      "attempt_index": 1,
+      "verdict": "postcondition_failed",
+      "reason_code": null,
+      "created_unix_millis": 1789038959141,
+      "started_unix_millis": 1789038959195,
+      "deadline_unix_millis": 1789040159195,
+      "finished_unix_millis": 1789038959927,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1a1b-7e03-a38f-2f798a1c0eba",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1a25-7ec2-b225-83a556643395",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1a25-7ec2-b225-83ba9f978c20",
+        "verdict": "process_failed",
+        "root_exit_code": 1,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789038959362,
+        "exited_unix_millis": 1789038959680,
+        "resolved_unix_millis": 1789038959696
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1a25-7ec2-b225-83ba9f978c20",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 1207942,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1207942,
+            "start_ticks": 8506596,
+            "pid_namespace_inode": 4026534297,
+            "uid": 1000
+          },
+          "root_exit_code": 1,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b05-aa0f-7f21-a411-4cae2a4d5a8b",
+          "started_unix_millis": 1789038959362,
+          "finished_unix_millis": 1789038959696,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1a25-7ec2-b225-83c1b77907a9",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": "Traceback (most recent call last):\n  File \"/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/e84f625ab23d4b979880134cc8dc36eb/reviewer.py\", line 213, in <module>\n    raise SystemExit(main())\n                     ~~~~^^\n  File \"/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/e84f625ab23d4b979880134cc8dc36eb/reviewer.py\", line 184, in main\n    completed = subprocess.run(command, stdout=output)\n  File \"/usr/lib/python3.14/subprocess.py\", line 555, in run\n    with Popen(*popenargs, **kwargs) as process:\n         ~~~~~^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.14/subprocess.py\", line 1039, in __init__\n    self._execute_child(args, executable, preexec_fn, close_fds,\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n                        pass_fds, cwd, env,\n                        ^^^^^^^^^^^^^^^^^^^\n    ...<5 lines>...\n                        gid, gids, uid, umask,\n                        ^^^^^^^^^^^^^^^^^^^^^^\n                        start_new_session, process_group)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.14/subprocess.py\", line 1875, in _execute_child\n    self._posix_spawn(args, executable, env, restore_signals, close_fds,\n    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n                      p2cread, p2cwrite,\n                      ^^^^^^^^^^^^^^^^^^\n                      c2pread, c2pwrite,\n                      ^^^^^^^^^^^^^^^^^^\n                      errread, errwrite)\n                      ^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.14/subprocess.py\", line 1819, in _posix_spawn\n    self.pid = os.posix_spawn(executable, args, env, **kwargs)\n               ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nOSError: [Errno 7] Argument list too long: '/home/pythonic/.local/bin/claude-current'\n"
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1c52-72d3-8ffe-f26497ff0a3e",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 1207988,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1207988,
+            "start_ticks": 8506643,
+            "pid_namespace_inode": 4026534421,
+            "uid": 1000
+          },
+          "root_exit_code": 1,
+          "exit_classification": "failed",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b05-aa0f-7f21-a411-4cae2a4d5a8b",
+          "started_unix_millis": 1789038959824,
+          "finished_unix_millis": 1789038959925,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1c52-72d3-8ffe-f275e250dd43",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": "Traceback (most recent call last):\n  File \"/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/e84f625ab23d4b979880134cc8dc36eb/reviewer.py\", line 213, in <module>\n    raise SystemExit(main())\n                     ~~~~^^\n  File \"/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/e84f625ab23d4b979880134cc8dc36eb/reviewer.py\", line 141, in main\n    print(json.dumps(validate_review(json.loads(args.input.read_text()), args.expected_model_prefix)))\n                                     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.14/json/__init__.py\", line 352, in loads\n    return _default_decoder.decode(s)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^\n  File \"/usr/lib/python3.14/json/decoder.py\", line 345, in decode\n    obj, end = self.raw_decode(s, idx=_w(s, 0).end())\n               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.14/json/decoder.py\", line 363, in raw_decode\n    raise JSONDecodeError(\"Expecting value\", s, err.value) from None\njson.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b08-1a36-7600-b742-48c67798943e",
+      "lease_id": "01a08b08-1a25-7ec2-b225-83de4f88f1c9",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08b08-1a25-7ec2-b225-83de4f88f1c9"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1a1b-7e03-a38f-2f798a1c0eba",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-1a25-7ec2-b225-83a556643395"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08b05-aa0f-7f21-a411-4cae2a4d5a8b"
+}

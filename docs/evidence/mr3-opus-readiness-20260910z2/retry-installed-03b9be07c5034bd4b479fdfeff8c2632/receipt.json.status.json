@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-90a5-72b2-b575-e723160e9110",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-90a3-7362-b3a3-58c88dcd0f35",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-90aa-7663-88d3-ca9ebd04967d",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089fb-35ba-7710-b56c-896fae525ed8",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089fb-35ba-7710-b56c-897348f21a8e",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789020704933,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789020705120,
+  "finished_unix_millis": 1789021337248,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/retry-installed-03b9be07c5034bd4b479fdfeff8c2632/reviewer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/retry-installed-03b9be07c5034bd4b479fdfeff8c2632/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/retry-installed-03b9be07c5034bd4b479fdfeff8c2632/review.json",
+      "--model",
+      "opus",
+      "--effort",
+      "high"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/retry-installed-03b9be07c5034bd4b479fdfeff8c2632",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/retry-installed-03b9be07c5034bd4b479fdfeff8c2632/reviewer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/retry-installed-03b9be07c5034bd4b479fdfeff8c2632/review.json",
+          "--expected-model-prefix",
+          "claude-opus-"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr3-opus-installed-recovery"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-90aa-7663-88d3-ca9ebd04967d",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789020704937,
+      "started_unix_millis": 1789020704991,
+      "deadline_unix_millis": 1789021904991,
+      "finished_unix_millis": 1789021337248,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-90a5-72b2-b575-e723160e9110",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-90aa-7663-88d3-ca9ebd04967d",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-90aa-7663-88d3-caa0261b925b",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789020705120,
+        "exited_unix_millis": 1789021337005,
+        "resolved_unix_millis": 1789021337016
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-90aa-7663-88d3-caa0261b925b",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 4178856,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 4178856,
+            "start_ticks": 6681173,
+            "pid_namespace_inode": 4026534283,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608",
+          "started_unix_millis": 1789020705120,
+          "finished_unix_millis": 1789021337016,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-90aa-7663-88d3-cabcfe3c0e86",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": " budget) and would not appear in the passing root-exit/cancel/timeout runs. Verification I could not perform (no tools this session): `systemctl --user show stillyard.service -p OOMPolicy` and `systemctl --user show -p DefaultOOMPolicy` on the installed y2 host. Remedy: set `OOMPolicy=continue` explicitly in the unit and confirm no systemd-oomd managed-pressure setting applies to `app.slice`. Related uncertainty: the two limits set here are *collective* to `executors`; per-Invocation `memory.max`/`pids.max` may well be applied by the launch path in src/runner/linux/launch.rs, which was not provided \u2014 if they are not, one Invocation can consume the whole budget and all 4096 pids and starve every peer, which is the same trigger.\",\"SEVERITY MEDIUM-HIGH \u2014 The upgrade holds a SQLite write transaction across `systemctl stop`, which can deadlock the daemon's own shutdown writes. Evidence: in scripts/upgrade-wsl-daemon.py, `db.execute(\\\"BEGIN IMMEDIATE\\\")` is followed by the lease/containment barrier queries, `save(\\\"barrier.json\\\", ...)`, and then `subprocess.run([\\\"systemctl\\\", \\\"--user\\\", \\\"stop\\\", \\\"stillyard.service\\\"], check=True, timeout=20)` \u2014 all inside the transaction, which is only released in the `finally` after `replacement.json`. Failure trace: SIGTERM reaches the daemon -> any store write on the shutdown path blocks on the updater's write lock (src/daemon/attached.rs shows the pattern, calling `store.attached_offline()` before `releases.disconnect()`; generation close-out is likely similar) -> either the daemon's busy timeout expires and shutdown reports spurious store errors, or stop exceeds the unit's `TimeoutStopSec` (unset, so the 90s default) and the `timeout=20` on `subprocess.run` raises `TimeoutExpired` first -> the `finally` rolls back and closes the db, `staged.unlink()` runs, and the tool exits with the unit in `stopping`/`failed` and the binary unreplaced. The intent (hold admission closed across the swap so a failed barrier leaves the daemon running) is sound; using an exclusive SQL write lock as the fence is what breaks. Remedy: take the barrier, record it, `ROLLBACK` before invoking systemctl, stop, confirm exit via the already-held pidfd, then re-open SQLite and re-verify the barrier with the daemon provably gone (no writer can race at that point); or add a daemon-side admission-close RPC and gate on `daemon-status` reporting the fence, rather than on lock contention.\",\"SEVERITY MEDIUM-HIGH \u2014 The upgrade barrier is SQLite-only, contradicting the stated cleanup doctrine. Evidence: the docstring claims the tool \\\"refuses outstanding Leases or containment\\\", but the barrier in scripts/upgrade-wsl-daemon.py is exactly two queries \u2014 `select count(*) from leases where state='granted'` and `select count(*) from containments where state!='empty'`. It never reads the executor journal `state.json` for records with `seal is None`, and never checks actual emptiness of the delegated `executors` cgroup, although src/runner/linux/journal.rs is explicitly built as the reset-independent authority (\\\"A missing cgroup is never a seal\\\") and your doctrine requires actual cgroup emptiness plus a durable journal seal. Failure traces: (a) `Journal::create` commits its record before any boundary exists and the SQLite containment row is written by a separate step \u2014 a crash in that window leaves an unsealed journal record while the barrier counts zero, so the upgrade proceeds and the new daemon inherits an obligation the barrier declared absent; (b) after any prior non-graceful daemon death under `KillMode=process`, live descendants in `executors/invocation-*` are invisible to both queries. Harm is bounded today by the same-version restriction (`version != \\\"stillyard \\\" + before[\\\"version\\\"]` -> error) and by preservation of the Store/journal/backup, so this is a doctrine and evidence gap rather than an immediate corruption path \u2014 but it is the barrier the upgrade's entire safety claim rests on. Remedy: add the journal (unsealed record count, by boot_id) and a direct `executors` subtree scan (per-child `cgroup.events` `populated`, recursively) to the barrier, and record all three in barrier.json so the evidence shows independent agreement rather than one source.\",\"SEVERITY MEDIUM \u2014 A failed upgrade leaves the coordinator stopped, and several safety checks are `assert`s or unchecked. Evidence: in scripts/upgrade-wsl-daemon.py, `subprocess.run([... \\\"start\\\", ...])` sits *after* the try/finally, so any exception raised between the successful `systemctl stop` and the end of the try (a rename failure, a `save()` failure on replacement.json, the `staged.exists()` unlink path, a KeyboardInterrupt) propagates with the service stopped and never restarted; with linger and no S4U task, nothing else brings it back, and the keepalive only issues `systemctl --user start` when a fresh WSL session begins. Additionally: `assert digest(staged) == args.candidate_sha256`, `assert after[\\\"store_uuid\\\"] == before[\\\"store_uuid\\\"]` and `assert after[\\\"daemon_generation\\\"] != before[\\\"daemon_generation\\\"]` are elided entirely under `python -O`/`PYTHONOPTIMIZE`, so the post-copy integrity check and the store-identity/generation-change checks are not guaranteed to run; and `start.returncode` is written into service-start.json but never tested, so a start failure is only caught indirectly by the 45s `daemon-status` poll, whose error text (\\\"replacement did not reconnect\\\") misattributes the cause. Remedy: wrap stop-through-swap in a try/finally that always attempts `systemctl --user start` (restoring the backup first if the swap did not commit), convert the three asserts to explicit raises, and raise on a nonzero `start.returncode` with the captured stderr. Minor related nit in the same file: it invokes bare `systemctl` (PATH-dependent) with no XDG_RUNTIME_DIR/DBUS_SESSION_BUS_ADDRESS, unlike wsl-service.py which uses `/usr/bin/systemctl` with an explicit env \u2014 run from a session without a user bus, `check=True` raises after the barrier is taken.\",\"SEVERITY MEDIUM \u2014 Neither installer can deliver a fix to the delegation helper or the unit onto a running system, which blocks the very fix this snapshot needs. Evidence: scripts/upgrade-wsl-daemon.py replaces only `root/bin/stillyard` (it hashes, stages and renames that one path) and never touches `root/libexec/wsl-service.py` or `~/.config/systemd/user/stillyard.service`; it also never compares the installed helper against the `helper_sha256` recorded by install-wsl-daemon.py, so silent drift or hand-editing of the helper/unit is undetected at runtime. scripts/install-wsl-daemon.py refuses to run at all when either exists (`if installed.exists() or unit.exists(): parser.error(\\\"initial installation refuses an existing executable or service; use an audited upgrade\\\")`). Failure trace: the systemd-259 delegation problem and the `--executors` hardcoding both live in the helper and the unit, so the z2 fix has no supported delivery path onto the installed y2 host \u2014 the only routes are an unaudited manual edit (invisible to all evidence files) or a destructive teardown of the Store the upgrade tool exists to preserve. Remedy: extend the upgrade tool to stage helper and unit under the same barrier (digest-pinned, `daemon-reload` after, both digests in replacement.json), and have `delegate()` verify its own file digest against a recorded anchor at startup so drift fails closed.\",\"SEVERITY MEDIUM \u2014 Initial install never binds the installed bytes to the verified release Job; the digest check is circular. Evidence: scripts/install-wsl-daemon.py validates the Job (`state == \\\"final\\\"`, `outcome == \\\"succeeded\\\"`, label `wsl-bootstrap-build-release`) and separately checks `digest(args.candidate) != args.candidate_sha256` \u2014 but `--candidate-sha256` is operator-supplied and is compared only against the operator-supplied `--candidate`, which proves self-consistency and nothing about provenance. Contrast scripts/upgrade-wsl-daemon.py, which does bind them: it derives `target = Path(build[\\\"spec\\\"][\\\"environment\\\"][\\\"set\\\"][\\\"CARGO_TARGET_DIR\\\"])/\\\"release/stillyard\\\"` and rejects unless `candidate == target.resolve()` and `build[\\\"spec\\\"][\\\"args\\\"] == [\\\"build\\\",\\\"--locked\\\",\\\"--release\\\"]`. So the tool whose docstring promises \\\"a validated first WSL installation\\\" is the weaker of the two: any file at all can be installed alongside a genuine but unrelated successful gate Job, and the resulting plan.json will look fully validated. Remedy: apply the upgrade tool's CARGO_TARGET_DIR/args binding in the install path as well, and record the resolved target path in plan.json.\",\"SEVERITY MEDIUM \u2014 Install is neither atomic nor durable, and a crash mid-install wedges both tools. Evidence: scripts/install-wsl-daemon.py uses `shutil.copyfile(args.candidate, installed)` and `shutil.copyfile(source_helper, helper)` directly to their final names (no staged temp + rename, so a truncated interrupt leaves a partial executable at the live path); it fsyncs file contents via read-only handles (`with path.open(\\\"rb\\\") as stream: os.fsync(stream.fileno())` \u2014 permitted on Linux but fragile) and never fsyncs any containing directory (`root`, `bin`, `libexec`, `~/.config/systemd/user`), unlike the careful `publish()` in src/runner/linux/journal.rs which does `File::open(directory)?.sync_all()` after every rename/link. Failure trace: a VM shutdown or crash after `save(root/\\\"config.json\\\", ...)` but before the binary's directory entry is durable leaves `config.json` present and `bin/stillyard` absent or zero-length; re-running install then hits `initial installation refuses existing Store/configuration history`, while upgrade-wsl-daemon.py cannot help because its first action is `query(\\\"daemon-status\\\")` against a binary that does not work \u2014 manual cleanup of a partially-installed Store becomes the only exit. Given no coldboot guarantee is claimed, this window is reachable. Remedy: copy to `.next-<uuid>` + fsync + rename + parent-directory fsync for binary, helper, config and unit; write an `install-in-progress` marker that install itself is permitted to reconcile, so a partial install is repairable by the tool that created it.\",\"SEVERITY MEDIUM \u2014 Cleanup can be permanently blocked by a child cgroup, and the mitigation is only a comment. Evidence: `Boundary::kill_and_seal` in src/runner/linux/cgroup.rs writes `cgroup.kill`, waits on the (correctly recursive) `populated` flag, then ends with `std::fs::remove_dir(&self.identity.path)`; the comment states \\\"Invocation user code sees read-only cgroups, so it cannot add child boundaries. Unexpected descendants make rmdir fail closed.\\\" Nothing in the two Linux runner files provided enforces or tests that claim \u2014 the invocation cgroup is created by the daemon under the same uid as the Invocation, and per cgroup-v2 delegation semantics a same-uid process with a writable cgroupfs view can `mkdir` inside its own cgroup. Failure trace if the read-only view is not actually in place: user code creates `executors/invocation-X/sub` -> `cgroup.kill` still kills recursively and `populated` goes to 0, so the wait loop exits -> `remove_dir` fails EBUSY on the non-empty cgroup -> `kill_and_seal` returns Err -> `Journal::cleanup` returns Err with no seal -> per doctrine no Ticket, no release, so the Lease/Grant debit is retained forever, and every retry fails identically because the child directory persists. That is a self-inflicted capacity DoS from inside a single Invocation. Uncertainty: src/runner/linux/launch.rs and the namespace/mount setup were not provided; the guarantee may well be implemented there, in which case this reduces to a missing test. Also note `contains_process` reads only the boundary's own `cgroup.procs` and is therefore non-recursive \u2014 sound at its one current call site (`Journal::ready`, before user code runs, root directly attached) but a hazard if it is ever reused for cleanup or attribution; the recursive `populated` is correctly the emptiness proof. Remedy: depth-first rmdir of any surviving descendants before removing the boundary; assert the read-only cgroupfs view at attach time; add a hostile-Invocation test that mkdirs a child cgroup and asserts the seal still completes.\",\"SEVERITY MEDIUM-LOW \u2014 Reconnect handling amplifies any transport outage. Evidence: the error arm of the loop in src/daemon/attached.rs ends in a fixed `std::thread::sleep(Duration::from_secs(1))` with no exponential backoff, jitter, cap, or escalation after N consecutive failures; each retry calls `Driver::connect` -> `Bridge::spawn`, which re-reads and SHA-256s the *entire* Windows image on every attempt (the `loop { image.read(&mut buffer) }` block, bounded only at 512 MiB) across the DrvFs/9p boundary. Also, `exchange()` sets `self.broken = true` before the frame exchange and clears it only after correlation succeeds, so any single `DeadlineElapsed` (deadline clamped to 30s) discards the whole bridge and forces a full respawn plus rehash \u2014 correct fail-closed reasoning about stream position, but expensive. Failure trace: a stale interop alias or a Windows-side outage produces sustained 1 Hz respawn attempts, each hashing the Windows binary over the filesystem bridge, for as long as the outage lasts (indefinitely, since with linger the daemon persists); the `reported`-string dedup in the same loop suppresses repeats only while the detail text is byte-identical, so any varying errno/detail floods journald at the same cadence. Remedy: exponential backoff with cap and jitter; cache the verified image digest keyed on (dev, ino, size, mtime) and re-verify on change rather than on every attempt; distinguish and report stale-alias separately (see the interop-validation finding); add a consecutive-failure threshold that surfaces as a `daemon-status` blocker. Minor, same file: the success path does `store.lock().ok().and_then(...).unwrap_or(1s)`, silently degrading a poisoned store mutex to default polling instead of treating it as terminal.\",\"SEVERITY MEDIUM-LOW \u2014 Keepalive leaks its alias on start failure, and its recorded lifetime story no longer matches reality. Evidence in scripts/wsl-service.py `keepalive()`: (1) `subprocess.run([\\\"/usr/bin/systemctl\\\", \\\"--user\\\", \\\"start\\\", \\\"--no-block\\\", \\\"stillyard.service\\\"], check=True, timeout=15)` executes *before* the `try:` whose `finally` unlinks the alias, so a CalledProcessError/TimeoutExpired there exits with a traceback and leaves `root/interop.sock` behind, pointing at a socket that dies with the session \u2014 manufacturing exactly the stale-alias state that `Bridge::spawn` does not validate; (2) `--no-block` plus `check=True` verifies only that systemctl accepted the job, never that the service reached running or that the daemon paired, so the component claiming lifetime authority has no readiness feedback; (3) `os.environ[\\\"WSL_INTEROP\\\"]` raises a bare KeyError rather than the module's clear RuntimeError style; (4) the published record (`pid`, `boot_id`, `interop_alias`, `interop_server`) goes only to stdout \u2014 under the actual deployment (no S4U task, a detached ordinary per-user wsl.exe) that console is not captured, so the one piece of evidence that would let the daemon validate alias freshness against the current boot_id is discarded; (5) the module docstring still asserts \\\"The Windows scheduled task runs keepalive in a foreground wsl.exe session\\\", and install-wsl-daemon.py's docstring says \\\"Windows keepalive registration follow[s] the saved setup receipt\\\", yet no evidence file records which mechanism is actually in force \u2014 a reviewer reading plan.json/staged.json cannot distinguish a registered S4U task from the degraded detached fallback that exists after the access-denied/UAC-cancelled attempt. Remedy: write the receipt durably to `root/keepalive.json` (atomic replace, including boot_id and pid start_ticks) and have `Bridge::spawn` require a match; move the systemctl start inside the try/finally; raise a clear error when WSL_INTEROP is unset; record the actual keepalive mechanism and its privilege outcome in the install evidence and in `daemon-status`.\"]},\"ttft_ms\":383607,\"type\":\"result\",\"duration_ms\":630606,\"uuid\":\"89e10b71-9efc-471d-85f9-43bb382784ab\",\"ttft_stream_ms\":2358,\"time_to_request_ms\":30,\"first_content_frame_ms\":3247,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089fb-35ba-7710-b56c-896fae525ed8",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 9191,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 9191,
+            "start_ticks": 6744378,
+            "pid_namespace_inode": 4026533889,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608",
+          "started_unix_millis": 1789021337192,
+          "finished_unix_millis": 1789021337245,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089fb-35ba-7710-b56c-897348f21a8e",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "ion, compounding the two prior findings. This is precisely a fault class in your pending list (actual faults, idle budget) and would not appear in the passing root-exit/cancel/timeout runs. Verification I could not perform (no tools this session): `systemctl --user show stillyard.service -p OOMPolicy` and `systemctl --user show -p DefaultOOMPolicy` on the installed y2 host. Remedy: set `OOMPolicy=continue` explicitly in the unit and confirm no systemd-oomd managed-pressure setting applies to `app.slice`. Related uncertainty: the two limits set here are *collective* to `executors`; per-Invocation `memory.max`/`pids.max` may well be applied by the launch path in src/runner/linux/launch.rs, which was not provided \\u2014 if they are not, one Invocation can consume the whole budget and all 4096 pids and starve every peer, which is the same trigger.\", \"SEVERITY MEDIUM-HIGH \\u2014 The upgrade holds a SQLite write transaction across `systemctl stop`, which can deadlock the daemon's own shutdown writes. Evidence: in scripts/upgrade-wsl-daemon.py, `db.execute(\\\"BEGIN IMMEDIATE\\\")` is followed by the lease/containment barrier queries, `save(\\\"barrier.json\\\", ...)`, and then `subprocess.run([\\\"systemctl\\\", \\\"--user\\\", \\\"stop\\\", \\\"stillyard.service\\\"], check=True, timeout=20)` \\u2014 all inside the transaction, which is only released in the `finally` after `replacement.json`. Failure trace: SIGTERM reaches the daemon -> any store write on the shutdown path blocks on the updater's write lock (src/daemon/attached.rs shows the pattern, calling `store.attached_offline()` before `releases.disconnect()`; generation close-out is likely similar) -> either the daemon's busy timeout expires and shutdown reports spurious store errors, or stop exceeds the unit's `TimeoutStopSec` (unset, so the 90s default) and the `timeout=20` on `subprocess.run` raises `TimeoutExpired` first -> the `finally` rolls back and closes the db, `staged.unlink()` runs, and the tool exits with the unit in `stopping`/`failed` and the binary unreplaced. The intent (hold admission closed across the swap so a failed barrier leaves the daemon running) is sound; using an exclusive SQL write lock as the fence is what breaks. Remedy: take the barrier, record it, `ROLLBACK` before invoking systemctl, stop, confirm exit via the already-held pidfd, then re-open SQLite and re-verify the barrier with the daemon provably gone (no writer can race at that point); or add a daemon-side admission-close RPC and gate on `daemon-status` reporting the fence, rather than on lock contention.\", \"SEVERITY MEDIUM-HIGH \\u2014 The upgrade barrier is SQLite-only, contradicting the stated cleanup doctrine. Evidence: the docstring claims the tool \\\"refuses outstanding Leases or containment\\\", but the barrier in scripts/upgrade-wsl-daemon.py is exactly two queries \\u2014 `select count(*) from leases where state='granted'` and `select count(*) from containments where state!='empty'`. It never reads the executor journal `state.json` for records with `seal is None`, and never checks actual emptiness of the delegated `executors` cgroup, although src/runner/linux/journal.rs is explicitly built as the reset-independent authority (\\\"A missing cgroup is never a seal\\\") and your doctrine requires actual cgroup emptiness plus a durable journal seal. Failure traces: (a) `Journal::create` commits its record before any boundary exists and the SQLite containment row is written by a separate step \\u2014 a crash in that window leaves an unsealed journal record while the barrier counts zero, so the upgrade proceeds and the new daemon inherits an obligation the barrier declared absent; (b) after any prior non-graceful daemon death under `KillMode=process`, live descendants in `executors/invocation-*` are invisible to both queries. Harm is bounded today by the same-version restriction (`version != \\\"stillyard \\\" + before[\\\"version\\\"]` -> error) and by preservation of the Store/journal/backup, so this is a doctrine and evidence gap rather than an immediate corruption path \\u2014 but it is the barrier the upgrade's entire safety claim rests on. Remedy: add the journal (unsealed record count, by boot_id) and a direct `executors` subtree scan (per-child `cgroup.events` `populated`, recursively) to the barrier, and record all three in barrier.json so the evidence shows independent agreement rather than one source.\", \"SEVERITY MEDIUM \\u2014 A failed upgrade leaves the coordinator stopped, and several safety checks are `assert`s or unchecked. Evidence: in scripts/upgrade-wsl-daemon.py, `subprocess.run([... \\\"start\\\", ...])` sits *after* the try/finally, so any exception raised between the successful `systemctl stop` and the end of the try (a rename failure, a `save()` failure on replacement.json, the `staged.exists()` unlink path, a KeyboardInterrupt) propagates with the service stopped and never restarted; with linger and no S4U task, nothing else brings it back, and the keepalive only issues `systemctl --user start` when a fresh WSL session begins. Additionally: `assert digest(staged) == args.candidate_sha256`, `assert after[\\\"store_uuid\\\"] == before[\\\"store_uuid\\\"]` and `assert after[\\\"daemon_generation\\\"] != before[\\\"daemon_generation\\\"]` are elided entirely under `python -O`/`PYTHONOPTIMIZE`, so the post-copy integrity check and the store-identity/generation-change checks are not guaranteed to run; and `start.returncode` is written into service-start.json but never tested, so a start failure is only caught indirectly by the 45s `daemon-status` poll, whose error text (\\\"replacement did not reconnect\\\") misattributes the cause. Remedy: wrap stop-through-swap in a try/finally that always attempts `systemctl --user start` (restoring the backup first if the swap did not commit), convert the three asserts to explicit raises, and raise on a nonzero `start.returncode` with the captured stderr. Minor related nit in the same file: it invokes bare `systemctl` (PATH-dependent) with no XDG_RUNTIME_DIR/DBUS_SESSION_BUS_ADDRESS, unlike wsl-service.py which uses `/usr/bin/systemctl` with an explicit env \\u2014 run from a session without a user bus, `check=True` raises after the barrier is taken.\", \"SEVERITY MEDIUM \\u2014 Neither installer can deliver a fix to the delegation helper or the unit onto a running system, which blocks the very fix this snapshot needs. Evidence: scripts/upgrade-wsl-daemon.py replaces only `root/bin/stillyard` (it hashes, stages and renames that one path) and never touches `root/libexec/wsl-service.py` or `~/.config/systemd/user/stillyard.service`; it also never compares the installed helper against the `helper_sha256` recorded by install-wsl-daemon.py, so silent drift or hand-editing of the helper/unit is undetected at runtime. scripts/install-wsl-daemon.py refuses to run at all when either exists (`if installed.exists() or unit.exists(): parser.error(\\\"initial installation refuses an existing executable or service; use an audited upgrade\\\")`). Failure trace: the systemd-259 delegation problem and the `--executors` hardcoding both live in the helper and the unit, so the z2 fix has no supported delivery path onto the installed y2 host \\u2014 the only routes are an unaudited manual edit (invisible to all evidence files) or a destructive teardown of the Store the upgrade tool exists to preserve. Remedy: extend the upgrade tool to stage helper and unit under the same barrier (digest-pinned, `daemon-reload` after, both digests in replacement.json), and have `delegate()` verify its own file digest against a recorded anchor at startup so drift fails closed.\", \"SEVERITY MEDIUM \\u2014 Initial install never binds the installed bytes to the verified release Job; the digest check is circular. Evidence: scripts/install-wsl-daemon.py validates the Job (`state == \\\"final\\\"`, `outcome == \\\"succeeded\\\"`, label `wsl-bootstrap-build-release`) and separately checks `digest(args.candidate) != args.candidate_sha256` \\u2014 but `--candidate-sha256` is operator-supplied and is compared only against the operator-supplied `--candidate`, which proves self-consistency and nothing about provenance. Contrast scripts/upgrade-wsl-daemon.py, which does bind them: it derives `target = Path(build[\\\"spec\\\"][\\\"environment\\\"][\\\"set\\\"][\\\"CARGO_TARGET_DIR\\\"])/\\\"release/stillyard\\\"` and rejects unless `candidate == target.resolve()` and `build[\\\"spec\\\"][\\\"args\\\"] == [\\\"build\\\",\\\"--locked\\\",\\\"--release\\\"]`. So the tool whose docstring promises \\\"a validated first WSL installation\\\" is the weaker of the two: any file at all can be installed alongside a genuine but unrelated successful gate Job, and the resulting plan.json will look fully validated. Remedy: apply the upgrade tool's CARGO_TARGET_DIR/args binding in the install path as well, and record the resolved target path in plan.json.\", \"SEVERITY MEDIUM \\u2014 Install is neither atomic nor durable, and a crash mid-install wedges both tools. Evidence: scripts/install-wsl-daemon.py uses `shutil.copyfile(args.candidate, installed)` and `shutil.copyfile(source_helper, helper)` directly to their final names (no staged temp + rename, so a truncated interrupt leaves a partial executable at the live path); it fsyncs file contents via read-only handles (`with path.open(\\\"rb\\\") as stream: os.fsync(stream.fileno())` \\u2014 permitted on Linux but fragile) and never fsyncs any containing directory (`root`, `bin`, `libexec`, `~/.config/systemd/user`), unlike the careful `publish()` in src/runner/linux/journal.rs which does `File::open(directory)?.sync_all()` after every rename/link. Failure trace: a VM shutdown or crash after `save(root/\\\"config.json\\\", ...)` but before the binary's directory entry is durable leaves `config.json` present and `bin/stillyard` absent or zero-length; re-running install then hits `initial installation refuses existing Store/configuration history`, while upgrade-wsl-daemon.py cannot help because its first action is `query(\\\"daemon-status\\\")` against a binary that does not work \\u2014 manual cleanup of a partially-installed Store becomes the only exit. Given no coldboot guarantee is claimed, this window is reachable. Remedy: copy to `.next-<uuid>` + fsync + rename + parent-directory fsync for binary, helper, config and unit; write an `install-in-progress` marker that install itself is permitted to reconcile, so a partial install is repairable by the tool that created it.\", \"SEVERITY MEDIUM \\u2014 Cleanup can be permanently blocked by a child cgroup, and the mitigation is only a comment. Evidence: `Boundary::kill_and_seal` in src/runner/linux/cgroup.rs writes `cgroup.kill`, waits on the (correctly recursive) `populated` flag, then ends with `std::fs::remove_dir(&self.identity.path)`; the comment states \\\"Invocation user code sees read-only cgroups, so it cannot add child boundaries. Unexpected descendants make rmdir fail closed.\\\" Nothing in the two Linux runner files provided enforces or tests that claim \\u2014 the invocation cgroup is created by the daemon under the same uid as the Invocation, and per cgroup-v2 delegation semantics a same-uid process with a writable cgroupfs view can `mkdir` inside its own cgroup. Failure trace if the read-only view is not actually in place: user code creates `executors/invocation-X/sub` -> `cgroup.kill` still kills recursively and `populated` goes to 0, so the wait loop exits -> `remove_dir` fails EBUSY on the non-empty cgroup -> `kill_and_seal` returns Err -> `Journal::cleanup` returns Err with no seal -> per doctrine no Ticket, no release, so the Lease/Grant debit is retained forever, and every retry fails identically because the child directory persists. That is a self-inflicted capacity DoS from inside a single Invocation. Uncertainty: src/runner/linux/launch.rs and the namespace/mount setup were not provided; the guarantee may well be implemented there, in which case this reduces to a missing test. Also note `contains_process` reads only the boundary's own `cgroup.procs` and is therefore non-recursive \\u2014 sound at its one current call site (`Journal::ready`, before user code runs, root directly attached) but a hazard if it is ever reused for cleanup or attribution; the recursive `populated` is correctly the emptiness proof. Remedy: depth-first rmdir of any surviving descendants before removing the boundary; assert the read-only cgroupfs view at attach time; add a hostile-Invocation test that mkdirs a child cgroup and asserts the seal still completes.\", \"SEVERITY MEDIUM-LOW \\u2014 Reconnect handling amplifies any transport outage. Evidence: the error arm of the loop in src/daemon/attached.rs ends in a fixed `std::thread::sleep(Duration::from_secs(1))` with no exponential backoff, jitter, cap, or escalation after N consecutive failures; each retry calls `Driver::connect` -> `Bridge::spawn`, which re-reads and SHA-256s the *entire* Windows image on every attempt (the `loop { image.read(&mut buffer) }` block, bounded only at 512 MiB) across the DrvFs/9p boundary. Also, `exchange()` sets `self.broken = true` before the frame exchange and clears it only after correlation succeeds, so any single `DeadlineElapsed` (deadline clamped to 30s) discards the whole bridge and forces a full respawn plus rehash \\u2014 correct fail-closed reasoning about stream position, but expensive. Failure trace: a stale interop alias or a Windows-side outage produces sustained 1 Hz respawn attempts, each hashing the Windows binary over the filesystem bridge, for as long as the outage lasts (indefinitely, since with linger the daemon persists); the `reported`-string dedup in the same loop suppresses repeats only while the detail text is byte-identical, so any varying errno/detail floods journald at the same cadence. Remedy: exponential backoff with cap and jitter; cache the verified image digest keyed on (dev, ino, size, mtime) and re-verify on change rather than on every attempt; distinguish and report stale-alias separately (see the interop-validation finding); add a consecutive-failure threshold that surfaces as a `daemon-status` blocker. Minor, same file: the success path does `store.lock().ok().and_then(...).unwrap_or(1s)`, silently degrading a poisoned store mutex to default polling instead of treating it as terminal.\", \"SEVERITY MEDIUM-LOW \\u2014 Keepalive leaks its alias on start failure, and its recorded lifetime story no longer matches reality. Evidence in scripts/wsl-service.py `keepalive()`: (1) `subprocess.run([\\\"/usr/bin/systemctl\\\", \\\"--user\\\", \\\"start\\\", \\\"--no-block\\\", \\\"stillyard.service\\\"], check=True, timeout=15)` executes *before* the `try:` whose `finally` unlinks the alias, so a CalledProcessError/TimeoutExpired there exits with a traceback and leaves `root/interop.sock` behind, pointing at a socket that dies with the session \\u2014 manufacturing exactly the stale-alias state that `Bridge::spawn` does not validate; (2) `--no-block` plus `check=True` verifies only that systemctl accepted the job, never that the service reached running or that the daemon paired, so the component claiming lifetime authority has no readiness feedback; (3) `os.environ[\\\"WSL_INTEROP\\\"]` raises a bare KeyError rather than the module's clear RuntimeError style; (4) the published record (`pid`, `boot_id`, `interop_alias`, `interop_server`) goes only to stdout \\u2014 under the actual deployment (no S4U task, a detached ordinary per-user wsl.exe) that console is not captured, so the one piece of evidence that would let the daemon validate alias freshness against the current boot_id is discarded; (5) the module docstring still asserts \\\"The Windows scheduled task runs keepalive in a foreground wsl.exe session\\\", and install-wsl-daemon.py's docstring says \\\"Windows keepalive registration follow[s] the saved setup receipt\\\", yet no evidence file records which mechanism is actually in force \\u2014 a reviewer reading plan.json/staged.json cannot distinguish a registered S4U task from the degraded detached fallback that exists after the access-denied/UAC-cancelled attempt. Remedy: write the receipt durably to `root/keepalive.json` (atomic replace, including boot_id and pid start_ticks) and have `Bridge::spawn` require a match; move the systemctl start inside the try/finally; raise a clear error when WSL_INTEROP is unset; record the actual keepalive mechanism and its privilege outcome in the install evidence and in `daemon-status`.\"]}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089f1-90bd-7342-9cf6-f407bd02d132",
+      "lease_id": "01a089f1-90aa-7663-88d3-cacdb07482d3",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a089f1-90aa-7663-88d3-cacdb07482d3"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-90a5-72b2-b575-e723160e9110",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-90aa-7663-88d3-ca9ebd04967d"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608"
+}

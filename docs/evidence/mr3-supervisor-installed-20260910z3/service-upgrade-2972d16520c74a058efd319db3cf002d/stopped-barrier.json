@@ -1,0 +1,11 @@
+{
+  "journal_sha256": "93e204bd6873ac2f508489ea5415b073dc7953efc0ea23d792ea6ec2a4fe8e05",
+  "records": 74,
+  "unsealed": 0,
+  "executors": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service/executors",
+  "events": {
+    "populated": "0",
+    "maintenance_absent": "true"
+  },
+  "children": []
+}

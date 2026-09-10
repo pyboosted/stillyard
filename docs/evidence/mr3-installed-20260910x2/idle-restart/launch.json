@@ -1,0 +1,17 @@
+{
+  "pid": 32592,
+  "args": [
+    "C:\\Windows\\System32\\wsl.exe",
+    "--distribution",
+    "Ubuntu-SSD",
+    "--user",
+    "pythonic",
+    "--exec",
+    "/usr/bin/python3",
+    "/home/pythonic/.local/share/stillyard/libexec/wsl-service.py",
+    "keepalive",
+    "--root",
+    "/home/pythonic/.local/share/stillyard"
+  ],
+  "scope": "per-user external WSL lifetime; no cold-start or logout acceptance"
+}

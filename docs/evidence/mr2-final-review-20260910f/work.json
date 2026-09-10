@@ -1,0 +1,24 @@
+{
+  "distribution": "Ubuntu-SSD",
+  "user": "pythonic",
+  "executable": "/usr/bin/python3",
+  "args": [
+    "/home/pythonic/.codex-account-2/skills/opus-review/scripts/run_opus_review.py",
+    "--prompt-file",
+    "/mnt/c/Development/stillyard-mr2-final-review-20260910f/brief.txt",
+    "--perspective",
+    "verify post-review metadata reservations and fenced SQL repair safety against concrete failure traces",
+    "--cwd",
+    "/mnt/c/Development/stillyard-mr2-final-review-20260910f",
+    "--timeout",
+    "1200",
+    "--output",
+    "/mnt/c/Development/stillyard-mr2-final-review-20260910f/review-results.json"
+  ],
+  "working_directory": "/mnt/c/Development/stillyard-mr2-final-review-20260910f",
+  "timeout_seconds": 1500,
+  "environment": {
+    "HOME": "/home/pythonic",
+    "PATH": "/home/pythonic/.local/bin:/usr/local/bin:/usr/bin:/bin"
+  }
+}

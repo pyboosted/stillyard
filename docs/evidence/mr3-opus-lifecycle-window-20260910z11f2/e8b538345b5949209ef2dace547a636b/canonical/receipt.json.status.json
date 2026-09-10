@@ -1,0 +1,239 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b50-8fa2-74b0-927e-6906b73421d2",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b50-8fa0-7ce1-81ae-ad2ffe5cf815",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b50-8fa8-7652-89c5-55492c1d1442",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b54-27d5-7c50-9705-88548cddb837",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b54-27d5-7c50-9705-886bebfa2452",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789043707810,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789043708051,
+  "finished_unix_millis": 1789043943656,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11f2/e8b538345b5949209ef2dace547a636b/reviewer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11f2/e8b538345b5949209ef2dace547a636b/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11f2/e8b538345b5949209ef2dace547a636b/review.json",
+      "--model",
+      "opus",
+      "--effort",
+      "high"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11f2/e8b538345b5949209ef2dace547a636b",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 3,
+      "backoff_seconds": 1,
+      "retryable": [
+        "start_failed"
+      ]
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11f2/e8b538345b5949209ef2dace547a636b/reviewer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11f2/e8b538345b5949209ef2dace547a636b/review.json",
+          "--expected-model-prefix",
+          "claude-opus-"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr3-opus-lifecycle-window-z11f"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b50-8fa8-7652-89c5-55492c1d1442",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789043707816,
+      "started_unix_millis": 1789043707887,
+      "deadline_unix_millis": 1789044907887,
+      "finished_unix_millis": 1789043943656,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b50-8fa2-74b0-927e-6906b73421d2",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b50-8fa8-7652-89c5-55492c1d1442",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b50-8fa8-7652-89c5-555eff3eb583",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789043708051,
+        "exited_unix_millis": 1789043943352,
+        "resolved_unix_millis": 1789043943377
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b50-8fa8-7652-89c5-555eff3eb583",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 1745345,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1745345,
+            "start_ticks": 8981464,
+            "pid_namespace_inode": 4026534425,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b4a-da2c-72d1-bcdc-f5b512f5a453",
+          "started_unix_millis": 1789043708051,
+          "finished_unix_millis": 1789043943377,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b50-8fa8-7652-89c5-55692ee74fd6",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "s written, so the starter never launches the keepalive, the VM stays down, and the starter idles to its 1800 s timeout. Preflight cannot surface this because preflight only ever runs with distributions up. Related: the stopped observation is a single immediate sample with no settle/retry window, so any asynchrony in `wsl --terminate`/`--shutdown` reporting produces the same post-fault hard failure.\\\",\\\"Native identity checks establish self-consistency, not authenticity. `process(pid)==record` only proves the recorded pid/creation_time/image still describe a live process (good PID-reuse defence), but the controller never requires `image` to equal `WSL` (for the keepalive) or the expected interpreter (for the starter), never compares `launched['starter']` against the already-verified `ready['identity']`, and never requires `launched['identity']['creation_time']` to postdate `fault-intent.json`. After `--terminate` with another distribution alive, a pre-existing, out-of-Job `wsl.exe` session satisfies every keepalive liveness require in the recovery loop and in the final `'external keepalive disappeared before completion'` check, so the controller can certify an external lifetime owner that is not the process the starter created.\\\",\\\"The Linux startup record `keeper` is taken from `exchange/keepalive.stdout`, a plain unauthenticated stream, and the controller accepts the *last* line whose `kind=='wsl_keepalive'`. Its only binding to reality is `after['executor']['boot_id']==keeper['boot_id']` and `interop_target==keeper['interop_server']` \u2014 both values any process inside the distro can read and echo. Combined with the previous finding, the chain \\\\\\\"a verified external process owns the interop server of the observed boot\\\\\\\" is not actually closed: nothing ties the published record to the pid recorded in `launched.json`. The record contains `pid`, but the controller never correlates it (e.g. via the Linux-side session of `launched['identity']`) and never re-validates the alias owner against it.\\\",\\\"inventory.py trusts `attachment/anchor.json` with none of the scrutiny applied to `state.json`. `state.json` gets an lstat regular-file/uid/mode check plus a canonical re-serialisation hash, but `executor_cgroup` is pulled from `anchor.json` with only path-shape validation (`is_relative_to('/sys/fs/cgroup')`, no symlink, no `..`, `resolve()==cgroup`). Path shape does not prove it is the delegated executors cgroup: the same script hard-codes `'stillyard.service/executors/'` for its foreign-process filter and wsl-service.py derives `executors` from the service's own cgroup, so a stale or tampered anchor makes `require(events['populated']=='0' and not children)` a true statement about the wrong cgroup. That require is the primary emptiness evidence for the whole barrier; it should require the anchor's integrity and that the resolved path is the `stillyard.service/executors` tree the delegation actually uses.\\\",\\\"Several assertions are reached only after the irreversible fault, so their field schema is never exercised by the authorized preflight. `after[side]['store_uuid']` and `after[side]['machine_scheduling']['domains']` are read for `side=='windows'`, yet `empty()` deliberately reads `machine_scheduling` only from the guest and `blocker` from the authority object \u2014 suggesting the Windows `daemon-status` payload may not carry `machine_scheduling` at all. A KeyError there raises after the fault and after the keepalive handoff, producing a failure record for what is really a controller bug. Preflight should validate the presence and type of every key the post-fault path will touch (`store_uuid`, `machine_scheduling.domains`, `daemon_generation` on both sides) against the snapshot it already collects.\\\",\\\"The recovery retry loop is too narrow, and the deadline it shares is likely too short. `except (subprocess.CalledProcessError, subprocess.TimeoutExpired)` does not cover the `RuntimeError` raised by `linux()`'s `'observer refuses to cold-start the stopped distro'` guard (a plausible transient while `wsl --list --running` catches up with the freshly started keepalive session) nor `json.JSONDecodeError` from a daemon that is mid-initialisation \u2014 `keepalive` prints its JSON *before* `systemctl --user start --no-block stillyard.service`, so the controller is explicitly permitted to observe a not-yet-ready daemon. Either transient becomes a terminal post-fault failure. Additionally, the single `until=time.monotonic()+300` covers starter launch, VM cold boot, keepalive publication, service start and full pair reconnect; for `--shutdown` that budget is optimistic, and exceeding it is again a hard failure with the keepalive already running.\\\",\\\"The starter shares a console and process group with the keepalive it owns. `subprocess.Popen` is used without `CREATE_NEW_PROCESS_GROUP`, and the starter then blocks in `keeper.wait()` \\\\\\\"permanently\\\\\\\" with no clean stop path. The operator's only way to end the starter is Ctrl+C or closing the console, both of which deliver CTRL_C_EVENT/CTRL_CLOSE_EVENT to the entire group and terminate the keepalive `wsl.exe` \u2014 dropping precisely the lifetime owner the design exists to protect, despite the \\\\\\\"Never detach or terminate this child\\\\\\\" comment. Secondly, if `require(not native['in_job'])` fails immediately after `Popen`, the starter raises and exits with the keepalive already spawned and no `launched.json` written: an unrecorded, unowned keepalive plus a controller that blocks to its deadline.\\\",\\\"The exchange handshake binds the approval file and starter.py by hash, but not the rest of the reviewed source. `inventory.py` is shipped to the distro as `-c` source text with no digest recorded in evidence, and controller.py's own hash is never captured. Since the executor snapshot is the sole basis for every emptiness, image and history assertion, its source should be hashed into `fault-intent.json`/`result.json` alongside `approval_sha256` and `starter_sha256` so the evidence identifies which inventory produced the observations.\\\"],\\\"summary\\\":\\\"Focused re-review of the revised controller/starter/exchange design. The structural fixes hold up: there is no self-created or detached keepalive, no blanket boot assertion on `terminate`, barriers use `require` rather than asserts, evidence writes are fsync+MOVEFILE_WRITE_THROUGH renames, the alias/socket validation is strict root-owned, and canaries are correctly deferred. Eight material defects remain, none requiring redesign. The most serious is that `running()` almost certainly fails or misparses in the zero-running-distribution state that `--shutdown` deliberately creates, aborting after the irreversible fault and before the start request is written \u2014 a hole preflight structurally cannot detect. Next is that the external-owner identity checks prove self-consistency (PID-reuse safety) but not authenticity: no image whitelist, no starter/launcher correlation, no creation-time-after-fault requirement, so a pre-existing out-of-Job wsl.exe can satisfy every keepalive check, and the Linux startup record it is correlated against comes from an unauthenticated stdout file whose only anchors are values readable from inside the distro. inventory.py also trusts `anchor.json` without the integrity checks it applies to `state.json`, so the central cgroup-emptiness proof can be about the wrong cgroup. The remainder are post-fault robustness gaps: unexercised post-fault schema, an over-narrow retry loop with an optimistic shared deadline, console-group signal propagation that lets Ctrl+C on the starter kill the keepalive, and inventory.py source not being bound into the evidence chain. Verdict: findings. No commands were run and no files were modified.\\\",\\\"verdict\\\":\\\"findings\\\"}\",\"structured_output\":{\"findings\":[\"Post-fault `running()` is unreliable in exactly the state `--shutdown` produces. `running()` is `subprocess.check_output([WSL,'--list','--running','--quiet'])`; with no running distributions wsl.exe emits an informational line (\\\"There are no running distributions.\\\") and, on common builds, a non-zero exit. Either outcome breaks `stopped=running()` at controller.py: CalledProcessError propagates, or the message is parsed as a distribution name so `not stopped` is False and the `'requested scope did not stop'` require fires. Both abort *after* the irreversible fault and *before* `start-request.json` is written, so the starter never launches the keepalive, the VM stays down, and the starter idles to its 1800 s timeout. Preflight cannot surface this because preflight only ever runs with distributions up. Related: the stopped observation is a single immediate sample with no settle/retry window, so any asynchrony in `wsl --terminate`/`--shutdown` reporting produces the same post-fault hard failure.\",\"Native identity checks establish self-consistency, not authenticity. `process(pid)==record` only proves the recorded pid/creation_time/image still describe a live process (good PID-reuse defence), but the controller never requires `image` to equal `WSL` (for the keepalive) or the expected interpreter (for the starter), never compares `launched['starter']` against the already-verified `ready['identity']`, and never requires `launched['identity']['creation_time']` to postdate `fault-intent.json`. After `--terminate` with another distribution alive, a pre-existing, out-of-Job `wsl.exe` session satisfies every keepalive liveness require in the recovery loop and in the final `'external keepalive disappeared before completion'` check, so the controller can certify an external lifetime owner that is not the process the starter created.\",\"The Linux startup record `keeper` is taken from `exchange/keepalive.stdout`, a plain unauthenticated stream, and the controller accepts the *last* line whose `kind=='wsl_keepalive'`. Its only binding to reality is `after['executor']['boot_id']==keeper['boot_id']` and `interop_target==keeper['interop_server']` \u2014 both values any process inside the distro can read and echo. Combined with the previous finding, the chain \\\"a verified external process owns the interop server of the observed boot\\\" is not actually closed: nothing ties the published record to the pid recorded in `launched.json`. The record contains `pid`, but the controller never correlates it (e.g. via the Linux-side session of `launched['identity']`) and never re-validates the alias owner against it.\",\"inventory.py trusts `attachment/anchor.json` with none of the scrutiny applied to `state.json`. `state.json` gets an lstat regular-file/uid/mode check plus a canonical re-serialisation hash, but `executor_cgroup` is pulled from `anchor.json` with only path-shape validation (`is_relative_to('/sys/fs/cgroup')`, no symlink, no `..`, `resolve()==cgroup`). Path shape does not prove it is the delegated executors cgroup: the same script hard-codes `'stillyard.service/executors/'` for its foreign-process filter and wsl-service.py derives `executors` from the service's own cgroup, so a stale or tampered anchor makes `require(events['populated']=='0' and not children)` a true statement about the wrong cgroup. That require is the primary emptiness evidence for the whole barrier; it should require the anchor's integrity and that the resolved path is the `stillyard.service/executors` tree the delegation actually uses.\",\"Several assertions are reached only after the irreversible fault, so their field schema is never exercised by the authorized preflight. `after[side]['store_uuid']` and `after[side]['machine_scheduling']['domains']` are read for `side=='windows'`, yet `empty()` deliberately reads `machine_scheduling` only from the guest and `blocker` from the authority object \u2014 suggesting the Windows `daemon-status` payload may not carry `machine_scheduling` at all. A KeyError there raises after the fault and after the keepalive handoff, producing a failure record for what is really a controller bug. Preflight should validate the presence and type of every key the post-fault path will touch (`store_uuid`, `machine_scheduling.domains`, `daemon_generation` on both sides) against the snapshot it already collects.\",\"The recovery retry loop is too narrow, and the deadline it shares is likely too short. `except (subprocess.CalledProcessError, subprocess.TimeoutExpired)` does not cover the `RuntimeError` raised by `linux()`'s `'observer refuses to cold-start the stopped distro'` guard (a plausible transient while `wsl --list --running` catches up with the freshly started keepalive session) nor `json.JSONDecodeError` from a daemon that is mid-initialisation \u2014 `keepalive` prints its JSON *before* `systemctl --user start --no-block stillyard.service`, so the controller is explicitly permitted to observe a not-yet-ready daemon. Either transient becomes a terminal post-fault failure. Additionally, the single `until=time.monotonic()+300` covers starter launch, VM cold boot, keepalive publication, service start and full pair reconnect; for `--shutdown` that budget is optimistic, and exceeding it is again a hard failure with the keepalive already running.\",\"The starter shares a console and process group with the keepalive it owns. `subprocess.Popen` is used without `CREATE_NEW_PROCESS_GROUP`, and the starter then blocks in `keeper.wait()` \\\"permanently\\\" with no clean stop path. The operator's only way to end the starter is Ctrl+C or closing the console, both of which deliver CTRL_C_EVENT/CTRL_CLOSE_EVENT to the entire group and terminate the keepalive `wsl.exe` \u2014 dropping precisely the lifetime owner the design exists to protect, despite the \\\"Never detach or terminate this child\\\" comment. Secondly, if `require(not native['in_job'])` fails immediately after `Popen`, the starter raises and exits with the keepalive already spawned and no `launched.json` written: an unrecorded, unowned keepalive plus a controller that blocks to its deadline.\",\"The exchange handshake binds the approval file and starter.py by hash, but not the rest of the reviewed source. `inventory.py` is shipped to the distro as `-c` source text with no digest recorded in evidence, and controller.py's own hash is never captured. Since the executor snapshot is the sole basis for every emptiness, image and history assertion, its source should be hashed into `fault-intent.json`/`result.json` alongside `approval_sha256` and `starter_sha256` so the evidence identifies which inventory produced the observations.\"],\"summary\":\"Focused re-review of the revised controller/starter/exchange design. The structural fixes hold up: there is no self-created or detached keepalive, no blanket boot assertion on `terminate`, barriers use `require` rather than asserts, evidence writes are fsync+MOVEFILE_WRITE_THROUGH renames, the alias/socket validation is strict root-owned, and canaries are correctly deferred. Eight material defects remain, none requiring redesign. The most serious is that `running()` almost certainly fails or misparses in the zero-running-distribution state that `--shutdown` deliberately creates, aborting after the irreversible fault and before the start request is written \u2014 a hole preflight structurally cannot detect. Next is that the external-owner identity checks prove self-consistency (PID-reuse safety) but not authenticity: no image whitelist, no starter/launcher correlation, no creation-time-after-fault requirement, so a pre-existing out-of-Job wsl.exe can satisfy every keepalive check, and the Linux startup record it is correlated against comes from an unauthenticated stdout file whose only anchors are values readable from inside the distro. inventory.py also trusts `anchor.json` without the integrity checks it applies to `state.json`, so the central cgroup-emptiness proof can be about the wrong cgroup. The remainder are post-fault robustness gaps: unexercised post-fault schema, an over-narrow retry loop with an optimistic shared deadline, console-group signal propagation that lets Ctrl+C on the starter kill the keepalive, and inventory.py source not being bound into the evidence chain. Verdict: findings. No commands were run and no files were modified.\",\"verdict\":\"findings\"},\"ttft_ms\":195842,\"type\":\"result\",\"duration_ms\":233654,\"uuid\":\"788d5282-e3b2-4964-8180-1cef3e4e00f7\",\"ttft_stream_ms\":1544,\"time_to_request_ms\":33,\"first_content_frame_ms\":1744,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b54-27d5-7c50-9705-88548cddb837",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 1769203,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1769203,
+            "start_ticks": 9005014,
+            "pid_namespace_inode": 4026534279,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b4a-da2c-72d1-bcdc-f5b512f5a453",
+          "started_unix_millis": 1789043943573,
+          "finished_unix_millis": 1789043943652,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b54-27d5-7c50-9705-886bebfa2452",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-opus-5\"], \"selected_family_models\": [\"claude-opus-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"findings\": [\"Post-fault `running()` is unreliable in exactly the state `--shutdown` produces. `running()` is `subprocess.check_output([WSL,'--list','--running','--quiet'])`; with no running distributions wsl.exe emits an informational line (\\\"There are no running distributions.\\\") and, on common builds, a non-zero exit. Either outcome breaks `stopped=running()` at controller.py: CalledProcessError propagates, or the message is parsed as a distribution name so `not stopped` is False and the `'requested scope did not stop'` require fires. Both abort *after* the irreversible fault and *before* `start-request.json` is written, so the starter never launches the keepalive, the VM stays down, and the starter idles to its 1800 s timeout. Preflight cannot surface this because preflight only ever runs with distributions up. Related: the stopped observation is a single immediate sample with no settle/retry window, so any asynchrony in `wsl --terminate`/`--shutdown` reporting produces the same post-fault hard failure.\", \"Native identity checks establish self-consistency, not authenticity. `process(pid)==record` only proves the recorded pid/creation_time/image still describe a live process (good PID-reuse defence), but the controller never requires `image` to equal `WSL` (for the keepalive) or the expected interpreter (for the starter), never compares `launched['starter']` against the already-verified `ready['identity']`, and never requires `launched['identity']['creation_time']` to postdate `fault-intent.json`. After `--terminate` with another distribution alive, a pre-existing, out-of-Job `wsl.exe` session satisfies every keepalive liveness require in the recovery loop and in the final `'external keepalive disappeared before completion'` check, so the controller can certify an external lifetime owner that is not the process the starter created.\", \"The Linux startup record `keeper` is taken from `exchange/keepalive.stdout`, a plain unauthenticated stream, and the controller accepts the *last* line whose `kind=='wsl_keepalive'`. Its only binding to reality is `after['executor']['boot_id']==keeper['boot_id']` and `interop_target==keeper['interop_server']` \\u2014 both values any process inside the distro can read and echo. Combined with the previous finding, the chain \\\"a verified external process owns the interop server of the observed boot\\\" is not actually closed: nothing ties the published record to the pid recorded in `launched.json`. The record contains `pid`, but the controller never correlates it (e.g. via the Linux-side session of `launched['identity']`) and never re-validates the alias owner against it.\", \"inventory.py trusts `attachment/anchor.json` with none of the scrutiny applied to `state.json`. `state.json` gets an lstat regular-file/uid/mode check plus a canonical re-serialisation hash, but `executor_cgroup` is pulled from `anchor.json` with only path-shape validation (`is_relative_to('/sys/fs/cgroup')`, no symlink, no `..`, `resolve()==cgroup`). Path shape does not prove it is the delegated executors cgroup: the same script hard-codes `'stillyard.service/executors/'` for its foreign-process filter and wsl-service.py derives `executors` from the service's own cgroup, so a stale or tampered anchor makes `require(events['populated']=='0' and not children)` a true statement about the wrong cgroup. That require is the primary emptiness evidence for the whole barrier; it should require the anchor's integrity and that the resolved path is the `stillyard.service/executors` tree the delegation actually uses.\", \"Several assertions are reached only after the irreversible fault, so their field schema is never exercised by the authorized preflight. `after[side]['store_uuid']` and `after[side]['machine_scheduling']['domains']` are read for `side=='windows'`, yet `empty()` deliberately reads `machine_scheduling` only from the guest and `blocker` from the authority object \\u2014 suggesting the Windows `daemon-status` payload may not carry `machine_scheduling` at all. A KeyError there raises after the fault and after the keepalive handoff, producing a failure record for what is really a controller bug. Preflight should validate the presence and type of every key the post-fault path will touch (`store_uuid`, `machine_scheduling.domains`, `daemon_generation` on both sides) against the snapshot it already collects.\", \"The recovery retry loop is too narrow, and the deadline it shares is likely too short. `except (subprocess.CalledProcessError, subprocess.TimeoutExpired)` does not cover the `RuntimeError` raised by `linux()`'s `'observer refuses to cold-start the stopped distro'` guard (a plausible transient while `wsl --list --running` catches up with the freshly started keepalive session) nor `json.JSONDecodeError` from a daemon that is mid-initialisation \\u2014 `keepalive` prints its JSON *before* `systemctl --user start --no-block stillyard.service`, so the controller is explicitly permitted to observe a not-yet-ready daemon. Either transient becomes a terminal post-fault failure. Additionally, the single `until=time.monotonic()+300` covers starter launch, VM cold boot, keepalive publication, service start and full pair reconnect; for `--shutdown` that budget is optimistic, and exceeding it is again a hard failure with the keepalive already running.\", \"The starter shares a console and process group with the keepalive it owns. `subprocess.Popen` is used without `CREATE_NEW_PROCESS_GROUP`, and the starter then blocks in `keeper.wait()` \\\"permanently\\\" with no clean stop path. The operator's only way to end the starter is Ctrl+C or closing the console, both of which deliver CTRL_C_EVENT/CTRL_CLOSE_EVENT to the entire group and terminate the keepalive `wsl.exe` \\u2014 dropping precisely the lifetime owner the design exists to protect, despite the \\\"Never detach or terminate this child\\\" comment. Secondly, if `require(not native['in_job'])` fails immediately after `Popen`, the starter raises and exits with the keepalive already spawned and no `launched.json` written: an unrecorded, unowned keepalive plus a controller that blocks to its deadline.\", \"The exchange handshake binds the approval file and starter.py by hash, but not the rest of the reviewed source. `inventory.py` is shipped to the distro as `-c` source text with no digest recorded in evidence, and controller.py's own hash is never captured. Since the executor snapshot is the sole basis for every emptiness, image and history assertion, its source should be hashed into `fault-intent.json`/`result.json` alongside `approval_sha256` and `starter_sha256` so the evidence identifies which inventory produced the observations.\"], \"summary\": \"Focused re-review of the revised controller/starter/exchange design. The structural fixes hold up: there is no self-created or detached keepalive, no blanket boot assertion on `terminate`, barriers use `require` rather than asserts, evidence writes are fsync+MOVEFILE_WRITE_THROUGH renames, the alias/socket validation is strict root-owned, and canaries are correctly deferred. Eight material defects remain, none requiring redesign. The most serious is that `running()` almost certainly fails or misparses in the zero-running-distribution state that `--shutdown` deliberately creates, aborting after the irreversible fault and before the start request is written \\u2014 a hole preflight structurally cannot detect. Next is that the external-owner identity checks prove self-consistency (PID-reuse safety) but not authenticity: no image whitelist, no starter/launcher correlation, no creation-time-after-fault requirement, so a pre-existing out-of-Job wsl.exe can satisfy every keepalive check, and the Linux startup record it is correlated against comes from an unauthenticated stdout file whose only anchors are values readable from inside the distro. inventory.py also trusts `anchor.json` without the integrity checks it applies to `state.json`, so the central cgroup-emptiness proof can be about the wrong cgroup. The remainder are post-fault robustness gaps: unexercised post-fault schema, an over-narrow retry loop with an optimistic shared deadline, console-group signal propagation that lets Ctrl+C on the starter kill the keepalive, and inventory.py source not being bound into the evidence chain. Verdict: findings. No commands were run and no files were modified.\", \"verdict\": \"findings\"}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b50-8fc0-75c2-b672-a50dd9d9ff38",
+      "lease_id": "01a08b50-8fa8-7652-89c5-5572b69bcce0",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08b50-8fa8-7652-89c5-5572b69bcce0"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b50-8fa2-74b0-927e-6906b73421d2",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b50-8fa8-7652-89c5-55492c1d1442"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08b4a-da2c-72d1-bcdc-f5b512f5a453"
+}

@@ -1,0 +1,106 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2e-42db-7a23-913a-fc896145ea13",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2e-42b8-7d53-a1be-1eca67e0a336",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "pending",
+  "outcome": null,
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2e-42ee-7cf3-a06c-bfe499f9d72e",
+  "invocation_id": null,
+  "containment_id": null,
+  "root_exit_code": null,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789024682715,
+  "priority": 0,
+  "effective_priority": 0,
+  "queue_rank": 1,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": null,
+  "finished_unix_millis": null,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/home/pythonic/.cargo/bin/cargo",
+    "args": [
+      "test",
+      "--locked",
+      "--workspace",
+      "--all-features"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-quiet-retry-20260910z3",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CARGO_BUILD_JOBS": "4",
+        "CARGO_HOME": "/home/pythonic/.cargo",
+        "CARGO_TARGET_DIR": "/home/pythonic/Development/stillyard-mr3-quiet-retry-20260910z3/target/scheduled-linux",
+        "HOME": "/home/pythonic",
+        "PATH": "/home/pythonic/.cargo/bin:/usr/bin:/bin",
+        "RUSTUP_HOME": "/home/pythonic/.rustup",
+        "RUSTUP_TOOLCHAIN": "stable-x86_64-unknown-linux-gnu"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-test"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1800,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2e-42ee-7cf3-a06c-bfe499f9d72e",
+      "attempt_index": 1,
+      "verdict": null,
+      "reason_code": null,
+      "created_unix_millis": 1789024682733,
+      "started_unix_millis": null,
+      "deadline_unix_millis": null,
+      "finished_unix_millis": null,
+      "primary_result": null,
+      "admission": null,
+      "invocations": []
+    }
+  ],
+  "allocations": [],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08a25-c1ff-7e43-8a58-e60aa64cb655"
+}

@@ -1,0 +1,18 @@
+[Unit]
+Description=Stillyard attached Windows/WSL scheduler
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 "/home/pythonic/.local/share/stillyard/libexec/wsl-service.py" run --executors "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service/executors" --ram-mb 16384 --daemon "/home/pythonic/.local/share/stillyard/bin/stillyard"
+WorkingDirectory=/home/pythonic/.local/share/stillyard
+Delegate=cpu memory pids
+DelegateSubgroup=manager
+Slice=app.slice
+KillMode=process
+Restart=on-failure
+RestartSec=2
+UMask=0077
+UnsetEnvironment=STILLYARD_STORE STILLYARD_ENDPOINT STILLYARD_JOB_ID STILLYARD_ATTEMPT STILLYARD_INVOCATION_ID STILLYARD_ROLE
+
+[Install]
+WantedBy=default.target

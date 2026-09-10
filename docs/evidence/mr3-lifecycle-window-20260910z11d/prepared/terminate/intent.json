@@ -1,0 +1,6 @@
+{
+  "idempotency_key": "fbc28794-1b93-4a60-abf4-e37c5c77e0dc",
+  "endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+  "authorization_status": "pending separate agreed interruption window",
+  "controller_sha256": "a875e2afb2ca899b6fa01890bc3b6f5697595536f2b0dcfeb760d273848694d3"
+}

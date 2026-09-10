@@ -1,0 +1,6 @@
+{
+  "epoch": null,
+  "blocker": "authority_uninitialized",
+  "detail": "Explicit owner initialization with no outstanding work is required",
+  "holds": []
+}

@@ -1,0 +1,25 @@
+{
+  "snapshot": "/mnt/c/Development/stillyard-mr2-manager-20260909o",
+  "files_sha256": "b0d7b6cd15f22f7fe9b8f840946364588b516e68688c542399f5895b1784f46d",
+  "brief_sha256": "3311660c2c241e33bc9557bbd5f018f7e296c42f10410e8a6ddee6c06854e997",
+  "files": [
+    "docs/requirements.md",
+    "docs/machine-resource-protocol.md",
+    "src/machine.rs",
+    "src/machine/manager.rs",
+    "src/store/machine.rs",
+    "src/store/machine_allocation.rs",
+    "src/store/machine_ticket.rs",
+    "src/store/machine_recovery.rs",
+    "src/store/machine_reset.rs",
+    "src/authority.rs",
+    "src/store/authority.rs",
+    "src/store/machine_queue.rs",
+    "src/store/machine_reservation.rs",
+    "src/daemon/reconciliation.rs",
+    "src/identity.rs",
+    "src/store/machine_events.rs"
+  ],
+  "auth": "subscription OAuth; API/provider environment absent",
+  "tools": "none"
+}

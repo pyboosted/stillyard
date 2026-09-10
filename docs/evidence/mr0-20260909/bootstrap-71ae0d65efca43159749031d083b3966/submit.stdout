@@ -1,0 +1,171 @@
+{
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-8226-72e1-b58c-048dc80985ab",
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-8228-7563-a0aa-5b55f1c39650",
+  "submission_state": "accepted",
+  "job_state": "pending",
+  "reason_code": null,
+  "accepted_unix_millis": 1788950381096,
+  "priority": 0,
+  "effective_priority": 0,
+  "blockers": [],
+  "queue_rank": 1,
+  "reservation": null,
+  "conditions": [],
+  "estimate": {
+    "confidence": "estimated",
+    "start_in_millis": 0,
+    "assumptions": [
+      "currently admissible"
+    ]
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a082ce-ae5d-72d3-84e5-5579ad17b6da"
+}
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-8228-7563-a0aa-5b55f1c39650",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-8226-72e1-b58c-048dc80985ab",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "timed_out",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-822c-70f2-b241-740bfa846cd4",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-822b-7321-b8ec-81c83a40d5be",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-822b-7321-b8ec-81d1db1474f8",
+  "root_exit_code": 21,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788950381096,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788950381106,
+  "finished_unix_millis": 1788950383190,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Windows\\System32\\wsl.exe",
+    "args": [
+      "--distribution",
+      "Ubuntu-SSD",
+      "--user",
+      "pythonic",
+      "--cd",
+      "/mnt/c/Development/stillyard-mr0-evidence-20260909/bootstrap-71ae0d65efca43159749031d083b3966",
+      "--exec",
+      "/usr/bin/python3",
+      "-c",
+      "import subprocess,time; subprocess.Popen([\"/usr/bin/python3\",\"-c\",'import json,os,pathlib,signal,time; signal.signal(signal.SIGHUP,signal.SIG_IGN); tail=pathlib.Path(\"/proc/self/stat\").read_text().rsplit(\")\",1)[1].split(); pathlib.Path(\\'/mnt/c/Development/stillyard-mr0-evidence-20260909/bootstrap-71ae0d65efca43159749031d083b3966/descendant.json\\').write_text(json.dumps({\"pid\":os.getpid(),\"start_ticks\":tail[19],\"cgroup\":pathlib.Path(\"/proc/self/cgroup\").read_text()})); time.sleep(8); pathlib.Path(\\'/mnt/c/Development/stillyard-mr0-evidence-20260909/bootstrap-71ae0d65efca43159749031d083b3966/descendant-finished.json\\').write_text(json.dumps({\"completed\":True}))'], stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL, start_new_session=True); print(\"bounded WSL descendant spawned\",flush=True); time.sleep(12)"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr0-baseline-20260909b",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr0-bootstrap-negative-control"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 2,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-822c-70f2-b241-740bfa846cd4",
+      "attempt_index": 1,
+      "verdict": "timed_out",
+      "reason_code": null,
+      "created_unix_millis": 1788950381099,
+      "started_unix_millis": 1788950381099,
+      "deadline_unix_millis": 1788950383099,
+      "finished_unix_millis": 1788950383190,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-8228-7563-a0aa-5b55f1c39650",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-822c-70f2-b241-740bfa846cd4",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-822b-7321-b8ec-81c83a40d5be",
+        "verdict": "timed_out",
+        "root_exit_code": 21,
+        "termination": "timeout",
+        "containment": "empty",
+        "started_unix_millis": 1788950381106,
+        "exited_unix_millis": 1788950383178,
+        "resolved_unix_millis": 1788950383187
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-822b-7321-b8ec-81c83a40d5be",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 61940,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 61940,
+            "creation_filetime_100ns": 134334239811023618
+          },
+          "root_exit_code": 21,
+          "exit_classification": null,
+          "executable_hash": "27cc8dd52be326e138a89f8889241b1d8c51dd1978b22eb70be77036ccdee3c2",
+          "daemon_generation": "01a082ce-ae5d-72d3-84e5-5579ad17b6da",
+          "started_unix_millis": 1788950381106,
+          "finished_unix_millis": 1788950383187,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c0-822b-7321-b8ec-81d1db1474f8",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "bounded WSL descendant spawned\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a082ce-ae5d-72d3-84e5-5579ad17b6da"
+}

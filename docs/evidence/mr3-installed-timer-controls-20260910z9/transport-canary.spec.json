@@ -1,0 +1,19 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/true",
+  "working_directory": "/home/pythonic/Development/stillyard-mr3-timer-controls-evidence-20260910z9/timer-controls-e1548f10603048128399b901f7703bde",
+  "timeout_seconds": 30,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "installed-timer-controls"
+    }
+  ],
+  "resources": {
+    "cargo_slots": 1
+  }
+}

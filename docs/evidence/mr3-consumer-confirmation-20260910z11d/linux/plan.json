@@ -1,0 +1,7 @@
+{
+  "source_files_sha256": "fd0d0246dd699cd8f0f5a2026ccaa24550a0724dc9ef97d8359dbffdcfe4aa4b",
+  "purpose": "one final-installed z11d confirmation round after three accepted z3 rounds",
+  "measurement": "256 SHA256 passes over verified nonempty source; finite positive cpu and wall durations",
+  "expected_machine_cargo_slots": 1,
+  "scratch_cache": "reused current scratch cache, moved from z8 through unsubmitted d; no copy"
+}

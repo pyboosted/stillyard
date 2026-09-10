@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "auth": "subscription OAuth, Claude Max; no provider billing environment",
+  "files": {
+    "docs/machine-resource-clearance-design.md": "c8dd6a41b10a8d57013789d7665a56b60dd3d47ea172e73d8b7d5f151a2842be",
+    "src/authority.rs": "6af57ec20abb4e9fc3b1cc7bd5d1d3f46d6a1493bda2532a7d13b9d118aaee3c",
+    "src/store/machine_reset.rs": "4dff75256c42d709eecbeda46418271508b0cb8f676c1bee0d072dcb3255695a",
+    "src/store/machine_recovery.rs": "9518c0a99f7ac76c8e4c62f884d30e8dbd5bca4eb9e2cc2d360eed501cc08980",
+    "src/machine/manager/recovery.rs": "c23f7d3befdb8c6388ea83e0048aa0646aadeada6b17376725c08ad1f8a8fbd0"
+  },
+  "brief_sha256": "feb3cce9c52068ac123395977ac0b8f8778331f0dfb1733612a975348c694cc1",
+  "reviewers": 1
+}

@@ -1,0 +1,15 @@
+{
+  "installation": {
+    "installation_nonce": "4afa5885-c8df-4838-813b-2b4c24e00911",
+    "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+    "owner_uid": 1000,
+    "runtime_registration": "wsl2-distribution:4a62a312-631a-4038-b191-6fd3a0f57860:Ubuntu-SSD",
+    "role": "executor"
+  },
+  "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+  "connection_epoch": 0,
+  "executor_incarnation": null,
+  "reconciliation_required": true,
+  "retired_sequence_floor": 0,
+  "accepted_sequence": 0
+}

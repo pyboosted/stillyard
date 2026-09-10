@@ -1,0 +1,33 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+  "args": [
+    "bootstrap",
+    "run",
+    "--spec",
+    "C:\\Development\\stillyard-mr3-executor-journal-live-evidence-20260910i\\wsl-msrv-test-d57455b09b4f4b7fa48217ce541ab7a2\\work.json"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr3-executor-journal-live-evidence-20260910i\\wsl-msrv-test-d57455b09b4f4b7fa48217ce541ab7a2",
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "wsl-bootstrap-msrv-test"
+    },
+    {
+      "key": "source",
+      "value": "c4fa2c434ec2a284acbed87e0277b79abd48ad0b3095185ac216296a68897dc5"
+    }
+  ],
+  "expected_duration_seconds": 180,
+  "timeout_seconds": 1830
+}

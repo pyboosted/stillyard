@@ -1,0 +1,95 @@
+{
+  "duration_seconds": 300.7431860350043,
+  "processes": [
+    {
+      "side": "linux",
+      "pid": 608705,
+      "name": "python3",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 8.75,
+      "voluntary_switches": 0
+    },
+    {
+      "side": "linux",
+      "pid": 608712,
+      "name": "stillyard",
+      "cpu_percent_one_core": 0.006650192233340291,
+      "memory_mib": 3.0,
+      "voluntary_switches": 156
+    },
+    {
+      "side": "linux",
+      "pid": 608720,
+      "name": "stillyard.exe",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 0.0,
+      "voluntary_switches": 90
+    },
+    {
+      "side": "linux",
+      "pid": 3989858,
+      "name": "Relay(3989859)",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 0.0,
+      "voluntary_switches": 0
+    },
+    {
+      "side": "linux",
+      "pid": 3989859,
+      "name": "python3",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 8.25,
+      "voluntary_switches": 0
+    },
+    {
+      "side": "windows",
+      "pid": 9140,
+      "name": "stillyard",
+      "cpu_percent_one_core": 0.04156370145837682,
+      "memory_mib": 26.0390625
+    },
+    {
+      "side": "windows",
+      "pid": 51292,
+      "name": "stillyard",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 1.4609375
+    },
+    {
+      "side": "windows",
+      "pid": 32592,
+      "name": "wsl",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 1.30859375
+    }
+  ],
+  "daemon_timer_expirations": {
+    "linux": {
+      "attached": 15,
+      "backoff": 0,
+      "reactor": 0,
+      "subscriber": 0,
+      "transport": 0
+    },
+    "windows": {
+      "attached": 0,
+      "backoff": 0,
+      "reactor": 0,
+      "subscriber": 0,
+      "transport": 0
+    }
+  },
+  "limits": {
+    "daemon_cpu_percent": 0.5,
+    "daemon_memory_mib": 40,
+    "bridge_cpu_percent": 0.1,
+    "bridge_memory_mib": 16,
+    "aggregate_cpu_percent": 1.1,
+    "aggregate_memory_mib": 96,
+    "aggregate_timer_expirations_per_minute": 6
+  },
+  "helper_timer_coverage": "Daemon counters cover application-owned timer expirations. Helper event-only waits require separate source audit; context switches are retained only as diagnostics, never relabeled as timer counts.",
+  "aggregate_cpu_percent": 0.04821389369171711,
+  "aggregate_memory_mib": 48.80859375,
+  "daemon_timer_expirations_per_minute": 2.992586505003131
+}

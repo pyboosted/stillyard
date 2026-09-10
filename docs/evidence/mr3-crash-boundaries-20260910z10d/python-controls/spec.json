@@ -1,0 +1,28 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import pathlib,subprocess,sys; files=sorted(pathlib.Path(sys.argv[1]).glob('test-wsl-*.py')); assert files; results=[subprocess.run([sys.executable,str(p)]).returncode for p in files]; raise SystemExit(int(any(results)))",
+    "/home/pythonic/Development/stillyard-mr3-crash-boundaries-20260910z10d/scripts"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-mr3-crash-boundaries-20260910z10d",
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin",
+      "PYTHONDONTWRITEBYTECODE": "1"
+    }
+  },
+  "resources": {},
+  "timeout_seconds": 90,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "wsl-maintenance-controls"
+    }
+  ]
+}

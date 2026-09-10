@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "auth": "subscription OAuth, Claude Max; no provider billing environment",
+  "files": {
+    "AGENTS.md": "3a61f95cfd5ee3a99ea88f12250dc7a43c7394f9326091b051d34c02618f783f",
+    "docs/machine-resource-clearance-design.md": "ddb44f1d18f4a8233e6ea04a1b349b5cc8cf0e18200d57a51d32504f8c885918",
+    "src/authority.rs": "0169e8eadc07dff818563eb9b250b93a8ada7da7a3519cc966ca78b07ec4e799",
+    "src/authority/retirement.rs": "68d5f95b9045e9e0152e082f1b93b83ba35d34fdba2775f5209de85727155e4f",
+    "src/machine/clearance.rs": "adba111cb3b67c784a69b450c08151071be60d6b29f55e9e1af2d149b288d9f4",
+    "src/store/machine_clearance.rs": "2e59aa911562f5df1e7ecccfc4a83ffe34f27db875b398c866a9ef3875c9dd2e",
+    "src/store/machine.rs": "162712928e37d1f3fc28f55bbe07cf5a8a202ddc928a5031739a7627c6698eab",
+    "src/store/machine_reset.rs": "726860ba678dfbb7cc3722a8e988839f2fe4c5ddf681a2bd9fa9b1e8e9f04229",
+    "src/store/machine_recovery.rs": "9518c0a99f7ac76c8e4c62f884d30e8dbd5bca4eb9e2cc2d360eed501cc08980",
+    "src/daemon/rpc.rs": "6cc2d23a17fd11ca7f9656f6bbf21d3ae874145942c29fa5a2788d22d36992e9",
+    "src/machine/manager/recovery.rs": "ccf00c1495c54cbf623074084a07d6057dea18f5bf2f68233120f6d9769a035a",
+    "tests/support/machine_clearance.rs": "d6e458786c9365fa8ea3e0c541f63b774c556fcd007ced38bc2ddcb3fb0527eb"
+  },
+  "brief_sha256": "cf173bdd078393684c3f2f068380c9ea52f7a8815057c57e8bd6fd0c5f870bf3",
+  "reviewers": 2
+}

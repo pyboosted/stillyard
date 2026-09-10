@@ -1,0 +1,44 @@
+{
+  "ticket": {
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b4b-31ed-7cc0-9082-979228714c6c",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08b4b-31b7-7661-9818-6e298c9c1a35"
+    },
+    "offer_nonce": "01a08b4b-31ed-7cc0-9082-97a6ff969c6b",
+    "intent": {
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b4b-31b7-7661-9818-6e06640db325",
+      "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b4b-31b7-7661-9818-6e147acdd91c",
+      "role": "primary",
+      "role_index": 0,
+      "release_sequence": 1,
+      "executable_sha256": "dbfd4e5fb529f34573f88467f89d46b4cce55a43611c4ef73443177e75458ed0",
+      "boundary_sha256": "42ee4c7616ae866ea3d69336ee2f2571733a0b8e0db845edfe7da8df8d0c469b",
+      "readiness_challenge": "01a08b4b-3605-7413-add8-e5c9dfcfcde5",
+      "previous_cleanup": null
+    },
+    "configuration_sha256": "7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978",
+    "issued_unix_millis": 1789043357253,
+    "host_observation_generation": "01a08b4b-3643-7d52-8afa-33197b2d600b",
+    "host_sample_unix_millis": 1789043357234,
+    "session": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "executor_incarnation": "01a08b4a-da2c-72d1-bcdc-f5b512f5a453",
+      "connection_epoch": 28
+    }
+  },
+  "consumed": 0,
+  "cleanup": {
+    "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b4b-31b7-7661-9818-6e06640db325",
+    "release_sequence": 1,
+    "boundary_sha256": "42ee4c7616ae866ea3d69336ee2f2571733a0b8e0db845edfe7da8df8d0c469b",
+    "proof_sha256": "1c81ad0217ce3557acb95e35115d91a48822e02e3b5f0314ff4283fff065eee8",
+    "user_code_released": false
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "distribution": "Ubuntu-SSD",
+  "user": "pythonic",
+  "executable": "/home/pythonic/.cargo/bin/rustup",
+  "args": [
+    "toolchain",
+    "install",
+    "1.85.0",
+    "--profile",
+    "minimal",
+    "--component",
+    "rustfmt",
+    "--component",
+    "clippy"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-mr1-native-20260909c",
+  "timeout_seconds": 1800,
+  "environment": {
+    "HOME": "/home/pythonic",
+    "CARGO_HOME": "/home/pythonic/.cargo",
+    "RUSTUP_HOME": "/home/pythonic/.rustup",
+    "PATH": "/home/pythonic/.cargo/bin:/usr/bin:/bin",
+    "CARGO_TARGET_DIR": "/home/pythonic/Development/stillyard-mr1-native-20260909c/target/scheduled-linux",
+    "CARGO_BUILD_JOBS": "4"
+  }
+}

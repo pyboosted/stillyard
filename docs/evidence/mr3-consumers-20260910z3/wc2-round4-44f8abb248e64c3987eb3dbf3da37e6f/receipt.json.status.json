@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d604-7cf2-bd8a-2fd01777468b",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d5ff-7b22-a511-bd5ca8dd1d24",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d61d-77e0-a981-8eb1b01259e5",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2c-3568-7ef0-a99a-1a0404a6ddd9",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2c-3568-7ef0-a99a-1a1a3432ffaf",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789024458244,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789024458647,
+  "finished_unix_millis": 1789024548396,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-consumers-20260910z3/wc2-round4-44f8abb248e64c3987eb3dbf3da37e6f/consumer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-consumers-20260910z3/wc2-round4-44f8abb248e64c3987eb3dbf3da37e6f/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-consumers-20260910z3/wc2-round4-44f8abb248e64c3987eb3dbf3da37e6f/review.json",
+      "--model",
+      "sonnet"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-consumers-20260910z3/wc2-round4-44f8abb248e64c3987eb3dbf3da37e6f",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-consumers-20260910z3/wc2-round4-44f8abb248e64c3987eb3dbf3da37e6f/consumer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-consumers-20260910z3/wc2-round4-44f8abb248e64c3987eb3dbf3da37e6f/review.json"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "acceptance",
+        "value": "W-C2"
+      },
+      {
+        "key": "round",
+        "value": "4"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 600,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d61d-77e0-a981-8eb1b01259e5",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789024458268,
+      "started_unix_millis": 1789024458405,
+      "deadline_unix_millis": 1789025058405,
+      "finished_unix_millis": 1789024548396,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d604-7cf2-bd8a-2fd01777468b",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d61d-77e0-a981-8eb1b01259e5",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d61d-77e0-a981-8ec0e8abafed",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789024458647,
+        "exited_unix_millis": 1789024548182,
+        "resolved_unix_millis": 1789024548196
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d61d-77e0-a981-8ec0e8abafed",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 174947,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 174947,
+            "start_ticks": 7056521,
+            "pid_namespace_inode": 4026534426,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08a25-c1ff-7e43-8a58-e60aa64cb655",
+          "started_unix_millis": 1789024458647,
+          "finished_unix_millis": 1789024548196,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d61d-77e0-a981-8ed6fa711e03",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"duration_api_ms\":88929,\"stop_reason\":\"tool_use\",\"session_id\":\"98f4f6d9-919d-4cda-b3e8-fc2684b3a503\",\"total_cost_usd\":0.16955620000000002,\"usage\":{\"input_tokens\":2,\"cache_creation_input_tokens\":17482,\"cache_read_input_tokens\":4916,\"output_tokens\":8517,\"output_tokens_details\":{\"thinking_tokens\":7391},\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":17482,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"not_available\",\"iterations\":[{\"input_tokens\":2,\"output_tokens\":8517,\"cache_read_input_tokens\":4916,\"cache_creation_input_tokens\":17482,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":17482},\"type\":\"message\"}],\"speed\":\"standard\"},\"modelUsage\":{\"claude-haiku-4-5-20251001\":{\"inputTokens\":13391,\"outputTokens\":16,\"cacheReadInputTokens\":0,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.013471,\"contextWindow\":200000,\"maxOutputTokens\":32000,\"thinkingTokens\":0,\"canonicalModel\":\"claude-haiku-4-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"},\"claude-sonnet-5\":{\"inputTokens\":2,\"outputTokens\":8517,\"cacheReadInputTokens\":4916,\"cacheCreationInputTokens\":17482,\"webSearchRequests\":0,\"costUSD\":0.1560852,\"contextWindow\":1000000,\"maxOutputTokens\":64000,\"thinkingTokens\":7391,\"canonicalModel\":\"claude-sonnet-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"fast_mode_disabled_reason\":\"sdk_opt_in_required\",\"subagent_stats\":{\"spawned\":0,\"requested\":{\"background\":0,\"foreground\":0,\"unset\":0},\"started_in_background\":0,\"max_depth\":0,\"spawned_by_subagents\":0,\"completed\":0,\"failed\":0,\"killed\":{\"parent\":0,\"user\":0,\"system\":0},\"refused\":{\"depth_limit\":0,\"concurrency_limit\":0,\"budget\":0},\"by_type\":{}},\"is_error\":false,\"num_turns\":2,\"subtype\":\"success\",\"api_error_status\":null,\"result\":\"{\\\"findings\\\":[\\\"src/store/attached/invocation.rs, retry_waiting_attached_ticket: the query `SELECT grant_json FROM attached_grants WHERE allocation_key=?1 AND seal_json IS NULL` is run with `tx.query_row(...)?` (no `.optional()`), unlike the analogous `prior` lookup a few lines above which correctly uses `.optional()`. If the grant has already been sealed/released (e.g. the coordinator released it while this waiting-ticket reply was still pending, or a concurrent reconciliation sealed it), `seal_json IS NULL` matches zero rows and this call returns `rusqlite::Error::QueryReturnedNoRows`, propagating as a hard transaction error instead of the intended graceful `Ok(false)` (the very next lines even guard `grant.state != GrantState::Armed` expecting a benign false, showing the sealed case was meant to be handled the same way). This can turn a legitimate delayed-coordinator-reply retry into an unexpected error path.\\\",\\\"src/store/attached/cleanup.rs, record_attached_cleanup: when `never` is Some, the function calls `manager::release::record_unused_cleanup` with a TicketCleanup that hardcodes `user_code_released: false`, and then unconditionally calls `apply(&tx)` in the same transaction. `apply()` independently selects tickets with `cleanup_json IS NULL` (joined to `attached_local_cleanup`) and calls `manager::record_cleanup` for the same invocation using the ticket's real `consumed` flag. Unless `record_unused_cleanup` itself writes `attached_tickets.cleanup_json` (not visible in this file), this results in two separate manager calls for the same invocation/release_sequence in one transaction \u2014 one forcing `user_code_released=false` and one using the actual `consumed` value \u2014 which can disagree and is at minimum an unverified double-processing path for the NeverReleased case. This should be confirmed against `manager::release::record_unused_cleanup`'s implementation, or the `apply()` call should be skipped/guarded when `never` is Some.\\\",\\\"src/store/attached/invocation.rs, consume(): the doc comment states this is 'Called immediately before the SAME transaction commits the started state,' but the correctness SQL inside explicitly requires `i.state='started'` to already hold. If the caller actually sets `invocations.state='started'` after invoking `consume()` (as the comment's wording 'immediately before... commits the started state' suggests), the match query would never succeed and every attached ticket consumption would spuriously fail with 'Ticket has no matching start transaction'. This ordering is ambiguous from the comment alone and should be verified against the actual call site to confirm the state-transition statement runs before, not after, `consume()`.\\\"],\\\"summary\\\":\\\"Found two concrete correctness issues (a missing `.optional()` causing a hard error on an already-sealed grant during delayed-ticket-reply retry, and a likely double/conflicting cleanup recording when a ticket is never released) plus one ordering ambiguity in a doc comment that should be verified against the call site.\\\",\\\"verdict\\\":\\\"findings\\\"}\",\"structured_output\":{\"findings\":[\"src/store/attached/invocation.rs, retry_waiting_attached_ticket: the query `SELECT grant_json FROM attached_grants WHERE allocation_key=?1 AND seal_json IS NULL` is run with `tx.query_row(...)?` (no `.optional()`), unlike the analogous `prior` lookup a few lines above which correctly uses `.optional()`. If the grant has already been sealed/released (e.g. the coordinator released it while this waiting-ticket reply was still pending, or a concurrent reconciliation sealed it), `seal_json IS NULL` matches zero rows and this call returns `rusqlite::Error::QueryReturnedNoRows`, propagating as a hard transaction error instead of the intended graceful `Ok(false)` (the very next lines even guard `grant.state != GrantState::Armed` expecting a benign false, showing the sealed case was meant to be handled the same way). This can turn a legitimate delayed-coordinator-reply retry into an unexpected error path.\",\"src/store/attached/cleanup.rs, record_attached_cleanup: when `never` is Some, the function calls `manager::release::record_unused_cleanup` with a TicketCleanup that hardcodes `user_code_released: false`, and then unconditionally calls `apply(&tx)` in the same transaction. `apply()` independently selects tickets with `cleanup_json IS NULL` (joined to `attached_local_cleanup`) and calls `manager::record_cleanup` for the same invocation using the ticket's real `consumed` flag. Unless `record_unused_cleanup` itself writes `attached_tickets.cleanup_json` (not visible in this file), this results in two separate manager calls for the same invocation/release_sequence in one transaction \u2014 one forcing `user_code_released=false` and one using the actual `consumed` value \u2014 which can disagree and is at minimum an unverified double-processing path for the NeverReleased case. This should be confirmed against `manager::release::record_unused_cleanup`'s implementation, or the `apply()` call should be skipped/guarded when `never` is Some.\",\"src/store/attached/invocation.rs, consume(): the doc comment states this is 'Called immediately before the SAME transaction commits the started state,' but the correctness SQL inside explicitly requires `i.state='started'` to already hold. If the caller actually sets `invocations.state='started'` after invoking `consume()` (as the comment's wording 'immediately before... commits the started state' suggests), the match query would never succeed and every attached ticket consumption would spuriously fail with 'Ticket has no matching start transaction'. This ordering is ambiguous from the comment alone and should be verified against the actual call site to confirm the state-transition statement runs before, not after, `consume()`.\"],\"summary\":\"Found two concrete correctness issues (a missing `.optional()` causing a hard error on an already-sealed grant during delayed-ticket-reply retry, and a likely double/conflicting cleanup recording when a ticket is never released) plus one ordering ambiguity in a doc comment that should be verified against the call site.\",\"verdict\":\"findings\"},\"ttft_ms\":77967,\"type\":\"result\",\"duration_ms\":87655,\"uuid\":\"55e3b673-8002-45db-84cf-2a6075ae0b51\",\"ttft_stream_ms\":1021,\"time_to_request_ms\":36,\"first_content_frame_ms\":1377,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2c-3568-7ef0-a99a-1a0404a6ddd9",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 181317,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 181317,
+            "start_ticks": 7065494,
+            "pid_namespace_inode": 4026534152,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08a25-c1ff-7e43-8a58-e60aa64cb655",
+          "started_unix_millis": 1789024548336,
+          "finished_unix_millis": 1789024548395,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2c-3568-7ef0-a99a-1a1a3432ffaf",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-sonnet-5\"], \"selected_family_models\": [\"claude-sonnet-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"findings\": [\"src/store/attached/invocation.rs, retry_waiting_attached_ticket: the query `SELECT grant_json FROM attached_grants WHERE allocation_key=?1 AND seal_json IS NULL` is run with `tx.query_row(...)?` (no `.optional()`), unlike the analogous `prior` lookup a few lines above which correctly uses `.optional()`. If the grant has already been sealed/released (e.g. the coordinator released it while this waiting-ticket reply was still pending, or a concurrent reconciliation sealed it), `seal_json IS NULL` matches zero rows and this call returns `rusqlite::Error::QueryReturnedNoRows`, propagating as a hard transaction error instead of the intended graceful `Ok(false)` (the very next lines even guard `grant.state != GrantState::Armed` expecting a benign false, showing the sealed case was meant to be handled the same way). This can turn a legitimate delayed-coordinator-reply retry into an unexpected error path.\", \"src/store/attached/cleanup.rs, record_attached_cleanup: when `never` is Some, the function calls `manager::release::record_unused_cleanup` with a TicketCleanup that hardcodes `user_code_released: false`, and then unconditionally calls `apply(&tx)` in the same transaction. `apply()` independently selects tickets with `cleanup_json IS NULL` (joined to `attached_local_cleanup`) and calls `manager::record_cleanup` for the same invocation using the ticket's real `consumed` flag. Unless `record_unused_cleanup` itself writes `attached_tickets.cleanup_json` (not visible in this file), this results in two separate manager calls for the same invocation/release_sequence in one transaction \\u2014 one forcing `user_code_released=false` and one using the actual `consumed` value \\u2014 which can disagree and is at minimum an unverified double-processing path for the NeverReleased case. This should be confirmed against `manager::release::record_unused_cleanup`'s implementation, or the `apply()` call should be skipped/guarded when `never` is Some.\", \"src/store/attached/invocation.rs, consume(): the doc comment states this is 'Called immediately before the SAME transaction commits the started state,' but the correctness SQL inside explicitly requires `i.state='started'` to already hold. If the caller actually sets `invocations.state='started'` after invoking `consume()` (as the comment's wording 'immediately before... commits the started state' suggests), the match query would never succeed and every attached ticket consumption would spuriously fail with 'Ticket has no matching start transaction'. This ordering is ambiguous from the comment alone and should be verified against the actual call site to confirm the state-transition statement runs before, not after, `consume()`.\"], \"summary\": \"Found two concrete correctness issues (a missing `.optional()` causing a hard error on an already-sealed grant during delayed-ticket-reply retry, and a likely double/conflicting cleanup recording when a ticket is never released) plus one ordering ambiguity in a doc comment that should be verified against the call site.\", \"verdict\": \"findings\"}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a2a-d656-75c2-bfea-6d85d6959c50",
+      "lease_id": "01a08a2a-d61d-77e0-a981-8ee5413278ad",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08a2a-d61d-77e0-a981-8ee5413278ad"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d604-7cf2-bd8a-2fd01777468b",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d61d-77e0-a981-8eb1b01259e5"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08a25-c1ff-7e43-8a58-e60aa64cb655"
+}

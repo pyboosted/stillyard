@@ -1,0 +1,21 @@
+{
+  "identities": {
+    "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+    "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+    "distribution": "Ubuntu-SSD",
+    "distribution_guid": "4a62a312-631a-4038-b191-6fd3a0f57860",
+    "vm_domain": "05d9f444-6a6f-4027-9a2e-3f2803924245",
+    "vm_installation": "3d5b1b93-6b6d-4283-a302-1ab4fde3f4d4",
+    "vm_store": "145028ad-6472-4969-a1c1-41bcad24c39a",
+    "executor_domain": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+    "executor_installation": "4afa5885-c8df-4838-813b-2b4c24e00911",
+    "journal": "e5ecb611-d46b-45ff-ab3b-818fa9e8ae41"
+  },
+  "bridge_sha256": "a3ac4eb334ba3fe9bdfa0a72a7bbe5973953f5ad85477dc224e5d31da73410b1",
+  "coordinator_endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+  "registrations": [
+    "/home/pythonic/.local/share/stillyard/pairing-installation/vm-registration.json",
+    "/home/pythonic/.local/share/stillyard/pairing-installation/executor-registration.json"
+  ],
+  "configuration": "/home/pythonic/.local/share/stillyard/pairing-installation/configuration.json"
+}

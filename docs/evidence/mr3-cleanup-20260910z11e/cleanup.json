@@ -1,0 +1,19 @@
+{
+  "removed": "/home/pythonic/Development/stillyard-wc3-scratch-20260910/target",
+  "allocated_bytes_before": 484773888,
+  "source_and_worktree_retained": true,
+  "process_references": [],
+  "active_jobs_checked": [
+    {
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b3f-77c6-7fb0-b654-39ad0ad54865",
+      "state": "active",
+      "working_directory": "/home/pythonic/Development/stillyard-mr3-membership-20260910z11e"
+    },
+    {
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b3d-7337-7541-ad45-c5cbd0f7bf3c",
+      "state": "active",
+      "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-attestation-20260910z11e/1f6a6382289845c9b6eee597a5fb5555"
+    }
+  ],
+  "unix_ns": 1789042595993591026
+}

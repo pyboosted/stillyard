@@ -1,0 +1,25 @@
+{
+  "distribution": "Ubuntu-SSD",
+  "user": "pythonic",
+  "executable": "/home/pythonic/.cargo/bin/cargo",
+  "args": [
+    "clippy",
+    "--locked",
+    "--workspace",
+    "--all-features",
+    "--all-targets",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-mr3-attached-lifecycle-20260910m",
+  "timeout_seconds": 1800,
+  "environment": {
+    "HOME": "/home/pythonic",
+    "CARGO_HOME": "/home/pythonic/.cargo",
+    "RUSTUP_HOME": "/home/pythonic/.rustup",
+    "PATH": "/home/pythonic/.cargo/bin:/usr/bin:/bin",
+    "CARGO_TARGET_DIR": "/home/pythonic/Development/stillyard-mr3-attached-lifecycle-20260910m/target/scheduled-linux",
+    "CARGO_BUILD_JOBS": "4"
+  }
+}

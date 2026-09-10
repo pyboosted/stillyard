@@ -1,0 +1,143 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087f5-7d95-7702-9784-daa219b27d66",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087f5-7d94-7492-8e99-2a3b7c0d0fdc",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087f5-7d9a-7c20-abcd-df94a50faedd",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087f5-7d99-75f3-897a-65c1dabdfed6",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087f5-7d99-75f3-897a-65d935133632",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788987407765,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788987407784,
+  "finished_unix_millis": 1788987738490,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr2-clearance-review-20260909a\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr2-clearance-review-20260909a",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr2-clearance-concept-review"
+      }
+    ],
+    "expected_duration_seconds": 300,
+    "timeout_seconds": 1530,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087f5-7d9a-7c20-abcd-df94a50faedd",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1788987407769,
+      "started_unix_millis": 1788987407769,
+      "deadline_unix_millis": 1788988937769,
+      "finished_unix_millis": 1788987738490,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087f5-7d95-7702-9784-daa219b27d66",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087f5-7d9a-7c20-abcd-df94a50faedd",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087f5-7d99-75f3-897a-65c1dabdfed6",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1788987407784,
+        "exited_unix_millis": 1788987738481,
+        "resolved_unix_millis": 1788987738487
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087f5-7d99-75f3-897a-65c1dabdfed6",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 14620,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 14620,
+            "creation_filetime_100ns": 134334610077808830
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "38246f2e6c04b3983d98b30e9da4434f26ed27afd63f25e9a504f7b2c5f0d732",
+          "daemon_generation": "01a08727-6971-79a1-a1b3-fd73badf9036",
+          "started_unix_millis": 1788987407784,
+          "finished_unix_millis": 1788987738487,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087f5-7d99-75f3-897a-65d935133632",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "plements it.\\n\\n**Minimal fix:** a `retired_identities` set (domain_id, installation_nonce, manager_store_uuid) consulted by `prepare_pairing`, plus a live `manager_store_uuid` uniqueness check. Store it *outside* `participants` so it does not consume `MAX_DOMAINS - 2` (see F8).\\n\\n### F6 \u2014 Preview digest does not cover the surface that can change. **Severity: Medium\u2011High**\\n\\nItem 1 defines the preview as \\\"every Armed/Uncertain Grant including its complete issued Invocation intent inventory\\\"; item 2 says \\\"A changed preview rejects before mutation\\\". But an `Offered` candidate can be Armed by the still\u2011connected executor between preview and command, producing a *new* Armed grant with issued invocation intents. If the digest covers only the previously\u2011Armed set, that grant slips through unchanged\u2011digest validation and is retired without ever appearing in the risk statement the owner signed.\\n\\n**Minimal fix:** either extend the digest to cover Offered candidates and reservations, or \u2014 better, and it also closes F1 \u2014 make the order **fence \u2192 digest \u2192 accept**: publish the session revocation first (no new commits accepted from *D*), then compute the digest against the now\u2011frozen state, then require the digest match inside the same publication that frees anything.\\n\\n### F7 \u2014 Replay identity is undefined after completion. **Severity: Medium\u2011High**\\n\\nItem 5 says \\\"Replays use the exact operation ID/payload\\\" and \\\"A lost response never requires issuing another clearance\\\", but names no durable record that answers a replay *after* the pending fence has been cleared. Machine commits are answered by `machine_operations(domain_id, sequence)`; retirement deliberately has no executor sequence (item 2). Without a completed\u2011operation tombstone, a replayed `retire-domain` either fails with `\\\"participant anchor missing\\\"` or, worse, is misread as a fresh retirement.\\n\\nThe pattern already exists twice in `authority.rs` and should simply be mirrored: `hold` (\\\"A retired operation is a tombstone, never permission for another run\\\") and `force_release` (`\\\"authority release payload conflict\\\"` when the replayed reason differs).\\n\\n**Minimal fix:** the retired\u2011registration tombstone records `operation_id`, requester, digest and reason; identical `operation_id` + payload returns the recorded outcome; identical `operation_id` with a different payload is a payload conflict; a *different* `operation_id` against an already\u2011retired domain is rejected as already\u2011retired, not silently succeeded.\\n\\n### F8 \u2014 Durable representation of retired records fights the existing budgets. **Severity: Medium**\\n\\nIf retired records live in `participants`:\\n\\n- `admission_bytes` counts `p.registration` for **all** participants unconditionally, so retirement never reduces that component and accumulated retirements permanently raise the number that `check_publication` gates on.\\n- `prepare_pairing` (`participants.len() >= MAX_DOMAINS - 2`) and `load` (same bound) count them, so retirements consume the domain budget with epoch rotation as the only exit.\\n- `PairingRegistration` carries `secret: [u8; 32]`. Retaining a live pairing secret for a permanently fenced installation is free to avoid and pointless to keep, even under a cooperative\u2011owner trust model.\\n\\nSeparately, `retired_allocations` has no compaction predicate for risk\u2011cleared releases: `compact_machine_retirements` consumes a `proven` set whose SQL source is not supplied, and item 4 requires these rows be Released **without** a fabricated `SealedRelease`. If the proof query keys on seal presence, these hashes are uncompactable until epoch rotation. Note also that adding them is arguably redundant \u2014 if F5's identity fence is enforced, the retired domain's `AllocationKey`s (which embed `domain_id` *and* `manager_store_uuid`) can never recur.\\n\\n**Minimal fix:** a separate `retired_participants` map holding a minimal fenced identity + audit reference (no secret, no budgets/aliases), excluded from `admission_bytes` and from the `MAX_DOMAINS` bound but consulted by `prepare_pairing`. Decide explicitly whether retirement writes to `retired_allocations` at all; if yes, specify the compaction predicate.\\n\\n### F9 \u2014 `ProcessIdentity` does not identify the requester for an audited risk acceptance. **Severity: Medium**\\n\\nItem 2: \\\"The server records the OS-authenticated requester identity, not an identity asserted by the JSON caller.\\\" The only identity type in play is\\n\\n```rust\\nProcessIdentity::Windows { host_id, boot_id, pid, creation_filetime_100ns }\\n```\\n\\nwhich identifies a *process*, not a principal. It cannot distinguish the administrative role from the runtime role that the stated trust model depends on. (`InstallationIdentity` has an `owner_uid`; `ProcessIdentity` has no user/SID field.) Also, in `hold`/`force_release` the `requester` is an argument supplied by the Rust caller \u2014 whether the daemon derives it from the authenticated peer token is not visible in the excerpts.\\n\\n**Minimal fix:** bind the authenticated token user (SID/uid) into the retirement audit alongside `ProcessIdentity`, and state where it is derived from.\\n\\n### F10 \u2014 Audit/blob filename namespace collides with `prune_machine_blobs`. **Severity: Medium\u2011Low**\\n\\n`prune_machine_blobs` deletes **every** file matching `machine-commit-<uuid>-<64 hex>.json` that is not the single kept `pending_machine_blob`, and runs on every `open()` and every `publish()`. A retirement blob reusing that prefix, or reusing the single blob slot, is deleted the next time an ordinary commit blob is kept.\\n\\nAlso worth copying carefully rather than verbatim: `complete_machine_reset` keys its audit path on `reset-{reset_id}-{payload_hash(expected)}.json`. Because the digest is *in the filename*, a differing inventory writes a *second* file instead of tripping the `\\\"reset audit inventory differs\\\"` check. For retirement, where the digest is the entire point, key the audit path on `operation_id` alone so a payload change collides and is rejected.\\n\\n### F11 \u2014 Item 6 abandonment has no third state to land in. **Severity: Medium**\\n\\n`ParticipantAnchor.committed` is a `bool`, and two independent guards treat `!committed` as blocking:\\n\\n```rust\\nState::Ready(registry) if registry.participants.values().any(|p| !p.committed) => Some((\\\"authority_pairing_incomplete\\\", ...))\\n// and, in complete_machine_reset:\\n|| registry.participants.values().any(|a| !a.committed)\\n```\\n\\nAn \\\"explicitly abandoned\\\" pending registration that stays `committed: false` blocks admission and blocks reset convergence forever. The design correctly distinguishes abandonment (never had launch authority) from retirement, but does not say where that distinction is durably stored.\\n\\n**Minimal fix:** replace the bool with an explicit lifecycle (`Pending | Committed | Abandoned | Retired`), and have both guards treat `Abandoned`/`Retired` as settled. `load`'s schema validation should reject an `Abandoned` anchor that has a session or a non\u2011zero `accepted_sequence` \u2014 that is the executable form of \\\"it has never had launch authority\\\".\\n\\n---\\n\\n## Evidence Gaps\\n\\nThese changed how strongly I could state several findings; answers may move F1, F6 and F9 materially.\\n\\n1. **Transport/session layer not supplied.** Whether an accepted session is re\u2011validated per request against the durable anchor, and what terminates an open connection on revocation, is unknown. F1 assumes it is not re\u2011validated at the authority layer \u2014 that part I can see; the transport part I cannot.\\n2. **`Request` authentication/HMAC path not supplied**, so I cannot confirm item 2's \\\"not exposed as an executor-authorized HMAC operation\\\" is structurally enforced rather than conventional.\\n3. **`ParticipantSnapshot` construction not supplied.** `manager/recovery.rs::begin` validates against it heavily; whether it is derived from `machine_domains` (and therefore whether a retired domain can even produce one) determines whether N8 below is already satisfied.\\n4. **The `proven` set feeding `compact_machine_retirements` is not supplied** \u2014 F8's compaction claim is conditional on that query's predicate.\\n5. **No admin client / `machine retire-domain` code exists in the excerpts**; the entire design is unimplemented, so all findings are about the specification and its fit with existing invariants, not about defects in shipped code.\\n6. **No tools, not a git repository, WSL runtime not installed.** I did not compile, run, or verify that the shown tests pass. Per the brief: none of the protocol tests discussed here demonstrate anything about WSL process cleanup, which is unimplemented \u2014 the negative controls below prove *bookkeeping and fencing* only, and the design's item 4/5 language should not be read as cleanup evidence.\\n7. **`MAX_DOMAINS`, `GrantState`, `machine_queue::save_grant`, `payload_hash`** semantics assumed from usage.\\n\\n---\\n\\n## Recommendations\\n\\n**Ordering change that closes the most holes at once (F1 + F6):** make retirement three durable steps \u2014 (1) publish the domain fence (session revoked, domain marked retiring; nothing freed, nothing charged changes); (2) compute the preview digest against the now\u2011frozen domain; (3) accept with digest revalidated *inside* the publication that frees anything. This removes the preview TOCTOU and makes the fence testable without transport code.\\n\\n**Scope answer to record in the design (F4):** whole\u2011domain is the smallest defensible *identity* scope, justified by `import_inventory`'s unsealed\u2011absence rule. It is **not** the smallest *risk* scope: separate identity retirement from capacity reclamation and require a second, separately audited acceptance for the latter.\\n\\n**Bounding answer (brief's question on broader reset clearance):** broad force\u2011reset is not needed. Name and bound the two residuals that `prepare_machine_reset_recovery` already excludes \u2014 same\u2011UUID rollback and pre\u2011coverage native history \u2014 as distinct inventory\u2011level remediations. Keep item 7's \\\"deleting registry/anchors is never a recovery action\\\" as stated; it is consistent with `Authority::open`'s \\\"missing history is closed\\\" behaviour and with `missing_and_lost_history_never_implies_free_capacity`.\\n\\n### Indispensable executable negative controls\\n\\nWritten in the style of the existing `topology_tests`; each should be a distinct default\u2011daemon isolated Job where fault injection is required.\\n\\n- **N1 \u2014 no post\u2011fence writer.** A commit intent naming a retired domain's session is rejected by `proposed_machine_commit`; the same intent replayed through `reconcile_pending_machine_commit` does not create `machine_operations` rows or call `save_grant`. *(F1)*\\n- **N2 \u2014 no re\u2011pairing.** `prepare_pairing` fails for (i) the retired `domain_id`, (ii) the retired `installation_nonce`, (iii) a **fresh** domain_id + installation_nonce reusing the retired `manager_store_uuid`. (iii) fails today. *(F5)*\\n- **N3 \u2014 crash between fence and SQL commit.** Reopen: the pending retirement reloads, `admission_blocker()` is non\u2011`None` until it completes, **and the domain's grants are still present in `machine_obligations`** (assert the debit is not freed early). *(F1, item 5)*\\n- **N4 \u2014 crash between SQL commit and finish.** Reopen converges to retired exactly once; replay with the same `operation_id` + payload is a no\u2011op returning the recorded outcome; same id + different payload is a payload conflict; a different id against an already\u2011retired domain is rejected. *(F7)*\\n- **N5 \u2014 pending commit interaction.** Retirement while `pending_machine_commit` belongs to *another* domain is rejected with a distinct code; while it belongs to the retired domain, it is subsumed, and a subsequent `finish_machine_commit(op)` neither re\u2011charges grants nor errors with `\\\"machine commit participant anchor missing\\\"`. *(F3)*\\n- **N6 \u2014 nothing unrelated moves.** `assert_eq!` on the full post\u2011retirement snapshot minus the retired domain: `native_permissions`, `native_coverage_store`, `holds`, `epoch`, `domains`, and every other domain's `machine_permissions`/`session` are byte\u2011identical. *(item 7)*\\n- **N7 \u2014 reset converges.** After retirement, `prepare_machine_reset_recovery` does not insert the retired domain with `reconciliation_required=1`; with only live participants reconciled and native proof supplied, `finish_machine_reset_recovery` reaches `complete_machine_reset` and rotates the epoch. This test fails against the current code. *(F2)*\\n- **N8 \u2014 a returning manager cannot import.** If the retired manager's store somehow reappears, the handshake fails before `recovery::begin` can reach `import_inventory`; assert no `attached_inventory` row is ever written. *(F5, F1)*\\n- **N9 \u2014 abandonment is not risk acceptance.** After abandoning a pending registration, `admission_blocker()` is not `authority_pairing_incomplete`, `complete_machine_reset` is not blocked by it, and the audit record is distinguishable from a risk\u2011accepted retirement; a registration with any session or non\u2011zero `accepted_sequence` cannot be abandoned. *(F11)*\\n- **N10 \u2014 releases are not proofs.** Assert risk\u2011cleared grants have `sealed_release == None` and carry the annotation, and that no proof\u2011consuming path (`compact_machine_retirements`' proof source, `import_inventory`'s seal lookup, `retire_native_starts`) will accept them as evidence of emptiness. *(F4, item 4)*\\n- **N11 \u2014 capacity cannot block retirement.** From the saturated registry fixture already used in `saturated_registry_still_journals_large_release_and_detects_missing_blob`, a retirement publication succeeds even at the admission budget, and repeated retirements do not exhaust `MAX_DOMAINS - 2` or monotonically grow `admission_bytes`. *(F8, item 8)*\\n\\n---\\n\\n## Confidence\\n\\n| Finding | Confidence | Basis |\\n|---|---|---|\\n| F2 (reset deadlock) | **High** | Literal `1` in the INSERT vs. the `reconciliation_required!=0` guard; both quoted. |\\n| F3 (anchor / single slot) | **High** | `ok_or_else` and the byte\u2011equality branch are explicit. |\\n| F5 (identity fence unenforced) | **High** | Absence of any `manager_store_uuid` uniqueness check across all four excerpts. |\\n| F8, F11 (budgets, `committed` bool) | **High** | Direct from `admission_bytes`, `load` bounds, and both `!committed` guards. |\\n| F10 (prune collision) | **High** | `prune_machine_blobs` prefix logic is explicit; the audit\u2011naming point follows from the path format. |\\n| F1 (fence at durable layer) | **Medium\u2011High** | The authority\u2011layer gap is certain; whether the transport independently closes it is unverifiable (Gap 1). |\\n| F4 (scope split) | **Medium\u2011High** | The conflation is clear from the design plus `complete_machine_reset`'s `machine_permissions.is_empty()`; the right split is a judgement call the owner may reasonably decide differently. |\\n| F6, F7, F9 | **Medium** | Reasoned from design text + code patterns; F9 depends on Gap 2. |\\n\\nOverall: I'm confident the design is not yet implementable as written against this codebase, and confident that the *shape* of the fix is a retired\u2011identity tombstone + a separate pending\u2011retirement slot + fence\u2011before\u2011digest ordering. I'm least confident about F4's exact partition \u2014 if the owner's position is that a retired domain's capacity should simply be forfeited until epoch rotation, that is simpler and also defensible, and would replace F4's `retired_residue` with a documented capacity loss.\\n\\n**Questions that would change my view:** (1) Does the transport re\u2011validate the session against the durable anchor per request, or only at connection accept? (2) Is `ParticipantSnapshot` derived from `machine_domains`, such that a retired domain cannot produce one? (3) What SQL predicate produces the `proven` set for `compact_machine_retirements`? (4) Is forfeiting the retired domain's capacity until epoch rotation acceptable, or is prompt reclamation a hard MR\u20112 liveness requirement?\",\n        \"ttft_ms\": 218715,\n        \"type\": \"result\",\n        \"duration_ms\": 328862,\n        \"uuid\": \"e6ecde60-1d07-483a-ab49-60e997a0fb37\",\n        \"ttft_stream_ms\": 1739,\n        \"time_to_request_ms\": 54,\n        \"first_content_frame_ms\": 2102,\n        \"queued_turn_count\": 0\n      },\n      \"stderr\": \"\"\n    }\n  ]\n}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08727-6971-79a1-a1b3-fd73badf9036"
+}

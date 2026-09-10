@@ -1,0 +1,32 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+  "args": [
+    "bootstrap",
+    "run",
+    "--spec",
+    "C:\\Development\\stillyard-mr2-clearance-review-20260909a\\work.json"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr2-clearance-review-20260909a",
+  "resources": {
+    "cargo_slots": 1,
+    "custom": {
+      "claude2_slots": 1
+    },
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr2-clearance-concept-review"
+    }
+  ],
+  "timeout_seconds": 1530,
+  "expected_duration_seconds": 300
+}

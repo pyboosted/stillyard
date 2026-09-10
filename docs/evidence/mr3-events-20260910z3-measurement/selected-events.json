@@ -1,0 +1,224 @@
+[
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 516
+    },
+    "native": true,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a13-06c1-77d0-accf-1448b5deebd8",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+      "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "lease_id": "01a08a13-06c1-77d0-accf-1448b5deebd8"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a13-06ba-7631-bb42-5c8f683a8d69",
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a13-06c1-77d0-accf-141c3a13a985"
+    },
+    "state": "armed",
+    "tickets_issued": 0,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 1,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "committed_unix_millis": 1789022897857
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 517
+    },
+    "native": true,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a13-06c1-77d0-accf-1448b5deebd8",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+      "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "lease_id": "01a08a13-06c1-77d0-accf-1448b5deebd8"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a13-06ba-7631-bb42-5c8f683a8d69",
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a13-06c1-77d0-accf-141c3a13a985"
+    },
+    "state": "released",
+    "tickets_issued": 0,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 1,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "committed_unix_millis": 1789022991640
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 518
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a14-751f-7151-adab-836d5f664471",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a13-1608-70b1-ae0d-6977a9d0d44b"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a13-0642-75b0-b949-31d4f8222beb",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a13-0647-7452-8b60-f36385ac3702"
+    },
+    "state": "offered",
+    "tickets_issued": 0,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 0,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "measurement"
+      ]
+    },
+    "committed_unix_millis": 1789022991647
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 519
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a14-751f-7151-adab-836d5f664471",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a13-1608-70b1-ae0d-6977a9d0d44b"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a13-0642-75b0-b949-31d4f8222beb",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a13-0647-7452-8b60-f36385ac3702"
+    },
+    "state": "armed",
+    "tickets_issued": 0,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 0,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "measurement"
+      ]
+    },
+    "committed_unix_millis": 1789022991667
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 520
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a14-751f-7151-adab-836d5f664471",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a13-1608-70b1-ae0d-6977a9d0d44b"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a13-0642-75b0-b949-31d4f8222beb",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a13-0647-7452-8b60-f36385ac3702"
+    },
+    "state": "armed",
+    "tickets_issued": 1,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 0,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "measurement"
+      ]
+    },
+    "committed_unix_millis": 1789022995837
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 521
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a14-751f-7151-adab-836d5f664471",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a13-1608-70b1-ae0d-6977a9d0d44b"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a13-0642-75b0-b949-31d4f8222beb",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a13-0647-7452-8b60-f36385ac3702"
+    },
+    "state": "released",
+    "tickets_issued": 1,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 0,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "measurement"
+      ]
+    },
+    "committed_unix_millis": 1789022996900
+  }
+]

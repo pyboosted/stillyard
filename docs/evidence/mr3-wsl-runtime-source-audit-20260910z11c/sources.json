@@ -1,0 +1,12 @@
+[
+  {
+    "path": "src/linux/init/binfmt.cpp",
+    "url": "https://raw.githubusercontent.com/microsoft/WSL/2.6.3/src/linux/init/binfmt.cpp",
+    "sha256": "2d4518b9ed90bf1f85270bb0c1b0a2f552e9c834dd1b6227dcf50310b4cfd318"
+  },
+  {
+    "path": "src/linux/init/init.cpp",
+    "url": "https://raw.githubusercontent.com/microsoft/WSL/2.6.3/src/linux/init/init.cpp",
+    "sha256": "7e053eebd42de06c785ae4eb7e3d717fe4a6b44b9257db9fd1cddf9a9ede8bfa"
+  }
+]

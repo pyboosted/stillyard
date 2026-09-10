@@ -1,0 +1,33 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+  "args": [
+    "bootstrap",
+    "run",
+    "--spec",
+    "C:\\Development\\stillyard-mr2-linux-evidence-20260910g\\wsl-check-b1f98532651f4973844506f6efc0da92\\work.json"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr2-linux-evidence-20260910g\\wsl-check-b1f98532651f4973844506f6efc0da92",
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "wsl-bootstrap-check"
+    },
+    {
+      "key": "source",
+      "value": "dae98b9d40ea8370bb4957b240cd037374ed56546a7d553a9f52b263eebd2281"
+    }
+  ],
+  "expected_duration_seconds": 180,
+  "timeout_seconds": 1830
+}

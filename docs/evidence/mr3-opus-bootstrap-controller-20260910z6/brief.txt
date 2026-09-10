@@ -1,0 +1,1757 @@
+Review one narrow MR3 acceptance harness design, read-only, primarily contract preservation and failure behavior. The default Windows installed daemon only authorizes bootstrap Arm from its exact installed executable AND current Job primary root AND sole native Lease. Current fault test executable directly calling Client.run_wsl_bootstrap is rejected before launch (correctly). Linux kernel subject needs protected bootstrap nested cgroup delegation; normal attached jobs deliberately cannot write cgroup mounts. Need native isolated coordinator and actual Linux journal/processes concurrently inside one default system Job, without changing these guards or resetting installed Stores.
+Proposed CLI-only extension: stillyard bootstrap run --spec <Linux BootstrapWork> --native-controller <absolute native test executable> -- <controller args>. No wire, BootstrapWork schema, or Arm change. CLI validates Windows managed context before spawning anything, spawns native controller as an ordinary Windows child with stdin null, inherited canonical stdout/stderr and environment/cwd from root Job, no breakaway flags; then runs existing bootstrap in primary, and waits controller. Native controller and all its isolated daemons inherit root Job Object and same Lease. Before any Linux user code existing Arm+trusted-supervisor containment is unchanged. Controller mailbox path precreated by launcher on NTFS, passed via env to native and BootstrapWork env to Linux. Test no longer calls bootstrap; attaches mailbox, conducts existing protocol/reset steps, publishes cleanup request and receives actual Linux seal, exports selected public artifacts. Native controller Drop best-effort publishes abort so Linux bounded waits stop on assertion error. Root CLI can wait bootstrap result first (max240s), then native child; outer Job600s timeout bounds hangs. If bootstrap returns error, native root exits error and daemon recursively cleans Windows Job; Linux durable hold is never cleared without existing seal. If bootstrap succeeds, controller exit status must also succeed. CLI proof can be retained in a separate explicit result file or retrieved by launcher from authority. No reading controller output as cleanup authority. Outside managed Job option must reject before spawn. General command execution otherwise exists in ordinary Jobs; this is a bounded bootstrap companion within same Job, not an independently admitted child Job.
+Evaluate if sound, reject unsafe shortcuts, suggest minimal alternatives that satisfy constraints. Call out crash gaps, root exit / controller exit / validation order and what tests matter. Do not require impossible changes solely for malicious account-owner adversary outside contract. Explicitly distinguish design from already implemented code. Is adding this small CLI-only acceptance companion preferable to weakening bootstrap root identity check? Return JSON {verdict:pass|findings,summary:string,findings:[string]}.
+
+FILE src/bootstrap.rs
+//! Transitional bootstrap path. The final attached-domain protocol replaces this
+//! whole-authority interlock with scoped Grants; neither path frees on bridge EOF.
+
+use crate::{BootstrapBinding, BootstrapProof, BootstrapWork, Client, Error, Result};
+use sha2::{Digest, Sha256};
+
+pub(crate) fn validate_binding(binding: &BootstrapBinding) -> std::io::Result<()> {
+    let work = &binding.work;
+    let serialized = serde_json::to_vec(work)?;
+    if serialized.len() > 8192
+        || !(1..=86400).contains(&work.timeout_seconds)
+        || work.operation_id != binding.parent.invocation_id.entity_uuid()
+        || work.distribution.is_empty()
+        || work.user.is_empty()
+        || !work.executable.starts_with('/')
+        || !work.working_directory.starts_with('/')
+        || [
+            &work.distribution,
+            &work.user,
+            &work.executable,
+            &work.working_directory,
+        ]
+        .into_iter()
+        .chain(work.args.iter())
+        .chain(work.environment.values())
+        .any(|value| value.contains('\0'))
+        || work
+            .environment
+            .keys()
+            .any(|key| key.is_empty() || key.contains(['=', '\0']))
+        || format!("{:x}", Sha256::digest(&serialized)) != binding.request_sha256
+    {
+        return Err(std::io::Error::other(
+            "invalid bootstrap descriptor, identity, or payload hash",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_proof(
+    binding: &BootstrapBinding,
+    proof: &BootstrapProof,
+) -> std::io::Result<()> {
+    if proof.operation_id != binding.work.operation_id
+        || proof.request_sha256 != binding.request_sha256
+        || proof.phase != "sealed_empty"
+        || uuid::Uuid::parse_str(&proof.boot_id).is_err()
+        || !proof.cgroup_path.starts_with("/sys/fs/cgroup/")
+        || !proof.cgroup_path.ends_with("/work")
+        || proof.cgroup_path.len() > 4096
+        || proof.cgroup_path.contains('\0')
+        || proof.cgroup_inode == 0
+        || !["exited", "canceled", "timed_out", "intermediary_lost"]
+            .contains(&proof.termination.as_str())
+    {
+        return Err(std::io::Error::other(
+            "bootstrap proof identity or seal is invalid",
+        ));
+    }
+    Ok(())
+}
+
+impl Client {
+    /// Execute transitional WSL bootstrap work from this daemon's authenticated
+    /// native primary. A durable obligation is acknowledged before Linux is called.
+    #[cfg(windows)]
+    pub fn run_wsl_bootstrap(&self, mut work: BootstrapWork) -> Result<BootstrapProof> {
+        use std::time::{Duration, Instant};
+        let parent = self
+            .submission_context(Instant::now() + Duration::from_secs(10), None)?
+            .parent
+            .ok_or_else(|| {
+                Error::InvalidSpec("bootstrap run requires a native Stillyard Job".into())
+            })?;
+        if !work.operation_id.is_nil() && work.operation_id != parent.invocation_id.entity_uuid() {
+            return Err(Error::InvalidSpec(
+                "bootstrap operation identity is daemon-derived".into(),
+            ));
+        }
+        work.operation_id = parent.invocation_id.entity_uuid();
+        let request = serde_json::to_string(&work)?;
+        let binding = BootstrapBinding {
+            parent,
+            work,
+            request_sha256: format!("{:x}", Sha256::digest(request.as_bytes())),
+        };
+        validate_binding(&binding)?;
+        let state =
+            self.arm_bootstrap(binding.clone(), Instant::now() + Duration::from_secs(10))?;
+        if !state.holds.iter().any(|hold| {
+            hold.id == binding.work.operation_id
+                && !hold.released
+                && hold.bootstrap.as_ref() == Some(&binding)
+        }) {
+            return Err(Error::Unavailable(
+                "bootstrap was retired or not durably armed; no Linux launch".into(),
+            ));
+        }
+        let proof = invoke_supervisor(&binding, "run", &request, true)?;
+        self.seal_bootstrap(proof.clone(), Instant::now() + Duration::from_secs(10))?;
+        Ok(proof)
+    }
+
+    /// Reconcile a retained obligation using the same embedded trusted inspector.
+    /// A missing local record remains uncertain; this never launches user work.
+    #[cfg(windows)]
+    pub fn reconcile_wsl_bootstrap(&self, operation_id: uuid::Uuid) -> Result<BootstrapProof> {
+        use std::time::{Duration, Instant};
+        let state = self.authority_status(Instant::now() + Duration::from_secs(10), None)?;
+        let hold = state
+            .holds
+            .iter()
+            .find(|hold| hold.id == operation_id)
+            .ok_or_else(|| Error::InvalidSpec("unknown bootstrap obligation".into()))?;
+        let binding = hold
+            .bootstrap
+            .as_ref()
+            .ok_or_else(|| Error::InvalidSpec("hold is not bootstrap work".into()))?;
+        let proof = invoke_supervisor(binding, "inspect", &binding.request_sha256, false)?;
+        self.seal_bootstrap(proof.clone(), Instant::now() + Duration::from_secs(10))?;
+        Ok(proof)
+    }
+
+    #[cfg(not(windows))]
+    pub fn run_wsl_bootstrap(&self, _work: BootstrapWork) -> Result<BootstrapProof> {
+        Err(Error::UnsupportedPlatform(std::env::consts::OS))
+    }
+
+    #[cfg(not(windows))]
+    pub fn reconcile_wsl_bootstrap(&self, _operation_id: uuid::Uuid) -> Result<BootstrapProof> {
+        Err(Error::UnsupportedPlatform(std::env::consts::OS))
+    }
+}
+
+#[cfg(windows)]
+fn invoke_supervisor(
+    binding: &BootstrapBinding,
+    mode: &str,
+    argument: &str,
+    forward_output: bool,
+) -> Result<BootstrapProof> {
+    use std::io::{BufRead, BufReader, Write};
+    use std::process::{Command, Stdio};
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Frame {
+        stream: Option<String>,
+        bytes: Option<Vec<u8>>,
+        proof: Option<BootstrapProof>,
+        heartbeat: Option<bool>,
+    }
+    const SOURCE: &str = include_str!("../scripts/wsl-bootstrap-supervisor.py");
+    let code = format!(
+        "s={};n={{'__name__':'stillyard_embedded'}};exec(compile(s,'stillyard-bootstrap','exec'),n);n['main'](s)",
+        serde_json::to_string(SOURCE)?
+    );
+    let executable = std::path::PathBuf::from(
+        std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into()),
+    )
+    .join("System32/wsl.exe");
+    let mut child = Command::new(executable)
+        .args([
+            "--distribution",
+            &binding.work.distribution,
+            "--user",
+            &binding.work.user,
+            "--cd",
+            "/tmp",
+            "--exec",
+            "/usr/bin/python3",
+            "-c",
+            &code,
+            mode,
+            &binding.work.operation_id.to_string(),
+            argument,
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()?;
+    let mut stream = BufReader::new(
+        child
+            .stdout
+            .take()
+            .ok_or_else(|| Error::Unavailable("bootstrap stdout missing".into()))?,
+    );
+    let mut proof = None;
+    loop {
+        let mut line = Vec::new();
+        // Each embedded-helper frame has at most 4096 bytes of output. Bound the
+        // receive buffer even when a broken or replaced helper violates framing.
+        let mut limited = std::io::Read::take(&mut stream, 32769);
+        let count = limited.read_until(b'\n', &mut line)?;
+        if count == 0 {
+            break;
+        }
+        if count > 32768 || line.last() != Some(&b'\n') {
+            return Err(Error::Protocol(
+                "bootstrap frame exceeds limit or is truncated; authority retained".into(),
+            ));
+        }
+        let frame: Frame = serde_json::from_slice(&line)?;
+        if let Some(value) = frame.proof {
+            validate_proof(binding, &value)?;
+            if proof.replace(value).is_some() {
+                return Err(Error::Protocol("duplicate bootstrap proof".into()));
+            }
+        } else if let (Some(name), Some(bytes)) = (frame.stream, frame.bytes) {
+            if forward_output {
+                match name.as_str() {
+                    "stdout" => {
+                        std::io::stdout().write_all(&bytes)?;
+                        std::io::stdout().flush()?;
+                    }
+                    "stderr" => {
+                        std::io::stderr().write_all(&bytes)?;
+                        std::io::stderr().flush()?;
+                    }
+                    _ => return Err(Error::Protocol("unknown bootstrap log stream".into())),
+                }
+            }
+        } else if frame.heartbeat != Some(true) {
+            return Err(Error::Protocol("invalid bootstrap frame".into()));
+        }
+    }
+    if !child.wait()?.success() {
+        return Err(Error::Unavailable(
+            "Linux bootstrap outcome uncertain; authority retained for reconciliation".into(),
+        ));
+    }
+    proof.ok_or_else(|| {
+        Error::Unavailable("Linux bootstrap returned no sealed proof; authority retained".into())
+    })
+}
+
+
+FILE src/store/authority.rs
+use super::*;
+
+impl Store {
+    pub(crate) fn arm_bootstrap(
+        &self,
+        binding: crate::BootstrapBinding,
+        requester: ProcessIdentity,
+    ) -> StoreResult<crate::AuthoritySnapshot> {
+        crate::bootstrap::validate_binding(&binding)?;
+        let snapshot = self.status(binding.parent.job_id)?;
+        let invocation = snapshot
+            .attempts
+            .iter()
+            .flat_map(|attempt| &attempt.invocations)
+            .find(|invocation| invocation.invocation_id == binding.parent.invocation_id)
+            .ok_or_else(|| StoreError::Rejected("bootstrap primary is not present".into()))?;
+        if invocation.root_identity.as_ref() != Some(&requester)
+            || invocation.role != InvocationRole::Primary
+            || snapshot.cancel_requested
+            || snapshot.attempt_id != Some(binding.parent.attempt_id)
+            || snapshot.invocation_id != Some(binding.parent.invocation_id)
+        {
+            return Err(StoreError::Rejected(
+                "bootstrap requires the exact current native primary root".into(),
+            ));
+        }
+        let (own, others): (u64, u64) = self.connection.query_row(
+            "SELECT COALESCE(SUM(attempt_id = ?1 AND invocation_id IS NULL), 0),
+                    COALESCE(SUM(attempt_id != ?1 OR invocation_id IS NOT NULL), 0)
+             FROM leases WHERE state = 'granted'",
+            [binding.parent.attempt_id.entity_uuid().to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        if own != 1 || others != 0 {
+            return Err(StoreError::OperationRejected { code: "authority_busy".into(), detail: "bootstrap requires its sole native work Lease; other live or uncertain work still owns resources".into() });
+        }
+        Ok(self.authority_lock()?.arm_bootstrap(binding, requester)?)
+    }
+
+    pub(crate) fn seal_bootstrap(
+        &self,
+        proof: crate::BootstrapProof,
+        requester: ProcessIdentity,
+    ) -> StoreResult<crate::AuthoritySnapshot> {
+        Ok(self.authority_lock()?.seal_bootstrap(proof, requester)?)
+    }
+
+    /// Runtime attachment happens before the reactor can release any process.
+    /// Store-only unit tests remain free to exercise the existing admission core.
+    pub(crate) fn attach_authority(&mut self) -> StoreResult<()> {
+        if self.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM attached_local_mode)",
+            [],
+            |r| r.get::<_, bool>(0),
+        )? {
+            return Err(StoreError::InvalidState("attached executor requires its paired coordinator; standalone authority fallback is forbidden".into()));
+        }
+        let host = self
+            .startup_identity
+            .host_id
+            .clone()
+            .unwrap_or_else(|| HostId("identity-unavailable".into()));
+        let mut authority =
+            crate::authority::Authority::open(self.paths.root.join("authority"), host);
+        if let Some(identity) = self.startup_identity.daemon_process.clone() {
+            authority.bind_coordinator(self.store_uuid, self.daemon_generation, identity)?;
+        }
+        self.authority = Some(std::sync::Arc::new(std::sync::Mutex::new(authority)));
+        self.reconcile_pending_domain_retirement()?;
+        self.reconcile_pending_machine_commit()?;
+        self.validate_machine_history()?;
+        self.reconcile_native_start_permissions()?;
+        self.establish_native_coverage()?;
+        Ok(())
+    }
+
+    fn establish_native_coverage(&self) -> StoreResult<()> {
+        let empty: bool = self.connection.query_row("SELECT NOT EXISTS(SELECT 1 FROM leases WHERE state='granted') AND NOT EXISTS(SELECT 1 FROM containments WHERE state NOT IN ('empty','cleared'))",[],|r|r.get(0))?;
+        self.authority_lock()?
+            .establish_native_coverage(self.store_uuid, empty)?;
+        Ok(())
+    }
+
+    /// Build the same reset-independent permission for every native launch path.
+    /// The caller publishes it after lifecycle validation, before recording a
+    /// root in SQLite and before the suspended process can execute user code.
+    pub(super) fn native_start_permission(
+        &self,
+        job: &PreparedJob,
+        executable_hash: &str,
+        root_identity: Option<&ProcessIdentity>,
+    ) -> StoreResult<Option<crate::machine::NativeStartPermission>> {
+        let permission = if self.authority.is_some() {
+            let root_identity = root_identity.ok_or_else(|| {
+                StoreError::InvalidState("native root identity unavailable".into())
+            })?;
+            let allocation = self
+                .native_allocations(job.job_id)?
+                .into_iter()
+                .find(|a| {
+                    a.state == crate::machine::GrantState::Armed
+                        && match a.owner {
+                            crate::machine::AllocationOwner::Work { attempt_id, .. } => {
+                                job.role != InvocationRole::Probe && attempt_id == job.attempt_id
+                            }
+                            crate::machine::AllocationOwner::Probe { invocation_id, .. } => {
+                                job.role == InvocationRole::Probe
+                                    && invocation_id == job.invocation_id
+                            }
+                        }
+                })
+                .ok_or_else(|| StoreError::InvalidState("native root has no allocation".into()))?;
+            Some(crate::machine::NativeStartPermission {
+                allocation,
+                invocation_id: job.invocation_id,
+                containment_id: job.containment_id,
+                root_identity: root_identity.clone(),
+                creator_identity: self.startup_identity.daemon_process.clone().ok_or_else(
+                    || StoreError::InvalidState("native creator identity unavailable".into()),
+                )?,
+                daemon_generation: self.daemon_generation,
+                executable_sha256: executable_hash.into(),
+                boundary_kind: "windows_job_object".into(),
+            })
+        } else {
+            None
+        };
+        Ok(permission)
+    }
+
+    pub(super) fn reconcile_native_start_permissions(&self) -> StoreResult<()> {
+        if self.authority.is_none() {
+            return Ok(());
+        }
+        let permissions = self.authority_snapshot()?.native_obligations;
+        let mut proven = Vec::new();
+        for permission in permissions {
+            if permission.invocation_id.store_uuid() != self.store_uuid {
+                continue;
+            }
+            let empty: bool = self.connection.query_row("SELECT EXISTS(SELECT 1 FROM containments c JOIN invocations i ON c.invocation_id=i.id WHERE c.id=?1 AND i.id=?2 AND c.state IN ('empty','cleared') AND i.state='resolved')",
+                params![permission.containment_id.entity_uuid().to_string(),permission.invocation_id.entity_uuid().to_string()],|r|r.get(0))?;
+            if empty {
+                proven.push(permission.invocation_id);
+            }
+        }
+        if !proven.is_empty() {
+            self.authority_lock()?.retire_native_starts(&proven)?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn authority_lock(
+        &self,
+    ) -> StoreResult<std::sync::MutexGuard<'_, crate::authority::Authority>> {
+        self.authority
+            .as_ref()
+            .ok_or_else(|| StoreError::InvalidState("runtime authority not attached".into()))?
+            .lock()
+            .map_err(|_| StoreError::InvalidState("authority mutex poisoned".into()))
+    }
+
+    pub(crate) fn authority_snapshot(&self) -> StoreResult<crate::AuthoritySnapshot> {
+        Ok(self.authority_lock()?.snapshot())
+    }
+
+    pub(super) fn authority_blocker(&self) -> StoreResult<Option<Blocker>> {
+        #[cfg(target_os = "linux")]
+        super::attached::installation::validate_store(
+            &self.paths.root,
+            &self.connection,
+            self.store_uuid,
+        )?;
+        let attached: Option<bool> = self
+            .connection
+            .query_row(
+                "SELECT connected FROM attached_local_mode WHERE singleton=1",
+                [],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if attached == Some(false) {
+            return Ok(Some(Blocker { code:"attached_disconnected".into(),
+                detail:"Paired coordinator connection and inventory reconciliation are required before admission".into() }));
+        }
+        if self.authority.is_none() {
+            return Ok(None);
+        }
+        Ok(self
+            .authority_lock()?
+            .admission_blocker()
+            .map(|(code, detail)| Blocker { code, detail }))
+    }
+
+    pub(crate) fn check_authority_release(&self) -> StoreResult<()> {
+        if let Some(blocker) = self.authority_blocker()? {
+            return Err(StoreError::OperationRejected {
+                code: blocker.code,
+                detail: blocker.detail,
+            });
+        }
+        Ok(())
+    }
+
+    fn require_no_granted_leases(&self) -> StoreResult<()> {
+        let active: bool = self.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM leases WHERE state = 'granted')",
+            [],
+            |row| row.get(0),
+        )?;
+        if active {
+            return Err(StoreError::OperationRejected {
+                code: "authority_busy".into(),
+                detail: "Existing work or uncertain containment still owns a Lease; wait for its safe completion".into(),
+            });
+        }
+        Ok(())
+    }
+
+    pub(crate) fn initialize_authority(&self) -> StoreResult<crate::AuthoritySnapshot> {
+        if !self.startup_identity.capable() {
+            return Err(StoreError::InvalidState(
+                "Cannot initialize without verified host/process identity".into(),
+            ));
+        }
+        if self.authority_snapshot()?.epoch.is_none() {
+            self.require_no_granted_leases()?;
+        }
+        let mut authority = self.authority_lock()?;
+        authority.initialize()?;
+        if let Some(identity) = self.startup_identity.daemon_process.clone() {
+            authority.bind_coordinator(self.store_uuid, self.daemon_generation, identity)?;
+        }
+        drop(authority);
+        self.establish_native_coverage()?;
+        self.authority_snapshot()
+    }
+
+    pub(crate) fn hold_authority(
+        &self,
+        id: Uuid,
+        reason: String,
+        requester: ProcessIdentity,
+    ) -> StoreResult<crate::AuthoritySnapshot> {
+        // This operation and admission/release share the Store mutex. An empty
+        // snapshot followed by a separate file write would have a launch race.
+        self.require_no_granted_leases()?;
+        Ok(self.authority_lock()?.hold(id, reason, requester)?)
+    }
+
+    pub(crate) fn force_release_authority(
+        &self,
+        id: Uuid,
+        reason: String,
+        requester: ProcessIdentity,
+    ) -> StoreResult<crate::AuthoritySnapshot> {
+        Ok(self
+            .authority_lock()?
+            .force_release(id, reason, requester)?)
+    }
+}
+
+
+FILE src/daemon/rpc.rs
+use super::*;
+use crate::protocol::error_code;
+
+#[cfg(target_os = "linux")]
+fn attested_request(
+    store: &SharedStore,
+    scheduler: &DaemonReactor,
+    peer: Option<&PeerProcess>,
+    generation: uuid::Uuid,
+    parent: crate::ManagedParent,
+    nonce: [u8; 32],
+    request: Request,
+) -> Response {
+    let result = (|| -> std::result::Result<Response, StoreError> {
+        let context = scheduler.live_containments.linux_server_context(parent)?;
+        if generation != context.server.generation
+            || nonce == [0; 32]
+            || matches!(request, Request::Attested { .. })
+        {
+            return Err(StoreError::Rejected(
+                "stale or nested managed attestation request".into(),
+            ));
+        }
+        let actual = submission_context(store, &scheduler.live_containments, peer)?;
+        if actual.store_uuid != context.server.store || actual.parent != Some(parent) {
+            return Err(StoreError::Rejected(
+                "attested caller is not the claimed kernel-contained parent".into(),
+            ));
+        }
+        let request_sha256 = crate::identity::attestation::request_hash(&request)?;
+        let response = handle_request(store, scheduler, peer, request);
+        Ok(Response::Attested(Box::new(
+            scheduler.live_containments.linux_sign_response(
+                parent,
+                nonce,
+                request_sha256,
+                response,
+            )?,
+        )))
+    })();
+    result.unwrap_or_else(|error| Response::Error {
+        code: "server_attestation_unavailable".into(),
+        message: error.to_string(),
+    })
+}
+
+fn bootstrap_bridge(
+    peer: Option<&PeerProcess>,
+) -> std::result::Result<crate::ProcessIdentity, StoreError> {
+    let peer = peer.ok_or_else(|| {
+        StoreError::Rejected("bootstrap requires an authenticated native bridge".into())
+    })?;
+    let image = super::transport::peer_image_path(peer)?;
+    if std::fs::canonicalize(image)? != std::fs::canonicalize(std::env::current_exe()?)? {
+        return Err(StoreError::Rejected(
+            "bootstrap attestations require this installed daemon executable".into(),
+        ));
+    }
+    peer.identity
+        .clone()
+        .ok_or_else(|| StoreError::Rejected("bootstrap bridge identity unavailable".into()))
+}
+
+fn authority_admin(
+    store: &SharedStore,
+    scheduler: &DaemonReactor,
+    peer: Option<&PeerProcess>,
+) -> std::result::Result<crate::ProcessIdentity, StoreError> {
+    let peer = peer.ok_or_else(|| {
+        StoreError::Rejected("authority administration requires an authenticated pipe peer".into())
+    })?;
+    if submission_context(store, &scheduler.live_containments, Some(peer))?
+        .parent
+        .is_some()
+    {
+        return Err(StoreError::Rejected(
+            "managed work cannot initialize or force-clear the machine authority".into(),
+        ));
+    }
+    peer.identity.clone().ok_or_else(|| {
+        StoreError::Rejected("authority administrator process identity is unavailable".into())
+    })
+}
+
+fn open_read_view(store: &SharedStore) -> std::result::Result<Store, StoreError> {
+    store
+        .lock()
+        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+        .open_read_view()
+}
+
+pub(super) fn handle_request(
+    store: &SharedStore,
+    scheduler: &DaemonReactor,
+    peer: Option<&PeerProcess>,
+    request: Request,
+) -> Response {
+    let result = match request {
+        Request::Attested {
+            daemon_generation,
+            parent,
+            nonce,
+            request,
+        } => {
+            #[cfg(target_os = "linux")]
+            {
+                return attested_request(
+                    store,
+                    scheduler,
+                    peer,
+                    daemon_generation,
+                    parent,
+                    nonce,
+                    *request,
+                );
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                let _ = (daemon_generation, parent, nonce, request);
+                Err(StoreError::Rejected(
+                    "managed namespace attestation is unsupported on this platform".into(),
+                ))
+            }
+        }
+        Request::MachineRetireDomain { request } => authority_admin(store, scheduler, peer)
+            .and_then(|requester| {
+                let peer = peer.ok_or_else(|| {
+                    StoreError::InvalidState(
+                        "retirement needs an authenticated owner process".into(),
+                    )
+                })?;
+                let principal = super::transport::peer_principal(peer)
+                    .map_err(|e| StoreError::InvalidState(e.to_string()))?;
+                if principal
+                    != crate::instance::current_owner_principal()
+                        .map_err(|e| StoreError::InvalidState(e.to_string()))?
+                {
+                    return Err(StoreError::InvalidState(
+                        "retirement principal differs from the daemon owner".into(),
+                    ));
+                }
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .retire_machine_domain(request, requester, principal)
+            })
+            .map(|receipt| {
+                scheduler.wake();
+                Response::MachineDomainRetired(Box::new(receipt))
+            }),
+        Request::MachineClearancePreview { domain } => authority_admin(store, scheduler, peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .machine_clearance_preview(domain)
+            })
+            .map(|preview| Response::MachineClearancePreview(Box::new(preview))),
+        Request::MachineRecover {} => authority_admin(store, scheduler, peer)
+            .and_then(|_| recover_machine_authority(store))
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::MachineEvents { cursor, limit } => open_read_view(store)
+            .and_then(|store| store.machine_events(cursor, limit))
+            .map(Response::MachineEvents),
+        Request::MachineExchange { request } => bootstrap_bridge(peer)
+            .and_then(|_| {
+                if matches!(
+                    request.command,
+                    crate::machine::Command::AuthorizeInvocation { .. }
+                ) {
+                    // Match native release ordering: provider barrier first,
+                    // Store mutex only inside the freshly sampled callback.
+                    scheduler
+                        .host_observation
+                        .with_release_sample(peer.map_or(0, |p| p.pid), |sample| {
+                            store
+                                .lock()
+                                .map_err(|_| {
+                                    StoreError::InvalidState("store mutex poisoned".into())
+                                })?
+                                .machine_exchange(*request, Some(sample))
+                        })
+                        .map_err(StoreError::InvalidState)?
+                } else {
+                    store
+                        .lock()
+                        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                        .machine_exchange(*request, None)
+                }
+            })
+            .map(|reply| {
+                scheduler.wake();
+                Response::MachineReply(Box::new(reply))
+            }),
+        Request::MachinePair { registration } => authority_admin(store, scheduler, peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .pair_machine_domain(registration)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::MachineParticipant(snapshot)
+            }),
+        Request::MachineConnectBegin { hello } => bootstrap_bridge(peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .machine_connect_begin(hello)
+            })
+            .map(Response::MachineChallenge),
+        Request::MachineConnectFinish { challenge, tag } => bootstrap_bridge(peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .machine_connect_finish(challenge, tag)
+            })
+            .map(Response::MachineParticipant),
+        Request::MachineParticipant { domain } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| {
+                if store
+                    .authority_snapshot()?
+                    .retired_domains
+                    .iter()
+                    .any(|r| r.domain_id == domain)
+                {
+                    return Err(StoreError::Rejected(
+                        "participant identity is retired; inspect authority retirement receipts"
+                            .into(),
+                    ));
+                }
+                store.machine_participant(domain)
+            })
+            .map(Response::MachineParticipant),
+        Request::BootstrapArm { binding } => bootstrap_bridge(peer)
+            .and_then(|requester| {
+                let context = submission_context(store, &scheduler.live_containments, peer)?;
+                if context.parent != Some(binding.parent) {
+                    return Err(StoreError::Rejected(
+                        "bootstrap parent does not match OS containment".into(),
+                    ));
+                }
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .arm_bootstrap(binding, requester)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::BootstrapSeal { proof } => bootstrap_bridge(peer)
+            .and_then(|requester| {
+                let context = submission_context(store, &scheduler.live_containments, peer)?;
+                let locked = store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+                if let Some(parent) = context.parent {
+                    let state = locked.authority_snapshot()?;
+                    let matching = state.holds.iter().any(|hold| {
+                        hold.id == proof.operation_id
+                            && hold.requester == requester
+                            && hold
+                                .bootstrap
+                                .as_ref()
+                                .is_some_and(|binding| binding.parent == parent)
+                    });
+                    if !matching {
+                        return Err(StoreError::Rejected(
+                            "managed bridge cannot release another invocation's obligation".into(),
+                        ));
+                    }
+                }
+                locked.seal_bootstrap(proof, requester)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::Ping {} => {
+            return Response::Pong {
+                protocol_version: PROTOCOL_VERSION,
+            };
+        }
+        Request::AuthorityStatus {} => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.authority_snapshot())
+            .map(Response::Authority),
+        Request::AuthorityInitialize {} => authority_admin(store, scheduler, peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .initialize_authority()
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::AuthorityHold { id, reason } => authority_admin(store, scheduler, peer)
+            .and_then(|requester| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .hold_authority(id, reason, requester)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::AuthorityForceRelease { id, reason } => authority_admin(store, scheduler, peer)
+            .and_then(|requester| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .force_release_authority(id, reason, requester)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::StageBegin {
+            upload_id,
+            expected_sha256,
+            expected_length,
+        } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.stage_begin(upload_id, &expected_sha256, expected_length))
+            .map(|next_offset| Response::StageReady { next_offset }),
+        Request::StageChunk {
+            upload_id,
+            offset,
+            bytes,
+        } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.stage_chunk(upload_id, offset, &bytes))
+            .map(|next_offset| Response::StageReady { next_offset }),
+        Request::StageCommit { upload_id } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.stage_commit(upload_id))
+            .map(|input| Response::StageCommitted { input }),
+        Request::SubmissionContext { claimed_parent } => {
+            submission_context(store, &scheduler.live_containments, peer).and_then(|context| {
+                if claimed_parent.is_some() && claimed_parent != context.parent {
+                    return Err(StoreError::Rejected(
+                        "claimed managed parent does not match daemon-held OS containment".into(),
+                    ));
+                }
+                Ok(Response::SubmissionContext(context))
+            })
+        }
+        Request::Submit {
+            idempotency_key,
+            payload_hash,
+            spec,
+            stdin,
+            expected_store_uuid,
+            expected_parent,
+            wait_for_completion,
+        } => submission_context(store, &scheduler.live_containments, peer).and_then(|context| {
+            if context.parent != expected_parent {
+                return Err(StoreError::Rejected(
+                    "submission parent changed after client preflight".into(),
+                ));
+            }
+            store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                .and_then(|mut store| {
+                    if expected_store_uuid.is_some_and(|expected| expected != store.store_uuid()) {
+                        return Err(StoreError::InvalidState(
+                            "store identity changed during submission".into(),
+                        ));
+                    }
+                    let scope = context
+                        .parent
+                        .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed);
+                    match store.submit_with_stdin_scoped_for_wait(
+                        scope,
+                        idempotency_key,
+                        &payload_hash,
+                        &spec,
+                        stdin.as_ref(),
+                        wait_for_completion,
+                    ) {
+                        Ok(submitted) => {
+                            if submitted.should_schedule {
+                                scheduler.wake();
+                            }
+                            Ok(Response::Submitted(submitted.receipt))
+                        }
+                        Err(error) => retained_submission_rejection(
+                            &store,
+                            scope,
+                            idempotency_key,
+                            &payload_hash,
+                            error,
+                        ),
+                    }
+                })
+        }),
+        Request::SubmitBatch {
+            idempotency_key,
+            payload_hash,
+            spec,
+            stdins,
+            expected_store_uuid,
+            expected_parent,
+            wait_for_completion,
+        } => submission_context(store, &scheduler.live_containments, peer).and_then(|context| {
+            if context.parent != expected_parent {
+                return Err(StoreError::Rejected(
+                    "submission parent changed after client preflight".into(),
+                ));
+            }
+            store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                .and_then(|mut store| {
+                    if expected_store_uuid.is_some_and(|expected| expected != store.store_uuid()) {
+                        return Err(StoreError::InvalidState(
+                            "store identity changed during submission".into(),
+                        ));
+                    }
+                    let scope = context
+                        .parent
+                        .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed);
+                    match store.submit_batch_with_stdins_scoped_for_wait(
+                        scope,
+                        idempotency_key,
+                        &payload_hash,
+                        &spec,
+                        &stdins,
+                        wait_for_completion,
+                    ) {
+                        Ok(submitted) => {
+                            if submitted.should_schedule {
+                                scheduler.wake();
+                            }
+                            Ok(Response::BatchSubmitted(submitted.receipt))
+                        }
+                        Err(error) => retained_submission_rejection(
+                            &store,
+                            scope,
+                            idempotency_key,
+                            &payload_hash,
+                            error,
+                        ),
+                    }
+                })
+        }),
+        Request::Recover {
+            idempotency_key,
+            payload_hash,
+            expected_parent,
+        } => submission_context(store, &scheduler.live_containments, peer).and_then(|context| {
+            if context.parent != expected_parent {
+                return Err(StoreError::Rejected(
+                    "recovery parent changed after client preflight".into(),
+                ));
+            }
+            store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                .and_then(|store| {
+                    store
+                        .recover_submission_scoped(
+                            context
+                                .parent
+                                .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
+                            idempotency_key,
+                            &payload_hash,
+                        )
+                        .map(|recovery| Response::Recovered {
+                            store_uuid: store.store_uuid(),
+                            recovery,
+                        })
+                })
+        }),
+        Request::Status { job_id } => scheduler
+            .reconciliation_observations
+            .lock()
+            .map_err(|_| StoreError::InvalidState("reconciliation mutex poisoned".into()))
+            .and_then(|observations| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                    .and_then(|store| store.status_with_reconciliation(job_id, &observations))
+            })
+            .map(|snapshot| Response::Snapshot(Box::new(snapshot))),
+        Request::List {
+            selector,
+            cursor,
+            limit,
+        } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.list_jobs(&selector, cursor, limit))
+            .map(Response::Listed),
+        Request::Tree {
+            selector,
+            root_cursor,
+            root_limit,
+            node_limit,
+            max_depth,
+        } => open_read_view(store)
+            .and_then(|store| store.tree(&selector, root_cursor, root_limit, node_limit, max_depth))
+            .map(Response::Tree),
+        Request::TreeForJob {
+            job_id,
+            node_limit,
+            max_depth,
+        } => open_read_view(store)
+            .and_then(|store| store.tree_for_job(job_id, node_limit, max_depth))
+            .map(Response::Tree),
+        Request::TreeChildren {
+            cursor,
+            node_limit,
+            additional_depth,
+        } => open_read_view(store)
+            .and_then(|store| store.tree_children(&cursor, node_limit, additional_depth))
+            .map(Response::TreeChildren),
+        Request::Observe {
+            selector,
+            cursor,
+            limit,
+            max_wait_millis,
+            managed_wait,
+        } => (|| {
+            if managed_wait {
+                let context = submission_context(store, &scheduler.live_containments, peer)?;
+                let crate::JobSelector::Jobs { job_ids } = &selector else {
+                    return Err(StoreError::InvalidSpec(
+                        "managed wait observation requires explicit Job IDs".into(),
+                    ));
+                };
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .validate_managed_wait(
+                        context
+                            .parent
+                            .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
+                        job_ids,
+                    )?;
+            }
+            scheduler
+                .wait_observation(
+                    store,
+                    &selector,
+                    cursor,
+                    limit,
+                    Duration::from_millis(u64::from(max_wait_millis.min(60_000))),
+                )
+                .map(Response::Observed)
+        })(),
+        Request::ObserveTrees {
+            selector,
+            cursor,
+            event_limit,
+            root_limit,
+            node_limit,
+            max_depth,
+            max_wait_millis,
+        } => scheduler
+            .wait_tree_observation(
+                store,
+                &selector,
+                cursor,
+                event_limit,
+                root_limit,
+                node_limit,
+                max_depth,
+                Duration::from_millis(u64::from(max_wait_millis.min(60_000))),
+            )
+            .map(Response::TreesObserved),
+        Request::Cancel { job_ids } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|mut store| store.cancel_jobs(&job_ids))
+            .map(|snapshots| {
+                scheduler.wake();
+                Response::Canceled { snapshots }
+            }),
+        Request::Wait {
+            job_id,
+            max_wait_millis,
+            claimed_parent,
+        } => submission_context(store, &scheduler.live_containments, peer).and_then(|context| {
+            if claimed_parent.is_some() && claimed_parent != context.parent {
+                return Err(StoreError::Rejected(
+                    "claimed managed parent does not match daemon-held OS containment".into(),
+                ));
+            }
+            store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                .validate_managed_wait(
+                    context
+                        .parent
+                        .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
+                    &[job_id],
+                )?;
+            scheduler
+                .wait_snapshot(
+                    store,
+                    job_id,
+                    Duration::from_millis(u64::from(max_wait_millis.min(1_000))),
+                )
+                .map(|snapshot| Response::Snapshot(Box::new(snapshot)))
+        }),
+        Request::Logs {
+            job_id,
+            stream,
+            offset,
+            limit,
+        } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.logs(job_id, stream, offset, limit))
+            .map(Response::Logs),
+        Request::DaemonStatus {} => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.daemon_status(&scheduler.endpoint))
+            .map(Response::DaemonStatus),
+        Request::Doctor { cursor, limit } => (|| {
+            let doctor_store = open_read_view(store)?;
+            let requirements = doctor_store.host_observation_requirements()?;
+            let page_limit = limit
+                .unwrap_or(crate::MAX_DOCTOR_PAGE)
+                .clamp(1, crate::MAX_DOCTOR_PAGE) as usize;
+            let incident_page = match cursor {
+                Some(cursor) => scheduler
+                    .doctor_snapshots
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("doctor snapshot mutex poisoned".into()))?
+                    .next(cursor, page_limit)?,
+                None => {
+                    let observations = scheduler
+                        .reconciliation_observations
+                        .lock()
+                        .map_err(|_| {
+                            StoreError::InvalidState("reconciliation mutex poisoned".into())
+                        })?
+                        .clone();
+                    let captured = doctor_store.capture_doctor_incidents(&observations)?;
+                    scheduler
+                        .doctor_snapshots
+                        .lock()
+                        .map_err(|_| {
+                            StoreError::InvalidState("doctor snapshot mutex poisoned".into())
+                        })?
+                        .begin(captured, page_limit)?
+                }
+            };
+            let mut snapshot =
+                doctor_store.doctor_with_incident_page(&scheduler.endpoint, incident_page)?;
+            {
+                let (detector_checks, detector_coverage) =
+                    scheduler.host_observation.doctor_diagnostics(requirements);
+                snapshot.checks.extend(detector_checks);
+                snapshot.coverage.extend(detector_coverage);
+            }
+            snapshot.checks.push(crate::runtime_metrics::doctor_check());
+            snapshot
+                .checks
+                .sort_by(|left, right| left.code.cmp(&right.code));
+            snapshot.overall = if snapshot
+                .checks
+                .iter()
+                .any(|check| check.status == crate::DoctorCheckStatus::Fail)
+            {
+                crate::DoctorOverallStatus::Unsafe
+            } else if snapshot.checks.iter().any(|check| {
+                matches!(
+                    check.status,
+                    crate::DoctorCheckStatus::Warning | crate::DoctorCheckStatus::Unknown(_)
+                )
+            }) {
+                crate::DoctorOverallStatus::AttentionRequired
+            } else {
+                crate::DoctorOverallStatus::Healthy
+            };
+            Ok(Response::Doctor(Box::new(snapshot)))
+        })(),
+        Request::ForceClearContainment { containment_id } => {
+            force_clear_containment(store, scheduler, peer, containment_id)
+                .map(Response::ContainmentCleared)
+        }
+    };
+    result.unwrap_or_else(|error| match error {
+        StoreError::NotFound(_) => Response::Error {
+            code: error_code::NOT_FOUND.into(),
+            message: error.to_string(),
+        },
+        StoreError::IdempotencyConflict {
+            existing_payload_hash,
+            requested_payload_hash,
+        } => Response::Conflict {
+            existing_payload_hash,
+            requested_payload_hash,
+        },
+        StoreError::Rejected(_) => Response::Error {
+            code: error_code::REJECTED.into(),
+            message: error.to_string(),
+        },
+        StoreError::OperationRejected { code, detail } => Response::Error {
+            code,
+            message: detail,
+        },
+        StoreError::BlockedByAncestor(detail) => Response::Error {
+            code: error_code::BLOCKED_BY_ANCESTOR.into(),
+            message: detail,
+        },
+        StoreError::ManagedWaitRejected { code, detail } => Response::Error {
+            code,
+            message: detail,
+        },
+        StoreError::InvalidSpec(_) => Response::Error {
+            code: error_code::INVALID_SPEC.into(),
+            message: error.to_string(),
+        },
+        StoreError::ViewStale(detail) => Response::Error {
+            code: error_code::TREE_CURSOR_STALE.into(),
+            message: detail,
+        },
+        StoreError::DoctorCursorStale(detail) => Response::Error {
+            code: error_code::DOCTOR_CURSOR_STALE.into(),
+            message: detail,
+        },
+        StoreError::ViewUnavailable(detail) => Response::Error {
+            code: error_code::TREE_SCAN_LIMIT.into(),
+            message: detail,
+        },
+        StoreError::DoctorIncidentLimit => Response::Error {
+            code: error_code::DOCTOR_INCIDENT_LIMIT.into(),
+            message: error.to_string(),
+        },
+        StoreError::DoctorMemoryLimit => Response::Error {
+            code: error_code::DOCTOR_MEMORY_LIMIT.into(),
+            message: error.to_string(),
+        },
+        StoreError::DoctorSnapshotCapacity => Response::Error {
+            code: error_code::DOCTOR_SNAPSHOT_CAPACITY.into(),
+            message: error.to_string(),
+        },
+        _ => Response::Error {
+            code: error_code::STORE_ERROR.into(),
+            message: error.to_string(),
+        },
+    })
+}
+
+fn retained_submission_rejection(
+    store: &Store,
+    scope: SubmissionScope,
+    idempotency_key: uuid::Uuid,
+    payload_hash: &str,
+    original_error: StoreError,
+) -> std::result::Result<Response, StoreError> {
+    match store.recover_submission_scoped(scope, idempotency_key, payload_hash) {
+        Ok(crate::RecoveryResult::Rejected { code, detail }) => Ok(Response::SubmissionRejected {
+            code,
+            message: detail,
+        }),
+        _ => Err(original_error),
+    }
+}
+
+
+FILE tests/support/cross_os_reset.rs
+//! Mailbox orchestration only; the Linux subject uses the real executor journal.
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+use stillyard::{BootstrapProof, Client};
+use uuid::Uuid;
+
+pub struct Subject {
+    mailbox: PathBuf,
+    thread: Option<std::thread::JoinHandle<stillyard::Result<BootstrapProof>>>,
+}
+fn linux_path(path: &Path) -> String {
+    let text = path.display().to_string().replace('\\', "/");
+    assert!(
+        text.as_bytes().get(1) == Some(&b':'),
+        "fixture needs a drive-backed mailbox"
+    );
+    format!("/mnt/{}/{}", text[..1].to_lowercase(), &text[3..])
+}
+impl Subject {
+    pub fn start(root: &Path) -> Self {
+        let mailbox = root.join("linux-mailbox");
+        std::fs::create_dir(&mailbox).unwrap();
+        let work = stillyard::BootstrapWork {
+            operation_id: Uuid::nil(),
+            distribution: std::env::var("MR_WSL_TEST_DISTRO").unwrap(),
+            user: std::env::var("MR_WSL_TEST_USER").unwrap(),
+            executable: std::env::var("MR_WSL_TEST_BINARY").unwrap(),
+            args: vec![
+                "linux_executor_cross_os_reset_subject".into(),
+                "--ignored".into(),
+                "--nocapture".into(),
+            ],
+            working_directory: std::env::var("MR_WSL_TEST_SOURCE").unwrap(),
+            environment: [
+                ("PATH".into(), "/usr/bin:/bin".into()),
+                (
+                    "STILLYARD_TEST_EXECUTABLE".into(),
+                    std::env::var("MR_WSL_TEST_EXECUTABLE").unwrap(),
+                ),
+                ("MR_WSL_FAULT_MAILBOX".into(), linux_path(&mailbox)),
+            ]
+            .into(),
+            timeout_seconds: 240,
+            delegate_test_cgroup: true,
+        };
+        let client = Client::builder()
+            .daemon_executable(PathBuf::from(
+                std::env::var_os("MR_WSL_SYSTEM_CLI").unwrap(),
+            ))
+            .auto_start(false)
+            .connect(Instant::now() + Duration::from_secs(10), None)
+            .unwrap();
+        assert!(
+            client
+                .submission_context(Instant::now() + Duration::from_secs(10), None)
+                .unwrap()
+                .parent
+                .is_some(),
+            "cross-OS reset must be scheduled by the system daemon"
+        );
+        let result_path = mailbox.join("bootstrap-result.json");
+        let thread = std::thread::spawn(move || {
+            let result = client.run_wsl_bootstrap(work);
+            let evidence = match &result {
+                Ok(proof) => serde_json::json!({"proof":proof}),
+                Err(error) => serde_json::json!({"error":error.to_string()}),
+            };
+            let _ = std::fs::write(result_path, evidence.to_string());
+            result
+        });
+        Self {
+            mailbox,
+            thread: Some(thread),
+        }
+    }
+    pub fn receive<T: serde::de::DeserializeOwned>(&self, name: &str) -> T {
+        let until = Instant::now() + Duration::from_secs(60);
+        loop {
+            match std::fs::read(self.mailbox.join(name)) {
+                Ok(bytes) => return serde_json::from_slice(&bytes).unwrap(),
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::NotFound && Instant::now() < until =>
+                {
+                    assert!(
+                        !self.thread.as_ref().unwrap().is_finished(),
+                        "Linux bootstrap ended before {name}: {}",
+                        std::fs::read_to_string(self.mailbox.join("bootstrap-result.json"))
+                            .unwrap_or_default()
+                    );
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => panic!("Linux subject {name}: deadline or mailbox failure: {error}"),
+            }
+        }
+    }
+    pub fn publish(&self, name: &str, value: &impl serde::Serialize) {
+        let stage = self.mailbox.join(format!(".{}", Uuid::now_v7()));
+        std::fs::write(&stage, serde_json::to_vec(value).unwrap()).unwrap();
+        std::fs::rename(stage, self.mailbox.join(name)).unwrap();
+    }
+    pub fn finish(&mut self) {
+        let proof = self.thread.take().unwrap().join().unwrap().unwrap();
+        assert_eq!(proof.phase, "sealed_empty");
+        assert_eq!(proof.root_exit_code, 0);
+        self.publish("bootstrap-proof.json", &proof);
+        let destination = PathBuf::from(std::env::var_os("MR_WSL_FAULT_EVIDENCE").unwrap());
+        std::fs::create_dir_all(&destination).unwrap();
+        // Configuration includes a fixture pairing secret: never export it.
+        for name in [
+            "manager.json",
+            "allocation.json",
+            "intent.json",
+            "ticket.json",
+            "live.json",
+            "guest-reset-rejected.json",
+            "live-after-coordinator-reset.json",
+            "seal.json",
+            "bootstrap-proof.json",
+        ] {
+            std::fs::copy(self.mailbox.join(name), destination.join(name)).unwrap();
+        }
+    }
+}
+impl Drop for Subject {
+    fn drop(&mut self) {
+        if let Some(thread) = self.thread.take() {
+            // Do not panic while unwinding. The subject checks this sentinel
+            // before every mailbox phase, including configuration and Ticket.
+            let _ = std::fs::write(self.mailbox.join("abort.json"), b"true");
+            let until = Instant::now() + Duration::from_secs(260);
+            while !thread.is_finished() && Instant::now() < until {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            if thread.is_finished() {
+                let _ = thread.join();
+            } else {
+                eprintln!(
+                    "bootstrap transport did not terminate; outer system Job retains cleanup authority"
+                );
+            }
+        }
+    }
+}
+
+
+FILE src/runner/linux/journal/cross_os.rs
+//! Real Linux executor subject for the native coordinator reset acceptance.
+//! Runs only inside the default Windows Job's protected bootstrap delegation.
+use super::*;
+use crate::store::{Store, StorePaths};
+use std::os::unix::fs::PermissionsExt;
+use std::time::Duration;
+
+fn receive<T: serde::de::DeserializeOwned>(mailbox: &Path, name: &str) -> T {
+    let until = Instant::now() + Duration::from_secs(120);
+    loop {
+        assert!(
+            !mailbox.join("abort.json").exists(),
+            "native controller aborted before {name}"
+        );
+        match std::fs::read(mailbox.join(name)) {
+            Ok(bytes) => return serde_json::from_slice(&bytes).unwrap(),
+            Err(error) if error.kind() == io::ErrorKind::NotFound && Instant::now() < until => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => panic!("cross-OS mailbox {name}: {error}"),
+        }
+    }
+}
+fn publish(mailbox: &Path, name: &str, value: &impl Serialize) {
+    let temporary = mailbox.join(format!(".{}", Uuid::now_v7()));
+    std::fs::write(&temporary, serde_json::to_vec(value).unwrap()).unwrap();
+    std::fs::rename(temporary, mailbox.join(name)).unwrap();
+}
+
+#[test]
+#[ignore = "native system Job supplies mailbox and protected Linux delegation"]
+fn linux_executor_cross_os_reset_subject() {
+    let mailbox = PathBuf::from(std::env::var_os("MR_WSL_FAULT_MAILBOX").unwrap());
+    let parent = PathBuf::from(std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap());
+    let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+    std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+    let paths = StorePaths::new(temp.path().join("manager"));
+    let mut manager = Store::open(paths.clone()).unwrap();
+    // SAFETY: geteuid has no preconditions.
+    let uid = unsafe { libc::geteuid() };
+    std::fs::set_permissions(&paths.root, std::fs::Permissions::from_mode(0o700)).unwrap();
+    publish(
+        &mailbox,
+        "manager.json",
+        &serde_json::json!({"store_uuid":manager.store_uuid(),"uid":uid}),
+    );
+    let configuration: serde_json::Value = receive(&mailbox, "configuration.json");
+    let configuration_path = temp.path().join("configuration.json");
+    std::fs::write(
+        &configuration_path,
+        serde_json::to_vec(&configuration).unwrap(),
+    )
+    .unwrap();
+    std::fs::set_permissions(&configuration_path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    manager
+        .install_attached_from_file(&configuration_path)
+        .unwrap();
+    let anchor = Anchor {
+        journal: serde_json::from_value(configuration["journal"].clone()).unwrap(),
+        store: manager.store_uuid(),
+        domain: serde_json::from_value(
+            configuration["pairing"]["installation"]["domain_id"].clone(),
+        )
+        .unwrap(),
+    };
+    let journal_path = paths.root.join("attachment/executor");
+    let mut journal = Journal::open(&journal_path, &anchor).unwrap();
+    let allocation: crate::machine::AllocationKey = receive(&mailbox, "allocation.json");
+    assert_eq!(allocation.manager_store_uuid, anchor.store);
+    assert_eq!(allocation.domain_id, anchor.domain);
+    let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+    let containment = ContainmentId::from_parts(anchor.store, Uuid::now_v7());
+    // SAFETY: geteuid has no preconditions.
+    let identity =
+        crate::identity::linux::Process::open(std::process::id(), unsafe { libc::geteuid() })
+            .unwrap();
+    let boundary = journal
+        .create(
+            &parent,
+            invocation,
+            containment,
+            allocation.lease_id,
+            Uuid::now_v7(),
+            identity.identity,
+        )
+        .unwrap();
+    let helper = temp.path().join("stillyard");
+    std::fs::copy(
+        std::env::var_os("STILLYARD_TEST_EXECUTABLE").unwrap(),
+        &helper,
+    )
+    .unwrap();
+    let marker = temp.path().join("user-started");
+    let code = format!(
+        "import pathlib,subprocess,time; subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(120)']); pathlib.Path({}).write_text('live'); time.sleep(120)",
+        serde_json::to_string(&marker.display().to_string()).unwrap()
+    );
+    let spec = super::super::launch::LaunchSpec {
+        executable: "/usr/bin/python3".into(),
+        args: vec!["-c".into(), code],
+        working_directory: temp.path().into(),
+        environment: BTreeMap::new(),
+    };
+    let mut launch = super::super::launch::PreparedLaunch::prepare(
+        &boundary,
+        &helper,
+        &spec,
+        File::open("/dev/null").unwrap(),
+        Instant::now() + Duration::from_secs(15),
+    )
+    .unwrap();
+    journal.ready(invocation, &launch).unwrap();
+    let intent = crate::machine::InvocationIntent {
+        invocation_id: invocation,
+        containment_id: containment,
+        role: crate::InvocationRole::Primary,
+        role_index: 0,
+        release_sequence: 1,
+        executable_sha256: launch.requested_sha256.clone(),
+        boundary_sha256: journal.records().unwrap()[&invocation]
+            .boundary_sha256()
+            .unwrap(),
+        readiness_challenge: Uuid::now_v7(),
+        previous_cleanup: None,
+    };
+    publish(&mailbox, "intent.json", &intent);
+    let ticket: crate::machine::InvocationTicket = receive(&mailbox, "ticket.json");
+    assert_eq!(ticket.intent, intent);
+    assert_eq!(ticket.key, allocation);
+    journal.release_intent(&ticket).unwrap();
+    launch.release().unwrap();
+    let until = Instant::now() + Duration::from_secs(10);
+    while !marker.exists() {
+        assert!(
+            Instant::now() < until,
+            "actual Linux user code did not start"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    publish(
+        &mailbox,
+        "live.json",
+        &serde_json::json!({"record":journal.records().unwrap()[&invocation],"populated":boundary.populated().unwrap(),"user_started":marker.exists()}),
+    );
+    let _: bool = receive(&mailbox, "reset-guest.json");
+    assert!(boundary.populated().unwrap());
+    assert!(journal.records().unwrap()[&invocation].seal.is_none());
+    drop(manager);
+    for suffix in ["", "-wal", "-shm"] {
+        let source = paths.root.join(format!("stillyard.sqlite3{suffix}"));
+        if source.exists() {
+            std::fs::rename(&source, source.with_extension(format!("prior{suffix}"))).unwrap();
+        }
+    }
+    let reset_error = Store::open(paths.clone())
+        .err()
+        .expect("empty local Store bypassed retained pairing history");
+    assert!(
+        matches!(&reset_error, crate::store::StoreError::InvalidState(message) if message.contains("admission remains fenced")),
+        "unexpected reset rejection: {reset_error}"
+    );
+    let anchor_path = paths.root.join("attachment/anchor.json");
+    let saved_anchor = std::fs::read(&anchor_path).unwrap();
+    std::fs::remove_file(&anchor_path).unwrap();
+    let missing_error = Store::open(paths.clone())
+        .err()
+        .expect("lost anchor became standalone");
+    assert!(
+        matches!(&missing_error, crate::store::StoreError::Io(error) if error.kind()==io::ErrorKind::NotFound),
+        "unexpected missing-anchor rejection: {missing_error}"
+    );
+    std::fs::write(&anchor_path, b"{corrupt").unwrap();
+    std::fs::set_permissions(&anchor_path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let corrupt_error = Store::open(paths.clone())
+        .err()
+        .expect("corrupt anchor became standalone");
+    assert!(
+        corrupt_error.to_string().contains("key must be a string"),
+        "unexpected corrupt-anchor rejection: {corrupt_error}"
+    );
+    std::fs::write(&anchor_path, &saved_anchor).unwrap();
+    let executor_anchor = journal_path.join("anchor.json");
+    let executor_anchor_backup = journal_path.join("anchor.test-backup");
+    let executor_anchor_bytes = std::fs::read(&executor_anchor).unwrap();
+    std::fs::rename(&executor_anchor, &executor_anchor_backup).unwrap();
+    let missing_executor_error = journal
+        .records()
+        .err()
+        .expect("live executor accepted missing anchor");
+    std::fs::rename(&executor_anchor_backup, &executor_anchor).unwrap();
+    std::fs::write(&executor_anchor, b"{corrupt").unwrap();
+    let corrupt_executor_error = journal
+        .records()
+        .err()
+        .expect("live executor accepted corrupt anchor");
+    std::fs::write(&executor_anchor, executor_anchor_bytes).unwrap();
+    drop(journal);
+    journal = Journal::open(&journal_path, &anchor).unwrap();
+    assert!(journal.records().unwrap()[&invocation].seal.is_none());
+    assert!(boundary.populated().unwrap());
+    publish(
+        &mailbox,
+        "guest-reset-rejected.json",
+        &serde_json::json!({"populated":boundary.populated().unwrap(),"unsealed":journal.records().unwrap()[&invocation].seal.is_none(),"store_reset_rejection":reset_error.to_string(),"missing_anchor_rejection":missing_error.to_string(),"corrupt_anchor_rejection":corrupt_error.to_string(),"missing_executor_anchor_rejection":missing_executor_error.to_string(),"corrupt_executor_anchor_rejection":corrupt_executor_error.to_string(),"record":journal.records().unwrap()[&invocation]}),
+    );
+    let _: bool = receive(&mailbox, "coordinator-reset-observed.json");
+    assert!(boundary.populated().unwrap());
+    publish(
+        &mailbox,
+        "live-after-coordinator-reset.json",
+        &serde_json::json!({"populated":boundary.populated().unwrap(),"unsealed":journal.records().unwrap()[&invocation].seal.is_none()}),
+    );
+    let _: bool = receive(&mailbox, "cleanup.json");
+    let seal = journal
+        .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+        .unwrap();
+    assert!(seal.possibly_released);
+    assert!(!Path::new(&boundary.identity.path).exists());
+    publish(
+        &mailbox,
+        "seal.json",
+        &serde_json::json!({"seal":seal,"proof_sha256":seal.sha256().unwrap(),"record":journal.records().unwrap()[&invocation]}),
+    );
+}
+
+CONTRACT
+### MR-0 transitional bootstrap implementation contract
+
+The temporary native entry point is `stillyard bootstrap run --spec <descriptor>`
+as a primary of a native Windows Job. It is not an attached-domain Job submission
+API. The native primary owns its ordinary Lease; the extra durable authority hold
+survives closure of that Windows containment and conservatively blocks all new
+admission. This serialization is specific to bootstrap and cannot satisfy M-A02.
+
+`BootstrapArm` binds the OS-authenticated current primary/root identity, local
+store/Attempt/Invocation IDs, explicit WSL distribution and user, command/environment,
+and SHA-256 of the serialized descriptor. The operation ID is derived from the
+Invocation ID, not supplied by an unauthenticated shell. Under the same Store mutex
+as local admission, Arm requires the caller's sole work Lease and no other granted
+Lease, persists outside SQLite and returns before the native primary invokes WSL.
+An existing released operation is a tombstone; a replay cannot launch another command.
+
+Only the executable currently running the selected daemon can attest bootstrap
+Arm/Seal. The daemon obtains its peer process/image from the named pipe and OS,
+and additionally compares Arm to the current primary root. Public administrator
+force clearance remains distinct and cannot be used by a managed process.
+This trust boundary is one owner and the installed bridge; it is not isolation
+against a malicious account owner replacing files or injecting into its own processes.
+
+The installed native executable embeds the Python supervisor. It publishes a
+single-use intent under the selected Linux owner's ext4 state directory, starts a
+delegated systemd user unit, and saves a claimed-operation record before any user
+release. The child stub starts within the unit containment and waits on a pipe.
+The supervisor creates and records an exclusive work cgroup, attaches the stub,
+verifies membership, persists release intent and writes the sole release byte.
+Parent death before that byte closes the barrier. The child then enters the tested
+bubblewrap profile with private PID/mount namespaces, masked `/init` and `/run`,
+and read-only cgroup access, before executing the requested program with explicit env.
+
+Root exit, deadline, cancellation or intermediary liveness loss triggers
+`cgroup.kill`. Liveness only requests cleanup. It never proves empty. The supervisor
+waits for `populated=0`, verifies the recorded cgroup inode, removes that exact leaf
+to seal further attachment, flushes stdout/stderr and atomically publishes a
+checksummed proof bound to the operation, descriptor hash, Linux boot, UID and cgroup.
+Normal output is forwarded through bounded native bridge frames to the canonical
+Windows streams. After intermediary loss the durable Linux streams remain evidence.
+
+`bootstrap reconcile <operation-id>` reads the authority's retained binding and
+uses the same embedded inspector. It checks the durable intent, claimed record,
+boundary identity and proof checksum; absence, corruption or an incomplete operation
+remains uncertain. `BootstrapSeal` idempotently retires only that obligation and
+retains its proof. An unmanaged installed bridge may perform recovery after the old
+native primary or coordinator store is gone. A managed bridge can only seal its own
+operation. No missing-process, missing-unit, TTL or arbitrary guest snapshot release
+is implemented. Failure before a seal can require explicit operator recovery.
+
+The native IPC revision is 20. JobSpec remains 4, HostConfig remains 2, and this
+bootstrap slice does not reset the existing SQLite epoch. The standalone registry
+is version 1, capped at 4 MiB and 1024 retained operations; reaching either limit
+blocks new bootstrap work rather than evicting an obligation. The Linux manager and
+full MR-2 Grant/outbox protocol remain separate implementation work.
+
+WSL lifetime remains externally provided. User manager availability and delegated
+write access are prerequisites, not logout/VM lifetime evidence. Current `Linger=no`
+and no explicit keepalive configuration do not close R-LINUX-5. Provisioning and
+VM-stop acceptance must account for other active work before any disruptive action.
+
+The platform assumptions are grounded in the [kernel cgroup v2 contract](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html),
+[WSL configuration reference](https://learn.microsoft.com/en-us/windows/wsl/wsl-config),
+and [WSL systemd setup](https://learn.microsoft.com/en-us/windows/wsl/systemd).
+These documents do not substitute for local cleanup evidence.
+
+## 9. Public surfaces, compatibility and installation
+
+Planned public types: authority/domain/grant/ticket IDs, scoped resource snapshots
+with capacity/granted/offered/reserved, allocation key, local Lease binding,
+config/connection epochs, reconciliation state/watermark, stale age and blocker
+reason. Inspect and events explain the Windows allocation delaying a WSL Job.
+Job finality and Grant release are separately visible. Missing authority observation
+is `unavailable` or last-known `stale`, never zero. CLI/TUI use public APIs only.
+
+`doctor` must expose role, peer/owner binding, executable installation path,
+scope/alias coverage, reset gates, cgroup/interop/keepalive capabilities, evidence
+age and concrete reconciliation/clearance action. Clearance identifies all affected
+grants and outstanding tickets and records operator identity plus explicit risk
+acceptance; it never silently deletes a registry.
+
+MR-1 public type additions require a local protocol version and schema fixture
+change, with explicit rejection by older peers. JobSpec remains version 4 only if
+its accepted wire shape is unchanged; adding scoped claims requires version 5.
+MR-2 uses the separately versioned additive `machine_*` extension, schema version 1,
+while preserving the baseline Job-store epoch and its existing queues. Older
+binaries reject the extended authority registry; downgrade is prohibited. A future
+incompatible extension change requires an explicitly named epoch/reset decision.
+No baseline reset is required by this additive change. A generated schema change must
+be produced by a `schema-update` system Job. MSRV remains Rust 1.85.
+
+Upgrade procedure: inspect both installed daemons and queue/uncertainty; stop new
+admissions using a verified maintenance gate; let accepted work settle, including
+managed children, and reconcile all grants; stop only owned empty instances under
+singleton protection; 

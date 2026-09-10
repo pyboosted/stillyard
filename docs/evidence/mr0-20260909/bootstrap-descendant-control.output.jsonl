@@ -1,0 +1,175 @@
+{
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085be-d90b-7ba1-88c8-27d68f3a8320",
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085be-d90d-7020-92f4-79895162198c",
+  "submission_state": "accepted",
+  "job_state": "pending",
+  "reason_code": null,
+  "accepted_unix_millis": 1788950272269,
+  "priority": 0,
+  "effective_priority": 0,
+  "blockers": [],
+  "queue_rank": 1,
+  "reservation": null,
+  "conditions": [],
+  "estimate": {
+    "confidence": "estimated",
+    "start_in_millis": 0,
+    "assumptions": [
+      "currently admissible"
+    ]
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a082ce-ae5d-72d3-84e5-5579ad17b6da"
+}
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085be-d90d-7020-92f4-79895162198c",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085be-d90b-7ba1-88c8-27d68f3a8320",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "timed_out",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085be-d910-7a63-96fb-22136d72a24d",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085be-d90f-78e2-963b-805d3c1c4ae1",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085be-d90f-78e2-963b-8061b864fb82",
+  "root_exit_code": 21,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788950272269,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788950272278,
+  "finished_unix_millis": 1788950274368,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Windows\\System32\\wsl.exe",
+    "args": [
+      "--distribution",
+      "Ubuntu-SSD",
+      "--user",
+      "pythonic",
+      "--cd",
+      "/home/pythonic/Development/stillyard",
+      "--exec",
+      "/usr/bin/python3",
+      "-c",
+      "import subprocess,time; subprocess.Popen([\"/usr/bin/python3\",\"-c\",'import json,os,pathlib,time,signal; signal.signal(signal.SIGHUP,signal.SIG_IGN); p=pathlib.Path(\\'/home/pythonic/Development/stillyard/docs/evidence/mr0-20260909/bootstrap-descendant\\'); p.with_suffix(\".started.json\").write_text(json.dumps({\"pid\":os.getpid(),\"proc_stat\":pathlib.Path(\"/proc/self/stat\").read_text(),\"cgroup\":pathlib.Path(\"/proc/self/cgroup\").read_text()})); time.sleep(15); p.with_suffix(\".finished.json\").write_text(json.dumps({\"pid\":os.getpid(),\"completed\":True}))'],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True); print(\"spawned bounded descendant\",flush=True); time.sleep(30)"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr0-baseline-20260909b",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "PATH": "C:\\Windows\\System32;C:\\Windows",
+        "SYSTEMDRIVE": "C:",
+        "USERPROFILE": "C:\\Users\\User"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr0-bootstrap-descendant-control"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 2,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085be-d910-7a63-96fb-22136d72a24d",
+      "attempt_index": 1,
+      "verdict": "timed_out",
+      "reason_code": null,
+      "created_unix_millis": 1788950272271,
+      "started_unix_millis": 1788950272271,
+      "deadline_unix_millis": 1788950274271,
+      "finished_unix_millis": 1788950274368,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085be-d90d-7020-92f4-79895162198c",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085be-d910-7a63-96fb-22136d72a24d",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085be-d90f-78e2-963b-805d3c1c4ae1",
+        "verdict": "timed_out",
+        "root_exit_code": 21,
+        "termination": "timeout",
+        "containment": "empty",
+        "started_unix_millis": 1788950272278,
+        "exited_unix_millis": 1788950274356,
+        "resolved_unix_millis": 1788950274365
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085be-d90f-78e2-963b-805d3c1c4ae1",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 65752,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 65752,
+            "creation_filetime_100ns": 134334238722750222
+          },
+          "root_exit_code": 21,
+          "exit_classification": null,
+          "executable_hash": "27cc8dd52be326e138a89f8889241b1d8c51dd1978b22eb70be77036ccdee3c2",
+          "daemon_generation": "01a082ce-ae5d-72d3-84e5-5579ad17b6da",
+          "started_unix_millis": 1788950272278,
+          "finished_unix_millis": 1788950274365,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085be-d90f-78e2-963b-8061b864fb82",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "spawned bounded descendant\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a082ce-ae5d-72d3-84e5-5579ad17b6da"
+}

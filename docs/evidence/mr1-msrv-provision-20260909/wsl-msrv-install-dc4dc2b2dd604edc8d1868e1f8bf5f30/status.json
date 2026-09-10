@@ -1,0 +1,145 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08713-59e0-72a1-82c6-5b7bff47b937",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08713-59df-7fe0-8af4-67f6c8bde5d2",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08713-59e3-7681-b46d-85f7d125d089",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08713-59e2-7ce3-ae88-19b9855777da",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08713-59e2-7ce3-ae88-19c17db79a4a",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788972587488,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788972587504,
+  "finished_unix_millis": 1788972599815,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-msrv-provision-evidence-20260909\\wsl-msrv-install-dc4dc2b2dd604edc8d1868e1f8bf5f30\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-msrv-provision-evidence-20260909\\wsl-msrv-install-dc4dc2b2dd604edc8d1868e1f8bf5f30",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-bootstrap-msrv-install"
+      },
+      {
+        "key": "source",
+        "value": "df6d59d649eb802401d57a34e5de4f17e0434668a2bc82956fe61d3ba4c0586a"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1830,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08713-59e3-7681-b46d-85f7d125d089",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1788972587490,
+      "started_unix_millis": 1788972587490,
+      "deadline_unix_millis": 1788974417490,
+      "finished_unix_millis": 1788972599815,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08713-59e0-72a1-82c6-5b7bff47b937",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08713-59e3-7681-b46d-85f7d125d089",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08713-59e2-7ce3-ae88-19b9855777da",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1788972587504,
+        "exited_unix_millis": 1788972599810,
+        "resolved_unix_millis": 1788972599813
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08713-59e2-7ce3-ae88-19b9855777da",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 52140,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 52140,
+            "creation_filetime_100ns": 134334461875006707
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "868d089a7ae94445457b32b43e91a5d3c54e845535ec639fc9a8e4065c89c8e4",
+          "daemon_generation": "01a086e8-b524-70b1-b563-4b2eb76ce274",
+          "started_unix_millis": 1788972587504,
+          "finished_unix_millis": 1788972599813,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08713-59e2-7ce3-ae88-19c17db79a4a",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "\n  1.85.0-x86_64-unknown-linux-gnu installed - rustc 1.85.0 (4d91de4e4 2025-02-17)\n\n",
+          "stderr_tail": "info: syncing channel updates for 1.85.0-x86_64-unknown-linux-gnu\ninfo: latest update on 2025-02-20 for version 1.85.0 (4d91de4e4 2025-02-17)\ninfo: downloading 5 components\ninfo: checking for self-update (current version: 1.29.0)\ninfo: downloading self-update (new version: 1.29.1)\n"
+        }
+      ]
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a086e8-b524-70b1-b563-4b2eb76ce274"
+}

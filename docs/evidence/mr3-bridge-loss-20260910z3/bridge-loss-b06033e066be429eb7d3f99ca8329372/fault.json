@@ -1,0 +1,7 @@
+{
+  "bridge_pid": 165357,
+  "daemon_pid": 128628,
+  "alias_target": "/run/WSL/3989858_interop",
+  "fault_unix_ns": 1789024683199159786,
+  "linux_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2e-42db-7a23-913a-fc896145ea13"
+}

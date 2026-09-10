@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b41-a696-7ea2-bfa8-e8c09a0e9f2f",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b41-a681-7943-8424-4a984da227d2",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b41-a6a4-7520-8b21-70733c90072f",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b45-1b38-79d1-b566-0d243eaad017",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b45-1b38-79d1-b566-0d31659ccac5",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789042730646,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789042731393,
+  "finished_unix_millis": 1789042957545,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11e/55c46b728b074c11991410a14a078dda/reviewer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11e/55c46b728b074c11991410a14a078dda/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11e/55c46b728b074c11991410a14a078dda/review.json",
+      "--model",
+      "opus",
+      "--effort",
+      "high"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11e/55c46b728b074c11991410a14a078dda",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11e/55c46b728b074c11991410a14a078dda/reviewer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11e/55c46b728b074c11991410a14a078dda/review.json",
+          "--expected-model-prefix",
+          "claude-opus-"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr3-opus-lifecycle-window-z11e"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b41-a6a4-7520-8b21-70733c90072f",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789042730659,
+      "started_unix_millis": 1789042731009,
+      "deadline_unix_millis": 1789043931009,
+      "finished_unix_millis": 1789042957545,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b41-a696-7ea2-bfa8-e8c09a0e9f2f",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b41-a6a4-7520-8b21-70733c90072f",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b41-a6a4-7520-8b21-708ca733704b",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789042731393,
+        "exited_unix_millis": 1789042956996,
+        "resolved_unix_millis": 1789042957078
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b41-a6a4-7520-8b21-708ca733704b",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 1618484,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1618484,
+            "start_ticks": 8883782,
+            "pid_namespace_inode": 4026534430,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b2f-b3e1-7b93-9dce-92828505ee47",
+          "started_unix_millis": 1789042731393,
+          "finished_unix_millis": 1789042957078,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b41-a6a4-7520-8b21-70933e8527fd",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "d by pid, or sets of tuples).\\\",\\\"MODERATE \u2014 `--shutdown` mode has no gate on collateral distributions. `running` is recorded in before.json and asserted only to contain 'Ubuntu-SSD'; nothing refuses or even enumerates other running distributions (the doc explicitly names Docker/other development environments), and nothing restarts them afterwards. Given `--foreign-work-agreed` is a single boolean, a shutdown window silently extends to every distribution present at that moment.\\\",\\\"MINOR \u2014 argument/environment validation gaps. The startup guard checks only `STILLYARD_JOB_ID`, then unconditionally dereferences `os.environ['STILLYARD_INVOCATION_ID']`, producing a KeyError traceback instead of a clean parser error. `public2['kernel']['events']['populated']` will KeyError if the key is absent, where upgrade-wsl-daemon.py correctly uses `.get('populated')`. Hold checks use truthiness (`if not h['released']`) whereas upgrade-wsl-daemon.py uses `hold['released'] is not True`; the stricter form should be used on the destructive path.\\\",\\\"MINOR \u2014 evidence-recording gaps versus the documented procedure. No `wsl --list --running` capture after the fault (doc step 1 asks for the absence observation and elapsed time), no Linux doctor report or socket-owner/supervisor identity captured after the restart (doc step 2 asks for the fresh socket owner, supervisor and daemon identities), and `save()` fsyncs the temp file but never fsyncs the evidence directory after `tmp.replace` (upgrade-wsl-daemon.py does this correctly via `sync_directory`), so receipts for a host-level fault are not durably linked.\\\",\\\"NOT A DEFECT (documented limitations, correctly stated) \u2014 the snapshot pair is explicitly labelled as not an atomic admission fence and the doc requires the agreed window to freeze submissions; the run is scoped to already-sealed quiescent history and explicitly disclaims active-work whole-VM cleanup acceptance; `foreign_inventory_scope` admits it covers selected workload names only and is not a quiescence proof; result.json states canary acceptance must be collected separately and does not close M-A12; and the 'Explicit recovery boundary' section honestly records that a VM stop during an unsealed Invocation can retain its Grant. I found no attempt in the code to launder any of these into stronger claims, and the controller does not schedule its own disappearance or break out of Job containment.\\\"]}\",\"structured_output\":{\"verdict\":\"findings\",\"summary\":\"Read-only review of controller.py (MR-3 lifecycle-window harness) against docs/mr3-lifecycle-window.md and scripts/wsl-service.py. The pre-fault gating is broadly sound: native-Job/primary-PID self-identification, refusal to run destructive modes without --foreign-work-agreed, refusal to cold-start an unobserved distro, quiet-queue/hold/obligation barriers, journal-envelope checksum plus recursive cgroup population, and honest scope language (snapshots are not an admission fence; quiescent sealed history only; canary acceptance not closed by result.json). Those limitations are documented, not defects. However, the post-fault handoff half contains four defects I consider blocking before any agreed window is requested: (1) the external-handoff acceptance check can be satisfied with no external keepalive in existence at all, (2) the keepalive singleton lock in wsl-service.py makes the only workable handoff ordering the unsafe break-before-make one, (3) the handoff receipt records the Windows wsl.exe PID rather than the Linux helper identity the operator is told to stop, and (4) --foreign-work-agreed is an unbound boolean never cross-checked against the preflight inventory the user actually approved. Additional material issues: every barrier is a bare assert (removed under -O/PYTHONOPTIMIZE), boot_id is collected but never asserted to change, the final asserts contradict the canary instruction they ship with, no evidence is written on any post-fault failure path, and the recovery polls themselves can cold-start the distro they are supposed to be observing.\",\"findings\":[\"BLOCKING \u2014 false acceptance of the external handoff. The final gate is `state['interop_target'] != after_public['interop_target']`, where inventory() computes `str((r/'interop.sock').resolve())`. Path.resolve() is non-strict: if the alias does not exist it returns the literal `/home/pythonic/.local/share/stillyard/interop.sock`. wsl-service.py keepalive() unlinks the alias in its `finally` block, so the instant the controller-owned keepalive exits (which is exactly the condition that releases the preceding `while keeper.poll() is None` loop) the alias is gone and the target trivially differs from the previously resolved `/run/WSL/wsl-*.sock`. With systemd still up, `handed['machine_scheduling']['blocker']` will also be None. result.json can therefore record `quiescent_restart_passed: True` and an `external_handoff` payload when no external keepalive was ever started. The check must require the alias to exist, be a symlink, resolve into /run/WSL to a live root-owned socket, and be attributable to a keepalive process outside the controller's Job (e.g. by matching the `kind: wsl_keepalive` record the helper prints, including its pid and boot_id).\",\"BLOCKING \u2014 the handoff protocol is incompatible with the helper's own singleton lock. wsl-service.py keepalive() takes `fcntl.flock(..., LOCK_EX|LOCK_NB)` on `root/keepalive.lock` and raises if held, so an external keepalive cannot be started while the controller's keepalive is still alive. Make-before-break is impossible; the awaiting-handoff.json instruction ('stop only that helper, start an external foreground keepalive') is therefore forced into break-before-make, leaving a window in which no Windows-side foreground session owns the distro's lifetime and the interop alias is absent. That window is precisely the one that satisfies the bogus acceptance check above, and on any WSL configuration where the distro does not survive loss of its last owning session it is also the window in which the daemon dies. The handoff needs either a takeover-capable lock (e.g. the new keepalive publishes its alias and signals the old one to release, with the lock handed over) or an explicit staged protocol where the controller verifies the new owner before the old one is stopped.\",\"BLOCKING \u2014 the handoff receipt records the wrong identity. `keepalive-owner.json` and `awaiting-handoff.json` record `keeper.pid`, which is the Windows PID of `wsl.exe`, while the operator is instructed to 'capture the exact controller keepalive identity, stop only that helper'. Inside the distro that Windows PID is unusable; the Linux pid/boot_id are printed by the helper only into `keepalive.stdout` in the evidence directory, and the controller never reads, parses or records them. As written the operator has to guess which python3 process to signal, and killing the wrong one (or killing wsl.exe and relying on relay-side propagation, which is not verified anywhere) silently changes the meaning of the subsequent `keeper.poll()` gate. The controller should read the helper's startup JSON line, assert `kind == 'wsl_keepalive'` and that its boot_id matches the post-restart boot_id, and publish the Linux pid in the handoff receipt.\",\"BLOCKING \u2014 `--foreign-work-agreed` is not bound to the inventory the user agreed to. The flag is a bare boolean. The two in-run snapshots (`public` and `public2`) are only compared to each other, never to the `foreign_work_candidates` recorded by the preflight run that was shown to the user. Foreign work that appeared after the preflight \u2014 a new cargo/rustc/codex/claude/Runner session \u2014 is present identically in both snapshots, so the equality assert passes and the whole-VM fault destroys work the user never saw or approved. This directly defeats the doc's 'Confirm the agreed inventory again immediately before the fault; a changed inventory stops the step.' Require an `--agreed-inventory-sha256` (or a path to the preflight before.json) and assert it matches the current candidates before the fault.\",\"MATERIAL \u2014 every safety barrier in controller.py is a bare `assert`, including the primary-PID identity check, all quiet-queue/hold/obligation/journal barriers, the immediate-barrier re-check, the fault exit-code check, `keeper.poll() is None`, and all four deadline checks. Under `python -O` or an inherited `PYTHONOPTIMIZE` (plausible for a native Python 3.13 launched from a Job environment) all of them vanish and `wsl.exe --terminate` / `--shutdown` runs with no quiescence gate whatsoever. The same pattern appears inside the INVENTORY snippet run via `python3 -c` (mode/uid checks, journal checksum, cgroup path validation). upgrade-wsl-daemon.py correctly uses explicit `raise RuntimeError` / `p.error` throughout; this harness should match. At minimum the destructive path should refuse to run when `sys.flags.optimize` is nonzero.\",\"MATERIAL \u2014 the strongest available proof of a real VM restart is collected and then never used. INVENTORY exports `boot_id` and the doc explicitly requires recording the Linux boot ID, yet no assert compares `after_public['boot_id']` to `public['boot_id']`. The post-restart evidence rests on `after['daemon_generation'] != before['daemon_generation']`, which also changes on an ordinary daemon crash/restart by the supervisor and so does not distinguish 'the VM was terminated and cold-started' from 'the daemon bounced'. Assert boot_id changed (and, for `--shutdown`, that it changed for every distribution recorded in `running_distributions`).\",\"MATERIAL \u2014 the shipped handoff instruction races the final acceptance asserts. awaiting-handoff.json tells the operator to 'submit installed canaries', but as soon as `keeper.poll()` becomes non-None the controller asserts `not state['unsealed_invocations'] and state['active_leases']==0`. A canary submitted before or during the handoff (exactly as instructed) leaves an unsealed record or a granted lease and fails the run at the last step, after a fully successful terminate/restart, with no result.json written. Either move canary submission after the controller completes, or make the final gate tolerate in-flight canary work explicitly.\",\"MATERIAL \u2014 missing barrier checks in the post-fault evidence. `nonempty_containments` is asserted zero in both pre-fault snapshots but never re-checked after the restart or at final handoff, even though a retained non-empty containment across a VM stop is the exact failure mode described in the doc's 'Explicit recovery boundary'. `journal_sha256` is likewise compared at after-restart but not at the final handoff state. Both are already present in the inventory payload and cost nothing to assert.\",\"MATERIAL \u2014 no evidence is persisted on any post-fault failure path. 'controller keepalive exited before recovery', 'restart did not become healthy', 'external handoff not completed', 'external keepalive takeover did not become healthy' and the final acceptance asserts all raise AssertionError with only a message on stderr; nothing is written into the evidence directory, so a failed window leaves before.json/fault-result.json and an unexplained absence of result.json. Worse, when the controller process dies the Windows Job containment takes the keepalive with it (as the doc itself notes), so a handoff timeout at 1500s tears down the distro's only lifetime owner unattended. Each failure path should save a failure record and, at minimum, print an explicit 'no external owner remains' warning before exiting.\",\"MATERIAL \u2014 the recovery and handoff polls can themselves cold-start the distro. `guest()` and `inventory()` invoke `wsl.exe -d Ubuntu-SSD --exec ...`, which starts a stopped distribution. The preflight deliberately guards against this ('preflight must not cold-start an unobserved distro'), but after the fault the same mechanism is used every 2 seconds, so a healthy result may reflect resurrection by the observer rather than by the keepalive cold-start path the doc's step 2 is supposed to be testing. Distinguish the two: launch the keepalive, and confirm from its own emitted record (and the socket owner/supervisor identity) that it, not the poll, brought the distro and user service up.\",\"MATERIAL \u2014 tight and unguarded timing around the fault. The keepalive is launched immediately after `wsl.exe --terminate` / `--shutdown` returns, with no settle or retry; a launch that races VM teardown fails, `keeper.poll()` becomes non-None, and the very next assert aborts the run post-destruction with no keepalive and no daemon. The 120s recovery deadline (with 30s per `wsl.exe` call, so as few as four attempts) is optimistic for a `--shutdown` cold start that must bring up the VM, systemd, the user service, the supervisor and the daemon. Make the deadline configurable per operation and retry the keepalive launch a bounded number of times.\",\"MODERATE \u2014 `journal_checksum_valid: True` in the INVENTORY output is a hardcoded literal, not a measurement. The actual verification is the preceding `assert hashlib.sha256(...)==envelope['sha256']` in the same snippet; a reader of before.json cannot tell the difference, and under any optimize flag the field becomes an outright false claim. Emit the computed comparison result rather than a constant.\",\"MODERATE \u2014 order-sensitive equality comparisons can abort the run spuriously (fail-safe, but flaky). `public2['foreign_work_candidates']==public['foreign_work_candidates']` compares lists built from `Path('/proc').glob('[0-9]*')`, whose order is readdir order and not guaranteed stable between the two snapshots; the same concern applies to the `machine_scheduling['domains']` equality asserts. Compare order-independent structures (sorted by pid, or sets of tuples).\",\"MODERATE \u2014 `--shutdown` mode has no gate on collateral distributions. `running` is recorded in before.json and asserted only to contain 'Ubuntu-SSD'; nothing refuses or even enumerates other running distributions (the doc explicitly names Docker/other development environments), and nothing restarts them afterwards. Given `--foreign-work-agreed` is a single boolean, a shutdown window silently extends to every distribution present at that moment.\",\"MINOR \u2014 argument/environment validation gaps. The startup guard checks only `STILLYARD_JOB_ID`, then unconditionally dereferences `os.environ['STILLYARD_INVOCATION_ID']`, producing a KeyError traceback instead of a clean parser error. `public2['kernel']['events']['populated']` will KeyError if the key is absent, where upgrade-wsl-daemon.py correctly uses `.get('populated')`. Hold checks use truthiness (`if not h['released']`) whereas upgrade-wsl-daemon.py uses `hold['released'] is not True`; the stricter form should be used on the destructive path.\",\"MINOR \u2014 evidence-recording gaps versus the documented procedure. No `wsl --list --running` capture after the fault (doc step 1 asks for the absence observation and elapsed time), no Linux doctor report or socket-owner/supervisor identity captured after the restart (doc step 2 asks for the fresh socket owner, supervisor and daemon identities), and `save()` fsyncs the temp file but never fsyncs the evidence directory after `tmp.replace` (upgrade-wsl-daemon.py does this correctly via `sync_directory`), so receipts for a host-level fault are not durably linked.\",\"NOT A DEFECT (documented limitations, correctly stated) \u2014 the snapshot pair is explicitly labelled as not an atomic admission fence and the doc requires the agreed window to freeze submissions; the run is scoped to already-sealed quiescent history and explicitly disclaims active-work whole-VM cleanup acceptance; `foreign_inventory_scope` admits it covers selected workload names only and is not a quiescence proof; result.json states canary acceptance must be collected separately and does not close M-A12; and the 'Explicit recovery boundary' section honestly records that a VM stop during an unsealed Invocation can retain its Grant. I found no attempt in the code to launder any of these into stronger claims, and the controller does not schedule its own disappearance or break out of Job containment.\"]},\"ttft_ms\":159042,\"type\":\"result\",\"duration_ms\":222878,\"uuid\":\"1f1f8565-3d69-4ce2-8782-fc0ace48ba78\",\"ttft_stream_ms\":1746,\"time_to_request_ms\":49,\"first_content_frame_ms\":2100,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b45-1b38-79d1-b566-0d243eaad017",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 1653671,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1653671,
+            "start_ticks": 8906392,
+            "pid_namespace_inode": 4026534297,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b2f-b3e1-7b93-9dce-92828505ee47",
+          "started_unix_millis": 1789042957407,
+          "finished_unix_millis": 1789042957528,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b45-1b38-79d1-b566-0d31659ccac5",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-opus-5\"], \"selected_family_models\": [\"claude-opus-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"verdict\": \"findings\", \"summary\": \"Read-only review of controller.py (MR-3 lifecycle-window harness) against docs/mr3-lifecycle-window.md and scripts/wsl-service.py. The pre-fault gating is broadly sound: native-Job/primary-PID self-identification, refusal to run destructive modes without --foreign-work-agreed, refusal to cold-start an unobserved distro, quiet-queue/hold/obligation barriers, journal-envelope checksum plus recursive cgroup population, and honest scope language (snapshots are not an admission fence; quiescent sealed history only; canary acceptance not closed by result.json). Those limitations are documented, not defects. However, the post-fault handoff half contains four defects I consider blocking before any agreed window is requested: (1) the external-handoff acceptance check can be satisfied with no external keepalive in existence at all, (2) the keepalive singleton lock in wsl-service.py makes the only workable handoff ordering the unsafe break-before-make one, (3) the handoff receipt records the Windows wsl.exe PID rather than the Linux helper identity the operator is told to stop, and (4) --foreign-work-agreed is an unbound boolean never cross-checked against the preflight inventory the user actually approved. Additional material issues: every barrier is a bare assert (removed under -O/PYTHONOPTIMIZE), boot_id is collected but never asserted to change, the final asserts contradict the canary instruction they ship with, no evidence is written on any post-fault failure path, and the recovery polls themselves can cold-start the distro they are supposed to be observing.\", \"findings\": [\"BLOCKING \\u2014 false acceptance of the external handoff. The final gate is `state['interop_target'] != after_public['interop_target']`, where inventory() computes `str((r/'interop.sock').resolve())`. Path.resolve() is non-strict: if the alias does not exist it returns the literal `/home/pythonic/.local/share/stillyard/interop.sock`. wsl-service.py keepalive() unlinks the alias in its `finally` block, so the instant the controller-owned keepalive exits (which is exactly the condition that releases the preceding `while keeper.poll() is None` loop) the alias is gone and the target trivially differs from the previously resolved `/run/WSL/wsl-*.sock`. With systemd still up, `handed['machine_scheduling']['blocker']` will also be None. result.json can therefore record `quiescent_restart_passed: True` and an `external_handoff` payload when no external keepalive was ever started. The check must require the alias to exist, be a symlink, resolve into /run/WSL to a live root-owned socket, and be attributable to a keepalive process outside the controller's Job (e.g. by matching the `kind: wsl_keepalive` record the helper prints, including its pid and boot_id).\", \"BLOCKING \\u2014 the handoff protocol is incompatible with the helper's own singleton lock. wsl-service.py keepalive() takes `fcntl.flock(..., LOCK_EX|LOCK_NB)` on `root/keepalive.lock` and raises if held, so an external keepalive cannot be started while the controller's keepalive is still alive. Make-before-break is impossible; the awaiting-handoff.json instruction ('stop only that helper, start an external foreground keepalive') is therefore forced into break-before-make, leaving a window in which no Windows-side foreground session owns the distro's lifetime and the interop alias is absent. That window is precisely the one that satisfies the bogus acceptance check above, and on any WSL configuration where the distro does not survive loss of its last owning session it is also the window in which the daemon dies. The handoff needs either a takeover-capable lock (e.g. the new keepalive publishes its alias and signals the old one to release, with the lock handed over) or an explicit staged protocol where the controller verifies the new owner before the old one is stopped.\", \"BLOCKING \\u2014 the handoff receipt records the wrong identity. `keepalive-owner.json` and `awaiting-handoff.json` record `keeper.pid`, which is the Windows PID of `wsl.exe`, while the operator is instructed to 'capture the exact controller keepalive identity, stop only that helper'. Inside the distro that Windows PID is unusable; the Linux pid/boot_id are printed by the helper only into `keepalive.stdout` in the evidence directory, and the controller never reads, parses or records them. As written the operator has to guess which python3 process to signal, and killing the wrong one (or killing wsl.exe and relying on relay-side propagation, which is not verified anywhere) silently changes the meaning of the subsequent `keeper.poll()` gate. The controller should read the helper's startup JSON line, assert `kind == 'wsl_keepalive'` and that its boot_id matches the post-restart boot_id, and publish the Linux pid in the handoff receipt.\", \"BLOCKING \\u2014 `--foreign-work-agreed` is not bound to the inventory the user agreed to. The flag is a bare boolean. The two in-run snapshots (`public` and `public2`) are only compared to each other, never to the `foreign_work_candidates` recorded by the preflight run that was shown to the user. Foreign work that appeared after the preflight \\u2014 a new cargo/rustc/codex/claude/Runner session \\u2014 is present identically in both snapshots, so the equality assert passes and the whole-VM fault destroys work the user never saw or approved. This directly defeats the doc's 'Confirm the agreed inventory again immediately before the fault; a changed inventory stops the step.' Require an `--agreed-inventory-sha256` (or a path to the preflight before.json) and assert it matches the current candidates before the fault.\", \"MATERIAL \\u2014 every safety barrier in controller.py is a bare `assert`, including the primary-PID identity check, all quiet-queue/hold/obligation/journal barriers, the immediate-barrier re-check, the fault exit-code check, `keeper.poll() is None`, and all four deadline checks. Under `python -O` or an inherited `PYTHONOPTIMIZE` (plausible for a native Python 3.13 launched from a Job environment) all of them vanish and `wsl.exe --terminate` / `--shutdown` runs with no quiescence gate whatsoever. The same pattern appears inside the INVENTORY snippet run via `python3 -c` (mode/uid checks, journal checksum, cgroup path validation). upgrade-wsl-daemon.py correctly uses explicit `raise RuntimeError` / `p.error` throughout; this harness should match. At minimum the destructive path should refuse to run when `sys.flags.optimize` is nonzero.\", \"MATERIAL \\u2014 the strongest available proof of a real VM restart is collected and then never used. INVENTORY exports `boot_id` and the doc explicitly requires recording the Linux boot ID, yet no assert compares `after_public['boot_id']` to `public['boot_id']`. The post-restart evidence rests on `after['daemon_generation'] != before['daemon_generation']`, which also changes on an ordinary daemon crash/restart by the supervisor and so does not distinguish 'the VM was terminated and cold-started' from 'the daemon bounced'. Assert boot_id changed (and, for `--shutdown`, that it changed for every distribution recorded in `running_distributions`).\", \"MATERIAL \\u2014 the shipped handoff instruction races the final acceptance asserts. awaiting-handoff.json tells the operator to 'submit installed canaries', but as soon as `keeper.poll()` becomes non-None the controller asserts `not state['unsealed_invocations'] and state['active_leases']==0`. A canary submitted before or during the handoff (exactly as instructed) leaves an unsealed record or a granted lease and fails the run at the last step, after a fully successful terminate/restart, with no result.json written. Either move canary submission after the controller completes, or make the final gate tolerate in-flight canary work explicitly.\", \"MATERIAL \\u2014 missing barrier checks in the post-fault evidence. `nonempty_containments` is asserted zero in both pre-fault snapshots but never re-checked after the restart or at final handoff, even though a retained non-empty containment across a VM stop is the exact failure mode described in the doc's 'Explicit recovery boundary'. `journal_sha256` is likewise compared at after-restart but not at the final handoff state. Both are already present in the inventory payload and cost nothing to assert.\", \"MATERIAL \\u2014 no evidence is persisted on any post-fault failure path. 'controller keepalive exited before recovery', 'restart did not become healthy', 'external handoff not completed', 'external keepalive takeover did not become healthy' and the final acceptance asserts all raise AssertionError with only a message on stderr; nothing is written into the evidence directory, so a failed window leaves before.json/fault-result.json and an unexplained absence of result.json. Worse, when the controller process dies the Windows Job containment takes the keepalive with it (as the doc itself notes), so a handoff timeout at 1500s tears down the distro's only lifetime owner unattended. Each failure path should save a failure record and, at minimum, print an explicit 'no external owner remains' warning before exiting.\", \"MATERIAL \\u2014 the recovery and handoff polls can themselves cold-start the distro. `guest()` and `inventory()` invoke `wsl.exe -d Ubuntu-SSD --exec ...`, which starts a stopped distribution. The preflight deliberately guards against this ('preflight must not cold-start an unobserved distro'), but after the fault the same mechanism is used every 2 seconds, so a healthy result may reflect resurrection by the observer rather than by the keepalive cold-start path the doc's step 2 is supposed to be testing. Distinguish the two: launch the keepalive, and confirm from its own emitted record (and the socket owner/supervisor identity) that it, not the poll, brought the distro and user service up.\", \"MATERIAL \\u2014 tight and unguarded timing around the fault. The keepalive is launched immediately after `wsl.exe --terminate` / `--shutdown` returns, with no settle or retry; a launch that races VM teardown fails, `keeper.poll()` becomes non-None, and the very next assert aborts the run post-destruction with no keepalive and no daemon. The 120s recovery deadline (with 30s per `wsl.exe` call, so as few as four attempts) is optimistic for a `--shutdown` cold start that must bring up the VM, systemd, the user service, the supervisor and the daemon. Make the deadline configurable per operation and retry the keepalive launch a bounded number of times.\", \"MODERATE \\u2014 `journal_checksum_valid: True` in the INVENTORY output is a hardcoded literal, not a measurement. The actual verification is the preceding `assert hashlib.sha256(...)==envelope['sha256']` in the same snippet; a reader of before.json cannot tell the difference, and under any optimize flag the field becomes an outright false claim. Emit the computed comparison result rather than a constant.\", \"MODERATE \\u2014 order-sensitive equality comparisons can abort the run spuriously (fail-safe, but flaky). `public2['foreign_work_candidates']==public['foreign_work_candidates']` compares lists built from `Path('/proc').glob('[0-9]*')`, whose order is readdir order and not guaranteed stable between the two snapshots; the same concern applies to the `machine_scheduling['domains']` equality asserts. Compare order-independent structures (sorted by pid, or sets of tuples).\", \"MODERATE \\u2014 `--shutdown` mode has no gate on collateral distributions. `running` is recorded in before.json and asserted only to contain 'Ubuntu-SSD'; nothing refuses or even enumerates other running distributions (the doc explicitly names Docker/other development environments), and nothing restarts them afterwards. Given `--foreign-work-agreed` is a single boolean, a shutdown window silently extends to every distribution present at that moment.\", \"MINOR \\u2014 argument/environment validation gaps. The startup guard checks only `STILLYARD_JOB_ID`, then unconditionally dereferences `os.environ['STILLYARD_INVOCATION_ID']`, producing a KeyError traceback instead of a clean parser error. `public2['kernel']['events']['populated']` will KeyError if the key is absent, where upgrade-wsl-daemon.py correctly uses `.get('populated')`. Hold checks use truthiness (`if not h['released']`) whereas upgrade-wsl-daemon.py uses `hold['released'] is not True`; the stricter form should be used on the destructive path.\", \"MINOR \\u2014 evidence-recording gaps versus the documented procedure. No `wsl --list --running` capture after the fault (doc step 1 asks for the absence observation and elapsed time), no Linux doctor report or socket-owner/supervisor identity captured after the restart (doc step 2 asks for the fresh socket owner, supervisor and daemon identities), and `save()` fsyncs the temp file but never fsyncs the evidence directory after `tmp.replace` (upgrade-wsl-daemon.py does this correctly via `sync_directory`), so receipts for a host-level fault are not durably linked.\", \"NOT A DEFECT (documented limitations, correctly stated) \\u2014 the snapshot pair is explicitly labelled as not an atomic admission fence and the doc requires the agreed window to freeze submissions; the run is scoped to already-sealed quiescent history and explicitly disclaims active-work whole-VM cleanup acceptance; `foreign_inventory_scope` admits it covers selected workload names only and is not a quiescence proof; result.json states canary acceptance must be collected separately and does not close M-A12; and the 'Explicit recovery boundary' section honestly records that a VM stop during an unsealed Invocation can retain its Grant. I found no attempt in the code to launder any of these into stronger claims, and the controller does not schedule its own disappearance or break out of Job containment.\"]}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b41-a719-7943-bccf-440181f76ca3",
+      "lease_id": "01a08b41-a6a4-7520-8b21-70ab6f89c8ab",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08b41-a6a4-7520-8b21-70ab6f89c8ab"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b41-a696-7ea2-bfa8-e8c09a0e9f2f",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b41-a6a4-7520-8b21-70733c90072f"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08b4a-da2c-72d1-bcdc-f5b512f5a453"
+}

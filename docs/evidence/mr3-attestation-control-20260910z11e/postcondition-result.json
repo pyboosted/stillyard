@@ -1,0 +1,16 @@
+{
+  "authenticated_status_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b4b-d95a-7fe2-b73d-9fc51866b66c",
+  "non_primary_requests": [
+    {
+      "result": "error",
+      "code": "rejected",
+      "message": "submission rejected: the containing primary is no longer current and live"
+    },
+    {
+      "result": "error",
+      "code": "rejected",
+      "message": "submission rejected: the containing primary is no longer current and live"
+    }
+  ],
+  "environment_hints_removed": true
+}

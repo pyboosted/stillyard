@@ -1,0 +1,8 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08874-21f7-7d60-93a9-8e7adfd562ef",
+  "outcome": "failed",
+  "root_exit_code": 101,
+  "submit_exit_code": 101,
+  "source_changed": [],
+  "source_files_sha256": "6ed0f8b7869a527ae2be3493c4ab34f0c5df54d381e4d933de4dce7e521983a7"
+}

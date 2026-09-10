@@ -1,0 +1,177 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae5-6585-7e11-bed8-567ccef752e3",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae5-6584-7850-9b71-a37726f51d76",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae5-658d-7b42-aec8-e70ed4f3ec9e",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae5-658d-7b42-aec8-e718aeac2918",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae5-658d-7b42-aec8-e726f49ece13",
+  "root_exit_code": 101,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789036684677,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789036684702,
+  "finished_unix_millis": 1789036697043,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr3-crash-boundaries-evidence-20260910z10b\\crash-matrix\\wsl-test-fbca4fa632a4475d8150649b4e374340\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr3-crash-boundaries-evidence-20260910z10b\\crash-matrix\\wsl-test-fbca4fa632a4475d8150649b4e374340",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-bootstrap-test"
+      },
+      {
+        "key": "source",
+        "value": "f965ff8755571bbf0aa40c9484e0d2fd8551b9afff2e4f5dac033290ab68840b"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1830,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae5-658d-7b42-aec8-e70ed4f3ec9e",
+      "attempt_index": 1,
+      "verdict": "process_failed",
+      "reason_code": null,
+      "created_unix_millis": 1789036684684,
+      "started_unix_millis": 1789036684684,
+      "deadline_unix_millis": 1789038514684,
+      "finished_unix_millis": 1789036697043,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae5-6585-7e11-bed8-567ccef752e3",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae5-658d-7b42-aec8-e70ed4f3ec9e",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae5-658d-7b42-aec8-e718aeac2918",
+        "verdict": "process_failed",
+        "root_exit_code": 101,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789036684702,
+        "exited_unix_millis": 1789036697030,
+        "resolved_unix_millis": 1789036697035
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae5-658d-7b42-aec8-e718aeac2918",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 49248,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 49248,
+            "creation_filetime_100ns": 134335102846985958
+          },
+          "root_exit_code": 101,
+          "exit_classification": null,
+          "executable_hash": "6d189eb9951fcf93ccf62c1ce6d3a3a3ad4b539e69bab0e7424fe4c0200d4cd4",
+          "daemon_generation": "01a08adf-dd42-7950-a5d7-a47479db0ac7",
+          "started_unix_millis": 1789036684702,
+          "finished_unix_millis": 1789036697035,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae5-658d-7b42-aec8-e726f49ece13",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "\nrunning 1 test\ntest store::attached::tests::crash::linux_attached_runtime_crash_commit_boundaries ... FAILED\n\nfailures:\n\nfailures:\n    store::attached::tests::crash::linux_attached_runtime_crash_commit_boundaries\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 284 filtered out; finished in 2.16s\n\n",
+          "stderr_tail": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s\n     Running unittests src/lib.rs (target/scheduled-linux/debug/deps/stillyard-8d19002362520820)\n\nthread 'store::attached::tests::crash::linux_attached_runtime_crash_commit_boundaries' (14) panicked at src/store/attached/tests/crash.rs:123:52:\ncalled `Result::unwrap()` on an `Err` value: InvalidState(\"attached installation or paired store history is missing or replaced; admission remains fenced\")\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nerror: test failed, to rerun pass `--lib`\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae5-658d-7b42-aec8-e7366bac6446",
+      "lease_id": "01a08ae5-658d-7b42-aec8-e7366bac6446",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+        "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+        "lease_id": "01a08ae5-658d-7b42-aec8-e7366bac6446"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae5-6585-7e11-bed8-567ccef752e3",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae5-658d-7b42-aec8-e70ed4f3ec9e"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08adf-dd42-7950-a5d7-a47479db0ac7"
+}

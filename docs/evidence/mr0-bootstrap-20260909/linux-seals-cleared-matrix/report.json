@@ -1,0 +1,66 @@
+{
+  "system_job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086e6-2526-7a53-ab77-c44780d94a0e",
+  "source_files_sha256": "657c21539fcabdb43285a6729a3357e3c4e916da04ac607fed9491fd187c8861",
+  "cases": [
+    {
+      "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+      "cgroup_inode": 16802,
+      "cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a086e6-5fa7-7511-b128-b3c613fd2931.service/work",
+      "operation_id": "01a086e6-5fa7-7511-b128-b3c613fd2931",
+      "phase": "sealed_empty",
+      "request_sha256": "860f69fb112f8efee9ab39e1df3599473567354747d471b49596fc2e54cf0578",
+      "root_exit_code": 0,
+      "termination": "exited",
+      "uid": 1000,
+      "boundary_present_when_collected": false
+    },
+    {
+      "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+      "cgroup_inode": 16889,
+      "cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a086e6-627a-7c32-be2d-20f4d0a20d15.service/work",
+      "operation_id": "01a086e6-627a-7c32-be2d-20f4d0a20d15",
+      "phase": "sealed_empty",
+      "request_sha256": "6262de7e5e2e0659237787cfc6440bb98ca9c6516f10d2c0c2967e2e4a3cb7ed",
+      "root_exit_code": 25,
+      "termination": "exited",
+      "uid": 1000,
+      "boundary_present_when_collected": false
+    },
+    {
+      "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+      "cgroup_inode": 16976,
+      "cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a086e6-64cf-70d2-8e27-7d3a5e4a4f08.service/work",
+      "operation_id": "01a086e6-64cf-70d2-8e27-7d3a5e4a4f08",
+      "phase": "sealed_empty",
+      "request_sha256": "6ac81202b66564f17470ffeb1f0b9584e1369f38e7d36c7c3fd5303fa33eb2b8",
+      "root_exit_code": -9,
+      "termination": "timed_out",
+      "uid": 1000,
+      "boundary_present_when_collected": false
+    },
+    {
+      "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+      "cgroup_inode": 17063,
+      "cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a086e6-6b0d-7d83-baff-f3e52fee265d.service/work",
+      "operation_id": "01a086e6-6b0d-7d83-baff-f3e52fee265d",
+      "phase": "sealed_empty",
+      "request_sha256": "c0b79c521527d7d5e15349a49a81444bb17418abbeb5010f48631b94369585af",
+      "root_exit_code": -9,
+      "termination": "intermediary_lost",
+      "uid": 1000,
+      "boundary_present_when_collected": false
+    },
+    {
+      "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+      "cgroup_inode": 17150,
+      "cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a086e6-82ac-7971-bcf3-3dfb405fd206.service/work",
+      "operation_id": "01a086e6-82ac-7971-bcf3-3dfb405fd206",
+      "phase": "sealed_empty",
+      "request_sha256": "7c03757d0b2bdc0a673163490ee4bffd4930b007a65b1321fadb753d7ce9309a",
+      "root_exit_code": -9,
+      "termination": "intermediary_lost",
+      "uid": 1000,
+      "boundary_present_when_collected": false
+    }
+  ]
+}

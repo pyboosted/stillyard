@@ -1,0 +1,46 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "/home/pythonic/Development/stillyard-consumers-20260910z3/wc4-round4-46dd4df0c64040f5914588e476feb034/consumer.py",
+    "measure",
+    "--repository-root",
+    "/home/pythonic/Development/stillyard-mr3-quiet-retry-20260910z3",
+    "--source-manifest",
+    "/home/pythonic/Development/stillyard-consumers-20260910z3/wc4-round4-46dd4df0c64040f5914588e476feb034/source.json",
+    "--output",
+    "/home/pythonic/Development/stillyard-consumers-20260910z3/wc4-round4-46dd4df0c64040f5914588e476feb034/measurement.json"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-consumers-20260910z3/wc4-round4-46dd4df0c64040f5914588e476feb034",
+  "resources": {
+    "impacts": [
+      "measurement"
+    ]
+  },
+  "quiet": {
+    "stable_seconds": 3,
+    "max_sample_age_seconds": 2,
+    "wait_budget_seconds": 240,
+    "detectors": [
+      {
+        "kind": "cpu_utilization",
+        "max_percent": 40
+      }
+    ]
+  },
+  "timeout_seconds": 180,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "acceptance",
+      "value": "W-C4"
+    },
+    {
+      "key": "round",
+      "value": "4"
+    }
+  ]
+}

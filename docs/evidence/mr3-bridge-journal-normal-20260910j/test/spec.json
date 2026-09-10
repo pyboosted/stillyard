@@ -1,0 +1,33 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+  "args": [
+    "bootstrap",
+    "run",
+    "--spec",
+    "C:\\Development\\stillyard-mr3-bridge-journal-normal-evidence-20260910j\\wsl-test-474246fe97304c6f885760506723c414\\work.json"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr3-bridge-journal-normal-evidence-20260910j\\wsl-test-474246fe97304c6f885760506723c414",
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "wsl-bootstrap-test"
+    },
+    {
+      "key": "source",
+      "value": "fc91a8ae0b12426b36c62e558069825ce523d043aa8c9bebafb49f4b2ea1abb6"
+    }
+  ],
+  "expected_duration_seconds": 180,
+  "timeout_seconds": 1830
+}

@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "older_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a37-98db-7451-b811-31b91edc882d",
+  "newer_job": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a38-9744-7500-bcde-7521c2dd6cbf",
+  "older_start": 1789025369971,
+  "newer_start": 1789025370147,
+  "aged_priority": 2,
+  "jobs": {
+    "holder": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a37-9881-73b0-9b6f-345cb06ff5f7",
+    "older-blocked": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a37-98db-7451-b811-31b91edc882d",
+    "free-windows": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a37-9932-7f80-b1a9-c9f65f33138c",
+    "free-linux": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a37-994d-7a60-a9ed-f9b8af07b99e",
+    "newer-priority-2": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a38-9744-7500-bcde-7521c2dd6cbf"
+  }
+}

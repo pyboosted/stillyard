@@ -1,0 +1,6 @@
+{
+  "status": "not_registered",
+  "ordinary_attempt": "HRESULT 0x80070005",
+  "elevated_attempt": "UAC operation canceled by user",
+  "scope": "live current connection is not logout or cold-start lifetime acceptance"
+}

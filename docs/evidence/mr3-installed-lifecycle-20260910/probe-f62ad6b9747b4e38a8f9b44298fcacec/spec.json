@@ -1,0 +1,53 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import pathlib,subprocess; subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(120)']); pathlib.Path('/home/pythonic/Development/stillyard-installed-lifecycle-20260910/probe-f62ad6b9747b4e38a8f9b44298fcacec/primary-marker').write_text('primary'); print('primary with live descendant',flush=True)"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-installed-lifecycle-20260910/probe-f62ad6b9747b4e38a8f9b44298fcacec",
+  "timeout_seconds": 30,
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "installed-wsl-probe"
+    }
+  ],
+  "conditions": [
+    {
+      "predicate": {
+        "kind": "probe",
+        "probe": {
+          "executable": "/usr/bin/python3",
+          "args": [
+            "-c",
+            "print('independent probe')"
+          ],
+          "working_directory": "/home/pythonic/Development/stillyard-installed-lifecycle-20260910/probe-f62ad6b9747b4e38a8f9b44298fcacec",
+          "resources": {
+            "cargo_slots": 1
+          },
+          "timeout_seconds": 10,
+          "interval_seconds": 1,
+          "accepted_exit_codes": [
+            0
+          ]
+        }
+      },
+      "deadline": {
+        "kind": "relative",
+        "seconds": 60
+      }
+    }
+  ]
+}

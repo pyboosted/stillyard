@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-8d6c-7032-aea1-9f5e273f25b2",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-8d69-71d3-8617-1da539fa3e5e",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-8d70-7673-a2e0-f28e84bc3769",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f8-9ca2-7eb1-af63-7055fc3c7972",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f8-9ca2-7eb1-af63-70606b8deba3",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789020704108,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789020704316,
+  "finished_unix_millis": 1789021166951,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/retry-ticket-5df0cb78365840039ba79c95b93bfadc/reviewer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/retry-ticket-5df0cb78365840039ba79c95b93bfadc/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/retry-ticket-5df0cb78365840039ba79c95b93bfadc/review.json",
+      "--model",
+      "opus",
+      "--effort",
+      "high"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/retry-ticket-5df0cb78365840039ba79c95b93bfadc",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/retry-ticket-5df0cb78365840039ba79c95b93bfadc/reviewer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/retry-ticket-5df0cb78365840039ba79c95b93bfadc/review.json",
+          "--expected-model-prefix",
+          "claude-opus-"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr3-opus-ticket-correctness"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-8d70-7673-a2e0-f28e84bc3769",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789020704112,
+      "started_unix_millis": 1789020704169,
+      "deadline_unix_millis": 1789021904169,
+      "finished_unix_millis": 1789021166951,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-8d6c-7032-aea1-9f5e273f25b2",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-8d70-7673-a2e0-f28e84bc3769",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-8d71-7001-8a1d-3b63b4cd0acf",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789020704316,
+        "exited_unix_millis": 1789021166740,
+        "resolved_unix_millis": 1789021166751
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-8d71-7001-8a1d-3b63b4cd0acf",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 4178796,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 4178796,
+            "start_ticks": 6681091,
+            "pid_namespace_inode": 4026533828,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608",
+          "started_unix_millis": 1789020704316,
+          "finished_unix_millis": 1789021166751,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-8d71-7001-8a1d-3b7e300a8dfe",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "XT invocation on that allocation runs request_attached_ticket, which resolves `grant.tickets.last()` and reads `SELECT cleanup_json FROM attached_tickets WHERE invocation_id=?1`, gets NULL and returns StoreError::InvalidState(\\\"previous Invocation has no committed cleanup\\\"); coordinator-side validate_next() likewise rejects any successor with code \\\"cleanup_incomplete\\\", and per release.rs's own test seal_release() fails while a ticket lacks cleanup. Net effect: one racing cancel/timeout permanently wedges the Lease/Grant for both progress and sealing. Note the deadline path is not exotic \u2014 it is by construction the case where an operation is outstanding. Uncertainty I cannot resolve without the code: whether super::queue::maintain(&tx) (driver.rs step) cancels operations for abandoned invocations, whether accept() refuses a Ticket for an invocation with recorded cleanup, and whether record_attached_cleanup back-fills a later-arriving ticket row. Remedy: in the same transaction that records cleanup for an abandoned invocation, delete or tombstone that invocation's pending outbox operation and mark attached_local_invocations abandoned; make accept() route a Ticket for an abandoned invocation straight into record_cleanup/record_unused_cleanup using the already-durable proof, so the grant chain always advances.\",\"MEDIUM-HIGH (liveness, code-confirmed) \u2014 The 250 ms freshness window must cover an entire cross-machine round trip plus a durable commit plus polling latency, and every overrun is a hard invocation failure. Evidence: release.rs fresh() requires `boot <= 250 && wall <= 250 && boot.abs_diff(wall) <= 50`; the clock is stamped in ReleaseState::challenge, which driver.rs step() calls immediately BEFORE `self.bridge.exchange(BridgeCommand::Exchange{...}, Instant::now() + Duration::from_secs(2))`. So the budget spans: bridge RTT to the Windows coordinator (allowed up to 2s by its own timeout), coordinator-side authorize() work, `tx.commit()` on the attached store (fsync), the runtime's `std::thread::sleep(Duration::from_millis(5))` poll granularity, `lock(store)` acquisition contended against the runtime's own 5 ms polling of pending_stop_verdict/attached_ticket, live.linux.with_journal(journal.release_intent(&ticket)) and, for observed jobs, observation.with_release_sample(). Any exchange exceeding 250 ms guarantees `release_with_clock` returns Err(\\\"ticket is stale, canceled, used or locally unready\\\") after the coordinator has already pushed the intent into grant.tickets \u2014 burning one of the 256 slots enforced by validate_next's `grant.tickets.len() >= 256 => limit_exceeded` and requiring a whole new Invocation to retry. std::sync::Mutex is unfair, so N concurrent runners polling the Store every 5 ms can starve the driver thread and make overruns systemic rather than random. Remedy: compute the remaining budget before transmitting and skip/abort the exchange when the deadline cannot be met (fail before minting rather than after); surface a distinct retryable disposition for a stale-but-unconsumed ticket so the runner re-issues a new Invocation deterministically instead of failing the Attempt; and replace the runtime's 5 ms Store-lock poll with the existing ReleaseState wake/wait condvar to cut lock contention.\",\"MEDIUM-HIGH (liveness/correctness, code-confirmed) \u2014 Transmission of AuthorizeInvocation is not gated on connected=1/reconciliation, so a reconnect during a ticket wait deterministically produces a Ticket the executor is forbidden to consume. Evidence: driver.rs connect() sets `UPDATE attached_local_mode SET connected=0` and only Outcome::Reconciled restores `connected=1`; step() transmits whatever manager::pending returns with no connected check; but invocation.rs consume() rejects with \\\"Ticket belongs to a disconnected or different Invocation generation\\\" whenever `connected != Some(true)`. Failure trace: invocation is waiting on op1; transport blips; new Driver::connect() sets connected=0 and begins recovery; step() finds op1 pending (recovery paging is only enqueued in the `manager::pending(...).is_none()` branch, so op1 is transmitted first, ahead of reconciliation); coordinator mints a Ticket; runtime.rs breaks its loop, retry_waiting_attached_ticket stops firing (its `NOT EXISTS(SELECT 1 FROM attached_tickets ...)` guard), barrier.release() runs commit -> mark_started_with_ticket/authorize_*_with_ticket -> consume() -> InvalidState because connected is still 0. The invocation fails, the ticket is left unconsumed, and case 2 above applies to its cleanup. Remedy: hold AuthorizeInvocation in the outbox until connected=1 (or explicitly prefer recovery/reconciliation commands over authorization commands in the pending selection), so the coordinator is never asked to mint a Ticket the executor cannot legally consume.\",\"MEDIUM (correctness, hazard confirmed / classification unverifiable from supplied files) \u2014 Retryability of a rejection is decided by a hardcoded string list that is decoupled from the code that produces those strings, so a transient resource-contention rejection can be misclassified as fatal. Evidence: invocation.rs waiting_outcome() matches exactly `\\\"quiet_waiting\\\" | \\\"quiet_contaminated\\\" | \\\"detector_unavailable\\\" | \\\"observation_stale\\\" | \\\"observation_missing\\\" | \\\"observation_unusable\\\" | \\\"observed_resource_busy\\\" | \\\"unavailable\\\"`. machine_ticket.rs authorize() emits `Outcome::Rejected { code: blocker.code, detail: blocker.detail }` where `waiting = resource_blockers.first().or(context.non_quiet_blockers.first())` and `resource_blockers = physical.blockers(&readiness.config.resources, &active, &readiness.config.impact_incompatibilities)`. Only two producer codes are verifiable from the supplied text: \\\"quiet_waiting\\\" (in the list, correct) and \\\"quiet_unattainable\\\" (deliberately excluded and asserted terminal by the unit test). The codes minted by physical.blockers() for cpu_units/ram_mb/cargo_slots/gpu_slots/impacts, and by evaluate_request's non_quiet_blockers, are in files not supplied. If any of them is, say, \\\"resource_busy\\\" or \\\"cargo_slots_exhausted\\\" rather than \\\"observed_resource_busy\\\", then runtime.rs's `lock(store)?.attached_ticket(...)` turns a \\\"wait for a free slot\\\" answer into `StoreError::InvalidState(\\\"Invocation Ticket request did not grant release: ...\\\")` and the invocation fails immediately instead of waiting out its budget \u2014 precisely the managed-Cargo contention path MR-3 exercises. Remedy: stop classifying on strings \u2014 carry retryability in the type (`Outcome::Rejected { code, detail, retryable: bool }` or a shared `enum BlockerCode`) so the coordinator that mints the blocker declares its transience; failing that, add a test that enumerates every Blocker code constructible by physical.blockers()/evaluate_request and asserts its waiting_outcome classification.\",\"MEDIUM (correctness/liveness, code-confirmed in the supplied file) \u2014 A probe can never be re-authorized on its own Grant after a never-released or stale ticket. Evidence: machine_ticket.rs validate_next(): `AllocationOwner::Probe { invocation_id, .. } => previous.is_none() && intent.role == InvocationRole::Probe && ...`. For Work owners the file explicitly supports retry-in-place \u2014 `(InvocationRole::Primary, InvocationRole::Primary, false) => intent.role_index == 0` and `(Postcondition, Postcondition, false) => intent.role_index == last.role_index` \u2014 but the Probe arm has no analogue, so once one intent is in grant.tickets, any successor intent is rejected with code \\\"conflict\\\". Failure trace: probe invocation gets a Ticket; the release misses the 250 ms window (see the freshness finding) or yields Disposition::NeverReleased; cleanup is recorded with user_code_released=false; a retry on the same probe Lease/Grant is structurally impossible, so a single transient delay consumes the probe's whole allocation. This is safe (nothing is released twice) but converts a transient fault into an allocation-level failure. Confirm the runner obtains a fresh probe Lease/Grant in this case \u2014 the local attached_local_plans row is keyed by lease_id, so retry-in-place is not available there either. Remedy: allow `(Probe, Probe, released=false)` with `role_index == 0` under the same predecessor-cleanup rule used for Primary, or document and test that a never-released probe always re-leases.\",\"MEDIUM (safety, conditional on unsupplied migration guarantees) \u2014 The \\\"no Ticket means no OS release\\\" gate keys on the existence of a table row rather than on installed pairing state. Evidence: invocation.rs consume() reads `SELECT connected FROM attached_local_mode WHERE singleton=1` with `.optional()?` and then `if connected.is_none() && ticket.is_none() { return Ok(()) }` \u2014 i.e. a missing singleton row makes the ticketless native path legal. Everything else in this module treats pairing as installed state discovered elsewhere (request_attached_ticket calls check_authority_release() and re-runs initialize() because \\\"Pairing may have been explicitly installed after this Store opened\\\"; driver.rs calls installation::validate_store and installation::load). So a store that is paired on disk but whose attached_local_mode row is absent (partial migration, partial uninstall, restore from a pre-pairing snapshot) silently degrades to unauthorized starts rather than failing closed. Separately, consume() never re-checks ticket.configuration_sha256 against attached_local_mode.configuration_sha256; the only defense is the in-memory ReleaseBarrier's `state.configuration != ticket.configuration_sha256`, whose snapshot was read at challenge time and therefore cannot see a configuration change that lands between challenge and release. Remedy: derive the gate from installation::load(&self.paths.root) (or check_authority_release) rather than row presence, returning InvalidState when pairing is installed but the mode row is missing; and re-assert configuration_sha256 inside consume()'s existing `matches` query so the durable path does not depend solely on process memory.\",\"LOW-MEDIUM (durability of the waiting record, coupling hazard) \u2014 The local waiting-outcome capture depends on the outbox being written in exactly two steps and on table creation order. Evidence: invocation.rs initialize() creates `attached_ticket_wait_outcome` only `AFTER UPDATE OF outcome_json ON attached_outbox`, and only when the `paired` probe (`SELECT EXISTS(... name='attached_outbox')`) succeeds at that moment. The included test proves the intended shape works (INSERT with NULL outcome, later UPDATE fires the trigger, subsequent `DELETE FROM attached_outbox` does not lose the record). But any accept() path that writes the outcome at INSERT time, or that replaces a row rather than updating it, produces no trigger firing and no attached_local_ticket_outcomes row; the retry loop in runtime.rs then never fires (retry_waiting_attached_ticket's join returns None) and the invocation silently degrades to the `until` deadline path, taking finding 2's orphan-ticket trace with it. SQLite does fire UPDATE triggers for `ON CONFLICT ... DO UPDATE`, so an upsert-style accept() is fine; a DELETE+INSERT or an insert-with-outcome is not. Remedy: either add the matching AFTER INSERT trigger with the same WHEN clause, or (preferable, since it removes the hidden coupling entirely) write the attached_local_ticket_outcomes row explicitly inside accept() in the same transaction, and assert in a test that a rejected reply always yields a local outcome row regardless of how the outbox row was materialized.\",\"LOW (lock discipline, contradicts the rule stated in the same file) \u2014 driver.rs step() cancels barriers while holding the Store mutex. Evidence: `let mut store = lock(store)?;` shadows the parameter and the guard lives to the end of step(); after `tx.commit()?` the code calls `self.releases.accepted_rejection(&request, &reply.outcome)?`, which calls retire() -> barrier.cancel(). ReleaseState::disconnect()'s own doc says \\\"Never hold Store while canceling these barriers: release takes Store first, then its barrier, to order a concurrent cancellation commit.\\\" There is no deadlock (both paths acquire Store then barrier, and none of runtime.rs's release callbacks re-enter the barrier), but the driver will block on the barrier mutex for the full duration of a concurrent release \u2014 which includes the durable commit and `child.release()` ptrace work \u2014 while pinning the Store mutex that every runner thread needs. Given the 250 ms budget in finding 3, that self-inflicted stall is worth removing. Remedy: `drop(store);` immediately after tx.commit() and before accepted_rejection, matching the rule the file states.\",\"LOW (evidence hygiene) \u2014 refresh_observation() persists a coordinator snapshot before deciding whether that coordinator's configuration is still the attached one. Evidence: driver.rs refresh_observation() calls `store.record_attached_machine_observation(&snapshot)?` and only afterwards runs `SELECT EXISTS(SELECT 1 FROM attached_local_mode WHERE connected=1 AND configuration_sha256!=?1)` to raise \\\"coordinator configuration changed; full inventory is required\\\". So evidence captured under an unrecognized configuration is already durable when the session is fenced, and may subsequently feed Store::attached_observation_ready()/evaluate_admission on reconnect. The check is also skipped entirely while connected=0, which is exactly the window after a reconnect. This matches the comment's intent (\\\"Diagnostic evidence can fence a stale session, never authorize a new configuration\\\") only if record_attached_machine_observation stamps the snapshot with its configuration_sha256 and readers filter on it \u2014 not visible in the supplied files. Remedy: validate configuration_sha256 before recording, or store the hash alongside the observation and have admission reject observations whose configuration does not match the current attachment.\",\"LOW (resource leak with a user-visible cliff) \u2014 Barrier registry entries are retired only on a durably accepted rejection or on a successful cleanup, so a cleanup failure leaks them until the next reconnect. Evidence: runtime.rs's cleanup closure calls `live.linux_releases.retire(job.invocation_id)?` only AFTER `live.linux.cleanup(...)?` and `record_attached_cleanup(...)?` both succeed \u2014 either `?` skips retire; ReleaseState::challenge enforces `if barriers.len() >= 1024 && !barriers.contains_key(&intent.invocation_id) { return Err(\\\"release registry capacity reached\\\") }`. Accumulated leaks therefore do not fail the leaking invocations, they fail unrelated NEW invocations with a confusing capacity error until a reconnect's disconnect() clears the map. Remedy: retire the barrier from a guard/Drop (or an unconditional tail block) so it is released regardless of cleanup outcome, since retiring the in-memory barrier is never itself cleanup proof.\",\"LOW (retry precision) \u2014 retry_waiting_attached_ticket replays a stored intent against a refreshed grant without re-deriving the fields that depend on that grant. Evidence: invocation.rs retry_waiting_attached_ticket re-reads the grant (`SELECT grant_json FROM attached_grants WHERE allocation_key=?1 AND seal_json IS NULL`, requiring GrantState::Armed) and uses the CURRENT `grant.offer_nonce`, but enqueues `intent: serde_json::from_str(&intent)?` verbatim \u2014 release_sequence and previous_cleanup were computed in request_attached_ticket against the grant as it stood then. If grant.tickets advanced in between, machine_ticket.rs validate_next rejects with \\\"cleanup_incomplete\\\" (terminal per waiting_outcome), so the invocation fails hard instead of re-deriving a valid intent. This is fail-safe, not unsafe, and may be unreachable if one allocation can only ever have one live invocation at a time \u2014 worth stating that invariant explicitly rather than relying on it implicitly. Remedy: recompute release_sequence/previous_cleanup from the freshly read grant on retry (reusing the request_attached_ticket logic), or assert `grant.tickets.last()` is unchanged and fail with a distinguishable, retryable error if it is not.\"],\"verdict\":\"findings\"},\"ttft_ms\":355840,\"type\":\"result\",\"duration_ms\":460641,\"uuid\":\"f5375cfa-7c70-4753-826b-aacd0783ab25\",\"ttft_stream_ms\":1930,\"time_to_request_ms\":39,\"first_content_frame_ms\":2225,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f8-9ca2-7eb1-af63-7055fc3c7972",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 4193409,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 4193409,
+            "start_ticks": 6727349,
+            "pid_namespace_inode": 4026533889,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608",
+          "started_unix_millis": 1789021166895,
+          "finished_unix_millis": 1789021166948,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f8-9ca2-7eb1-af63-70606b8deba3",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": " accept() stores a row in attached_tickets with consumed=0 and cleanup_json NULL for a dead invocation; (5) the NEXT invocation on that allocation runs request_attached_ticket, which resolves `grant.tickets.last()` and reads `SELECT cleanup_json FROM attached_tickets WHERE invocation_id=?1`, gets NULL and returns StoreError::InvalidState(\\\"previous Invocation has no committed cleanup\\\"); coordinator-side validate_next() likewise rejects any successor with code \\\"cleanup_incomplete\\\", and per release.rs's own test seal_release() fails while a ticket lacks cleanup. Net effect: one racing cancel/timeout permanently wedges the Lease/Grant for both progress and sealing. Note the deadline path is not exotic \\u2014 it is by construction the case where an operation is outstanding. Uncertainty I cannot resolve without the code: whether super::queue::maintain(&tx) (driver.rs step) cancels operations for abandoned invocations, whether accept() refuses a Ticket for an invocation with recorded cleanup, and whether record_attached_cleanup back-fills a later-arriving ticket row. Remedy: in the same transaction that records cleanup for an abandoned invocation, delete or tombstone that invocation's pending outbox operation and mark attached_local_invocations abandoned; make accept() route a Ticket for an abandoned invocation straight into record_cleanup/record_unused_cleanup using the already-durable proof, so the grant chain always advances.\", \"MEDIUM-HIGH (liveness, code-confirmed) \\u2014 The 250 ms freshness window must cover an entire cross-machine round trip plus a durable commit plus polling latency, and every overrun is a hard invocation failure. Evidence: release.rs fresh() requires `boot <= 250 && wall <= 250 && boot.abs_diff(wall) <= 50`; the clock is stamped in ReleaseState::challenge, which driver.rs step() calls immediately BEFORE `self.bridge.exchange(BridgeCommand::Exchange{...}, Instant::now() + Duration::from_secs(2))`. So the budget spans: bridge RTT to the Windows coordinator (allowed up to 2s by its own timeout), coordinator-side authorize() work, `tx.commit()` on the attached store (fsync), the runtime's `std::thread::sleep(Duration::from_millis(5))` poll granularity, `lock(store)` acquisition contended against the runtime's own 5 ms polling of pending_stop_verdict/attached_ticket, live.linux.with_journal(journal.release_intent(&ticket)) and, for observed jobs, observation.with_release_sample(). Any exchange exceeding 250 ms guarantees `release_with_clock` returns Err(\\\"ticket is stale, canceled, used or locally unready\\\") after the coordinator has already pushed the intent into grant.tickets \\u2014 burning one of the 256 slots enforced by validate_next's `grant.tickets.len() >= 256 => limit_exceeded` and requiring a whole new Invocation to retry. std::sync::Mutex is unfair, so N concurrent runners polling the Store every 5 ms can starve the driver thread and make overruns systemic rather than random. Remedy: compute the remaining budget before transmitting and skip/abort the exchange when the deadline cannot be met (fail before minting rather than after); surface a distinct retryable disposition for a stale-but-unconsumed ticket so the runner re-issues a new Invocation deterministically instead of failing the Attempt; and replace the runtime's 5 ms Store-lock poll with the existing ReleaseState wake/wait condvar to cut lock contention.\", \"MEDIUM-HIGH (liveness/correctness, code-confirmed) \\u2014 Transmission of AuthorizeInvocation is not gated on connected=1/reconciliation, so a reconnect during a ticket wait deterministically produces a Ticket the executor is forbidden to consume. Evidence: driver.rs connect() sets `UPDATE attached_local_mode SET connected=0` and only Outcome::Reconciled restores `connected=1`; step() transmits whatever manager::pending returns with no connected check; but invocation.rs consume() rejects with \\\"Ticket belongs to a disconnected or different Invocation generation\\\" whenever `connected != Some(true)`. Failure trace: invocation is waiting on op1; transport blips; new Driver::connect() sets connected=0 and begins recovery; step() finds op1 pending (recovery paging is only enqueued in the `manager::pending(...).is_none()` branch, so op1 is transmitted first, ahead of reconciliation); coordinator mints a Ticket; runtime.rs breaks its loop, retry_waiting_attached_ticket stops firing (its `NOT EXISTS(SELECT 1 FROM attached_tickets ...)` guard), barrier.release() runs commit -> mark_started_with_ticket/authorize_*_with_ticket -> consume() -> InvalidState because connected is still 0. The invocation fails, the ticket is left unconsumed, and case 2 above applies to its cleanup. Remedy: hold AuthorizeInvocation in the outbox until connected=1 (or explicitly prefer recovery/reconciliation commands over authorization commands in the pending selection), so the coordinator is never asked to mint a Ticket the executor cannot legally consume.\", \"MEDIUM (correctness, hazard confirmed / classification unverifiable from supplied files) \\u2014 Retryability of a rejection is decided by a hardcoded string list that is decoupled from the code that produces those strings, so a transient resource-contention rejection can be misclassified as fatal. Evidence: invocation.rs waiting_outcome() matches exactly `\\\"quiet_waiting\\\" | \\\"quiet_contaminated\\\" | \\\"detector_unavailable\\\" | \\\"observation_stale\\\" | \\\"observation_missing\\\" | \\\"observation_unusable\\\" | \\\"observed_resource_busy\\\" | \\\"unavailable\\\"`. machine_ticket.rs authorize() emits `Outcome::Rejected { code: blocker.code, detail: blocker.detail }` where `waiting = resource_blockers.first().or(context.non_quiet_blockers.first())` and `resource_blockers = physical.blockers(&readiness.config.resources, &active, &readiness.config.impact_incompatibilities)`. Only two producer codes are verifiable from the supplied text: \\\"quiet_waiting\\\" (in the list, correct) and \\\"quiet_unattainable\\\" (deliberately excluded and asserted terminal by the unit test). The codes minted by physical.blockers() for cpu_units/ram_mb/cargo_slots/gpu_slots/impacts, and by evaluate_request's non_quiet_blockers, are in files not supplied. If any of them is, say, \\\"resource_busy\\\" or \\\"cargo_slots_exhausted\\\" rather than \\\"observed_resource_busy\\\", then runtime.rs's `lock(store)?.attached_ticket(...)` turns a \\\"wait for a free slot\\\" answer into `StoreError::InvalidState(\\\"Invocation Ticket request did not grant release: ...\\\")` and the invocation fails immediately instead of waiting out its budget \\u2014 precisely the managed-Cargo contention path MR-3 exercises. Remedy: stop classifying on strings \\u2014 carry retryability in the type (`Outcome::Rejected { code, detail, retryable: bool }` or a shared `enum BlockerCode`) so the coordinator that mints the blocker declares its transience; failing that, add a test that enumerates every Blocker code constructible by physical.blockers()/evaluate_request and asserts its waiting_outcome classification.\", \"MEDIUM (correctness/liveness, code-confirmed in the supplied file) \\u2014 A probe can never be re-authorized on its own Grant after a never-released or stale ticket. Evidence: machine_ticket.rs validate_next(): `AllocationOwner::Probe { invocation_id, .. } => previous.is_none() && intent.role == InvocationRole::Probe && ...`. For Work owners the file explicitly supports retry-in-place \\u2014 `(InvocationRole::Primary, InvocationRole::Primary, false) => intent.role_index == 0` and `(Postcondition, Postcondition, false) => intent.role_index == last.role_index` \\u2014 but the Probe arm has no analogue, so once one intent is in grant.tickets, any successor intent is rejected with code \\\"conflict\\\". Failure trace: probe invocation gets a Ticket; the release misses the 250 ms window (see the freshness finding) or yields Disposition::NeverReleased; cleanup is recorded with user_code_released=false; a retry on the same probe Lease/Grant is structurally impossible, so a single transient delay consumes the probe's whole allocation. This is safe (nothing is released twice) but converts a transient fault into an allocation-level failure. Confirm the runner obtains a fresh probe Lease/Grant in this case \\u2014 the local attached_local_plans row is keyed by lease_id, so retry-in-place is not available there either. Remedy: allow `(Probe, Probe, released=false)` with `role_index == 0` under the same predecessor-cleanup rule used for Primary, or document and test that a never-released probe always re-leases.\", \"MEDIUM (safety, conditional on unsupplied migration guarantees) \\u2014 The \\\"no Ticket means no OS release\\\" gate keys on the existence of a table row rather than on installed pairing state. Evidence: invocation.rs consume() reads `SELECT connected FROM attached_local_mode WHERE singleton=1` with `.optional()?` and then `if connected.is_none() && ticket.is_none() { return Ok(()) }` \\u2014 i.e. a missing singleton row makes the ticketless native path legal. Everything else in this module treats pairing as installed state discovered elsewhere (request_attached_ticket calls check_authority_release() and re-runs initialize() because \\\"Pairing may have been explicitly installed after this Store opened\\\"; driver.rs calls installation::validate_store and installation::load). So a store that is paired on disk but whose attached_local_mode row is absent (partial migration, partial uninstall, restore from a pre-pairing snapshot) silently degrades to unauthorized starts rather than failing closed. Separately, consume() never re-checks ticket.configuration_sha256 against attached_local_mode.configuration_sha256; the only defense is the in-memory ReleaseBarrier's `state.configuration != ticket.configuration_sha256`, whose snapshot was read at challenge time and therefore cannot see a configuration change that lands between challenge and release. Remedy: derive the gate from installation::load(&self.paths.root) (or check_authority_release) rather than row presence, returning InvalidState when pairing is installed but the mode row is missing; and re-assert configuration_sha256 inside consume()'s existing `matches` query so the durable path does not depend solely on process memory.\", \"LOW-MEDIUM (durability of the waiting record, coupling hazard) \\u2014 The local waiting-outcome capture depends on the outbox being written in exactly two steps and on table creation order. Evidence: invocation.rs initialize() creates `attached_ticket_wait_outcome` only `AFTER UPDATE OF outcome_json ON attached_outbox`, and only when the `paired` probe (`SELECT EXISTS(... name='attached_outbox')`) succeeds at that moment. The included test proves the intended shape works (INSERT with NULL outcome, later UPDATE fires the trigger, subsequent `DELETE FROM attached_outbox` does not lose the record). But any accept() path that writes the outcome at INSERT time, or that replaces a row rather than updating it, produces no trigger firing and no attached_local_ticket_outcomes row; the retry loop in runtime.rs then never fires (retry_waiting_attached_ticket's join returns None) and the invocation silently degrades to the `until` deadline path, taking finding 2's orphan-ticket trace with it. SQLite does fire UPDATE triggers for `ON CONFLICT ... DO UPDATE`, so an upsert-style accept() is fine; a DELETE+INSERT or an insert-with-outcome is not. Remedy: either add the matching AFTER INSERT trigger with the same WHEN clause, or (preferable, since it removes the hidden coupling entirely) write the attached_local_ticket_outcomes row explicitly inside accept() in the same transaction, and assert in a test that a rejected reply always yields a local outcome row regardless of how the outbox row was materialized.\", \"LOW (lock discipline, contradicts the rule stated in the same file) \\u2014 driver.rs step() cancels barriers while holding the Store mutex. Evidence: `let mut store = lock(store)?;` shadows the parameter and the guard lives to the end of step(); after `tx.commit()?` the code calls `self.releases.accepted_rejection(&request, &reply.outcome)?`, which calls retire() -> barrier.cancel(). ReleaseState::disconnect()'s own doc says \\\"Never hold Store while canceling these barriers: release takes Store first, then its barrier, to order a concurrent cancellation commit.\\\" There is no deadlock (both paths acquire Store then barrier, and none of runtime.rs's release callbacks re-enter the barrier), but the driver will block on the barrier mutex for the full duration of a concurrent release \\u2014 which includes the durable commit and `child.release()` ptrace work \\u2014 while pinning the Store mutex that every runner thread needs. Given the 250 ms budget in finding 3, that self-inflicted stall is worth removing. Remedy: `drop(store);` immediately after tx.commit() and before accepted_rejection, matching the rule the file states.\", \"LOW (evidence hygiene) \\u2014 refresh_observation() persists a coordinator snapshot before deciding whether that coordinator's configuration is still the attached one. Evidence: driver.rs refresh_observation() calls `store.record_attached_machine_observation(&snapshot)?` and only afterwards runs `SELECT EXISTS(SELECT 1 FROM attached_local_mode WHERE connected=1 AND configuration_sha256!=?1)` to raise \\\"coordinator configuration changed; full inventory is required\\\". So evidence captured under an unrecognized configuration is already durable when the session is fenced, and may subsequently feed Store::attached_observation_ready()/evaluate_admission on reconnect. The check is also skipped entirely while connected=0, which is exactly the window after a reconnect. This matches the comment's intent (\\\"Diagnostic evidence can fence a stale session, never authorize a new configuration\\\") only if record_attached_machine_observation stamps the snapshot with its configuration_sha256 and readers filter on it \\u2014 not visible in the supplied files. Remedy: validate configuration_sha256 before recording, or store the hash alongside the observation and have admission reject observations whose configuration does not match the current attachment.\", \"LOW (resource leak with a user-visible cliff) \\u2014 Barrier registry entries are retired only on a durably accepted rejection or on a successful cleanup, so a cleanup failure leaks them until the next reconnect. Evidence: runtime.rs's cleanup closure calls `live.linux_releases.retire(job.invocation_id)?` only AFTER `live.linux.cleanup(...)?` and `record_attached_cleanup(...)?` both succeed \\u2014 either `?` skips retire; ReleaseState::challenge enforces `if barriers.len() >= 1024 && !barriers.contains_key(&intent.invocation_id) { return Err(\\\"release registry capacity reached\\\") }`. Accumulated leaks therefore do not fail the leaking invocations, they fail unrelated NEW invocations with a confusing capacity error until a reconnect's disconnect() clears the map. Remedy: retire the barrier from a guard/Drop (or an unconditional tail block) so it is released regardless of cleanup outcome, since retiring the in-memory barrier is never itself cleanup proof.\", \"LOW (retry precision) \\u2014 retry_waiting_attached_ticket replays a stored intent against a refreshed grant without re-deriving the fields that depend on that grant. Evidence: invocation.rs retry_waiting_attached_ticket re-reads the grant (`SELECT grant_json FROM attached_grants WHERE allocation_key=?1 AND seal_json IS NULL`, requiring GrantState::Armed) and uses the CURRENT `grant.offer_nonce`, but enqueues `intent: serde_json::from_str(&intent)?` verbatim \\u2014 release_sequence and previous_cleanup were computed in request_attached_ticket against the grant as it stood then. If grant.tickets advanced in between, machine_ticket.rs validate_next rejects with \\\"cleanup_incomplete\\\" (terminal per waiting_outcome), so the invocation fails hard instead of re-deriving a valid intent. This is fail-safe, not unsafe, and may be unreachable if one allocation can only ever have one live invocation at a time \\u2014 worth stating that invariant explicitly rather than relying on it implicitly. Remedy: recompute release_sequence/previous_cleanup from the freshly read grant on retry (reusing the request_attached_ticket logic), or assert `grant.tickets.last()` is unchanged and fail with a distinguishable, retryable error if it is not.\"], \"verdict\": \"findings\"}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089f1-8d86-7f53-b20c-03f5501a3e0e",
+      "lease_id": "01a089f1-8d71-7001-8a1d-3b8f610447dc",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a089f1-8d71-7001-8a1d-3b8f610447dc"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-8d6c-7032-aea1-9f5e273f25b2",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089f1-8d70-7673-a2e0-f28e84bc3769"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608"
+}

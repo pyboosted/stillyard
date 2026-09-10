@@ -1,0 +1,11 @@
+[
+  "C:\\Development\\stillyard-mr3-cgroup-20260910e\\scripts\\install-windows-daemon.py",
+  "--candidate",
+  "C:\\Development\\stillyard-mr3-cgroup-20260910e\\target\\scheduled\\release\\stillyard.exe",
+  "--candidate-sha256",
+  "60b595c07732199f891f8fe76f1f684e4c13c5e599bff7fff06be3bb0aa246f4",
+  "--build-job-id",
+  "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08886-5162-7303-a177-2e3cbcf02f7d",
+  "--evidence-directory",
+  "C:\\Development\\stillyard-mr3-install-evidence-20260910e"
+]

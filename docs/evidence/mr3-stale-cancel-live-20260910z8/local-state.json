@@ -1,0 +1,151 @@
+{
+  "leases": [
+    {
+      "id": "01a08aba-f87e-7a52-952f-9365fb533a99",
+      "attempt_id": "01a08aba-f87e-7a52-952f-933bb2182c9d",
+      "invocation_id": null,
+      "state": "granted",
+      "claims_json": "{\"cpu_units\":0,\"ram_mb\":0,\"cargo_slots\":0,\"gpu_slots\":0,\"custom\":{\"claude2_slots\":1},\"shared_fences\":[],\"exclusive_fences\":[],\"impacts\":[]}"
+    },
+    {
+      "id": "01a08abb-0a1e-7a83-b7c5-c5347eb0dea8",
+      "attempt_id": "01a08abb-0a1d-7802-9867-53e746ef956c",
+      "invocation_id": null,
+      "state": "granted",
+      "claims_json": "{\"cpu_units\":0,\"ram_mb\":0,\"cargo_slots\":1,\"gpu_slots\":0,\"custom\":{},\"shared_fences\":[],\"exclusive_fences\":[],\"impacts\":[\"cpu_heavy\"]}"
+    }
+  ],
+  "plans": [
+    {
+      "slot": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-933bb2182c9d:primary:0:",
+      "lease_id": "01a08aba-f87e-7a52-952f-9365fb533a99",
+      "job_id": "01a08aba-f876-7b20-ae01-572fb95e7f95",
+      "attempt_id": "01a08aba-f87e-7a52-952f-933bb2182c9d",
+      "invocation_id": "01a08aba-f87e-7a52-952f-9342c1376ca0",
+      "containment_id": "01a08aba-f87e-7a52-952f-935676bb9182",
+      "allocation_key": "{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08aba-f87e-7a52-952f-9365fb533a99\"}",
+      "candidate_json": "{\"key\":{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08aba-f87e-7a52-952f-9365fb533a99\"},\"owner\":{\"kind\":\"work\",\"job_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f876-7b20-ae01-572fb95e7f95\",\"attempt_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-933bb2182c9d\"},\"revision\":1,\"priority\":0,\"claims\":{\"scalars\":{\"cargo_slots\":0,\"claude2_slots\":1,\"cpu_units\":0,\"gpu_slots\":0,\"ram_mb\":0},\"shared_fences\":[],\"exclusive_fences\":[],\"impacts\":[]},\"configuration_sha256\":\"7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978\",\"observed\":null,\"quiet\":null}",
+      "claims_json": "{\"cpu_units\":0,\"ram_mb\":0,\"cargo_slots\":0,\"gpu_slots\":0,\"custom\":{\"claude2_slots\":1},\"shared_fences\":[],\"exclusive_fences\":[],\"impacts\":[]}",
+      "armed": 1,
+      "committed": 1,
+      "release_pending": 1,
+      "released": 0
+    },
+    {
+      "slot": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1d-7802-9867-53e746ef956c:primary:0:",
+      "lease_id": "01a08abb-0a1e-7a83-b7c5-c5347eb0dea8",
+      "job_id": "01a08abb-0a17-73f2-9fbb-b4b8aa1d7cc7",
+      "attempt_id": "01a08abb-0a1d-7802-9867-53e746ef956c",
+      "invocation_id": "01a08abb-0a1e-7a83-b7c5-c518364a4a23",
+      "containment_id": "01a08abb-0a1e-7a83-b7c5-c52ac57115a0",
+      "allocation_key": "{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08abb-0a1e-7a83-b7c5-c5347eb0dea8\"}",
+      "candidate_json": "{\"key\":{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08abb-0a1e-7a83-b7c5-c5347eb0dea8\"},\"owner\":{\"kind\":\"work\",\"job_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a17-73f2-9fbb-b4b8aa1d7cc7\",\"attempt_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1d-7802-9867-53e746ef956c\"},\"revision\":1,\"priority\":0,\"claims\":{\"scalars\":{\"cargo_slots\":1,\"cpu_units\":0,\"gpu_slots\":0,\"ram_mb\":0},\"shared_fences\":[],\"exclusive_fences\":[],\"impacts\":[\"cpu_heavy\"]},\"configuration_sha256\":\"7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978\",\"observed\":null,\"quiet\":null}",
+      "claims_json": "{\"cpu_units\":0,\"ram_mb\":0,\"cargo_slots\":1,\"gpu_slots\":0,\"custom\":{},\"shared_fences\":[],\"exclusive_fences\":[],\"impacts\":[\"cpu_heavy\"]}",
+      "armed": 1,
+      "committed": 1,
+      "release_pending": 1,
+      "released": 0
+    },
+    {
+      "slot": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f64d-7430-8c42-c541d4c9106b:primary:0:",
+      "lease_id": "01a08abb-b078-78b3-81ee-1d9aec8818b5",
+      "job_id": "01a08aba-f63a-7153-af16-9b448b4ef08e",
+      "attempt_id": "01a08aba-f64d-7430-8c42-c541d4c9106b",
+      "invocation_id": "01a08abb-b078-78b3-81ee-1d7d3c601c37",
+      "containment_id": "01a08abb-b078-78b3-81ee-1d82b7f967ad",
+      "allocation_key": "{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08abb-b078-78b3-81ee-1d9aec8818b5\"}",
+      "candidate_json": "{\"key\":{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08abb-b078-78b3-81ee-1d9aec8818b5\"},\"owner\":{\"kind\":\"work\",\"job_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f63a-7153-af16-9b448b4ef08e\",\"attempt_id\":\"01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f64d-7430-8c42-c541d4c9106b\"},\"revision\":1,\"priority\":0,\"claims\":{\"scalars\":{\"cargo_slots\":0,\"cpu_units\":0,\"gpu_slots\":0,\"ram_mb\":0},\"shared_fences\":[],\"exclusive_fences\":[],\"impacts\":[\"measurement\"]},\"configuration_sha256\":\"7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978\",\"observed\":null,\"quiet\":{\"stable_seconds\":3,\"max_sample_age_seconds\":2,\"wait_budget_seconds\":240,\"detectors\":[{\"kind\":\"cpu_utilization\",\"max_percent\":40}]}}",
+      "claims_json": "{\"cpu_units\":0,\"ram_mb\":0,\"cargo_slots\":0,\"gpu_slots\":0,\"custom\":{},\"shared_fences\":[],\"exclusive_fences\":[],\"impacts\":[\"measurement\"]}",
+      "armed": 0,
+      "committed": 0,
+      "release_pending": 0,
+      "released": 0
+    }
+  ],
+  "outbox": [
+    {
+      "sequence": 44814,
+      "operation_id": "01a08ac6-83f3-73f3-a42b-ed0b3afd26c3",
+      "payload_sha256": "9feb6fd9c5dcc63aa8ca586bf3dab9521fe55809d5630134c09943fd5e78b4f6",
+      "command_json": "{\"operation\":\"cancel_candidate\",\"key\":{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08abb-b078-78b3-81ee-1d9aec8818b5\"},\"revision\":1}",
+      "outcome_json": null
+    },
+    {
+      "sequence": 44813,
+      "operation_id": "01a08ac6-83d5-7cc1-be18-138d5dfd6fc7",
+      "payload_sha256": "9feb6fd9c5dcc63aa8ca586bf3dab9521fe55809d5630134c09943fd5e78b4f6",
+      "command_json": "{\"operation\":\"cancel_candidate\",\"key\":{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08abb-b078-78b3-81ee-1d9aec8818b5\"},\"revision\":1}",
+      "outcome_json": "{\"result\":\"rejected\",\"code\":\"stale\",\"detail\":\"withdrawal needs a newer candidate revision\"}"
+    },
+    {
+      "sequence": 44812,
+      "operation_id": "01a08ac6-83c0-7213-91c0-aa246db36e47",
+      "payload_sha256": "9feb6fd9c5dcc63aa8ca586bf3dab9521fe55809d5630134c09943fd5e78b4f6",
+      "command_json": "{\"operation\":\"cancel_candidate\",\"key\":{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08abb-b078-78b3-81ee-1d9aec8818b5\"},\"revision\":1}",
+      "outcome_json": "{\"result\":\"rejected\",\"code\":\"stale\",\"detail\":\"withdrawal needs a newer candidate revision\"}"
+    },
+    {
+      "sequence": 44811,
+      "operation_id": "01a08ac6-83aa-72e1-bcb2-8252a0da36b6",
+      "payload_sha256": "9feb6fd9c5dcc63aa8ca586bf3dab9521fe55809d5630134c09943fd5e78b4f6",
+      "command_json": "{\"operation\":\"cancel_candidate\",\"key\":{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08abb-b078-78b3-81ee-1d9aec8818b5\"},\"revision\":1}",
+      "outcome_json": "{\"result\":\"rejected\",\"code\":\"stale\",\"detail\":\"withdrawal needs a newer candidate revision\"}"
+    },
+    {
+      "sequence": 44810,
+      "operation_id": "01a08ac6-8392-7a61-9f47-27fc5d97781c",
+      "payload_sha256": "9feb6fd9c5dcc63aa8ca586bf3dab9521fe55809d5630134c09943fd5e78b4f6",
+      "command_json": "{\"operation\":\"cancel_candidate\",\"key\":{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08abb-b078-78b3-81ee-1d9aec8818b5\"},\"revision\":1}",
+      "outcome_json": "{\"result\":\"rejected\",\"code\":\"stale\",\"detail\":\"withdrawal needs a newer candidate revision\"}"
+    },
+    {
+      "sequence": 44809,
+      "operation_id": "01a08ac6-837b-7190-b23e-194b39b11fda",
+      "payload_sha256": "9feb6fd9c5dcc63aa8ca586bf3dab9521fe55809d5630134c09943fd5e78b4f6",
+      "command_json": "{\"operation\":\"cancel_candidate\",\"key\":{\"machine_id\":\"01a08727-697d-7002-b4e5-c9ac495818f3\",\"authority_epoch\":\"01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04\",\"domain_id\":\"4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3\",\"manager_store_uuid\":\"01a089b1-9a6a-7711-a600-39e2b74e495d\",\"lease_id\":\"01a08abb-b078-78b3-81ee-1d9aec8818b5\"},\"revision\":1}",
+      "outcome_json": "{\"result\":\"rejected\",\"code\":\"stale\",\"detail\":\"withdrawal needs a newer candidate revision\"}"
+    }
+  ],
+  "cleanup": [
+    {
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ab3-9e72-7431-8c87-e6e2ededf692",
+      "boundary_sha256": "7d6529f839c22a4e02853b6eb1cf44a5370b16ddbff23c82cdcaf595d1a0d003",
+      "proof_sha256": "7de181e8ba0afb2aacfa6ee056fa5576fcdf8a70eb568b2ae6c4e5b79fed7c02"
+    },
+    {
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f70d-7371-8316-d7bb7be4d938",
+      "boundary_sha256": "14c025562bca11824b79388de18937dbf609cedd9af3fee60b643ced07b5dfb6",
+      "proof_sha256": "c6ed4df449a19da71585f965e14046424a1abac47a211a74e726e467792bb915"
+    },
+    {
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f615-73f2-a852-1213b3d895b0",
+      "boundary_sha256": "510bef35328c75d0040a1086e233edf34a6dfebaa3701298b748e9c4697e72f1",
+      "proof_sha256": "eb1421de344b4e2a315596b2d31cc408580e163b6f6efd83b7d1dbcee2e1074f"
+    },
+    {
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-b184-7093-93e8-f4744a69b276",
+      "boundary_sha256": "867ec28fd3e89395f8cc7d90c8faa97fa0dca1c73fdf363724a695a1dc9ddae1",
+      "proof_sha256": "d1e85e2450adf2138e224ea65769b1f884c4b2df609c5383f8afdcadb261c68c"
+    },
+    {
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f5fc-7e03-8e1d-4c2597cc6139",
+      "boundary_sha256": "711de5843118769f816e834a091ce62c568f889f41fb8c14c70cdecf844b971c",
+      "proof_sha256": "c666496495c30e03962113d719d765f30ac74e1d8e5a2b9798fdec300a57852e"
+    },
+    {
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1e-7a83-b7c5-c518364a4a23",
+      "boundary_sha256": "76f0cf0774be19aec3116262e4cd4943a827c8d9e8865bc4be8f58125a9e2f01",
+      "proof_sha256": "7a4b864418668868809fa31e506d961830a5c82e1969f5b2e29a894712de3f5e"
+    },
+    {
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-9342c1376ca0",
+      "boundary_sha256": "e0902448b3e5dd716aff0c9b3fe160ba8b309d75705216a4bc7bb770112b9e37",
+      "proof_sha256": "07d7f16c6210eb7a2ec56afc5d4e172df08fbb22f4148029144e1b8637099b89"
+    },
+    {
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abe-c251-7cf2-b907-2fc75a0c88f9",
+      "boundary_sha256": "021ac6b0897808df09ef48415f94f81e75353d6ce2c55f5da4341fe1ac714d61",
+      "proof_sha256": "f923f55541ebcf732cf8c5bd00d905b6cd5d9219321f4f256bed9a8fde04b7f8"
+    }
+  ]
+}

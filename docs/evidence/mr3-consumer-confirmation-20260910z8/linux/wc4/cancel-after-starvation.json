@@ -1,0 +1,154 @@
+[
+  {
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f63a-7153-af16-9b448b4ef08e",
+    "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f636-7d40-94bc-3d26de5382a3",
+    "batch_id": null,
+    "batch_member": null,
+    "state": "final",
+    "outcome": "canceled",
+    "reason_code": null,
+    "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f64d-7430-8c42-c541d4c9106b",
+    "invocation_id": null,
+    "containment_id": null,
+    "root_exit_code": null,
+    "cancel_requested": true,
+    "accepted_unix_millis": 1789033903674,
+    "priority": 0,
+    "effective_priority": null,
+    "queue_rank": null,
+    "reservation": null,
+    "conditions": [],
+    "started_unix_millis": null,
+    "finished_unix_millis": 1789034739758,
+    "spec": {
+      "spec_version": 4,
+      "priority": 0,
+      "executable": "/usr/bin/python3",
+      "args": [
+        "/home/pythonic/Development/stillyard-consumers-20260910z8/wc4/consumer.py",
+        "measure",
+        "--repository-root",
+        "/home/pythonic/Development/stillyard-mr3-live-controls-20260910z8",
+        "--source-manifest",
+        "/home/pythonic/Development/stillyard-consumers-20260910z8/wc4/source.json",
+        "--output",
+        "/home/pythonic/Development/stillyard-consumers-20260910z8/wc4/measurement.json"
+      ],
+      "working_directory": "/home/pythonic/Development/stillyard-consumers-20260910z8/wc4",
+      "stdin": {
+        "kind": "eof"
+      },
+      "environment": {
+        "set": {},
+        "unset": []
+      },
+      "resources": {
+        "cpu_units": null,
+        "ram_mb": null,
+        "cargo_slots": null,
+        "gpu_slots": null,
+        "custom": {},
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "measurement"
+        ]
+      },
+      "observed": null,
+      "conditions": [],
+      "retry": {
+        "max_attempts": 1,
+        "backoff_seconds": 0,
+        "retryable": []
+      },
+      "postconditions": [],
+      "labels": [
+        {
+          "key": "project",
+          "value": "stillyard"
+        },
+        {
+          "key": "acceptance",
+          "value": "W-C4"
+        },
+        {
+          "key": "round",
+          "value": "z8-confirmation"
+        }
+      ],
+      "expected_duration_seconds": null,
+      "timeout_seconds": 180,
+      "quiet": {
+        "stable_seconds": 3,
+        "max_sample_age_seconds": 2,
+        "wait_budget_seconds": 240,
+        "detectors": [
+          {
+            "kind": "cpu_utilization",
+            "max_percent": 40
+          }
+        ]
+      },
+      "artifacts": [],
+      "child_submission_policy": null
+    },
+    "parent": null,
+    "managed_policy_admission": null,
+    "blockers": [],
+    "attempts": [
+      {
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f64d-7430-8c42-c541d4c9106b",
+        "attempt_index": 1,
+        "verdict": "canceled",
+        "reason_code": null,
+        "created_unix_millis": 1789033903693,
+        "started_unix_millis": null,
+        "deadline_unix_millis": null,
+        "finished_unix_millis": 1789034739758,
+        "primary_result": null,
+        "admission": {
+          "state": "reserved",
+          "evaluated_unix_millis": 1789034046211,
+          "observation_generation": "01a08aba-f1f2-7b11-80a3-62ee69c258e4",
+          "blockers": [],
+          "operands": [],
+          "detectors": [
+            {
+              "detector": "quiet.cpu_utilization",
+              "observed": 23,
+              "threshold": 40,
+              "satisfied": true,
+              "detail": null
+            }
+          ],
+          "gpu_provenance": null,
+          "final_sample": false,
+          "deferral_count": 0
+        },
+        "invocations": []
+      }
+    ],
+    "allocations": [],
+    "gpu_provenance": null,
+    "admission": {
+      "state": "reserved",
+      "evaluated_unix_millis": 1789034046211,
+      "observation_generation": "01a08aba-f1f2-7b11-80a3-62ee69c258e4",
+      "blockers": [],
+      "operands": [],
+      "detectors": [
+        {
+          "detector": "quiet.cpu_utilization",
+          "observed": 23,
+          "threshold": 40,
+          "satisfied": true,
+          "detail": null
+        }
+      ],
+      "gpu_provenance": null,
+      "final_sample": false,
+      "deferral_count": 0
+    },
+    "daemon_generation": "01a08ab5-ad34-7873-80b6-30c34391ab7e"
+  }
+]

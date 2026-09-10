@@ -1,0 +1,4104 @@
+Independent read-only focused correctness/locking review. A real W-C3 agent had a child accepted, waiting on actual native Windows cargo, then child succeeded exactly once. Parent first CLI wait returned unknown/70 12ms before child final; second exact-key call recovered the same child; acceptance correctly failed. Found Linux membership race: Registry.cleanup holds journal lock, removes cgroup via real Journal.cleanup, then publishes Entry::Sealed under active lock. Registry.contains previously held only active lock and could read removed cgroup. New deterministic protected-kernel regression pauses actual cleanup after durable seal before Entry publication, invokes membership from another thread, then resumes; old contains control W Job 01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b0d-62db-7ff1-8116-0a0f62ebeb1d compiled and failed exactly: membership observed removed boundary before sealed publication: Ok(Err(Os {code:2,kind:NotFound})). Outer cgroup sealed empty, no resource loss. Fix contains locks journal then active, same order as cleanup/register/reconcile. When stale Store candidate outlives clear(), ONLY exact retained journal seal returns Some(false); absent/unsealed still None. Default Registry without installed journal preserves None. Test checkpoint cfg(test) only, calls resume even when old behavior found. Assess deadlock, auth safety, retained-seal false negatives, missing material regression. Full source below incl callers; no broad redesign, no claims about overall MR3 acceptance. Also inspect small new-incarnation negative assertion (native fixture excerpt), but primary lens is membership fix. No tools or edits. Return JSON verdict/summary/findings.
+
+FILE src/runner/linux/registry.rs
+//! Live peer membership and recovery share the same pinned executor history.
+use super::cgroup::Boundary;
+use super::journal::Journal;
+use crate::{InvocationId, ReconciliationResult};
+use std::collections::HashMap;
+use std::io;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Instant;
+
+#[derive(Clone, Default)]
+pub(crate) struct Registry {
+    signer: Arc<OnceLock<crate::identity::attestation::Signer>>,
+    journal: Arc<Mutex<Option<Journal>>>,
+    active: Arc<Mutex<HashMap<InvocationId, Entry>>>,
+}
+
+#[cfg(test)]
+thread_local! {
+    static AFTER_CLEANUP_SEAL: std::cell::RefCell<Option<Box<dyn FnOnce()>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+enum Entry {
+    Live(Arc<Boundary>),
+    Sealed,
+    Uninspectable,
+}
+fn poisoned() -> io::Error {
+    io::Error::other("Linux containment registry mutex poisoned")
+}
+
+impl Registry {
+    pub(crate) fn durable_seals(&self) -> io::Result<Vec<(InvocationId, String, String)>> {
+        self.with_journal(|journal| {
+            journal
+                .records()?
+                .values()
+                .filter_map(|record| record.seal.as_ref())
+                .map(|seal| {
+                    Ok((
+                        seal.invocation,
+                        seal.boundary_sha256.clone(),
+                        seal.sha256()?,
+                    ))
+                })
+                .collect()
+        })
+    }
+    pub(crate) fn persist_cleanup(
+        &self,
+        store: &mut crate::store::Store,
+        invocation: InvocationId,
+    ) -> crate::store::StoreResult<()> {
+        let (boundary, proof) = self.with_journal(|journal| {
+            let seal = journal
+                .records()?
+                .get(&invocation)
+                .and_then(|record| record.seal.as_ref())
+                .ok_or_else(|| {
+                    io::Error::other("reconciled Invocation has no durable executor seal")
+                })?;
+            Ok((seal.boundary_sha256.clone(), seal.sha256()?))
+        })?;
+        store.record_attached_cleanup(invocation, &boundary, &proof, None)
+    }
+    pub(super) fn install(
+        &self,
+        journal: Journal,
+        signer: crate::identity::attestation::Signer,
+    ) -> io::Result<()> {
+        let mut current = self.journal.lock().map_err(|_| poisoned())?;
+        if current.is_some() {
+            return Err(io::Error::other(
+                "Linux executor history is already installed",
+            ));
+        }
+        let mut entries = self.active.lock().map_err(|_| poisoned())?;
+        for (id, record) in journal.records()? {
+            entries.insert(
+                *id,
+                if record.seal.is_some() {
+                    Entry::Sealed
+                } else {
+                    record
+                        .boundary
+                        .as_ref()
+                        .and_then(|identity| Boundary::reopen(identity).ok())
+                        .map_or(Entry::Uninspectable, |boundary| {
+                            Entry::Live(Arc::new(boundary))
+                        })
+                },
+            );
+        }
+        self.signer
+            .set(signer)
+            .map_err(|_| io::Error::other("Linux daemon signer is already installed"))?;
+        *current = Some(journal);
+        Ok(())
+    }
+
+    pub(crate) fn server_context(
+        &self,
+        parent: crate::ManagedParent,
+    ) -> io::Result<crate::identity::attestation::ManagedServer> {
+        self.signer
+            .get()
+            .ok_or_else(|| io::Error::other("Linux daemon signer is unavailable"))?
+            .context(parent)
+    }
+    pub(crate) fn sign_response(
+        &self,
+        parent: crate::ManagedParent,
+        nonce: [u8; 32],
+        request_sha256: String,
+        response: crate::protocol::Response,
+    ) -> io::Result<crate::identity::attestation::Proof> {
+        self.signer
+            .get()
+            .ok_or_else(|| io::Error::other("Linux daemon signer is unavailable"))?
+            .sign(parent, nonce, request_sha256, response)
+    }
+
+    pub(super) fn with_journal<T>(
+        &self,
+        action: impl FnOnce(&mut Journal) -> io::Result<T>,
+    ) -> io::Result<T> {
+        let mut guard = self.journal.lock().map_err(|_| poisoned())?;
+        action(
+            guard
+                .as_mut()
+                .ok_or_else(|| io::Error::other("Linux executor history is unavailable"))?,
+        )
+    }
+
+    pub(super) fn register(&self, id: InvocationId, boundary: Arc<Boundary>) -> io::Result<()> {
+        self.with_journal(|journal| {
+            let records = journal.records()?;
+            let record = records
+                .get(&id)
+                .ok_or_else(|| io::Error::other("uncommitted containment registration"))?;
+            if record.seal.is_some() || record.boundary.as_ref() != Some(&boundary.identity) {
+                return Err(io::Error::other(
+                    "containment registration disagrees with history",
+                ));
+            }
+            let mut active = self.active.lock().map_err(|_| poisoned())?;
+            if active.contains_key(&id) {
+                return Err(io::Error::other("duplicate Linux containment registration"));
+            }
+            active.insert(id, Entry::Live(boundary));
+            Ok(())
+        })
+    }
+
+    pub(crate) fn contains(
+        &self,
+        id: InvocationId,
+        process_handle: usize,
+    ) -> io::Result<Option<bool>> {
+        // Cleanup removes the kernel boundary before publishing its sealed entry.
+        // Serialize membership with that transition; an unrelated child finishing
+        // must not make an authenticated parent's next RPC temporarily unverifiable.
+        let journal = self.journal.lock().map_err(|_| poisoned())?;
+        let active = self.active.lock().map_err(|_| poisoned())?;
+        match active.get(&id) {
+            Some(Entry::Live(boundary)) => boundary.contains_process(process_handle).map(Some),
+            Some(Entry::Sealed) => Ok(Some(false)),
+            Some(Entry::Uninspectable) => Ok(None),
+            None => {
+                // A caller may hold a Store candidate snapshot from before clear().
+                // Only the retained exact Invocation seal proves negative membership.
+                let sealed = match journal.as_ref() {
+                    Some(journal) => journal
+                        .records()?
+                        .get(&id)
+                        .is_some_and(|record| record.seal.is_some()),
+                    None => false,
+                };
+                Ok(sealed.then_some(false))
+            }
+        }
+    }
+    pub(crate) fn inspect(&self, id: InvocationId) -> io::Result<Option<ReconciliationResult>> {
+        // Empty-but-unsealed never releases a Lease. Keep the membership handle
+        // and negative tombstone until the durable Store transition completes.
+        let active = self.active.lock().map_err(|_| poisoned())?;
+        Ok(match active.get(&id) {
+            Some(Entry::Sealed) => Some(ReconciliationResult::ProvenEmpty),
+            Some(Entry::Live(boundary)) => Some(match boundary.populated() {
+                Ok(true) => ReconciliationResult::BoundaryNotEmpty,
+                _ => ReconciliationResult::BoundaryUninspectable,
+            }),
+            Some(Entry::Uninspectable) => Some(ReconciliationResult::BoundaryUninspectable),
+            None => None,
+        })
+    }
+    pub(crate) fn clear(&self, id: InvocationId) {
+        if let Ok(mut entries) = self.active.lock() {
+            entries.remove(&id);
+        }
+    }
+    pub(super) fn cleanup(
+        &self,
+        id: InvocationId,
+        deadline: Instant,
+    ) -> io::Result<super::journal::Seal> {
+        self.with_journal(|journal| {
+            let seal = journal.cleanup(id, deadline)?;
+            #[cfg(test)]
+            AFTER_CLEANUP_SEAL.with(|hook| {
+                if let Some(hook) = hook.borrow_mut().take() {
+                    hook();
+                }
+            });
+            self.active
+                .lock()
+                .map_err(|_| poisoned())?
+                .insert(id, Entry::Sealed);
+            Ok(seal)
+        })
+    }
+    pub(crate) fn reconcile(
+        &self,
+        candidate: &crate::store::ReconciliationCandidate,
+        deadline: Instant,
+    ) -> io::Result<ReconciliationResult> {
+        self.with_journal(|journal| {
+            let record = journal
+                .records()?
+                .get(&candidate.invocation_id)
+                .ok_or_else(|| io::Error::other("unknown Linux reconciliation obligation"))?;
+            if record.containment != candidate.containment_id
+                || Some(record.daemon_generation) != candidate.daemon_generation
+                || candidate
+                    .root_identity
+                    .as_ref()
+                    .is_some_and(|root| record.root.as_ref() != Some(root))
+            {
+                return Err(io::Error::other(
+                    "Linux reconciliation identity disagrees with executor history",
+                ));
+            }
+            journal.cleanup(candidate.invocation_id, deadline)?;
+            self.active
+                .lock()
+                .map_err(|_| poisoned())?
+                .insert(candidate.invocation_id, Entry::Sealed);
+            Ok(ReconciliationResult::ProvenEmpty)
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    use uuid::Uuid;
+
+    #[test]
+    #[ignore = "requires delegated cgroup under a protected system bootstrap Job"]
+    fn linux_registry_requires_durable_seal_and_matches_reconciliation_identity() {
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let anchor = super::super::journal::Anchor {
+            journal: Uuid::now_v7(),
+            store: Uuid::now_v7(),
+            domain: crate::ExecutionDomainId(Uuid::now_v7()),
+        };
+        let journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        let generation = Uuid::now_v7();
+        let registry = Registry::default();
+        registry
+            .install(
+                journal,
+                crate::identity::attestation::Signer::new(
+                    anchor.store,
+                    generation,
+                    "/tmp/registry-fixture".into(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+        let containment = crate::ContainmentId::from_parts(anchor.store, Uuid::now_v7());
+        // SAFETY: geteuid has no preconditions.
+        let process =
+            crate::identity::linux::Process::open(std::process::id(), unsafe { libc::geteuid() })
+                .unwrap();
+        let parent = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap();
+        let boundary = registry
+            .with_journal(|j| {
+                j.create(
+                    std::path::Path::new(&parent),
+                    invocation,
+                    containment,
+                    Uuid::now_v7(),
+                    generation,
+                    process.identity.clone(),
+                )
+            })
+            .unwrap();
+        registry.register(invocation, Arc::new(boundary)).unwrap();
+        assert_eq!(
+            registry
+                .contains(invocation, process.proc_handle())
+                .unwrap(),
+            Some(false)
+        );
+        assert_eq!(
+            registry.inspect(invocation).unwrap(),
+            Some(ReconciliationResult::BoundaryUninspectable),
+            "empty live cgroup bypassed durable sealing"
+        );
+        let mut candidate = crate::store::ReconciliationCandidate {
+            containment_id: crate::ContainmentId::from_parts(anchor.store, Uuid::now_v7()),
+            invocation_id: invocation,
+            attempt_id: crate::AttemptId::from_parts(anchor.store, Uuid::now_v7()),
+            version: 1,
+            host_id: None,
+            boot_id: None,
+            daemon_generation: Some(generation),
+            root_pid_recorded: false,
+            root_identity: None,
+            prior_daemon_identity: None,
+            incident_sequence: 1,
+        };
+        assert!(
+            registry
+                .reconcile(
+                    &candidate,
+                    Instant::now() + std::time::Duration::from_secs(5)
+                )
+                .is_err()
+        );
+        candidate.containment_id = containment;
+        assert_eq!(
+            registry
+                .reconcile(
+                    &candidate,
+                    Instant::now() + std::time::Duration::from_secs(5)
+                )
+                .unwrap(),
+            ReconciliationResult::ProvenEmpty
+        );
+        assert_eq!(
+            registry.inspect(invocation).unwrap(),
+            Some(ReconciliationResult::ProvenEmpty)
+        );
+        assert_eq!(
+            registry
+                .contains(invocation, process.proc_handle())
+                .unwrap(),
+            Some(false)
+        );
+        registry.clear(invocation);
+        assert_eq!(
+            registry
+                .contains(invocation, process.proc_handle())
+                .unwrap(),
+            Some(false),
+            "a stale candidate snapshot still has durable negative membership"
+        );
+        drop(registry);
+        let registry = Registry::default();
+        registry
+            .install(
+                Journal::open(&path, &anchor).unwrap(),
+                crate::identity::attestation::Signer::new(
+                    anchor.store,
+                    Uuid::now_v7(),
+                    "/tmp/registry-fixture".into(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(
+            registry.inspect(invocation).unwrap(),
+            Some(ReconciliationResult::ProvenEmpty)
+        );
+    }
+    #[test]
+    #[ignore = "requires delegated cgroup under a protected system bootstrap Job"]
+    fn linux_registry_membership_waits_for_cleanup_and_retains_negative_proof() {
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let anchor = super::super::journal::Anchor {
+            journal: Uuid::now_v7(),
+            store: Uuid::now_v7(),
+            domain: crate::ExecutionDomainId(Uuid::now_v7()),
+        };
+        let journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        let generation = Uuid::now_v7();
+        let registry = Registry::default();
+        registry
+            .install(
+                journal,
+                crate::identity::attestation::Signer::new(
+                    anchor.store,
+                    generation,
+                    "/tmp/registry-fixture".into(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+        let containment = crate::ContainmentId::from_parts(anchor.store, Uuid::now_v7());
+        // SAFETY: geteuid has no preconditions.
+        let process =
+            crate::identity::linux::Process::open(std::process::id(), unsafe { libc::geteuid() })
+                .unwrap();
+        let parent = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap();
+        let boundary = registry
+            .with_journal(|j| {
+                j.create(
+                    std::path::Path::new(&parent),
+                    invocation,
+                    containment,
+                    Uuid::now_v7(),
+                    generation,
+                    process.identity.clone(),
+                )
+            })
+            .unwrap();
+        registry.register(invocation, Arc::new(boundary)).unwrap();
+
+        let (removed_tx, removed_rx) = std::sync::mpsc::channel();
+        let (resume_tx, resume_rx) = std::sync::mpsc::channel();
+        let cleanup_registry = registry.clone();
+        let cleaner = std::thread::spawn(move || {
+            AFTER_CLEANUP_SEAL.with(|hook| {
+                *hook.borrow_mut() = Some(Box::new(move || {
+                    removed_tx.send(()).unwrap();
+                    resume_rx
+                        .recv_timeout(std::time::Duration::from_secs(5))
+                        .unwrap();
+                }));
+            });
+            cleanup_registry.cleanup(
+                invocation,
+                Instant::now() + std::time::Duration::from_secs(5),
+            )
+        });
+        removed_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        let membership_registry = registry.clone();
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+        let (result_tx, result_rx) = std::sync::mpsc::channel();
+        let member = std::thread::spawn(move || {
+            entered_tx.send(()).unwrap();
+            result_tx
+                .send(membership_registry.contains(invocation, process.proc_handle()))
+                .unwrap();
+        });
+        entered_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        let premature = result_rx.recv_timeout(std::time::Duration::from_millis(100));
+        // Always release the cleaner, including on the old implementation's failure.
+        resume_tx.send(()).unwrap();
+        cleaner.join().unwrap().unwrap();
+        member.join().unwrap();
+        assert!(
+            matches!(premature, Err(std::sync::mpsc::RecvTimeoutError::Timeout)),
+            "membership observed the removed boundary before sealed publication: {premature:?}"
+        );
+        assert_eq!(result_rx.recv().unwrap().unwrap(), Some(false));
+        registry.clear(invocation);
+        assert_eq!(registry.contains(invocation, 0).unwrap(), Some(false));
+        let unknown = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+        assert_eq!(
+            registry.contains(unknown, 0).unwrap(),
+            None,
+            "an absent registry entry alone must never prove nonmembership"
+        );
+    }
+}
+
+FILE src/runner/linux/journal.rs
+//! Reset-independent executor obligations. A missing cgroup is never a seal.
+use super::cgroup::{Boundary, Identity};
+use crate::{ContainmentId, InvocationId, ProcessIdentity};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
+use std::fs::{File, OpenOptions};
+use std::io::{self, Read, Write};
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
+use std::path::{Path, PathBuf};
+use std::time::Instant;
+use uuid::Uuid;
+
+const MAX_BYTES: usize = 16 * 1024 * 1024;
+const MAX_RECORDS: usize = 16_384;
+const MAX_ACTIVE: usize = 1024;
+
+#[cfg(test)]
+thread_local! {
+    static FAIL_BEFORE_SEAL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Anchor {
+    pub(super) journal: Uuid,
+    pub(super) store: Uuid,
+    pub(super) domain: crate::ExecutionDomainId,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct State {
+    version: u32,
+    anchor: Anchor,
+    records: BTreeMap<InvocationId, Record>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Record {
+    pub(super) containment: ContainmentId,
+    pub(super) lease: Uuid,
+    pub(super) daemon_generation: Uuid,
+    pub(super) creator: ProcessIdentity,
+    pub(super) boundary: Option<Identity>,
+    pub(super) root: Option<ProcessIdentity>,
+    pub(super) executable_sha256: Option<String>,
+    pub(super) release_intent: Option<crate::machine::InvocationTicket>,
+    pub(super) seal: Option<Seal>,
+}
+
+impl Record {
+    pub(super) fn boundary_sha256(&self) -> io::Result<String> {
+        let boundary = self
+            .boundary
+            .as_ref()
+            .ok_or_else(|| invalid("missing executor boundary"))?;
+        digest(&(
+            self.containment,
+            self.lease,
+            self.daemon_generation,
+            &self.creator,
+            boundary,
+            &self.root,
+            &self.executable_sha256,
+        ))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Seal {
+    pub(super) invocation: InvocationId,
+    pub(super) boundary_sha256: String,
+    pub(super) seal_id: Uuid,
+    pub(super) possibly_released: bool,
+}
+impl Seal {
+    pub(super) fn sha256(&self) -> io::Result<String> {
+        digest(self)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Envelope {
+    state: State,
+    sha256: String,
+}
+
+pub(super) struct Journal {
+    directory: PathBuf,
+    directory_guard: File,
+    _lock: File,
+    state: State,
+    poisoned: bool,
+}
+
+fn invalid(message: &str) -> io::Error {
+    io::Error::other(message)
+}
+pub(super) fn digest(value: &impl Serialize) -> io::Result<String> {
+    Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(value)?)))
+}
+fn owned(path: &Path, directory: bool) -> io::Result<File> {
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(
+            libc::O_NOFOLLOW | libc::O_CLOEXEC | if directory { libc::O_DIRECTORY } else { 0 },
+        )
+        .open(path)?;
+    let meta = file.metadata()?;
+    // SAFETY: geteuid has no preconditions.
+    if meta.uid() != unsafe { libc::geteuid() }
+        || meta.mode() & 0o077 != 0
+        || (directory && !meta.is_dir())
+        || (!directory && !meta.is_file())
+    {
+        return Err(invalid(
+            "executor history must be an owner-only regular file/directory",
+        ));
+    }
+    Ok(file)
+}
+fn read(path: &Path) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    owned(path, false)?
+        .take(MAX_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > MAX_BYTES {
+        return Err(invalid("executor history exceeds size bound"));
+    }
+    Ok(bytes)
+}
+fn publish(directory: &Path, name: &str, bytes: &[u8], replace: bool) -> io::Result<()> {
+    if bytes.len() > MAX_BYTES {
+        return Err(invalid("executor history exceeds size bound"));
+    }
+    let temporary = directory.join(format!(".publish-{}", Uuid::now_v7()));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&temporary)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    let target = directory.join(name);
+    if replace {
+        std::fs::rename(&temporary, &target)?;
+    } else {
+        std::fs::hard_link(&temporary, &target)?;
+        std::fs::remove_file(&temporary)?;
+    }
+    File::open(directory)?.sync_all()
+}
+
+impl Journal {
+    /// Called only by explicit installation after an empty-work inventory. An
+    /// existing, missing or damaged installation is never initialized on open.
+    pub(super) fn initialize(directory: &Path, anchor: Anchor) -> io::Result<Self> {
+        if anchor.journal.is_nil() || anchor.store.is_nil() || anchor.domain.0.is_nil() {
+            return Err(invalid("nil executor installation identity"));
+        }
+        let parent = directory
+            .parent()
+            .ok_or_else(|| invalid("executor journal has no parent"))?;
+        owned(parent, true)?;
+        crate::filesystem::require_durable_local_filesystem(parent)?;
+        std::fs::DirBuilder::new().mode(0o700).create(directory)?;
+        File::open(parent)?.sync_all()?;
+        let state = State {
+            version: 1,
+            anchor: anchor.clone(),
+            records: BTreeMap::new(),
+        };
+        publish(
+            directory,
+            "anchor.json",
+            &serde_json::to_vec(&anchor)?,
+            false,
+        )?;
+        let envelope = Envelope {
+            sha256: digest(&state)?,
+            state,
+        };
+        publish(
+            directory,
+            "state.json",
+            &serde_json::to_vec(&envelope)?,
+            false,
+        )?;
+        Self::open(directory, &anchor)
+    }
+
+    pub(super) fn open(directory: &Path, expected: &Anchor) -> io::Result<Self> {
+        let directory_guard = owned(directory, true)?;
+        crate::filesystem::require_durable_local_filesystem(directory)?;
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(directory.join("executor.lock"))?;
+        let guard = owned(&directory.join("executor.lock"), false)?;
+        if (guard.metadata()?.dev(), guard.metadata()?.ino())
+            != (lock.metadata()?.dev(), lock.metadata()?.ino())
+        {
+            return Err(invalid("executor lock was replaced"));
+        }
+        fs2::FileExt::try_lock_exclusive(&lock)?;
+        let anchor: Anchor = serde_json::from_slice(&read(&directory.join("anchor.json"))?)?;
+        let envelope: Envelope = serde_json::from_slice(&read(&directory.join("state.json"))?)?;
+        if &anchor != expected
+            || envelope.state.anchor != anchor
+            || envelope.state.version != 1
+            || digest(&envelope.state)? != envelope.sha256
+            || envelope.state.records.len() > MAX_RECORDS
+        {
+            return Err(invalid("executor history/anchor is unknown or mismatched"));
+        }
+        for (invocation, record) in &envelope.state.records {
+            if invocation.store_uuid() != anchor.store
+                || record.containment.store_uuid() != anchor.store
+                || record.lease.is_nil()
+                || record.daemon_generation.is_nil()
+            {
+                return Err(invalid("executor history contains a foreign obligation"));
+            }
+            if let Some(seal) = &record.seal {
+                if seal.invocation != *invocation
+                    || seal.seal_id.is_nil()
+                    || seal.boundary_sha256 != record.boundary_sha256()?
+                    || seal.possibly_released != record.release_intent.is_some()
+                {
+                    return Err(invalid("invalid executor seal"));
+                }
+            }
+        }
+        Ok(Self {
+            directory: directory.to_owned(),
+            directory_guard,
+            _lock: lock,
+            state: envelope.state,
+            poisoned: false,
+        })
+    }
+
+    fn check(&self) -> io::Result<()> {
+        if self.poisoned {
+            return Err(invalid(
+                "executor publication failed; history requires recovery",
+            ));
+        }
+        let meta = owned(&self.directory, true)?.metadata()?;
+        let pin = self.directory_guard.metadata()?;
+        if (meta.dev(), meta.ino()) != (pin.dev(), pin.ino()) || pin.nlink() == 0 {
+            return Err(invalid("executor journal directory was replaced"));
+        }
+        let anchor: Anchor = serde_json::from_slice(&read(&self.directory.join("anchor.json"))?)?;
+        let disk: Envelope = serde_json::from_slice(&read(&self.directory.join("state.json"))?)?;
+        if anchor != self.state.anchor
+            || disk.sha256 != digest(&disk.state)?
+            || digest(&self.state)? != disk.sha256
+        {
+            return Err(invalid("executor history changed outside its writer"));
+        }
+        Ok(())
+    }
+    fn commit(&mut self, state: State) -> io::Result<()> {
+        self.check()?;
+        let envelope = Envelope {
+            sha256: digest(&state)?,
+            state,
+        };
+        // Once publication is attempted, even an fsync error is an uncertain
+        // commit. This process must not continue from its old in-memory state.
+        self.poisoned = true;
+        publish(
+            &self.directory,
+            "state.json",
+            &serde_json::to_vec(&envelope)?,
+            true,
+        )?;
+        self.state = envelope.state;
+        self.poisoned = false;
+        Ok(())
+    }
+    pub(super) fn records(&self) -> io::Result<&BTreeMap<InvocationId, Record>> {
+        self.check()?;
+        Ok(&self.state.records)
+    }
+
+    pub(super) fn create(
+        &mut self,
+        parent: &Path,
+        invocation: InvocationId,
+        containment: ContainmentId,
+        lease: Uuid,
+        generation: Uuid,
+        creator: ProcessIdentity,
+    ) -> io::Result<Boundary> {
+        self.check()?;
+        let active = self
+            .state
+            .records
+            .values()
+            .filter(|r| r.seal.is_none())
+            .count();
+        // Reserve serialized space for every pending ticket and seal as well
+        // as disk space. Exhaustion rejects new obligations, never cleanup.
+        if serde_json::to_vec(&self.state)?
+            .len()
+            .saturating_add((active + 1) * 16_384)
+            > MAX_BYTES - 1024 * 1024
+        {
+            return Err(invalid("executor history cleanup headroom unavailable"));
+        }
+        if invocation.store_uuid() != self.state.anchor.store
+            || containment.store_uuid() != self.state.anchor.store
+            || lease.is_nil()
+            || generation.is_nil()
+            || self.state.records.contains_key(&invocation)
+            || self.state.records.len() >= MAX_RECORDS
+            || active >= MAX_ACTIVE
+            || !matches!(creator, ProcessIdentity::Linux { .. })
+        {
+            return Err(invalid(
+                "duplicate, foreign or over-budget executor creation intent",
+            ));
+        }
+        let mut space = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+        // SAFETY: pinned journal directory and writable statvfs storage.
+        if unsafe { libc::fstatvfs(self.directory_guard.as_raw_fd(), space.as_mut_ptr()) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: successful fstatvfs initialized the structure.
+        let space = unsafe { space.assume_init() };
+        if u128::from(space.f_bavail) * u128::from(space.f_frsize)
+            < (MAX_BYTES as u128 * 3 + (active as u128 + 1) * 65536)
+        {
+            return Err(invalid("executor cleanup publication headroom unavailable"));
+        }
+        let mut next = self.state.clone();
+        next.records.insert(
+            invocation,
+            Record {
+                containment,
+                lease,
+                daemon_generation: generation,
+                creator,
+                boundary: None,
+                root: None,
+                executable_sha256: None,
+                release_intent: None,
+                seal: None,
+            },
+        );
+        self.commit(next)?;
+        let boundary = Boundary::create(parent, invocation.entity_uuid())?;
+        let mut next = self.state.clone();
+        next.records.get_mut(&invocation).unwrap().boundary = Some(boundary.identity.clone());
+        self.commit(next)?;
+        Ok(boundary)
+    }
+
+    pub(super) fn ready(
+        &mut self,
+        invocation: InvocationId,
+        launch: &super::launch::PreparedLaunch,
+    ) -> io::Result<()> {
+        let mut next = self.state.clone();
+        let record = next
+            .records
+            .get_mut(&invocation)
+            .ok_or_else(|| invalid("unknown executor intent"))?;
+        if record.seal.is_some() || record.root.is_some() || record.release_intent.is_some() {
+            return Err(invalid("executor root was already prepared or sealed"));
+        }
+        let boundary = Boundary::reopen(
+            record
+                .boundary
+                .as_ref()
+                .ok_or_else(|| invalid("executor boundary not committed"))?,
+        )?;
+        if !boundary.contains_process(launch.root.proc_handle())? {
+            return Err(invalid("prepared root left the recorded boundary"));
+        }
+        record.root = Some(launch.root.identity.clone());
+        record.executable_sha256 = Some(launch.requested_sha256.clone());
+        self.commit(next)
+    }
+
+    /// Call before SQLite ticket consumption. A crash after this point is
+    /// possibly-released even if the kernel barrier was never actually resumed.
+    pub(super) fn release_intent(
+        &mut self,
+        ticket: &crate::machine::InvocationTicket,
+    ) -> io::Result<()> {
+        if serde_json::to_vec(ticket)?.len() > 8192 {
+            return Err(invalid("executor ticket exceeds reserved history bound"));
+        }
+        let mut next = self.state.clone();
+        let record = next
+            .records
+            .get_mut(&ticket.intent.invocation_id)
+            .ok_or_else(|| invalid("unknown executor ticket"))?;
+        if record.seal.is_some()
+            || record.release_intent.is_some()
+            || record.root.is_none()
+            || ticket.key.manager_store_uuid != next.anchor.store
+            || ticket.key.domain_id != next.anchor.domain
+            || ticket.key.lease_id != record.lease
+            || ticket.intent.containment_id != record.containment
+            || record.executable_sha256.as_deref() != Some(ticket.intent.executable_sha256.as_str())
+            || record.boundary_sha256()? != ticket.intent.boundary_sha256
+        {
+            return Err(invalid(
+                "ticket does not match an unreleased prepared executor intent",
+            ));
+        }
+        record.release_intent = Some(ticket.clone());
+        self.commit(next)
+    }
+
+    pub(super) fn cleanup(
+        &mut self,
+        invocation: InvocationId,
+        deadline: Instant,
+    ) -> io::Result<Seal> {
+        self.check()?;
+        let record = self
+            .state
+            .records
+            .get(&invocation)
+            .ok_or_else(|| invalid("unknown executor cleanup"))?;
+        if let Some(seal) = &record.seal {
+            return Ok(seal.clone());
+        }
+        let identity = record.boundary.as_ref().ok_or_else(|| {
+            invalid("creation interrupted before boundary identity; cleanup unknown")
+        })?;
+        Boundary::reopen(identity)?.kill_and_seal(deadline)?;
+        #[cfg(test)]
+        if FAIL_BEFORE_SEAL.replace(false) {
+            return Err(invalid("injected crash after removal before durable seal"));
+        }
+        let seal = Seal {
+            invocation,
+            boundary_sha256: record.boundary_sha256()?,
+            seal_id: Uuid::now_v7(),
+            possibly_released: record.release_intent.is_some(),
+        };
+        let mut next = self.state.clone();
+        next.records.get_mut(&invocation).unwrap().seal = Some(seal.clone());
+        self.commit(next)?;
+        Ok(seal)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    use std::time::Duration;
+
+    fn anchor() -> Anchor {
+        Anchor {
+            journal: Uuid::now_v7(),
+            store: Uuid::now_v7(),
+            domain: crate::ExecutionDomainId(Uuid::now_v7()),
+        }
+    }
+    fn current() -> ProcessIdentity {
+        // SAFETY: geteuid has no preconditions.
+        crate::identity::linux::Process::open(std::process::id(), unsafe { libc::geteuid() })
+            .unwrap()
+            .identity
+    }
+
+    #[test]
+    fn linux_executor_journal_never_reinitializes_missing_or_corrupt_history() {
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let anchor = anchor();
+        assert!(Journal::open(&path, &anchor).is_err());
+        let journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        assert!(
+            Journal::open(&path, &anchor).is_err(),
+            "duplicate writer acquired executor history"
+        );
+        drop(journal);
+        assert!(Journal::initialize(&path, anchor.clone()).is_err());
+        let mut wrong = anchor.clone();
+        wrong.store = Uuid::now_v7();
+        assert!(Journal::open(&path, &wrong).is_err());
+        let journal = Journal::open(&path, &anchor).unwrap();
+        let original = std::fs::read(path.join("state.json")).unwrap();
+        std::fs::write(path.join("state.json"), b"{}").unwrap();
+        assert!(
+            journal.records().is_err(),
+            "live writer accepted external history loss"
+        );
+        drop(journal);
+        assert!(Journal::open(&path, &anchor).is_err());
+        std::fs::write(path.join("state.json"), original).unwrap();
+        std::fs::remove_file(path.join("anchor.json")).unwrap();
+        assert!(Journal::open(&path, &anchor).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires delegated cgroup under a protected system bootstrap Job"]
+    fn linux_executor_journal_recovers_live_boundary_and_seals_once() {
+        let root = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap();
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let helper = temp.path().join("stillyard");
+        std::fs::copy(
+            std::env::var_os("STILLYARD_TEST_EXECUTABLE").unwrap(),
+            &helper,
+        )
+        .unwrap();
+        let anchor = anchor();
+        let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+        let containment = ContainmentId::from_parts(anchor.store, Uuid::now_v7());
+        let lease = Uuid::now_v7();
+        let generation = Uuid::now_v7();
+        let mut journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        let boundary = journal
+            .create(
+                Path::new(&root),
+                invocation,
+                containment,
+                lease,
+                generation,
+                current(),
+            )
+            .unwrap();
+        let spec=super::super::launch::LaunchSpec {executable:"/usr/bin/python3".into(),args:vec!["-c".into(),"import subprocess,time; subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(60)']); time.sleep(60)".into()],working_directory:temp.path().into(),environment:BTreeMap::new()};
+        let mut launch = super::super::launch::PreparedLaunch::prepare(
+            &boundary,
+            &helper,
+            &spec,
+            File::open("/dev/null").unwrap(),
+            Instant::now() + Duration::from_secs(15),
+        )
+        .unwrap();
+        journal.ready(invocation, &launch).unwrap();
+        let session = crate::machine::SessionIdentity {
+            machine_id: Uuid::now_v7(),
+            authority_epoch: Uuid::now_v7(),
+            domain_id: anchor.domain,
+            manager_store_uuid: anchor.store,
+            executor_incarnation: Uuid::now_v7(),
+            connection_epoch: 1,
+        };
+        let ticket = crate::machine::InvocationTicket {
+            grant_id: crate::GrantId::from_parts(Uuid::now_v7(), Uuid::now_v7()),
+            key: crate::machine::AllocationKey {
+                machine_id: session.machine_id,
+                authority_epoch: session.authority_epoch,
+                domain_id: anchor.domain,
+                manager_store_uuid: anchor.store,
+                lease_id: lease,
+            },
+            offer_nonce: Uuid::now_v7(),
+            intent: crate::machine::InvocationIntent {
+                invocation_id: invocation,
+                containment_id: containment,
+                role: crate::InvocationRole::Primary,
+                role_index: 0,
+                release_sequence: 1,
+                executable_sha256: launch.requested_sha256.clone(),
+                boundary_sha256: journal.records().unwrap()[&invocation]
+                    .boundary_sha256()
+                    .unwrap(),
+                readiness_challenge: Uuid::now_v7(),
+                previous_cleanup: None,
+            },
+            configuration_sha256: "a".repeat(64),
+            issued_unix_millis: 1,
+            host_observation_generation: Uuid::now_v7(),
+            host_sample_unix_millis: 1,
+            session,
+        };
+        journal.release_intent(&ticket).unwrap();
+        assert!(
+            journal.release_intent(&ticket).is_err(),
+            "a release intent was reused"
+        );
+        launch.release().unwrap();
+        assert!(boundary.populated().unwrap(), "live boundary disappeared");
+        drop(journal);
+        let mut journal = Journal::open(&path, &anchor).unwrap();
+        assert!(journal.records().unwrap()[&invocation].seal.is_none());
+        let seal = journal
+            .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+            .unwrap();
+        assert!(seal.possibly_released);
+        drop(journal);
+        let mut journal = Journal::open(&path, &anchor).unwrap();
+        assert_eq!(journal.cleanup(invocation, Instant::now()).unwrap(), seal);
+        assert_eq!(seal.sha256().unwrap().len(), 64);
+        assert!(
+            journal
+                .create(
+                    Path::new(&root),
+                    invocation,
+                    containment,
+                    lease,
+                    generation,
+                    current()
+                )
+                .is_err()
+        );
+        assert!(Boundary::reopen(&boundary.identity).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires delegated cgroup under a protected system bootstrap Job"]
+    fn linux_executor_journal_absence_after_seal_gap_retains_uncertainty() {
+        let root = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap();
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let anchor = anchor();
+        let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+        let mut journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        journal
+            .create(
+                Path::new(&root),
+                invocation,
+                ContainmentId::from_parts(anchor.store, Uuid::now_v7()),
+                Uuid::now_v7(),
+                Uuid::now_v7(),
+                current(),
+            )
+            .unwrap();
+        FAIL_BEFORE_SEAL.set(true);
+        assert!(
+            journal
+                .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+                .is_err()
+        );
+        drop(journal);
+        let mut recovered = Journal::open(&path, &anchor).unwrap();
+        assert!(recovered.records().unwrap()[&invocation].seal.is_none());
+        assert!(
+            recovered
+                .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+                .is_err(),
+            "missing cgroup was accepted as a seal"
+        );
+    }
+}
+
+#[cfg(test)]
+mod cross_os;
+
+FILE src/runner/linux/runtime.rs
+//! One Invocation on the tracer thread; shared lifecycle owns all settlement.
+use super::launch::{LaunchSpec, PreparedLaunch};
+use crate::machine::manager::release::{Disposition, NeverReleased};
+use crate::runner::lifecycle::{self, RunProgress, RunResult};
+use crate::runner::{LiveContainments, ReconciliationWake};
+use crate::store::{PreparedJob, ReleaseAuthorization, Store, StoreError};
+use crate::{InvocationRole, LogStream, ProcessIdentity};
+use std::cell::{Cell, RefCell};
+use std::fs::File;
+use std::io;
+use std::os::fd::OwnedFd;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+fn lock(store: &Arc<Mutex<Store>>) -> RunResult<std::sync::MutexGuard<'_, Store>> {
+    store
+        .lock()
+        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()).into())
+}
+fn protocol_error(error: impl std::fmt::Display) -> crate::machine::manager::JournalError {
+    crate::machine::manager::JournalError::History(error.to_string())
+}
+
+pub(in crate::runner) fn execute(
+    job: &PreparedJob,
+    store: &Arc<Mutex<Store>>,
+    endpoint: &str,
+    live: &LiveContainments,
+    observation: &crate::host_observation::HostObservationService,
+    progress: &mut RunProgress,
+    wake: &ReconciliationWake,
+) -> RunResult<(u32, bool)> {
+    let (lease, parent, generation) = lock(store)?.attached_launch_identity(job)?;
+    #[cfg(test)]
+    let parent = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT")
+        .map(std::path::PathBuf::from)
+        .unwrap_or(parent);
+    let helper = std::env::current_exe()?;
+    #[cfg(test)]
+    let helper = std::env::var_os("STILLYARD_TEST_EXECUTABLE")
+        .map(std::path::PathBuf::from)
+        .unwrap_or(helper);
+    let context = live.linux_server_context(crate::ManagedParent {
+        job_id: job.job_id,
+        attempt_id: job.attempt_id,
+        invocation_id: job.invocation_id,
+    })?;
+    // Caller variables reach only the final executable, never the trusted stub.
+    let mut environment = job.spec.environment.set.clone();
+    for name in &job.spec.environment.unset {
+        environment.remove(name);
+    }
+    for (name, value) in [
+        ("STILLYARD_JOB_ID", job.job_id.to_string()),
+        ("STILLYARD_ATTEMPT", job.attempt_id.to_string()),
+        ("STILLYARD_INVOCATION_ID", job.invocation_id.to_string()),
+        ("STILLYARD_ENDPOINT", endpoint.into()),
+        ("STILLYARD_DAEMON_ID", job.job_id.store_uuid().to_string()),
+        (
+            "STILLYARD_ROLE",
+            match job.role {
+                InvocationRole::Primary => "primary",
+                InvocationRole::Probe => "probe",
+                InvocationRole::Postcondition => "postcondition",
+            }
+            .into(),
+        ),
+        (
+            crate::identity::attestation::ENVIRONMENT,
+            serde_json::to_string(&context)?,
+        ),
+    ] {
+        environment.insert(name.into(), value);
+    }
+    if let Some(result) = &job.primary_result {
+        environment.insert(
+            "STILLYARD_PRIMARY_RESULT".into(),
+            serde_json::to_string(result)?,
+        );
+    }
+    let spec = LaunchSpec {
+        executable: job.spec.executable.clone(),
+        args: job.spec.args.clone(),
+        working_directory: job.spec.working_directory.clone(),
+        environment,
+    };
+    let stdin = super::input::open(job)?;
+    let creator =
+        crate::identity::linux::Process::open(std::process::id(), unsafe { libc::geteuid() })?;
+    let mut launch = None;
+    let mut drains = Vec::new();
+    let mut never: Option<Box<NeverReleased>> = None;
+    // A failed journal/CG creation is uncertain until its recorded obligation
+    // can be sealed. A failed OS call is never interpreted as no children.
+    progress.cleanup_proven = false;
+    let execution = (|| -> RunResult<(u32, bool)> {
+        let boundary = Arc::new(live.linux.with_journal(|journal| {
+            journal.create(
+                &parent,
+                job.invocation_id,
+                job.containment_id,
+                lease,
+                generation,
+                creator.identity.clone(),
+            )
+        })?);
+        live.linux
+            .register(job.invocation_id, Arc::clone(&boundary))?;
+        launch = Some(PreparedLaunch::prepare(
+            &boundary,
+            &helper,
+            &spec,
+            stdin,
+            Instant::now() + Duration::from_secs(30),
+        )?);
+        let child = launch.as_mut().unwrap();
+        live.linux
+            .with_journal(|journal| journal.ready(job.invocation_id, child))?;
+        #[cfg(test)]
+        crate::test_support::linux_runtime_checkpoint("ready");
+        let boundary_hash = live
+            .linux
+            .with_journal(|journal| journal.records()?[&job.invocation_id].boundary_sha256())?;
+        let root = child.root.identity.clone();
+        let ProcessIdentity::Linux { pid, .. } = root else {
+            return Err(io::Error::other("non-Linux prepared root").into());
+        };
+        for (input, path, stream) in [
+            (
+                File::from(OwnedFd::from(
+                    child
+                        .wrapper
+                        .stdout
+                        .take()
+                        .ok_or_else(|| io::Error::other("stdout pipe missing"))?,
+                )),
+                job.stdout_path.clone(),
+                LogStream::Stdout,
+            ),
+            (
+                File::from(OwnedFd::from(
+                    child
+                        .wrapper
+                        .stderr
+                        .take()
+                        .ok_or_else(|| io::Error::other("stderr pipe missing"))?,
+                )),
+                job.stderr_path.clone(),
+                LogStream::Stderr,
+            ),
+        ] {
+            drains.push(crate::runner::logs::spawn_drain(
+                input,
+                path,
+                job.job_id,
+                stream,
+                Arc::clone(store),
+                job.role == InvocationRole::Primary,
+            )?);
+        }
+        lock(store)?.request_attached_ticket(
+            job,
+            &root,
+            &child.requested_sha256,
+            &boundary_hash,
+        )?;
+        wake();
+        let until = Instant::now()
+            + Duration::from_secs(
+                job.spec
+                    .quiet
+                    .as_ref()
+                    .map_or(5, |q| q.wait_budget_seconds.saturating_add(5)),
+            );
+        let mut retry_at = Instant::now() + Duration::from_secs(1);
+        let ticket = loop {
+            if let Some(stop) = lifecycle::pending_stop_verdict(job, store, is_guarded(job))? {
+                progress.canceled = stop.verdict == crate::AttemptVerdict::Canceled;
+                progress.timed_out = stop.verdict == crate::AttemptVerdict::TimedOut;
+                if is_guarded(job) {
+                    progress.never_run_reason = Some(stop.reason.clone());
+                }
+                return Err(io::Error::other(stop.reason).into());
+            }
+            if let Some(ticket) = lock(store)?.attached_ticket(job.invocation_id)? {
+                break ticket;
+            }
+            if Instant::now() >= retry_at {
+                let retried = lock(store)?.retry_waiting_attached_ticket(job.invocation_id)?;
+                if retried {
+                    wake();
+                }
+                retry_at = Instant::now() + Duration::from_secs(1);
+            }
+            if Instant::now() >= until {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "Invocation Ticket response deadline",
+                )
+                .into());
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        let barrier = live.linux_releases.barrier(job.invocation_id)?;
+        let executable_hash = child.requested_sha256.clone();
+        live.linux
+            .with_journal(|journal| journal.release_intent(&ticket))?;
+        #[cfg(test)]
+        crate::test_support::linux_runtime_checkpoint("release-intent");
+        let runtime_deadline = Cell::new(job.attempt_deadline_unix_millis);
+        let evidence_expiry = Cell::new(u64::MAX);
+        let consumed = Cell::new(false);
+        let deferred = RefCell::new(None::<String>);
+        let mut release =
+            |sample: Option<&crate::host_observation::HostSample>| -> RunResult<Disposition> {
+                let mut guard = lock(store)?;
+                let locked = RefCell::new(&mut *guard);
+                let disposition = barrier.release(
+                    &ticket,
+                    generation,
+                    || {
+                        let mut store = locked.borrow_mut();
+                        store.check_authority_release().map_err(protocol_error)?;
+                        if !store
+                            .attached_observation_ready(job, lease, sample)
+                            .map_err(protocol_error)?
+                        {
+                            return Ok(false);
+                        }
+                        if store
+                            .invocation_stop_requested(job.job_id)
+                            .map_err(protocol_error)?
+                        {
+                            return Ok(false);
+                        }
+                        let (wall, monotonic) = crate::host_observation::observation_clock()?;
+                        if runtime_deadline
+                            .get()
+                            .is_some_and(|deadline| wall >= deadline)
+                            || monotonic >= evidence_expiry.get()
+                        {
+                            return Ok(false);
+                        }
+                        if is_guarded(job)
+                            && store
+                                .pre_resume_defer_reason(job.job_id)
+                                .map_err(protocol_error)?
+                                .is_some()
+                        {
+                            return Ok(false);
+                        }
+                        if let Some(sample) = sample {
+                            let Some(wall_age) = wall
+                                .checked_sub(sample.captured_unix_millis)
+                                .and_then(|n| u64::try_from(n).ok())
+                            else {
+                                return Ok(false);
+                            };
+                            let Some(age) = monotonic.checked_sub(sample.captured_monotonic_millis)
+                            else {
+                                return Ok(false);
+                            };
+                            if wall_age.abs_diff(age)
+                                > observation.release_discontinuity_limit_millis()
+                            {
+                                return Ok(false);
+                            }
+                        }
+                        Ok(true)
+                    },
+                    || {
+                        let mut store = locked.borrow_mut();
+                        let (wall, monotonic) = crate::host_observation::observation_clock()?;
+                        let moment =
+                            sample.map(|sample| crate::host_observation::ObservationMoment {
+                                sample,
+                                now_unix_millis: wall,
+                                now_monotonic_millis: monotonic,
+                                live_clock: true,
+                            });
+                        let authorization = if is_guarded(job) {
+                            if job.spec.quiet.is_some() {
+                                store.authorize_release_with_ticket(
+                                    job,
+                                    moment.ok_or_else(|| {
+                                        protocol_error("quiet sample unavailable")
+                                    })?,
+                                    Some(&ticket),
+                                )
+                            } else {
+                                store.authorize_condition_release_with_ticket(
+                                    job,
+                                    moment,
+                                    Some(&ticket),
+                                )
+                            }
+                        } else {
+                            store
+                                .mark_started_with_ticket(
+                                    job,
+                                    pid,
+                                    &executable_hash,
+                                    Some(&root),
+                                    Some(&ticket),
+                                )
+                                .map(|()| ReleaseAuthorization::Authorized {
+                                    runtime_deadline_unix_millis: job.attempt_deadline_unix_millis,
+                                    evidence_expires_monotonic_millis: u64::MAX,
+                                })
+                        }
+                        .map_err(protocol_error)?;
+                        match authorization {
+                            ReleaseAuthorization::Authorized {
+                                runtime_deadline_unix_millis,
+                                evidence_expires_monotonic_millis,
+                            } => {
+                                runtime_deadline.set(runtime_deadline_unix_millis);
+                                evidence_expiry.set(evidence_expires_monotonic_millis);
+                                consumed.set(true);
+                                Ok(true)
+                            }
+                            ReleaseAuthorization::Deferred { reason } => {
+                                *deferred.borrow_mut() = Some(reason.clone());
+                                Err(protocol_error(reason))
+                            }
+                        }
+                    },
+                    || {
+                        #[cfg(test)]
+                        crate::test_support::linux_runtime_checkpoint("consumed");
+                        child.release()?;
+                        #[cfg(test)]
+                        crate::test_support::linux_runtime_checkpoint("released");
+                        Ok(())
+                    },
+                )?;
+                Ok(disposition)
+            };
+        let released = if job.spec.requires_host_observation() {
+            observation
+                .with_release_sample(pid, |sample| release(Some(sample)))
+                .map_err(io::Error::other)
+                .and_then(|result| result.map_err(io::Error::other))
+        } else {
+            release(None).map_err(io::Error::other)
+        };
+        progress.durable_release_authorized = consumed.get();
+        progress.never_run_reason = deferred.into_inner();
+        match released? {
+            Disposition::Released => {
+                progress.user_code_released = true;
+                progress.release_authorized = true;
+            }
+            Disposition::NeverReleased(proof) => {
+                never = Some(proof);
+                if is_guarded(job) {
+                    progress.never_run_reason =
+                        Some("readiness expired after Ticket commit".into());
+                }
+                return Err(io::Error::other("kernel release prevented after commit").into());
+            }
+            Disposition::AlreadyConsumed => {
+                return Err(io::Error::other("Ticket already consumed").into());
+            }
+            Disposition::Uncertain(error) => {
+                progress.user_code_released = true;
+                return Err(error.into());
+            }
+        }
+        loop {
+            if let Some(exit) = child.poll_root()? {
+                progress.exit_code = Some(exit);
+                lock(store)?.mark_root_exited(job, exit)?;
+                return Ok((exit as u32, false));
+            }
+            if lock(store)?.invocation_stop_requested(job.job_id)? {
+                progress.canceled = true;
+                return Ok((22, false));
+            }
+            if runtime_deadline.get().is_some_and(|deadline| {
+                crate::host_observation::observation_clock()
+                    .map_or(true, |(wall, _)| wall >= deadline)
+            }) {
+                progress.timed_out = true;
+                return Ok((21, true));
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    })();
+    let cleanup = (|| -> RunResult<()> {
+        let seal = live
+            .linux
+            .cleanup(job.invocation_id, Instant::now() + Duration::from_secs(30))?;
+        #[cfg(test)]
+        crate::test_support::linux_runtime_checkpoint("sealed");
+        lock(store)?.record_attached_cleanup(
+            job.invocation_id,
+            &seal.boundary_sha256,
+            &seal.sha256()?,
+            never.as_deref(),
+        )?;
+        live.linux_releases.retire(job.invocation_id)?;
+        progress.cleanup_proven = true;
+        if let Some(child) = launch.as_mut() {
+            if let Some(exit) = child.reap_after_cleanup(Instant::now() + Duration::from_secs(5))? {
+                progress.exit_code = Some(exit);
+                if progress.durable_release_authorized {
+                    lock(store)?.mark_root_exited(job, exit)?;
+                }
+            }
+        }
+        for drain in drains.drain(..) {
+            drain
+                .join()
+                .map_err(|_| io::Error::other("log drain panicked"))??;
+        }
+        Ok(())
+    })();
+    wake();
+    if !progress.cleanup_proven {
+        if let Ok(mut locked) = store.lock() {
+            lifecycle::persist_uncertain_cleanup(&mut locked, job, progress)?;
+            progress.uncertainty_persisted = true;
+        }
+    }
+    cleanup?;
+    execution.map(|(code, timed_out)| {
+        (
+            progress.exit_code.map_or(code, |exit| exit as u32),
+            timed_out,
+        )
+    })
+}
+
+fn is_guarded(job: &PreparedJob) -> bool {
+    job.role == InvocationRole::Primary
+        && (job.spec.quiet.is_some() || !job.spec.conditions.is_empty())
+}
+
+FILE src/runner/linux/cgroup.rs
+//! Pinned cgroup v2 boundaries. Missing paths and dead roots are never empty proof.
+use serde::{Deserialize, Serialize};
+use std::fs::{File, OpenOptions};
+use std::io::{self, Read, Write};
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Identity {
+    pub(crate) boot_id: String,
+    pub(crate) path: PathBuf,
+    pub(crate) device: u64,
+    pub(crate) inode: u64,
+}
+
+pub(crate) struct Boundary {
+    directory: File,
+    pub(crate) identity: Identity,
+}
+
+fn boot() -> io::Result<String> {
+    let text = std::fs::read_to_string("/proc/sys/kernel/random/boot_id")?;
+    let id = uuid::Uuid::parse_str(text.trim()).map_err(io::Error::other)?;
+    if id.is_nil() {
+        return Err(io::Error::other("nil kernel boot identity"));
+    }
+    Ok(id.to_string())
+}
+
+fn open_directory(path: &Path) -> io::Result<File> {
+    let directory = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)?;
+    let mut fs = std::mem::MaybeUninit::<libc::statfs>::uninit();
+    // SAFETY: live owned fd and writable statfs storage.
+    if unsafe { libc::fstatfs(directory.as_raw_fd(), fs.as_mut_ptr()) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: successful fstatfs initialized the structure.
+    if unsafe { fs.assume_init() }.f_type != libc::CGROUP2_SUPER_MAGIC {
+        return Err(io::Error::other("execution boundary is not cgroup v2"));
+    }
+    Ok(directory)
+}
+
+impl Boundary {
+    pub(crate) fn create(parent: &Path, invocation: uuid::Uuid) -> io::Result<Self> {
+        if invocation.is_nil() {
+            return Err(io::Error::other("nil boundary identity"));
+        }
+        let parent = std::fs::canonicalize(parent)?;
+        let parent_guard = open_directory(&parent)?;
+        let parent_fd = PathBuf::from(format!("/proc/self/fd/{}", parent_guard.as_raw_fd()));
+        let name = format!("invocation-{invocation}");
+        // Exclusive creation prevents a second attempt from reusing a boundary.
+        std::fs::create_dir(parent_fd.join(&name))?;
+        let directory = open_directory(&parent_fd.join(&name))?;
+        let metadata = directory.metadata()?;
+        let identity = Identity {
+            boot_id: boot()?,
+            path: parent.join(name),
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        };
+        let boundary = Self {
+            directory,
+            identity,
+        };
+        // Opening the control file confirms actual delegated write capability.
+        OpenOptions::new()
+            .write(true)
+            .open(boundary.file("cgroup.kill"))?;
+        if boundary.populated()? {
+            return Err(io::Error::other("new boundary is not empty"));
+        }
+        Ok(boundary)
+    }
+
+    pub(crate) fn reopen(identity: &Identity) -> io::Result<Self> {
+        if boot()? != identity.boot_id {
+            return Err(io::Error::other("cgroup belongs to another boot"));
+        }
+        let boundary = Self {
+            directory: open_directory(&identity.path)?,
+            identity: identity.clone(),
+        };
+        boundary.check_identity()?;
+        Ok(boundary)
+    }
+
+    fn file(&self, name: &str) -> PathBuf {
+        PathBuf::from(format!(
+            "/proc/self/fd/{}/{name}",
+            self.directory.as_raw_fd()
+        ))
+    }
+
+    pub(super) fn attachment_file(&self) -> io::Result<File> {
+        self.check_identity()?;
+        OpenOptions::new()
+            .write(true)
+            .open(self.file("cgroup.procs"))
+    }
+
+    fn check_identity(&self) -> io::Result<()> {
+        let pinned = self.directory.metadata()?;
+        let current = std::fs::symlink_metadata(&self.identity.path)?;
+        if !current.is_dir()
+            || pinned.nlink() == 0
+            || (pinned.dev(), pinned.ino()) != (self.identity.device, self.identity.inode)
+            || (current.dev(), current.ino()) != (self.identity.device, self.identity.inode)
+        {
+            return Err(io::Error::other("recorded cgroup was replaced or removed"));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn populated(&self) -> io::Result<bool> {
+        self.check_identity()?;
+        let mut text = String::new();
+        File::open(self.file("cgroup.events"))?
+            .take(4097)
+            .read_to_string(&mut text)?;
+        if text.len() > 4096 {
+            return Err(io::Error::other("oversized cgroup event evidence"));
+        }
+        let values = text
+            .lines()
+            .filter_map(|line| line.strip_prefix("populated "))
+            .collect::<Vec<_>>();
+        match values.as_slice() {
+            ["0"] => Ok(false),
+            ["1"] => Ok(true),
+            _ => Err(io::Error::other("invalid cgroup populated evidence")),
+        }
+    }
+
+    /// The caller owns a live process guard and its pre-user-code release barrier.
+    pub(crate) fn attach_stopped(&self, pid: u32) -> io::Result<()> {
+        self.check_identity()?;
+        OpenOptions::new()
+            .write(true)
+            .open(self.file("cgroup.procs"))?
+            .write_all(pid.to_string().as_bytes())?;
+        let text = std::fs::read_to_string(self.file("cgroup.procs"))?;
+        if !text
+            .lines()
+            .any(|line| line.parse::<u32>().ok() == Some(pid))
+        {
+            return Err(io::Error::other(
+                "stopped root did not enter recorded cgroup",
+            ));
+        }
+        Ok(())
+    }
+
+    /// proc_handle is borrowed from the RPC's kernel-pinned peer guard, not a
+    /// PID supplied by the caller. Descendants inherit this same cgroup.
+    pub(crate) fn contains_process(&self, proc_handle: usize) -> io::Result<bool> {
+        self.check_identity()?;
+        let stat = std::fs::read_to_string(format!("/proc/self/fd/{proc_handle}/stat"))?;
+        let pid = stat
+            .split_once(" (")
+            .ok_or_else(|| io::Error::other("invalid pinned process stat"))?
+            .0
+            .parse::<u32>()
+            .map_err(io::Error::other)?;
+        let mut text = String::new();
+        File::open(self.file("cgroup.procs"))?
+            .take(1_048_577)
+            .read_to_string(&mut text)?;
+        if text.len() > 1_048_576 {
+            return Err(io::Error::other(
+                "containment membership exceeds evidence bound",
+            ));
+        }
+        Ok(text
+            .lines()
+            .any(|line| line.parse::<u32>().ok() == Some(pid)))
+    }
+
+    /// Successful return is a seal observation, which must be persisted before
+    /// any Lease/Grant release. A crash before persistence remains uncertain.
+    pub(crate) fn kill_and_seal(&self, deadline: Instant) -> io::Result<()> {
+        self.check_identity()?;
+        OpenOptions::new()
+            .write(true)
+            .open(self.file("cgroup.kill"))?
+            .write_all(b"1")?;
+        while self.populated()? {
+            if Instant::now() >= deadline {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "cgroup remains populated; allocation retained",
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        self.check_identity()?;
+        // Invocation user code sees read-only cgroups, so it cannot add child
+        // boundaries. Unexpected descendants make rmdir fail closed.
+        std::fs::remove_dir(&self.identity.path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn linux_cgroup_rejects_an_ordinary_directory_as_boundary_evidence() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::write(directory.path().join("cgroup.events"), b"populated 0\n").unwrap();
+        std::fs::write(directory.path().join("cgroup.kill"), b"").unwrap();
+        assert!(Boundary::create(directory.path(), uuid::Uuid::now_v7()).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires nested delegation under the protected system bootstrap Job"]
+    fn linux_cgroup_real_identity_empty_seal_and_missing_path_negative() {
+        let root = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT")
+            .expect("explicit protected test delegation");
+        let boundary = Boundary::create(Path::new(&root), uuid::Uuid::now_v7()).unwrap();
+        assert!(!boundary.populated().unwrap());
+        let mut wrong = boundary.identity.clone();
+        wrong.inode += 1;
+        assert!(Boundary::reopen(&wrong).is_err());
+        let reopened = Boundary::reopen(&boundary.identity).unwrap();
+        assert!(!reopened.populated().unwrap());
+        boundary
+            .kill_and_seal(Instant::now() + Duration::from_secs(3))
+            .unwrap();
+        assert!(
+            Boundary::reopen(&boundary.identity).is_err(),
+            "absence must not become an empty proof"
+        );
+        assert!(reopened.populated().is_err());
+    }
+
+    #[test]
+    #[ignore = "requires nested delegation under the protected system bootstrap Job"]
+    fn linux_cgroup_root_exit_keeps_descendant_debit_until_recursive_kill() {
+        use std::process::{Command, Stdio};
+        let root = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT")
+            .expect("explicit protected test delegation");
+        let boundary = Boundary::create(Path::new(&root), uuid::Uuid::now_v7()).unwrap();
+        // This trusted fixture waits before forking its live descendant. It is
+        // a cleanup control, not evidence of the executor's user-code barrier.
+        let mut child = Command::new("/usr/bin/python3").args(["-c", "import subprocess,sys; assert sys.stdin.read(1)=='R'; subprocess.Popen(['/usr/bin/python3','-c','import time; time.sleep(60)']); print('forked',flush=True)"])
+            .stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();
+        let process =
+            crate::identity::linux::Process::open(child.id(), unsafe { libc::geteuid() }).unwrap();
+        boundary.attach_stopped(child.id()).unwrap();
+        assert!(boundary.contains_process(process.proc_handle()).unwrap());
+        child.stdin.take().unwrap().write_all(b"R").unwrap();
+        let until = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(exit) = child.try_wait().unwrap() {
+                assert!(exit.success());
+                break;
+            }
+            assert!(Instant::now() < until, "trusted fixture root did not exit");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        // A root-only implementation would return false here and release early.
+        assert!(boundary.populated().unwrap());
+        let reopened = Boundary::reopen(&boundary.identity).unwrap();
+        assert!(reopened.populated().unwrap());
+        reopened
+            .kill_and_seal(Instant::now() + Duration::from_secs(5))
+            .unwrap();
+        assert!(Boundary::reopen(&boundary.identity).is_err());
+    }
+}
+
+FILE src/daemon/reactor.rs
+use super::*;
+
+pub(super) struct DaemonReactor {
+    pub(super) signal: Arc<(Mutex<bool>, Condvar)>,
+    pub(super) events: Arc<(Mutex<u64>, Condvar)>,
+    pub(super) endpoint: Arc<str>,
+    pub(super) live_containments: crate::runner::LiveContainments,
+    pub(super) reconciliation_observations: Mutex<crate::store::ReconciliationObservations>,
+    pub(super) doctor_snapshots: Mutex<crate::store::DoctorSnapshotCache>,
+    pub(super) host_observation: Arc<crate::host_observation::HostObservationService>,
+}
+
+pub(super) fn submission_context(
+    store: &SharedStore,
+    live_containments: &crate::runner::LiveContainments,
+    peer: Option<&PeerProcess>,
+) -> std::result::Result<crate::SubmissionContext, StoreError> {
+    let (store_uuid, candidates) = {
+        let store = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+        (store.store_uuid(), store.managed_containment_candidates()?)
+    };
+    let parent = match peer {
+        Some(peer) => authenticate_managed_peer(live_containments, peer, &candidates)?,
+        None => None,
+    };
+    Ok(crate::SubmissionContext { store_uuid, parent })
+}
+
+pub(super) fn resolve_managed_membership(
+    candidates: &[ManagedCandidate],
+    mut is_member: impl FnMut(crate::InvocationId) -> std::io::Result<Option<bool>>,
+) -> std::result::Result<Option<crate::ManagedParent>, StoreError> {
+    let mut matched = Vec::new();
+    for candidate in candidates {
+        match is_member(candidate.parent.invocation_id).map_err(StoreError::Io)? {
+            Some(true) => {}
+            Some(false) => continue,
+            None => {
+                return Err(StoreError::InvalidState(
+                    "a possibly live managed Containment has no daemon-held handle".into(),
+                ));
+            }
+        }
+        matched.push(candidate);
+    }
+    if matched.is_empty() {
+        return Ok(None);
+    }
+
+    // A process in a nested Windows Job hierarchy is a member of the immediate Job and every
+    // ancestor Job. Select the unique leaf containment, then prove that every other match is on
+    // its direct durable parent chain. Multiple leaves are an ambiguous authority match.
+    let leaves = matched
+        .iter()
+        .copied()
+        .filter(|candidate| {
+            !matched
+                .iter()
+                .any(|other| other.parent_job_id == Some(candidate.parent.job_id))
+        })
+        .collect::<Vec<_>>();
+    let [immediate] = leaves.as_slice() else {
+        return Err(StoreError::Rejected(
+            "named-pipe peer belongs to ambiguous Stillyard containments".into(),
+        ));
+    };
+    let mut lineage = std::collections::HashSet::new();
+    let mut current = Some(*immediate);
+    while let Some(candidate) = current {
+        if !lineage.insert(candidate.parent.job_id) {
+            return Err(StoreError::InvalidState(
+                "managed containment parent graph contains a cycle".into(),
+            ));
+        }
+        current = candidate.parent_job_id.and_then(|parent_job_id| {
+            matched
+                .iter()
+                .copied()
+                .find(|parent| parent.parent.job_id == parent_job_id)
+        });
+    }
+    if lineage.len() != matched.len() {
+        return Err(StoreError::Rejected(
+            "named-pipe peer belongs to unrelated Stillyard containments".into(),
+        ));
+    }
+    if !immediate.current {
+        return Err(StoreError::Rejected(
+            "the containing primary is no longer current and live".into(),
+        ));
+    }
+    Ok(Some(immediate.parent))
+}
+
+pub(super) fn authenticate_managed_peer(
+    live_containments: &crate::runner::LiveContainments,
+    peer: &PeerProcess,
+    candidates: &[ManagedCandidate],
+) -> std::result::Result<Option<crate::ManagedParent>, StoreError> {
+    resolve_managed_membership(candidates, |invocation_id| {
+        live_containments.contains_process(invocation_id, peer.handle)
+    })
+    .map_err(|error| match error {
+        StoreError::Io(source) => StoreError::InvalidState(format!(
+            "cannot inspect named-pipe peer {}: {source}",
+            peer.pid
+        )),
+        other => other,
+    })
+}
+
+impl DaemonReactor {
+    pub(super) fn start(
+        store: SharedStore,
+        endpoint: String,
+        observation_config: crate::HostObservationConfig,
+        doctor_snapshots: crate::store::DoctorSnapshotCache,
+        live_containments: crate::runner::LiveContainments,
+    ) -> Arc<Self> {
+        let scheduler = Arc::new(Self {
+            signal: Arc::new((Mutex::new(false), Condvar::new())),
+            events: Arc::new((Mutex::new(0), Condvar::new())),
+            endpoint: Arc::from(endpoint),
+            live_containments,
+            reconciliation_observations: Mutex::new(Default::default()),
+            doctor_snapshots: Mutex::new(doctor_snapshots),
+            host_observation: Arc::new(crate::host_observation::HostObservationService::new(
+                observation_config,
+            )),
+        });
+        let worker = Arc::clone(&scheduler);
+        std::thread::Builder::new()
+            .name("stillyard-scheduler".into())
+            .spawn(move || worker.run(store))
+            .expect("scheduler thread must start");
+        scheduler
+    }
+
+    pub(super) fn wake(&self) {
+        let (lock, condition) = &*self.signal;
+        if let Ok(mut pending) = lock.lock() {
+            *pending = true;
+            condition.notify_one();
+        }
+        self.notify_change();
+    }
+
+    pub(super) fn notify_change(&self) {
+        let (lock, condition) = &*self.events;
+        if let Ok(mut generation) = lock.lock() {
+            *generation = generation.wrapping_add(1);
+            condition.notify_all();
+        }
+    }
+
+    pub(super) fn wait_snapshot(
+        &self,
+        store: &SharedStore,
+        job_id: crate::JobId,
+        max_wait: Duration,
+    ) -> std::result::Result<crate::JobSnapshot, StoreError> {
+        let deadline = Instant::now() + max_wait;
+        loop {
+            let observed = self
+                .events
+                .0
+                .lock()
+                .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))
+                .map(|generation| *generation)?;
+            let snapshot = {
+                let observations = self.reconciliation_observations.lock().map_err(|_| {
+                    StoreError::InvalidState("reconciliation mutex poisoned".into())
+                })?;
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .status_with_reconciliation(job_id, &observations)?
+            };
+            if snapshot.is_final() || Instant::now() >= deadline {
+                return Ok(snapshot);
+            }
+            let (lock, condition) = &*self.events;
+            let mut generation = lock
+                .lock()
+                .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
+            while *generation == observed {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    break;
+                }
+                let waited = condition
+                    .wait_timeout(generation, remaining)
+                    .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
+                generation = waited.0;
+                if waited.1.timed_out() {
+                    crate::runtime_metrics::waited(crate::runtime_metrics::Timer::Subscriber, true);
+                    break;
+                }
+            }
+        }
+    }
+
+    pub(super) fn wait_observation(
+        &self,
+        store: &SharedStore,
+        selector: &crate::JobSelector,
+        cursor: Option<crate::EventCursor>,
+        limit: u32,
+        max_wait: Duration,
+    ) -> std::result::Result<crate::ObservationFrame, StoreError> {
+        let deadline = Instant::now() + max_wait;
+        let mut cursor = cursor;
+        loop {
+            let observed = self
+                .events
+                .0
+                .lock()
+                .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))
+                .map(|generation| *generation)?;
+            let requested = cursor;
+            let frame = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                .observe(selector, cursor, limit)?;
+            let ready = match &frame {
+                crate::ObservationFrame::Events { events, .. } => !events.is_empty(),
+                crate::ObservationFrame::Gap { .. } => true,
+            } || requested != Some(frame.cursor());
+            if ready || Instant::now() >= deadline {
+                return Ok(frame);
+            }
+            cursor = Some(frame.cursor());
+            let (lock, condition) = &*self.events;
+            let mut generation = lock
+                .lock()
+                .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
+            while *generation == observed {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    break;
+                }
+                let waited = condition
+                    .wait_timeout(generation, remaining)
+                    .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
+                generation = waited.0;
+                if waited.1.timed_out() {
+                    crate::runtime_metrics::waited(crate::runtime_metrics::Timer::Subscriber, true);
+                    break;
+                }
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn wait_tree_observation(
+        &self,
+        store: &SharedStore,
+        selector: &crate::JobTreeSelector,
+        cursor: Option<crate::EventCursor>,
+        event_limit: u32,
+        root_limit: u32,
+        node_limit: u32,
+        max_depth: Option<u32>,
+        max_wait: Duration,
+    ) -> std::result::Result<crate::TreeObservationFrame, StoreError> {
+        let deadline = Instant::now() + max_wait;
+        let mut cursor = cursor;
+        loop {
+            let observed = self
+                .events
+                .0
+                .lock()
+                .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))
+                .map(|generation| *generation)?;
+            let requested = cursor;
+            let reader = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                .open_read_view()?;
+            let frame = reader.observe_trees(
+                selector,
+                cursor,
+                event_limit,
+                root_limit,
+                node_limit,
+                max_depth,
+            )?;
+            let ready = match &frame {
+                crate::TreeObservationFrame::Events { events, .. } => !events.is_empty(),
+                crate::TreeObservationFrame::Gap { .. } => true,
+            } || requested != Some(frame.cursor());
+            if ready || Instant::now() >= deadline {
+                return Ok(frame);
+            }
+            cursor = Some(frame.cursor());
+            let (lock, condition) = &*self.events;
+            let mut generation = lock
+                .lock()
+                .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
+            while *generation == observed {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    break;
+                }
+                let waited = condition
+                    .wait_timeout(generation, remaining)
+                    .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
+                generation = waited.0;
+                if waited.1.timed_out() {
+                    crate::runtime_metrics::waited(crate::runtime_metrics::Timer::Subscriber, true);
+                    break;
+                }
+            }
+        }
+    }
+
+    pub(super) fn run(self: Arc<Self>, store: SharedStore) {
+        const RECONCILIATION_BACKOFF_SECONDS: [u64; 9] = [1, 2, 4, 8, 16, 30, 60, 120, 300];
+        let mut reconciliation_cursor = 0_u64;
+        let mut reconciliation_known_latest = 0_u64;
+        let mut reconciliation_backoff = 0_usize;
+        let mut reconciliation_deadline: Option<Instant> = None;
+        loop {
+            let newest_incident = store
+                .lock()
+                .ok()
+                .and_then(|guard| guard.latest_unresolved_incident_sequence().ok())
+                .flatten();
+            let new_incident =
+                newest_incident.is_some_and(|sequence| sequence > reconciliation_known_latest);
+            if new_incident {
+                reconciliation_known_latest =
+                    newest_incident.unwrap_or(reconciliation_known_latest);
+                reconciliation_backoff = 0;
+            }
+            let reconciliation_due = new_incident
+                || reconciliation_deadline.is_none()
+                || reconciliation_deadline.is_some_and(|deadline| Instant::now() >= deadline);
+            if reconciliation_due {
+                let snapshot = store.lock().ok().and_then(|guard| {
+                    let context = guard.reconciliation_context()?;
+                    let candidates = guard
+                        .reconciliation_candidates(reconciliation_cursor, 32)
+                        .ok()?;
+                    Some((context, candidates))
+                });
+                if let Some((context, candidates)) = snapshot {
+                    if candidates.is_empty() {
+                        reconciliation_deadline = None;
+                        reconciliation_backoff = 0;
+                    } else {
+                        for candidate in &candidates {
+                            let (resolution, evidence) = probe_reconciliation_candidate(
+                                &self.live_containments,
+                                candidate,
+                                &context,
+                            );
+                            if let Ok(mut observations) = self.reconciliation_observations.lock() {
+                                observations.record(candidate.containment_id, evidence.clone());
+                            }
+                            if let Some(resolution) = resolution {
+                                let committed = store.lock().ok().and_then(|mut guard| {
+                                    #[cfg(target_os = "linux")]
+                                    self.live_containments
+                                        .persist_linux_cleanup(&mut guard, candidate.invocation_id)
+                                        .ok()?;
+                                    guard
+                                        .commit_containment_resolution(
+                                            candidate,
+                                            resolution,
+                                            evidence,
+                                            crate::ClearanceOrigin::Automatic,
+                                            None,
+                                            None,
+                                        )
+                                        .ok()
+                                        .flatten()
+                                });
+                                if let Some(committed) = committed {
+                                    self.live_containments.clear(candidate.invocation_id);
+                                    if committed.audit.lease_released {
+                                        if let Ok(mut pending) = self.signal.0.lock() {
+                                            *pending = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        reconciliation_cursor = candidates
+                            .last()
+                            .map_or(reconciliation_cursor, |candidate| {
+                                candidate.incident_sequence
+                            });
+                        let unresolved = store
+                            .lock()
+                            .ok()
+                            .and_then(|guard| guard.latest_unresolved_incident_sequence().ok())
+                            .flatten()
+                            .is_some();
+                        if unresolved {
+                            let delay = RECONCILIATION_BACKOFF_SECONDS[reconciliation_backoff
+                                .min(RECONCILIATION_BACKOFF_SECONDS.len() - 1)];
+                            reconciliation_backoff = reconciliation_backoff.saturating_add(1);
+                            reconciliation_deadline =
+                                Instant::now().checked_add(Duration::from_secs(delay));
+                        } else {
+                            reconciliation_deadline = None;
+                            reconciliation_backoff = 0;
+                        }
+                    }
+                }
+            }
+            let retry_scan_started = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+                .try_into()
+                .unwrap_or(i64::MAX);
+            let mut retry = false;
+            let observation_needed = store
+                .lock()
+                .ok()
+                .and_then(|guard| guard.host_observation_demand().ok())
+                .unwrap_or(false);
+            let sample = observation_needed
+                .then(|| self.host_observation.sample_now().ok())
+                .flatten();
+            let next = {
+                let mut guard = match store.lock() {
+                    Ok(guard) => guard,
+                    Err(_) => return,
+                };
+                match guard.prepare_next_job_with_sample(sample.as_ref()) {
+                    Ok(job) => job,
+                    Err(_) => {
+                        retry = true;
+                        crate::store::PrepareNext {
+                            job: None,
+                            // prepare_next_job may have committed skip closure before a later
+                            // SQLite error. A spurious notification is safer than hiding it.
+                            state_changed: true,
+                        }
+                    }
+                }
+            };
+            if next.state_changed {
+                self.notify_change();
+            }
+            if let Some(job) = next.job {
+                self.notify_change();
+                let worker_store = Arc::clone(&store);
+                let worker_scheduler = Arc::clone(&self);
+                let worker_endpoint = Arc::clone(&self.endpoint);
+                let worker_containments = self.live_containments.clone();
+                let worker_observation = Arc::clone(&self.host_observation);
+                let thread_job = job.clone();
+                let spawned = std::thread::Builder::new()
+                    .name(format!("stillyard-job-{}", job.job_id.entity_uuid()))
+                    .spawn(move || {
+                        let wake_scheduler = Arc::downgrade(&worker_scheduler);
+                        crate::runner::run(
+                            thread_job,
+                            worker_store,
+                            worker_endpoint,
+                            worker_containments,
+                            worker_observation,
+                            Arc::new(move || {
+                                if let Some(scheduler) = wake_scheduler.upgrade() {
+                                    scheduler.wake();
+                                }
+                            }),
+                        );
+                        worker_scheduler.wake();
+                    });
+                if let Err(error) = spawned {
+                    if let Ok(mut guard) = store.lock() {
+                        let _ = if job.role == crate::InvocationRole::Probe {
+                            guard.settle_probe(&job, None, false)
+                        } else {
+                            let verdict = if job.role == crate::InvocationRole::Postcondition {
+                                "postcondition_failed"
+                            } else {
+                                "start_failed"
+                            };
+                            guard.mark_finished(&job, None, crate::JobOutcome::Failed, verdict)
+                        };
+                    }
+                    eprintln!(
+                        "stillyard could not start worker thread for {}: {error}",
+                        job.job_id
+                    );
+                    self.wake();
+                    std::thread::sleep(Duration::from_millis(100));
+                    crate::runtime_metrics::waited(crate::runtime_metrics::Timer::Backoff, true);
+                }
+                continue;
+            }
+            if retry {
+                std::thread::sleep(Duration::from_millis(100));
+                crate::runtime_metrics::waited(crate::runtime_metrics::Timer::Backoff, true);
+                continue;
+            }
+            let retry_delay = store
+                .lock()
+                .ok()
+                .and_then(|guard| guard.next_retry_delay(retry_scan_started).ok())
+                .flatten();
+            let retry_deadline = retry_delay.and_then(|delay| Instant::now().checked_add(delay));
+            let observation_deadline = observation_needed.then(|| {
+                Instant::now()
+                    + Duration::from_millis(self.host_observation.sample_interval_millis())
+            });
+            let wake_deadline = [
+                retry_deadline,
+                reconciliation_deadline,
+                observation_deadline,
+            ]
+            .into_iter()
+            .flatten()
+            .min();
+            let (lock, condition) = &*self.signal;
+            let mut pending = match lock.lock() {
+                Ok(pending) => pending,
+                Err(_) => return,
+            };
+            while !*pending {
+                if let Some(deadline) = wake_deadline {
+                    let remaining = deadline.saturating_duration_since(Instant::now());
+                    if remaining.is_zero() {
+                        break;
+                    }
+                    let waited = match condition.wait_timeout(pending, remaining) {
+                        Ok(waited) => waited,
+                        Err(_) => return,
+                    };
+                    pending = waited.0;
+                    if waited.1.timed_out() {
+                        crate::runtime_metrics::waited(
+                            crate::runtime_metrics::Timer::Reactor,
+                            true,
+                        );
+                        break;
+                    }
+                } else {
+                    pending = match condition.wait(pending) {
+                        Ok(pending) => pending,
+                        Err(_) => return,
+                    };
+                }
+            }
+            *pending = false;
+        }
+    }
+}
+
+FILE src/daemon/reconciliation.rs
+#[cfg(target_os = "linux")]
+pub(super) fn probe_reconciliation_candidate(
+    live: &crate::runner::LiveContainments,
+    candidate: &crate::store::ReconciliationCandidate,
+    _context: &(crate::HostId, crate::BootId, uuid::Uuid),
+) -> (
+    Option<crate::ContainmentResolution>,
+    crate::ReconciliationResult,
+) {
+    // Linux requires the executor's durable exact-boundary seal. A different
+    // boot, absent PID/path or unavailable installation cannot substitute it.
+    match live.reconcile_linux(candidate, Instant::now() + Duration::from_millis(100)) {
+        Ok(crate::ReconciliationResult::ProvenEmpty) => (
+            Some(crate::ContainmentResolution::ProvenEmpty),
+            crate::ReconciliationResult::ProvenEmpty,
+        ),
+        _ => (None, crate::ReconciliationResult::BoundaryUninspectable),
+    }
+}
+
+use super::*;
+
+#[cfg(windows)]
+pub(super) fn probe_reconciliation_candidate(
+    live_containments: &crate::runner::LiveContainments,
+    candidate: &crate::store::ReconciliationCandidate,
+    context: &(crate::HostId, crate::BootId, uuid::Uuid),
+) -> (
+    Option<crate::ContainmentResolution>,
+    crate::ReconciliationResult,
+) {
+    let (current_host, current_boot, current_generation) = context;
+    if candidate.host_id.as_ref() != Some(current_host) {
+        return (None, crate::ReconciliationResult::IdentityUnavailable);
+    }
+    let Some(recorded_boot) = candidate.boot_id.as_ref() else {
+        return (None, crate::ReconciliationResult::IdentityUnavailable);
+    };
+    if recorded_boot != current_boot {
+        return if candidate.daemon_generation != Some(*current_generation) {
+            (
+                Some(crate::ContainmentResolution::Reboot),
+                crate::ReconciliationResult::PriorBoot,
+            )
+        } else {
+            (None, crate::ReconciliationResult::IdentityUnavailable)
+        };
+    }
+    if candidate.daemon_generation == Some(*current_generation) {
+        return match live_containments.inspect(candidate.invocation_id) {
+            Ok(Some(crate::ReconciliationResult::ProvenEmpty)) => (
+                Some(crate::ContainmentResolution::ProvenEmpty),
+                crate::ReconciliationResult::ProvenEmpty,
+            ),
+            Ok(Some(evidence)) => (None, evidence),
+            Ok(None) => (None, crate::ReconciliationResult::BoundaryUninspectable),
+            Err(_) => (None, crate::ReconciliationResult::BoundaryUninspectable),
+        };
+    }
+    let Some(prior_daemon) = candidate.prior_daemon_identity.as_ref() else {
+        return (None, crate::ReconciliationResult::IdentityUnavailable);
+    };
+    let prior_daemon =
+        crate::identity::probe_recorded_process(prior_daemon, current_host, current_boot);
+    if !matches!(
+        prior_daemon,
+        crate::ReconciliationResult::IdentityAbsent | crate::ReconciliationResult::PidReused
+    ) {
+        return (None, prior_daemon);
+    }
+    let Some(root_identity) = candidate.root_identity.as_ref() else {
+        if candidate.root_pid_recorded {
+            return (None, crate::ReconciliationResult::IdentityUnavailable);
+        }
+        return (
+            Some(crate::ContainmentResolution::ProvenEmpty),
+            crate::ReconciliationResult::IdentityAbsent,
+        );
+    };
+    let root = crate::identity::probe_recorded_process(root_identity, current_host, current_boot);
+    if matches!(
+        root,
+        crate::ReconciliationResult::IdentityAbsent | crate::ReconciliationResult::PidReused
+    ) {
+        (Some(crate::ContainmentResolution::ProvenEmpty), root)
+    } else {
+        (None, root)
+    }
+}
+
+pub(super) fn authorize_force_peer(
+    live_containments: &crate::runner::LiveContainments,
+    peer: &PeerProcess,
+    requester: &crate::ProcessIdentity,
+    authorization_invocations: &[crate::InvocationId],
+    unresolved_roots: &[crate::ProcessIdentity],
+) -> std::result::Result<(), StoreError> {
+    for &invocation_id in authorization_invocations {
+        match live_containments.contains_process(invocation_id, peer.handle) {
+            Ok(Some(true)) => {
+                return Err(StoreError::OperationRejected {
+                    code: "containment_caller_managed".into(),
+                    detail: "a managed process cannot accept containment risk".into(),
+                });
+            }
+            Ok(Some(false)) => {}
+            Ok(None) | Err(_) => {
+                return Err(StoreError::OperationRejected {
+                    code: "containment_authorization_unavailable".into(),
+                    detail: "a current-generation containment boundary cannot be inspected".into(),
+                });
+            }
+        }
+    }
+    if unresolved_roots
+        .iter()
+        .any(|identity| identity == requester)
+    {
+        return Err(StoreError::OperationRejected {
+            code: "containment_caller_managed".into(),
+            detail: "the requester is an unresolved recorded containment root".into(),
+        });
+    }
+    Ok(())
+}
+
+pub(super) fn force_clear_containment(
+    store: &SharedStore,
+    scheduler: &DaemonReactor,
+    peer: Option<&PeerProcess>,
+    containment_id: crate::ContainmentId,
+) -> std::result::Result<crate::ClearContainmentResult, StoreError> {
+    let peer = peer.ok_or_else(|| StoreError::OperationRejected {
+        code: "containment_requester_unidentifiable".into(),
+        detail: "force-clear requires a connected peer process".into(),
+    })?;
+    let requester = peer
+        .identity
+        .clone()
+        .ok_or_else(|| StoreError::OperationRejected {
+            code: "containment_requester_unidentifiable".into(),
+            detail: "the connection-time requester identity is unavailable".into(),
+        })?;
+    let (context, mut authorization_invocations, mut unresolved_roots) = {
+        let guard = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+        let context =
+            guard
+                .reconciliation_context()
+                .ok_or_else(|| StoreError::OperationRejected {
+                    code: "containment_requester_unidentifiable".into(),
+                    detail: "the daemon host/boot identity is unavailable".into(),
+                })?;
+        let (authorization_invocations, unresolved_roots) =
+            guard.clearance_authorization_evidence()?;
+        (context, authorization_invocations, unresolved_roots)
+    };
+
+    authorize_force_peer(
+        &scheduler.live_containments,
+        peer,
+        &requester,
+        &authorization_invocations,
+        &unresolved_roots,
+    )?;
+    let mut candidate = {
+        let guard = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+        if let Some(result) = guard.persisted_clearance(containment_id)? {
+            return Ok(result);
+        }
+        guard.reconciliation_candidate(containment_id)?
+    };
+
+    let (automatic_resolution, automatic_evidence) =
+        probe_reconciliation_candidate(&scheduler.live_containments, &candidate, &context);
+    if let Ok(mut observations) = scheduler.reconciliation_observations.lock() {
+        observations.record(candidate.containment_id, automatic_evidence.clone());
+    }
+    if let Some(resolution) = automatic_resolution {
+        #[cfg(target_os = "linux")]
+        {
+            let mut guard = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+            scheduler
+                .live_containments
+                .persist_linux_cleanup(&mut guard, candidate.invocation_id)?;
+        }
+        if let Some(result) = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+            .commit_containment_resolution(
+                &candidate,
+                resolution,
+                automatic_evidence.clone(),
+                crate::ClearanceOrigin::Automatic,
+                None,
+                None,
+            )?
+        {
+            scheduler.live_containments.clear(candidate.invocation_id);
+            if result.audit.lease_released {
+                scheduler.wake();
+            }
+            return Ok(result);
+        }
+    }
+    match automatic_evidence {
+        crate::ReconciliationResult::BoundaryNotEmpty => {
+            return Err(StoreError::OperationRejected {
+                code: "containment_boundary_not_empty".into(),
+                detail: "the daemon-owned containment boundary is known nonempty".into(),
+            });
+        }
+        crate::ReconciliationResult::BoundaryUninspectable
+            if candidate.daemon_generation == Some(context.2) =>
+        {
+            return Err(StoreError::OperationRejected {
+                code: "containment_owned_boundary_uninspectable".into(),
+                detail: "restart the daemon to close the owned boundary before risk acceptance"
+                    .into(),
+            });
+        }
+        _ => {}
+    }
+    if candidate.host_id.as_ref() != Some(&context.0) {
+        return Err(StoreError::OperationRejected {
+            code: "containment_host_mismatch".into(),
+            detail: "containment host identity does not match the daemon".into(),
+        });
+    }
+    let mut target_evidence = match candidate.root_identity.as_ref() {
+        Some(identity) => crate::identity::probe_recorded_process(identity, &context.0, &context.1),
+        None if !candidate.root_pid_recorded => crate::ReconciliationResult::IdentityAbsent,
+        None => crate::ReconciliationResult::IdentityUnavailable,
+    };
+    match target_evidence {
+        crate::ReconciliationResult::StillResolves => {
+            return Err(StoreError::OperationRejected {
+                code: "containment_identity_still_resolves".into(),
+                detail: "the exact recorded root process is still running".into(),
+            });
+        }
+        crate::ReconciliationResult::IdentityUnavailable => {
+            return Err(StoreError::OperationRejected {
+                code: "containment_identity_unavailable".into(),
+                detail: "the exact recorded root identity cannot be inspected".into(),
+            });
+        }
+        crate::ReconciliationResult::IdentityAbsent | crate::ReconciliationResult::PidReused => {}
+        _ => {
+            return Err(StoreError::OperationRejected {
+                code: "containment_identity_unavailable".into(),
+                detail: "the target identity has no affirmative absence evidence".into(),
+            });
+        }
+    }
+    let requested_unix_millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(i64::MAX);
+    let forced = crate::ForcedClearanceAudit {
+        requested_unix_millis,
+        requester,
+    };
+    for attempt in 0..2 {
+        if let Some(result) = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+            .commit_containment_resolution(
+                &candidate,
+                crate::ContainmentResolution::ForcedRiskAcceptance,
+                target_evidence.clone(),
+                crate::ClearanceOrigin::Forced,
+                Some(forced.clone()),
+                Some(&authorization_invocations),
+            )?
+        {
+            if result.audit.lease_released {
+                scheduler.wake();
+            }
+            return Ok(result);
+        }
+        if let Some(result) = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+            .persisted_clearance(containment_id)?
+        {
+            return Ok(result);
+        }
+        if attempt == 0 {
+            let guard = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+            if let Some(result) = guard.persisted_clearance(containment_id)? {
+                return Ok(result);
+            }
+            candidate = guard.reconciliation_candidate(containment_id)?;
+            drop(guard);
+            if candidate.host_id.as_ref() != Some(&context.0) {
+                return Err(StoreError::OperationRejected {
+                    code: "containment_host_mismatch".into(),
+                    detail: "containment host identity changed during force-clear".into(),
+                });
+            }
+            target_evidence = match candidate.root_identity.as_ref() {
+                Some(identity) => {
+                    crate::identity::probe_recorded_process(identity, &context.0, &context.1)
+                }
+                None if !candidate.root_pid_recorded => crate::ReconciliationResult::IdentityAbsent,
+                None => crate::ReconciliationResult::IdentityUnavailable,
+            };
+            if !matches!(
+                target_evidence,
+                crate::ReconciliationResult::IdentityAbsent
+                    | crate::ReconciliationResult::PidReused
+            ) {
+                return Err(StoreError::OperationRejected {
+                    code: "containment_identity_unavailable".into(),
+                    detail: "containment evidence changed during force-clear".into(),
+                });
+            }
+            (authorization_invocations, unresolved_roots) = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                .clearance_authorization_evidence()?;
+            authorize_force_peer(
+                &scheduler.live_containments,
+                peer,
+                &forced.requester,
+                &authorization_invocations,
+                &unresolved_roots,
+            )?;
+            continue;
+        }
+    }
+    Err(StoreError::OperationRejected {
+        code: "containment_authorization_unavailable".into(),
+        detail: "containment evidence changed during force-clear".into(),
+    })
+}
+
+/// The external native journal is enrolled only for the Windows Job Object
+/// backend. Exact creator death closes its noninheritable kill-on-close handle;
+/// exact root disappearance (or positive host reboot evidence) completes proof.
+/// Linux generations and arbitrary process absence never enter this branch.
+pub(super) fn recover_machine_authority(
+    store: &SharedStore,
+) -> std::result::Result<crate::AuthoritySnapshot, StoreError> {
+    let (snapshot, context) = {
+        let mut locked = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+        let snapshot = locked.prepare_machine_reset_recovery()?;
+        (snapshot, locked.reconciliation_context())
+    };
+    let native_empty = context.is_some_and(|(host, boot, generation)| {
+        let dead = |identity: &crate::ProcessIdentity| {
+            matches!(
+                crate::identity::probe_recorded_process(identity, &host, &boot),
+                crate::ReconciliationResult::IdentityAbsent
+                    | crate::ReconciliationResult::PidReused
+                    | crate::ReconciliationResult::PriorBoot
+            )
+        };
+        snapshot.coordinator.as_ref().is_some_and(|history| {
+            history.pending_reset.is_some()
+                && history.daemon_generation != generation
+                && dead(&history.process_identity)
+        }) && snapshot.native_obligations.iter().all(|p| {
+            p.boundary_kind == "windows_job_object"
+                && p.daemon_generation != generation
+                && dead(&p.creator_identity)
+                && dead(&p.root_identity)
+        })
+    });
+    store
+        .lock()
+        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+        .finish_machine_reset_recovery(&snapshot, native_empty)
+}
+
+FILE src/daemon/rpc.rs
+use super::*;
+use crate::protocol::error_code;
+
+#[cfg(target_os = "linux")]
+fn attested_request(
+    store: &SharedStore,
+    scheduler: &DaemonReactor,
+    peer: Option<&PeerProcess>,
+    generation: uuid::Uuid,
+    parent: crate::ManagedParent,
+    nonce: [u8; 32],
+    request: Request,
+) -> Response {
+    let result = (|| -> std::result::Result<Response, StoreError> {
+        let context = scheduler.live_containments.linux_server_context(parent)?;
+        if generation != context.server.generation
+            || nonce == [0; 32]
+            || matches!(request, Request::Attested { .. })
+        {
+            return Err(StoreError::Rejected(
+                "stale or nested managed attestation request".into(),
+            ));
+        }
+        let actual = submission_context(store, &scheduler.live_containments, peer)?;
+        if actual.store_uuid != context.server.store || actual.parent != Some(parent) {
+            return Err(StoreError::Rejected(
+                "attested caller is not the claimed kernel-contained parent".into(),
+            ));
+        }
+        let request_sha256 = crate::identity::attestation::request_hash(&request)?;
+        let response = handle_request(store, scheduler, peer, request);
+        Ok(Response::Attested(Box::new(
+            scheduler.live_containments.linux_sign_response(
+                parent,
+                nonce,
+                request_sha256,
+                response,
+            )?,
+        )))
+    })();
+    result.unwrap_or_else(|error| Response::Error {
+        code: "server_attestation_unavailable".into(),
+        message: error.to_string(),
+    })
+}
+
+fn bootstrap_bridge(
+    peer: Option<&PeerProcess>,
+) -> std::result::Result<crate::ProcessIdentity, StoreError> {
+    let peer = peer.ok_or_else(|| {
+        StoreError::Rejected("bootstrap requires an authenticated native bridge".into())
+    })?;
+    let image = super::transport::peer_image_path(peer)?;
+    if std::fs::canonicalize(image)? != std::fs::canonicalize(std::env::current_exe()?)? {
+        return Err(StoreError::Rejected(
+            "bootstrap attestations require this installed daemon executable".into(),
+        ));
+    }
+    peer.identity
+        .clone()
+        .ok_or_else(|| StoreError::Rejected("bootstrap bridge identity unavailable".into()))
+}
+
+fn authority_admin(
+    store: &SharedStore,
+    scheduler: &DaemonReactor,
+    peer: Option<&PeerProcess>,
+) -> std::result::Result<crate::ProcessIdentity, StoreError> {
+    let peer = peer.ok_or_else(|| {
+        StoreError::Rejected("authority administration requires an authenticated pipe peer".into())
+    })?;
+    if submission_context(store, &scheduler.live_containments, Some(peer))?
+        .parent
+        .is_some()
+    {
+        return Err(StoreError::Rejected(
+            "managed work cannot initialize or force-clear the machine authority".into(),
+        ));
+    }
+    peer.identity.clone().ok_or_else(|| {
+        StoreError::Rejected("authority administrator process identity is unavailable".into())
+    })
+}
+
+fn open_read_view(store: &SharedStore) -> std::result::Result<Store, StoreError> {
+    store
+        .lock()
+        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+        .open_read_view()
+}
+
+pub(super) fn handle_request(
+    store: &SharedStore,
+    scheduler: &DaemonReactor,
+    peer: Option<&PeerProcess>,
+    request: Request,
+) -> Response {
+    let result = match request {
+        Request::Attested {
+            daemon_generation,
+            parent,
+            nonce,
+            request,
+        } => {
+            #[cfg(target_os = "linux")]
+            {
+                return attested_request(
+                    store,
+                    scheduler,
+                    peer,
+                    daemon_generation,
+                    parent,
+                    nonce,
+                    *request,
+                );
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                let _ = (daemon_generation, parent, nonce, request);
+                Err(StoreError::Rejected(
+                    "managed namespace attestation is unsupported on this platform".into(),
+                ))
+            }
+        }
+        Request::MachineRetireDomain { request } => authority_admin(store, scheduler, peer)
+            .and_then(|requester| {
+                let peer = peer.ok_or_else(|| {
+                    StoreError::InvalidState(
+                        "retirement needs an authenticated owner process".into(),
+                    )
+                })?;
+                let principal = super::transport::peer_principal(peer)
+                    .map_err(|e| StoreError::InvalidState(e.to_string()))?;
+                if principal
+                    != crate::instance::current_owner_principal()
+                        .map_err(|e| StoreError::InvalidState(e.to_string()))?
+                {
+                    return Err(StoreError::InvalidState(
+                        "retirement principal differs from the daemon owner".into(),
+                    ));
+                }
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .retire_machine_domain(request, requester, principal)
+            })
+            .map(|receipt| {
+                scheduler.wake();
+                Response::MachineDomainRetired(Box::new(receipt))
+            }),
+        Request::MachineClearancePreview { domain } => authority_admin(store, scheduler, peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .machine_clearance_preview(domain)
+            })
+            .map(|preview| Response::MachineClearancePreview(Box::new(preview))),
+        Request::MachineRecover {} => authority_admin(store, scheduler, peer)
+            .and_then(|_| recover_machine_authority(store))
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::MachineEvents { cursor, limit } => open_read_view(store)
+            .and_then(|store| store.machine_events(cursor, limit))
+            .map(Response::MachineEvents),
+        Request::MachineExchange { request } => bootstrap_bridge(peer)
+            .and_then(|_| {
+                if matches!(
+                    request.command,
+                    crate::machine::Command::AuthorizeInvocation { .. }
+                ) {
+                    // Match native release ordering: provider barrier first,
+                    // Store mutex only inside the freshly sampled callback.
+                    scheduler
+                        .host_observation
+                        .with_release_sample(peer.map_or(0, |p| p.pid), |sample| {
+                            store
+                                .lock()
+                                .map_err(|_| {
+                                    StoreError::InvalidState("store mutex poisoned".into())
+                                })?
+                                .machine_exchange(*request, Some(sample))
+                        })
+                        .map_err(StoreError::InvalidState)?
+                } else {
+                    store
+                        .lock()
+                        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                        .machine_exchange(*request, None)
+                }
+            })
+            .map(|reply| {
+                scheduler.wake();
+                Response::MachineReply(Box::new(reply))
+            }),
+        Request::MachinePair { registration } => authority_admin(store, scheduler, peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .pair_machine_domain(registration)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::MachineParticipant(snapshot)
+            }),
+        Request::MachineConnectBegin { hello } => bootstrap_bridge(peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .machine_connect_begin(hello)
+            })
+            .map(Response::MachineChallenge),
+        Request::MachineConnectFinish { challenge, tag } => bootstrap_bridge(peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .machine_connect_finish(challenge, tag)
+            })
+            .map(Response::MachineParticipant),
+        Request::MachineParticipant { domain } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| {
+                if store
+                    .authority_snapshot()?
+                    .retired_domains
+                    .iter()
+                    .any(|r| r.domain_id == domain)
+                {
+                    return Err(StoreError::Rejected(
+                        "participant identity is retired; inspect authority retirement receipts"
+                            .into(),
+                    ));
+                }
+                store.machine_participant(domain)
+            })
+            .map(Response::MachineParticipant),
+        Request::BootstrapArm { binding } => bootstrap_bridge(peer)
+            .and_then(|requester| {
+                let context = submission_context(store, &scheduler.live_containments, peer)?;
+                if context.parent != Some(binding.parent) {
+                    return Err(StoreError::Rejected(
+                        "bootstrap parent does not match OS containment".into(),
+                    ));
+                }
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .arm_bootstrap(binding, requester)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::BootstrapSeal { proof } => bootstrap_bridge(peer)
+            .and_then(|requester| {
+                let context = submission_context(store, &scheduler.live_containments, peer)?;
+                let locked = store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+                if let Some(parent) = context.parent {
+                    let state = locked.authority_snapshot()?;
+                    let matching = state.holds.iter().any(|hold| {
+                        hold.id == proof.operation_id
+                            && hold.requester == requester
+                            && hold
+                                .bootstrap
+                                .as_ref()
+                                .is_some_and(|binding| binding.parent == parent)
+                    });
+                    if !matching {
+                        return Err(StoreError::Rejected(
+                            "managed bridge cannot release another invocation's obligation".into(),
+                        ));
+                    }
+                }
+                locked.seal_bootstrap(proof, requester)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::Ping {} => {
+            return Response::Pong {
+                protocol_version: PROTOCOL_VERSION,
+            };
+        }
+        Request::AuthorityStatus {} => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.authority_snapshot())
+            .map(Response::Authority),
+        Request::AuthorityInitialize {} => authority_admin(store, scheduler, peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .initialize_authority()
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::AuthorityHold { id, reason } => authority_admin(store, scheduler, peer)
+            .and_then(|requester| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .hold_authority(id, reason, requester)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::AuthorityForceRelease { id, reason } => authority_admin(store, scheduler, peer)
+            .and_then(|requester| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .force_release_authority(id, reason, requester)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::StageBegin {
+            upload_id,
+            expected_sha256,
+            expected_length,
+        } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.stage_begin(upload_id, &expected_sha256, expected_length))
+            .map(|next_offset| Response::StageReady { next_offset }),
+        Request::StageChunk {
+            upload_id,
+            offset,
+            bytes,
+        } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.stage_chunk(upload_id, offset, &bytes))
+            .map(|next_offset| Response::StageReady { next_offset }),
+        Request::StageCommit { upload_id } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.stage_commit(upload_id))
+            .map(|input| Response::StageCommitted { input }),
+        Request::SubmissionContext { claimed_parent } => {
+            submission_context(store, &scheduler.live_containments, peer).and_then(|context| {
+                if claimed_parent.is_some() && claimed_parent != context.parent {
+                    return Err(StoreError::Rejected(
+                        "claimed managed parent does not match daemon-held OS containment".into(),
+                    ));
+                }
+                Ok(Response::SubmissionContext(context))
+            })
+        }
+        Request::Submit {
+            idempotency_key,
+            payload_hash,
+            spec,
+            stdin,
+            expected_store_uuid,
+            expected_parent,
+            wait_for_completion,
+        } => submission_context(store, &scheduler.live_containments, peer).and_then(|context| {
+            if context.parent != expected_parent {
+                return Err(StoreError::Rejected(
+                    "submission parent changed after client preflight".into(),
+                ));
+            }
+            store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                .and_then(|mut store| {
+                    if expected_store_uuid.is_some_and(|expected| expected != store.store_uuid()) {
+                        return Err(StoreError::InvalidState(
+                            "store identity changed during submission".into(),
+                        ));
+                    }
+                    let scope = context
+                        .parent
+                        .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed);
+                    match store.submit_with_stdin_scoped_for_wait(
+                        scope,
+                        idempotency_key,
+                        &payload_hash,
+                        &spec,
+                        stdin.as_ref(),
+                        wait_for_completion,
+                    ) {
+                        Ok(submitted) => {
+                            if submitted.should_schedule {
+                                scheduler.wake();
+                            }
+                            Ok(Response::Submitted(submitted.receipt))
+                        }
+                        Err(error) => retained_submission_rejection(
+                            &store,
+                            scope,
+                            idempotency_key,
+                            &payload_hash,
+                            error,
+                        ),
+                    }
+                })
+        }),
+        Request::SubmitBatch {
+            idempotency_key,
+            payload_hash,
+            spec,
+            stdins,
+            expected_store_uuid,
+            expected_parent,
+            wait_for_completion,
+        } => submission_context(store, &scheduler.live_containments, peer).and_then(|context| {
+            if context.parent != expected_parent {
+                return Err(StoreError::Rejected(
+                    "submission parent changed after client preflight".into(),
+                ));
+            }
+            store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                .and_then(|mut store| {
+                    if expected_store_uuid.is_some_and(|expected| expected != store.store_uuid()) {
+                        return Err(StoreError::InvalidState(
+                            "store identity changed during submission".into(),
+                        ));
+                    }
+                    let scope = context
+                        .parent
+                        .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed);
+                    match store.submit_batch_with_stdins_scoped_for_wait(
+                        scope,
+                        idempotency_key,
+                        &payload_hash,
+                        &spec,
+                        &stdins,
+                        wait_for_completion,
+                    ) {
+                        Ok(submitted) => {
+                            if submitted.should_schedule {
+                                scheduler.wake();
+                            }
+                            Ok(Response::BatchSubmitted(submitted.receipt))
+                        }
+                        Err(error) => retained_submission_rejection(
+                            &store,
+                            scope,
+                            idempotency_key,
+                            &payload_hash,
+                            error,
+                        ),
+                    }
+                })
+        }),
+        Request::Recover {
+            idempotency_key,
+            payload_hash,
+            expected_parent,
+        } => submission_context(store, &scheduler.live_containments, peer).and_then(|context| {
+            if context.parent != expected_parent {
+                return Err(StoreError::Rejected(
+                    "recovery parent changed after client preflight".into(),
+                ));
+            }
+            store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                .and_then(|store| {
+                    store
+                        .recover_submission_scoped(
+                            context
+                                .parent
+                                .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
+                            idempotency_key,
+                            &payload_hash,
+                        )
+                        .map(|recovery| Response::Recovered {
+                            store_uuid: store.store_uuid(),
+                            recovery,
+                        })
+                })
+        }),
+        Request::Status { job_id } => scheduler
+            .reconciliation_observations
+            .lock()
+            .map_err(|_| StoreError::InvalidState("reconciliation mutex poisoned".into()))
+            .and_then(|observations| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                    .and_then(|store| store.status_with_reconciliation(job_id, &observations))
+            })
+            .map(|snapshot| Response::Snapshot(Box::new(snapshot))),
+        Request::List {
+            selector,
+            cursor,
+            limit,
+        } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.list_jobs(&selector, cursor, limit))
+            .map(Response::Listed),
+        Request::Tree {
+            selector,
+            root_cursor,
+            root_limit,
+            node_limit,
+            max_depth,
+        } => open_read_view(store)
+            .and_then(|store| store.tree(&selector, root_cursor, root_limit, node_limit, max_depth))
+            .map(Response::Tree),
+        Request::TreeForJob {
+            job_id,
+            node_limit,
+            max_depth,
+        } => open_read_view(store)
+            .and_then(|store| store.tree_for_job(job_id, node_limit, max_depth))
+            .map(Response::Tree),
+        Request::TreeChildren {
+            cursor,
+            node_limit,
+            additional_depth,
+        } => open_read_view(store)
+            .and_then(|store| store.tree_children(&cursor, node_limit, additional_depth))
+            .map(Response::TreeChildren),
+        Request::Observe {
+            selector,
+            cursor,
+            limit,
+            max_wait_millis,
+            managed_wait,
+        } => (|| {
+            if managed_wait {
+                let context = submission_context(store, &scheduler.live_containments, peer)?;
+                let crate::JobSelector::Jobs { job_ids } = &selector else {
+                    return Err(StoreError::InvalidSpec(
+                        "managed wait observation requires explicit Job IDs".into(),
+                    ));
+                };
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .validate_managed_wait(
+                        context
+                            .parent
+                            .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
+                        job_ids,
+                    )?;
+            }
+            scheduler
+                .wait_observation(
+                    store,
+                    &selector,
+                    cursor,
+                    limit,
+                    Duration::from_millis(u64::from(max_wait_millis.min(60_000))),
+                )
+                .map(Response::Observed)
+        })(),
+        Request::ObserveTrees {
+            selector,
+            cursor,
+            event_limit,
+            root_limit,
+            node_limit,
+            max_depth,
+            max_wait_millis,
+        } => scheduler
+            .wait_tree_observation(
+                store,
+                &selector,
+                cursor,
+                event_limit,
+                root_limit,
+                node_limit,
+                max_depth,
+                Duration::from_millis(u64::from(max_wait_millis.min(60_000))),
+            )
+            .map(Response::TreesObserved),
+        Request::Cancel { job_ids } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|mut store| store.cancel_jobs(&job_ids))
+            .map(|snapshots| {
+                scheduler.wake();
+                Response::Canceled { snapshots }
+            }),
+        Request::Wait {
+            job_id,
+            max_wait_millis,
+            claimed_parent,
+        } => submission_context(store, &scheduler.live_containments, peer).and_then(|context| {
+            if claimed_parent.is_some() && claimed_parent != context.parent {
+                return Err(StoreError::Rejected(
+                    "claimed managed parent does not match daemon-held OS containment".into(),
+                ));
+            }
+            store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                .validate_managed_wait(
+                    context
+                        .parent
+                        .map_or(SubmissionScope::Unmanaged, SubmissionScope::Managed),
+                    &[job_id],
+                )?;
+            scheduler
+                .wait_snapshot(
+                    store,
+                    job_id,
+                    Duration::from_millis(u64::from(max_wait_millis.min(1_000))),
+                )
+                .map(|snapshot| Response::Snapshot(Box::new(snapshot)))
+        }),
+        Request::Logs {
+            job_id,
+            stream,
+            offset,
+            limit,
+        } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.logs(job_id, stream, offset, limit))
+            .map(Response::Logs),
+        Request::DaemonStatus {} => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.daemon_status(&scheduler.endpoint))
+            .map(Response::DaemonStatus),
+        Request::Doctor { cursor, limit } => (|| {
+            let doctor_store = open_read_view(store)?;
+            let requirements = doctor_store.host_observation_requirements()?;
+            let page_limit = limit
+                .unwrap_or(crate::MAX_DOCTOR_PAGE)
+                .clamp(1, crate::MAX_DOCTOR_PAGE) as usize;
+            let incident_page = match cursor {
+                Some(cursor) => scheduler
+                    .doctor_snapshots
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("doctor snapshot mutex poisoned".into()))?
+                    .next(cursor, page_limit)?,
+                None => {
+                    let observations = scheduler
+                        .reconciliation_observations
+                        .lock()
+                        .map_err(|_| {
+                            StoreError::InvalidState("reconciliation mutex poisoned".into())
+                        })?
+                        .clone();
+                    let captured = doctor_store.capture_doctor_incidents(&observations)?;
+                    scheduler
+                        .doctor_snapshots
+                        .lock()
+                        .map_err(|_| {
+                            StoreError::InvalidState("doctor snapshot mutex poisoned".into())
+                        })?
+                        .begin(captured, page_limit)?
+                }
+            };
+            let mut snapshot =
+                doctor_store.doctor_with_incident_page(&scheduler.endpoint, incident_page)?;
+            {
+                let (detector_checks, detector_coverage) =
+                    scheduler.host_observation.doctor_diagnostics(requirements);
+                snapshot.checks.extend(detector_checks);
+                snapshot.coverage.extend(detector_coverage);
+            }
+            snapshot.checks.push(crate::runtime_metrics::doctor_check());
+            snapshot
+                .checks
+                .sort_by(|left, right| left.code.cmp(&right.code));
+            snapshot.overall = if snapshot
+                .checks
+                .iter()
+                .any(|check| check.status == crate::DoctorCheckStatus::Fail)
+            {
+                crate::DoctorOverallStatus::Unsafe
+            } else if snapshot.checks.iter().any(|check| {
+                matches!(
+                    check.status,
+                    crate::DoctorCheckStatus::Warning | crate::DoctorCheckStatus::Unknown(_)
+                )
+            }) {
+                crate::DoctorOverallStatus::AttentionRequired
+            } else {
+                crate::DoctorOverallStatus::Healthy
+            };
+            Ok(Response::Doctor(Box::new(snapshot)))
+        })(),
+        Request::ForceClearContainment { containment_id } => {
+            force_clear_containment(store, scheduler, peer, containment_id)
+                .map(Response::ContainmentCleared)
+        }
+    };
+    result.unwrap_or_else(|error| match error {
+        StoreError::NotFound(_) => Response::Error {
+            code: error_code::NOT_FOUND.into(),
+            message: error.to_string(),
+        },
+        StoreError::IdempotencyConflict {
+            existing_payload_hash,
+            requested_payload_hash,
+        } => Response::Conflict {
+            existing_payload_hash,
+            requested_payload_hash,
+        },
+        StoreError::Rejected(_) => Response::Error {
+            code: error_code::REJECTED.into(),
+            message: error.to_string(),
+        },
+        StoreError::OperationRejected { code, detail } => Response::Error {
+            code,
+            message: detail,
+        },
+        StoreError::BlockedByAncestor(detail) => Response::Error {
+            code: error_code::BLOCKED_BY_ANCESTOR.into(),
+            message: detail,
+        },
+        StoreError::ManagedWaitRejected { code, detail } => Response::Error {
+            code,
+            message: detail,
+        },
+        StoreError::InvalidSpec(_) => Response::Error {
+            code: error_code::INVALID_SPEC.into(),
+            message: error.to_string(),
+        },
+        StoreError::ViewStale(detail) => Response::Error {
+            code: error_code::TREE_CURSOR_STALE.into(),
+            message: detail,
+        },
+        StoreError::DoctorCursorStale(detail) => Response::Error {
+            code: error_code::DOCTOR_CURSOR_STALE.into(),
+            message: detail,
+        },
+        StoreError::ViewUnavailable(detail) => Response::Error {
+            code: error_code::TREE_SCAN_LIMIT.into(),
+            message: detail,
+        },
+        StoreError::DoctorIncidentLimit => Response::Error {
+            code: error_code::DOCTOR_INCIDENT_LIMIT.into(),
+            message: error.to_string(),
+        },
+        StoreError::DoctorMemoryLimit => Response::Error {
+            code: error_code::DOCTOR_MEMORY_LIMIT.into(),
+            message: error.to_string(),
+        },
+        StoreError::DoctorSnapshotCapacity => Response::Error {
+            code: error_code::DOCTOR_SNAPSHOT_CAPACITY.into(),
+            message: error.to_string(),
+        },
+        _ => Response::Error {
+            code: error_code::STORE_ERROR.into(),
+            message: error.to_string(),
+        },
+    })
+}
+
+fn retained_submission_rejection(
+    store: &Store,
+    scope: SubmissionScope,
+    idempotency_key: uuid::Uuid,
+    payload_hash: &str,
+    original_error: StoreError,
+) -> std::result::Result<Response, StoreError> {
+    match store.recover_submission_scoped(scope, idempotency_key, payload_hash) {
+        Ok(crate::RecoveryResult::Rejected { code, detail }) => Ok(Response::SubmissionRejected {
+            code,
+            message: detail,
+        }),
+        _ => Err(original_error),
+    }
+}
+
+FILE src/runner/lifecycle.rs
+//! Shared primary/probe/postcondition settlement and retained-Lease lifecycle.
+//! Platform executors perform one Invocation and return explicit cleanup progress.
+use crate::store::{PreparedJob, Store, StoreError};
+use crate::{
+    AttemptVerdict, ExitClassification, InvocationRole, InvocationVerdict, TerminationReason,
+};
+use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+#[derive(Default)]
+pub(super) struct RunProgress {
+    pub(super) user_code_released: bool,
+    pub(super) durable_release_authorized: bool,
+    pub(super) release_authorized: bool,
+    pub(super) pre_release_replanned: bool,
+    pub(super) cleanup_proven: bool,
+    pub(super) uncertainty_persisted: bool,
+    pub(super) exit_code: Option<i32>,
+    pub(super) timed_out: bool,
+    pub(super) canceled: bool,
+    pub(super) never_run_reason: Option<String>,
+}
+
+pub(super) struct PendingStop {
+    pub(super) verdict: AttemptVerdict,
+    pub(super) reason: String,
+}
+
+pub(super) type RunResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
+type Invoke = fn(
+    &PreparedJob,
+    &Arc<Mutex<Store>>,
+    &str,
+    &super::LiveContainments,
+    &crate::host_observation::HostObservationService,
+    &mut RunProgress,
+    &super::ReconciliationWake,
+) -> RunResult<(u32, bool)>;
+
+pub(super) fn run_with_wake(
+    job: &PreparedJob,
+    store: &Arc<Mutex<Store>>,
+    endpoint: &str,
+    live_containments: &super::LiveContainments,
+    host_observation: &crate::host_observation::HostObservationService,
+    reconciliation_wake: &super::ReconciliationWake,
+    execute: Invoke,
+) {
+    if job.role == InvocationRole::Probe {
+        run_probe_with_wake(
+            job,
+            store,
+            endpoint,
+            live_containments,
+            host_observation,
+            reconciliation_wake,
+            execute,
+        );
+        return;
+    }
+    let mut progress = RunProgress {
+        cleanup_proven: true,
+        ..RunProgress::default()
+    };
+    let primary = match execute(
+        job,
+        store,
+        endpoint,
+        live_containments,
+        host_observation,
+        &mut progress,
+        reconciliation_wake,
+    ) {
+        Ok(result) => result,
+        Err(error) => {
+            finish_failed_invocation(job, store, live_containments, &progress, false);
+            report_runner_error(job, error.as_ref());
+            return;
+        }
+    };
+    if progress.pre_release_replanned {
+        return;
+    }
+    let mut verdict = if progress.canceled {
+        AttemptVerdict::Canceled
+    } else if primary.1 {
+        AttemptVerdict::TimedOut
+    } else if primary.0 == 0 {
+        AttemptVerdict::Succeeded
+    } else {
+        AttemptVerdict::ProcessFailed
+    };
+    if let Ok(mut locked) = store.lock() {
+        match locked
+            .mark_invocation_resolved(job, Some(primary.0 as i32), None)
+            .and_then(|()| record_primary_result(&mut locked, job, verdict).map(|_| ()))
+        {
+            Ok(()) => live_containments.clear(job.invocation_id),
+            Err(error) => {
+                drop(locked);
+                finish_completed_invocation(
+                    job,
+                    store,
+                    live_containments,
+                    Some(primary.0 as i32),
+                    None,
+                    verdict,
+                );
+                report_runner_error(job, &error);
+                return;
+            }
+        }
+    } else {
+        return;
+    }
+
+    if !matches!(verdict, AttemptVerdict::Canceled | AttemptVerdict::TimedOut) {
+        for index in 0..job.spec.postconditions.len() {
+            match pending_stop_verdict(job, store, false) {
+                Ok(Some(stop)) => {
+                    verdict = stop.verdict;
+                    break;
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    verdict = AttemptVerdict::Interrupted;
+                    report_runner_error(job, error.as_ref());
+                    break;
+                }
+            }
+            let postcondition = match store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                .and_then(|mut locked| locked.prepare_postcondition(job, index))
+            {
+                Ok(postcondition) => postcondition,
+                Err(error) => {
+                    verdict = AttemptVerdict::PostconditionFailed;
+                    report_runner_error(job, &error);
+                    break;
+                }
+            };
+            let mut post_progress = RunProgress {
+                cleanup_proven: true,
+                ..RunProgress::default()
+            };
+            let result = match execute(
+                &postcondition,
+                store,
+                endpoint,
+                live_containments,
+                host_observation,
+                &mut post_progress,
+                reconciliation_wake,
+            ) {
+                Ok(result) => result,
+                Err(error) => {
+                    finish_failed_invocation(
+                        &postcondition,
+                        store,
+                        live_containments,
+                        &post_progress,
+                        true,
+                    );
+                    report_runner_error(&postcondition, error.as_ref());
+                    return;
+                }
+            };
+            if post_progress.canceled || result.1 {
+                let stop = if post_progress.canceled {
+                    AttemptVerdict::Canceled
+                } else {
+                    AttemptVerdict::TimedOut
+                };
+                if let Ok(mut locked) = store.lock() {
+                    match locked.mark_invocation_resolved(
+                        &postcondition,
+                        Some(result.0 as i32),
+                        None,
+                    ) {
+                        Ok(()) => live_containments.clear(postcondition.invocation_id),
+                        Err(error) => {
+                            drop(locked);
+                            finish_completed_invocation(
+                                &postcondition,
+                                store,
+                                live_containments,
+                                Some(result.0 as i32),
+                                None,
+                                stop,
+                            );
+                            report_runner_error(&postcondition, &error);
+                            return;
+                        }
+                    }
+                } else {
+                    return;
+                }
+                verdict = stop;
+                break;
+            }
+            let definition = &job.spec.postconditions[index];
+            let classification = if definition.accepted_exit_codes.contains(&(result.0 as i32)) {
+                ExitClassification::Accepted
+            } else if definition.retryable_exit_codes.contains(&(result.0 as i32)) {
+                ExitClassification::Retryable
+            } else {
+                ExitClassification::Failed
+            };
+            let classified_verdict = match classification {
+                ExitClassification::Accepted => verdict,
+                ExitClassification::Retryable => AttemptVerdict::PostconditionRetryable,
+                ExitClassification::Failed => AttemptVerdict::PostconditionFailed,
+            };
+            if let Ok(mut locked) = store.lock() {
+                match locked.mark_invocation_resolved(
+                    &postcondition,
+                    Some(result.0 as i32),
+                    Some(classification),
+                ) {
+                    Ok(()) => live_containments.clear(postcondition.invocation_id),
+                    Err(error) => {
+                        drop(locked);
+                        finish_completed_invocation(
+                            &postcondition,
+                            store,
+                            live_containments,
+                            Some(result.0 as i32),
+                            Some(classification),
+                            classified_verdict,
+                        );
+                        report_runner_error(&postcondition, &error);
+                        return;
+                    }
+                }
+            } else {
+                return;
+            }
+            verdict = classified_verdict;
+            if classification != ExitClassification::Accepted {
+                break;
+            }
+        }
+    }
+    if let Ok(mut locked) = store.lock() {
+        if let Err(error) = locked.settle_attempt(job, verdict) {
+            report_runner_error(job, &error);
+        }
+    }
+}
+
+fn run_probe_with_wake(
+    job: &PreparedJob,
+    store: &Arc<Mutex<Store>>,
+    endpoint: &str,
+    live_containments: &super::LiveContainments,
+    host_observation: &crate::host_observation::HostObservationService,
+    reconciliation_wake: &super::ReconciliationWake,
+    execute: Invoke,
+) {
+    let mut progress = RunProgress {
+        cleanup_proven: true,
+        ..RunProgress::default()
+    };
+    match execute(
+        job,
+        store,
+        endpoint,
+        live_containments,
+        host_observation,
+        &mut progress,
+        reconciliation_wake,
+    ) {
+        Ok((exit_code, timed_out)) => {
+            let settled = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                .and_then(|mut locked| locked.settle_probe(job, Some(exit_code as i32), timed_out));
+            match settled {
+                Ok(()) => live_containments.clear(job.invocation_id),
+                Err(error) => report_runner_error(job, &error),
+            }
+        }
+        Err(error) => {
+            if progress.cleanup_proven {
+                let settled = store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+                    .and_then(|mut locked| {
+                        locked.settle_probe(job, progress.exit_code, progress.timed_out)
+                    });
+                match settled {
+                    Ok(()) => live_containments.clear(job.invocation_id),
+                    Err(settle_error) => report_runner_error(job, &settle_error),
+                }
+            } else if !progress.uncertainty_persisted {
+                if let Ok(mut locked) = store.lock() {
+                    if let Err(persist_error) = locked.mark_probe_uncertain(job, progress.exit_code)
+                    {
+                        report_runner_error(job, &persist_error);
+                    }
+                }
+            }
+            report_runner_error(job, error.as_ref());
+        }
+    }
+}
+
+pub(super) fn pending_stop_verdict(
+    job: &PreparedJob,
+    store: &Arc<Mutex<Store>>,
+    preserve_readiness_terminal: bool,
+) -> RunResult<Option<PendingStop>> {
+    let mut locked = store
+        .lock()
+        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+    if preserve_readiness_terminal {
+        if let Some(reason) = locked.pre_resume_defer_reason(job.job_id)? {
+            let verdict = if reason.contains("outcome=failed") {
+                AttemptVerdict::SafetyFailed
+            } else {
+                AttemptVerdict::Canceled
+            };
+            return Ok(Some(PendingStop { verdict, reason }));
+        }
+    } else if locked.invocation_stop_requested(job.job_id)? {
+        return Ok(Some(PendingStop {
+            verdict: AttemptVerdict::Canceled,
+            reason: "cancel_requested".into(),
+        }));
+    }
+    drop(locked);
+    let now: i64 = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(i64::MAX);
+    Ok(job
+        .attempt_deadline_unix_millis
+        .is_some_and(|deadline| deadline <= now)
+        .then_some(PendingStop {
+            verdict: AttemptVerdict::TimedOut,
+            reason: "attempt_timeout".into(),
+        }))
+}
+
+fn finish_completed_invocation(
+    job: &PreparedJob,
+    store: &Arc<Mutex<Store>>,
+    live_containments: &super::LiveContainments,
+    exit_code: Option<i32>,
+    classification: Option<ExitClassification>,
+    verdict: AttemptVerdict,
+) {
+    if let Ok(mut locked) = store.lock() {
+        if locked
+            .mark_invocation_resolved(job, exit_code, classification)
+            .is_ok()
+            && (job.role != InvocationRole::Primary
+                || record_primary_result(&mut locked, job, verdict).is_ok())
+        {
+            live_containments.clear(job.invocation_id);
+            if let Err(error) = locked.settle_attempt(job, verdict) {
+                report_runner_error(job, &error);
+            }
+        }
+    }
+}
+
+fn failed_run_verdict(progress: &RunProgress) -> AttemptVerdict {
+    if progress.canceled {
+        AttemptVerdict::Canceled
+    } else if progress.timed_out {
+        AttemptVerdict::TimedOut
+    } else if progress.user_code_released {
+        AttemptVerdict::Interrupted
+    } else {
+        AttemptVerdict::StartFailed
+    }
+}
+
+#[cfg(test)]
+pub(super) fn failed_run_classification(
+    progress: &RunProgress,
+) -> (crate::JobOutcome, &'static str) {
+    let verdict = failed_run_verdict(progress);
+    let outcome = match verdict {
+        AttemptVerdict::TimedOut => crate::JobOutcome::TimedOut,
+        AttemptVerdict::Interrupted => crate::JobOutcome::Interrupted,
+        AttemptVerdict::Canceled => crate::JobOutcome::Canceled,
+        _ => crate::JobOutcome::Failed,
+    };
+    (outcome, verdict.as_str())
+}
+
+fn finish_failed_invocation(
+    job: &PreparedJob,
+    store: &Arc<Mutex<Store>>,
+    live_containments: &super::LiveContainments,
+    progress: &RunProgress,
+    postcondition: bool,
+) {
+    if let Ok(mut locked) = store.lock() {
+        if progress.cleanup_proven {
+            if let Some(reason) = progress
+                .never_run_reason
+                .as_deref()
+                .filter(|_| !progress.user_code_released)
+            {
+                match locked.replan_never_run(job, reason) {
+                    Ok(()) => live_containments.clear(job.invocation_id),
+                    Err(error) => report_runner_error(job, &error),
+                }
+                return;
+            }
+            let failed_verdict = failed_run_verdict(progress);
+            let verdict = if postcondition && failed_verdict == AttemptVerdict::StartFailed {
+                AttemptVerdict::PostconditionFailed
+            } else {
+                failed_verdict
+            };
+            let classification = (verdict == AttemptVerdict::PostconditionFailed)
+                .then_some(ExitClassification::Failed);
+            if locked
+                .mark_invocation_resolved(job, progress.exit_code, classification)
+                .is_ok()
+                && (job.role != InvocationRole::Primary
+                    || record_primary_result(&mut locked, job, verdict).is_ok())
+            {
+                live_containments.clear(job.invocation_id);
+                if let Err(error) = locked.settle_attempt(job, verdict) {
+                    report_runner_error(job, &error);
+                }
+            }
+        } else {
+            // The platform backend transfers its still-owned boundary to the reconciler before
+            // returning. Never remove that authority merely because the outer settlement
+            // observes or retries the durable uncertain transition.
+            if !progress.uncertainty_persisted {
+                if let Err(error) = persist_uncertain_cleanup(&mut locked, job, progress) {
+                    report_runner_error(job, &error);
+                }
+            }
+        }
+    }
+}
+
+pub(super) fn persist_uncertain_cleanup(
+    store: &mut Store,
+    job: &PreparedJob,
+    progress: &RunProgress,
+) -> crate::store::StoreResult<()> {
+    if job.role == InvocationRole::Probe {
+        store.mark_probe_uncertain(job, progress.exit_code)
+    } else if (job.spec.quiet.is_some() || !job.spec.conditions.is_empty())
+        && !progress.release_authorized
+    {
+        store.mark_pre_release_cleanup_uncertain(job, progress.exit_code)
+    } else {
+        store.mark_uncertain(job, progress.exit_code, "interrupted")
+    }
+}
+
+fn record_primary_result(
+    store: &mut Store,
+    job: &PreparedJob,
+    verdict: AttemptVerdict,
+) -> crate::store::StoreResult<crate::PrimaryInvocationResult> {
+    let (invocation_verdict, termination) = match verdict {
+        AttemptVerdict::Succeeded => (InvocationVerdict::Succeeded, TerminationReason::Exited),
+        AttemptVerdict::ProcessFailed => {
+            (InvocationVerdict::ProcessFailed, TerminationReason::Exited)
+        }
+        AttemptVerdict::StartFailed => (
+            InvocationVerdict::StartFailed,
+            TerminationReason::StartFailed,
+        ),
+        AttemptVerdict::TimedOut => (InvocationVerdict::TimedOut, TerminationReason::Timeout),
+        AttemptVerdict::Interrupted => {
+            (InvocationVerdict::Interrupted, TerminationReason::Interrupt)
+        }
+        AttemptVerdict::SafetyFailed => (
+            InvocationVerdict::SafetyFailed,
+            TerminationReason::SafetyFailure,
+        ),
+        AttemptVerdict::Canceled => (InvocationVerdict::Canceled, TerminationReason::Cancel),
+        AttemptVerdict::PostconditionRetryable | AttemptVerdict::PostconditionFailed => {
+            return Err(StoreError::InvalidState(
+                "postcondition verdict cannot define the primary Invocation result".into(),
+            ));
+        }
+    };
+    store.record_primary_result(job, invocation_verdict, termination)
+}
+
+fn report_runner_error(job: &PreparedJob, error: &dyn std::error::Error) {
+    use std::io::Write as _;
+    let _ = writeln!(
+        std::io::stderr(),
+        "stillyard runner for {} failed: {error}",
+        job.job_id
+    );
+}
