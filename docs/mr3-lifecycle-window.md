@@ -1,6 +1,14 @@
 # MR-3 controlled Windows/WSL interruption window
 
-Status: prepared procedure; disruptive steps have not run. This is not acceptance
+Status: **superseded by the user's 2026-09-10 host restriction**. The user refused
+whole-VM shutdown and interruption of Ubuntu-SSD, and requested testing another
+distribution. Do not submit the historical terminate/shutdown specifications
+below. Prepare a disposable test distro with a fresh Store and pairing, run its
+targeted termination through the native default scheduler, and observe continuous
+Ubuntu-SSD/Windows identities. Whole-VM, host sleep/logout/reboot coverage remains
+deferred, not passed. The historical procedure is retained for audit only.
+
+Disruptive steps below have not run. This is not acceptance
 evidence. Current installed identity and the exact accepted build Jobs are in
 [machine-resource-implementation-status.md](machine-resource-implementation-status.md).
 

@@ -1,0 +1,3 @@
+gpgv: Signature made Fri Aug 28 01:43:09 2026 MSK
+gpgv:                using RSA key 843938DF228D22F7B3742BC0D94AA3F0EFE21092
+gpgv: Good signature from "Ubuntu CD Image Automatic Signing Key (2012) <cdimage@ubuntu.com>"

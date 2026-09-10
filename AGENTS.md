@@ -2,6 +2,17 @@
 
 Read this file before changing or validating Stillyard.
 
+## Current host lifecycle restriction
+
+The user prohibits stopping or restarting the working `Ubuntu-SSD` distribution
+and shutting down the shared WSL VM. Do not run `wsl --shutdown`, terminate
+`Ubuntu-SSD`, restart WSL host services, or perform host sleep/logout/reboot tests.
+Lifecycle fault work must target a separately identified disposable test distro,
+under a native default Stillyard Job. Existing other distros are not disposable
+without the user's confirmation. Preserve working-distro continuity evidence.
+Whole-VM acceptance remains explicitly deferred; a test-distro restart does not
+prove whole-VM recovery. This restriction supersedes older prepared window specs.
+
 ## Worktree and snapshot resource cleanup
 
 After completing work with a worktree or source snapshot, remove its disposable

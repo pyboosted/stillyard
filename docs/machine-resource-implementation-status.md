@@ -90,12 +90,19 @@ MSRV tests and release builds passed and were installed. The actual attached
 wait-path negative control passed. Final z11f3 idle acceptance passed all 21 conditions: aggregate CPU 0.0550%, endpoint memory 67.1406 MiB and 3.2000 timer expirations/min, including helper coverage. [Accepted interval](evidence/mr3-idle-20260910z11f3/acceptance.json).
 Historical “current” notes below are superseded by this section.
 
-The current prepared lifecycle bundle is j. Its native default quiescent
+The historical prepared lifecycle bundle is j. Its native default quiescent
 preflight W`01a08b9f-e7b3-71d0-b8f0-be7a634f1b9d` passed, including actual
 SQL/journal cleanup proofs and recursive kernel emptiness. The snapshot includes
 98 selected foreign-work process candidates in Ubuntu-SSD. Terminate/shutdown
-remain unsubmitted pending the separately agreed interruption window.
+remain unsubmitted and are now prohibited by the user's host restriction.
 [Prepared procedure and evidence](evidence/mr3-lifecycle-window-20260910z11j/).
+The user requests testing a different distro while leaving Ubuntu-SSD and the
+shared WSL VM running. Import of the new disposable Stillyard-MR3-Test timed out;
+WSL management calls and targeted cleanup of that import also stalled. Existing
+Ubuntu-22.04 was not started or changed. Ordinary Windows/Ubuntu-SSD continuity
+Jobs still passed with real shared Grants. Test-distro lifecycle is not yet
+accepted; whole-VM coverage is explicitly deferred under the host restriction.
+[Import failure, retained fixture and continuity Jobs](evidence/mr3-test-distro-20260910a/).
 
 Historical MR-0 baseline source identity follows.
 The incoming Linux checkout had no tracked changes; the supplied plan was untracked
@@ -2914,3 +2921,27 @@ the recursive executor cgroup is empty. Preflight now executes the disruptive
 empty predicate itself. The fresh selected foreign-work inventory contains
 98 process candidates. [Exact clearance, source and canonical Job](evidence/mr3-lifecycle-window-20260910z11j/).
 No shutdown/terminate approval file was created or disruptive Job submitted.
+
+### User restriction: preserve Ubuntu-SSD and the shared WSL VM
+
+The user rejected the proposed interruption window and requested another distro.
+AGENTS.md now prohibits whole-VM shutdown, Ubuntu-SSD termination and host
+sleep/logout/reboot tests; historical j specs are superseded, not authorized.
+The existing stopped Ubuntu-22.04 was left untouched. A signed official Ubuntu
+26.04.1 image was selected for the disposable Stillyard-MR3-Test fixture.
+
+Native default import W`01a08bab-3dfa-7473-a15d-cc2b68bac749` timed out after
+180 seconds, leaving a new registration and 12 MiB partial VHD. Subsequent WSL
+list calls stalled. One targeted cleanup W`01a08bb0-b833-7483-a3a5-fc52cb0458ba`
+also timed out after 30 seconds. No service restart or whole-VM action was used;
+the partial registered disk is retained because service-side completion is
+unknown. Root cause remains unproven. The one owned stalled list client was
+cleaned up with native creation/command identity checks; foreign clients remain.
+
+Working Ubuntu-SSD Store, generation, process and kernel boot remained unchanged.
+Ordinary native W`01a08bb2-0b59-7f50-9edb-17c568f5c057` and attached
+L`01a08bb2-ee1c-7c01-9a0b-ea0b3605b752` canaries succeeded with actual Windows
+Grants. A Linux client initially rejected a DrvFS receipt path; the same intent
+succeeded using ext4. No new build cache was created. Fixture install/pair and
+targeted lifecycle inputs are unexecuted drafts, pending recovery of WSL
+management and their own validation. [Full evidence and next recovery boundary](evidence/mr3-test-distro-20260910a/).

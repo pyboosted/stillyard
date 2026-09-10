@@ -1,0 +1,36 @@
+{
+  "version": 5,
+  "idempotency_key": "f8aead22-e423-4ba2-a524-6078ad593f13",
+  "payload_hash": "3286789d406999a4a49debee2472374a693a63048aca8d4d0a9b407ba0ca8278",
+  "endpoint": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock",
+  "store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+  "parent": null,
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08bb2-ee19-79e3-8136-d94de795002d",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08bb2-ee1c-7c01-9a0b-ea0b3605b752",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1789050154524,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [],
+      "queue_rank": 1,
+      "reservation": null,
+      "conditions": [],
+      "estimate": {
+        "confidence": "estimated",
+        "start_in_millis": 0,
+        "assumptions": [
+          "currently admissible"
+        ]
+      },
+      "parent": null,
+      "managed_policy_admission": null,
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4"
+    }
+  }
+}
