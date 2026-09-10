@@ -11,6 +11,8 @@ use stillyard::{
 };
 use uuid::Uuid;
 
+#[cfg(windows)]
+mod bootstrap_controller;
 mod tui;
 
 #[derive(Debug, Parser)]
@@ -25,6 +27,24 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    #[cfg(target_os = "linux")]
+    /// Prepare a stopped WSL store or apply its owner-only pairing configuration.
+    WslInstall {
+        /// Select an isolated store; requires --endpoint as well.
+        #[arg(long)]
+        store: Option<PathBuf>,
+        /// Owner-only JSON configuration from explicit Windows domain registration.
+        #[arg(long)]
+        configuration: Option<PathBuf>,
+    },
+    #[cfg(target_os = "linux")]
+    #[command(hide = true)]
+    LinuxExecutorStub {
+        #[arg(long)]
+        spec: PathBuf,
+        #[arg(long)]
+        control: PathBuf,
+    },
     /// Run the per-user scheduler daemon in the foreground.
     Daemon {
         /// Internal marker used by client auto-start.
@@ -209,6 +229,23 @@ enum Command {
         #[arg(long, default_value_t = 10)]
         deadline_seconds: u64,
     },
+    /// Pair and inspect machine executors through the selected authority.
+    Machine {
+        #[command(subcommand)]
+        command: MachineCommand,
+    },
+    /// Transitional WSL bootstrap with durable Windows admission protection.
+    Bootstrap {
+        #[command(subcommand)]
+        command: BootstrapCommand,
+    },
+    /// Inspect or explicitly administer the durable machine admission interlock.
+    Authority {
+        #[command(subcommand)]
+        command: AuthorityCommand,
+        #[arg(long, default_value_t = 10)]
+        deadline_seconds: u64,
+    },
     /// Print the daemon-authenticated submission context for this process.
     Context {
         /// Emit the public SubmissionContext JSON document.
@@ -267,6 +304,98 @@ enum SchemaCommand {
     Config,
     /// Print typed ensure/wait/primary-result records.
     ManagedExecution,
+    /// Print scoped machine-resource accounting and authority identities.
+    MachineScheduling,
+    /// Typed participant protocol, tickets and allocation views.
+    MachineProtocol,
+}
+
+#[derive(Debug, Subcommand)]
+enum MachineCommand {
+    /// Serve bounded binary protocol frames on stdin/stdout until the transport closes.
+    Bridge,
+    /// Retire a failed manager identity; outstanding rights need explicit risk acceptance in the spec.
+    RetireDomain {
+        #[arg(long)]
+        spec: PathBuf,
+    },
+    /// Preview exact outstanding rights before owner-audited domain retirement.
+    ClearancePreview { domain: Uuid },
+    /// Reconstruct lost coordinator inventory and verify native cleanup; never force-clear.
+    Recover,
+    /// Read ordered machine allocation events; cursor is a retained page cursor JSON file.
+    Events {
+        #[arg(long)]
+        cursor: Option<PathBuf>,
+        #[arg(long, default_value_t = 128)]
+        limit: u32,
+    },
+    /// Exchange one sequenced protocol operation through the installed bridge.
+    Exchange {
+        #[arg(long)]
+        spec: PathBuf,
+    },
+    /// Explicitly pair an executor from an owner-controlled registration file.
+    Pair {
+        #[arg(long)]
+        spec: PathBuf,
+    },
+    /// Begin authentication through this installed bridge executable.
+    ConnectBegin {
+        #[arg(long)]
+        spec: PathBuf,
+    },
+    /// Complete a pending handshake; the file contains challenge and tag.
+    ConnectFinish {
+        #[arg(long)]
+        spec: PathBuf,
+    },
+    /// Inspect a participant without exposing its pairing secret.
+    Participant { domain: Uuid },
+}
+
+#[derive(Debug, Subcommand)]
+enum BootstrapCommand {
+    /// Run a bounded Linux descriptor from a native Job with durable authority protection.
+    Run {
+        #[arg(long)]
+        spec: PathBuf,
+        /// Native acceptance companion in this primary's Job; requires a finite Job timeout.
+        #[cfg(windows)]
+        #[arg(long, hide = true)]
+        native_controller: Option<PathBuf>,
+        /// Arguments for the native companion, following --.
+        #[cfg(windows)]
+        #[arg(last = true, requires = "native_controller")]
+        controller_args: Vec<std::ffi::OsString>,
+    },
+    /// Inspect the recorded Linux seal and release a retained bootstrap obligation.
+    Reconcile { operation_id: uuid::Uuid },
+}
+
+#[derive(Debug, Subcommand)]
+enum AuthorityCommand {
+    /// Inspect the durable admission blocker and retained audit records.
+    Status,
+    /// Declare a new authority only after verifying there is no outstanding work.
+    Initialize {
+        #[arg(long, required = true)]
+        confirm_no_outstanding_work: bool,
+    },
+    /// Stop new admission after all existing Leases have safely completed.
+    Hold {
+        id: uuid::Uuid,
+        #[arg(long)]
+        reason: String,
+    },
+    /// Accept the risk of releasing a hold without automatic cleanup proof.
+    ForceRelease {
+        id: uuid::Uuid,
+        #[arg(long, required = true)]
+        force: bool,
+        #[arg(long)]
+        reason: String,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -304,6 +433,21 @@ fn main() {
 fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let Cli { endpoint, command } = cli;
     match command {
+        #[cfg(target_os = "linux")]
+        Command::WslInstall {
+            store,
+            configuration,
+        } => {
+            print_json(&stillyard::configure_wsl_attachment(
+                store,
+                endpoint,
+                configuration,
+            )?)?;
+        }
+        #[cfg(target_os = "linux")]
+        Command::LinuxExecutorStub { spec, control } => {
+            stillyard::run_linux_executor_stub(&spec, &control)?;
+        }
         Command::Daemon {
             background_child,
             store,
@@ -715,6 +859,157 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             let client = connect_client(endpoint.as_deref(), deadline)?;
             print_json(&client.daemon_status(deadline, None)?)?;
         }
+        Command::Machine { command } => {
+            let limit = deadline(10);
+            let selected = endpoint.as_deref().ok_or_else(|| {
+                stillyard::Error::InvalidSpec(
+                    "machine protocol operations require an explicit --endpoint".into(),
+                )
+            })?;
+            let client = connect_client(Some(selected), limit)?;
+            match command {
+                MachineCommand::Bridge => {
+                    #[cfg(windows)]
+                    stillyard::machine::bridge::run(&client)?;
+                    #[cfg(not(windows))]
+                    return Err(stillyard::Error::UnsupportedPlatform(std::env::consts::OS).into());
+                }
+                MachineCommand::RetireDomain { spec } => {
+                    print_json(&client.retire_machine_domain(read_machine_input(&spec)?, limit)?)?
+                }
+                MachineCommand::ClearancePreview { domain } => print_json(
+                    &client
+                        .machine_clearance_preview(stillyard::ExecutionDomainId(domain), limit)?,
+                )?,
+                MachineCommand::Recover => print_json(&client.machine_recover(limit)?)?,
+                MachineCommand::Pair { spec } => {
+                    print_json(&client.pair_machine_domain(read_machine_input(&spec)?, limit)?)?
+                }
+                MachineCommand::Events {
+                    cursor,
+                    limit: page_limit,
+                } => {
+                    let cursor = cursor
+                        .as_ref()
+                        .map(|path| read_machine_input(path))
+                        .transpose()?;
+                    print_json(&client.machine_events(cursor, page_limit, limit)?)?;
+                }
+                MachineCommand::Exchange { spec } => {
+                    print_json(&client.machine_exchange(read_machine_input(&spec)?, limit)?)?
+                }
+                MachineCommand::ConnectBegin { spec } => {
+                    print_json(&client.machine_connect_begin(read_machine_input(&spec)?, limit)?)?
+                }
+                MachineCommand::ConnectFinish { spec } => {
+                    #[derive(serde::Deserialize)]
+                    #[serde(deny_unknown_fields)]
+                    struct Response {
+                        challenge: stillyard::machine::ConnectChallenge,
+                        tag: [u8; 32],
+                    }
+                    let response: Response = read_machine_input(&spec)?;
+                    print_json(&client.machine_connect_finish(
+                        response.challenge,
+                        response.tag,
+                        limit,
+                    )?)?;
+                }
+                MachineCommand::Participant { domain } => print_json(
+                    &client.machine_participant(stillyard::ExecutionDomainId(domain), limit)?,
+                )?,
+            }
+        }
+        Command::Authority {
+            command,
+            deadline_seconds,
+        } => {
+            let deadline = deadline(deadline_seconds);
+            let client = connect_client(endpoint.as_deref(), deadline)?;
+            let snapshot = match command {
+                AuthorityCommand::Status => client.authority_status(deadline, None)?,
+                AuthorityCommand::Initialize {
+                    confirm_no_outstanding_work: true,
+                } => client.initialize_authority_without_outstanding_work(deadline, None)?,
+                AuthorityCommand::Hold { id, reason } => {
+                    client.hold_authority(id, reason, deadline, None)?
+                }
+                AuthorityCommand::ForceRelease {
+                    id,
+                    reason,
+                    force: true,
+                } => client.force_release_authority(id, reason, deadline, None)?,
+                _ => {
+                    return Err(stillyard::Error::InvalidSpec(
+                        "authority mutation requires explicit owner confirmation".into(),
+                    )
+                    .into());
+                }
+            };
+            print_json(&snapshot)?;
+        }
+        Command::Bootstrap { command } => {
+            let client = connect_client(endpoint.as_deref(), deadline(10))?;
+            match command {
+                BootstrapCommand::Run {
+                    spec,
+                    #[cfg(windows)]
+                    native_controller,
+                    #[cfg(windows)]
+                    controller_args,
+                } => {
+                    let bytes = std::fs::read(spec)?;
+                    if bytes.len() > 8192 {
+                        return Err(stillyard::Error::InvalidSpec(
+                            "bootstrap descriptor exceeds 8192 bytes".into(),
+                        )
+                        .into());
+                    }
+                    let work: stillyard::BootstrapWork = serde_json::from_slice(&bytes)?;
+                    #[cfg(windows)]
+                    let controller = native_controller
+                        .as_ref()
+                        .map(|executable| {
+                            bootstrap_controller::Controller::start(
+                                &client,
+                                executable,
+                                &controller_args,
+                                Duration::from_secs(work.timeout_seconds.saturating_add(30)),
+                            )
+                        })
+                        .transpose()?;
+                    let proof = client.run_wsl_bootstrap(work)?;
+                    let code = match proof.termination.as_str() {
+                        "exited" => {
+                            if proof.root_exit_code < 0 {
+                                128 + proof.root_exit_code.saturating_abs().min(127)
+                            } else {
+                                proof.root_exit_code.min(255)
+                            }
+                        }
+                        "canceled" => 130,
+                        "timed_out" => 124,
+                        _ => 125,
+                    };
+                    #[cfg(windows)]
+                    let code = if code == 0 {
+                        controller
+                            .map(bootstrap_controller::Controller::finish)
+                            .transpose()?
+                            .unwrap_or(0)
+                    } else {
+                        drop(controller);
+                        code
+                    };
+                    if code != 0 {
+                        std::process::exit(code);
+                    }
+                }
+                BootstrapCommand::Reconcile { operation_id } => {
+                    print_json(&client.reconcile_wsl_bootstrap(operation_id)?)?
+                }
+            }
+        }
         Command::Context {
             json: _,
             deadline_seconds,
@@ -775,6 +1070,12 @@ fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             print_json(&client.cancel(&jobs, deadline, None)?)?;
         }
         Command::Schema { command } => match command {
+            SchemaCommand::MachineProtocol => {
+                print!("{}", stillyard::machine_protocol_schema_json()?)
+            }
+            SchemaCommand::MachineScheduling => {
+                print!("{}", stillyard::machine_scheduling_schema_json()?)
+            }
             SchemaCommand::Spec => print!("{}", stillyard::schema_json()?),
             SchemaCommand::Config => print!("{}", stillyard::config_schema_json()?),
             SchemaCommand::ManagedExecution => {
@@ -826,6 +1127,12 @@ fn clearance_human_message(
 
 fn process_identity_summary(identity: &stillyard::ProcessIdentity) -> String {
     match identity {
+        stillyard::ProcessIdentity::Linux {
+            pid,
+            start_ticks,
+            pid_namespace_inode,
+            ..
+        } => format!("PID {pid}/start {start_ticks}/namespace {pid_namespace_inode}"),
         stillyard::ProcessIdentity::Windows {
             pid,
             creation_filetime_100ns,
@@ -890,6 +1197,20 @@ fn connect_client(endpoint: Option<&str>, deadline: Instant) -> Result<Client, s
 
 fn deadline(seconds: u64) -> Instant {
     Instant::now() + Duration::from_secs(seconds)
+}
+
+fn read_machine_input<T: serde::de::DeserializeOwned>(path: &std::path::Path) -> io::Result<T> {
+    let mut bytes = Vec::new();
+    File::open(path)?
+        .take(stillyard::machine::MAX_FRAME_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > stillyard::machine::MAX_FRAME_BYTES {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "machine input exceeds byte limit",
+        ));
+    }
+    serde_json::from_slice(&bytes).map_err(Into::into)
 }
 
 fn print_doctor(snapshot: &stillyard::DoctorSnapshot) {

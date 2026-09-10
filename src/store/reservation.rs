@@ -15,27 +15,8 @@ pub(super) enum ScalarDisposition {
     StateChanged,
 }
 
-#[derive(Clone, Copy, Debug)]
-struct ScheduleKey {
-    effective_priority: i64,
-    accepted_ms: i64,
-    rowid: i64,
-}
-
-pub(crate) fn effective_priority_at(priority: i8, accepted_ms: i64, now: i64) -> i64 {
-    let waited_ms = u64::try_from(now.saturating_sub(accepted_ms)).unwrap_or(0);
-    let quanta = waited_ms / crate::PRIORITY_AGING_QUANTUM_MILLIS;
-    i64::from(priority)
-        .saturating_add(i64::try_from(quanta).unwrap_or(i64::MAX))
-        .min(crate::MAX_EFFECTIVE_PRIORITY)
-}
-
-fn outranks(left: ScheduleKey, right: ScheduleKey) -> bool {
-    left.effective_priority > right.effective_priority
-        || (left.effective_priority == right.effective_priority
-            && (left.accepted_ms < right.accepted_ms
-                || (left.accepted_ms == right.accepted_ms && left.rowid < right.rowid)))
-}
+pub(crate) use crate::admission::effective_priority_at;
+use crate::admission::{ScheduleKey, outranks};
 
 impl Store {
     pub(super) fn reservation_for_job(
@@ -125,13 +106,24 @@ impl Store {
             .iter()
             .any(|reservation| reservation.job_id == job_key)
         {
-            return Ok(reservations
+            let mut debits: Vec<_> = reservations
                 .into_iter()
                 .map(|reservation| reservation.claims)
-                .collect());
+                .collect();
+            debits.extend(super::machine_reservation::remote_debits(
+                &self.connection,
+                now,
+                None,
+            )?);
+            return Ok(debits);
         }
         let candidate = schedule_key(&self.connection, job_key, now)?;
         let mut blocking = Vec::new();
+        blocking.extend(super::machine_reservation::remote_debits(
+            &self.connection,
+            now,
+            Some(candidate),
+        )?);
         for reservation in reservations {
             if reservation.job_id != job_key
                 && outranks(
@@ -199,14 +191,7 @@ fn normalize_reservations_for_capacities_tx(
         })
         .collect::<StoreResult<Vec<_>>>()?
     };
-    reservations.sort_by(|left, right| {
-        right
-            .0
-            .effective_priority
-            .cmp(&left.0.effective_priority)
-            .then(left.0.accepted_ms.cmp(&right.0.accepted_ms))
-            .then(left.0.rowid.cmp(&right.0.rowid))
-    });
+    reservations.sort_by(|left, right| crate::admission::schedule_order(left.0, right.0));
 
     let mut retained = Vec::new();
     let mut suffix_start = None;
@@ -276,16 +261,35 @@ pub(super) fn scalar_disposition_tx(
     active: &[ResolvedClaims],
     now: i64,
 ) -> StoreResult<ScalarDisposition> {
-    if !claims.scalar_blockers(capacities, &[]).is_empty() {
-        return Ok(if release_reservation_tx(transaction, job_key)? {
-            ScalarDisposition::StateChanged
-        } else {
-            ScalarDisposition::Hold
-        });
-    }
+    use crate::admission::ReservationDecision;
     let own = reservation_tx(transaction, job_key)?;
-    if let Some(own) = own {
-        if own.hold_deadline_ms <= now {
+    let not_before: Option<i64> = transaction.query_row(
+        "SELECT reservation_not_before_ms FROM jobs WHERE id = ?1",
+        [job_key],
+        |row| row.get(0),
+    )?;
+    let reservations = reservation_claims_tx(transaction, now, None)?;
+    let higher = own.is_some() && higher_reservation_overlaps(transaction, job_key, claims, now)?;
+    match crate::admission::local_reservation_decision(
+        claims,
+        capacities,
+        active,
+        &reservations,
+        (
+            own.as_ref().map(|reservation| reservation.hold_deadline_ms),
+            higher,
+            not_before,
+            now,
+        ),
+    ) {
+        ReservationDecision::Drop => {
+            return Ok(if release_reservation_tx(transaction, job_key)? {
+                ScalarDisposition::StateChanged
+            } else {
+                ScalarDisposition::Hold
+            });
+        }
+        ReservationDecision::Expire => {
             let backoff = now.saturating_add(
                 i64::try_from(crate::SCALAR_RESERVATION_BACKOFF_MILLIS).unwrap_or(i64::MAX),
             );
@@ -296,38 +300,14 @@ pub(super) fn scalar_disposition_tx(
             release_reservation_tx(transaction, job_key)?;
             return Ok(ScalarDisposition::StateChanged);
         }
-        if higher_reservation_overlaps(transaction, job_key, claims, now)? {
-            return Ok(ScalarDisposition::Hold);
-        }
-        if claims.scalar_blockers(capacities, active).is_empty() {
-            release_reservation_tx(transaction, job_key)?;
+        ReservationDecision::Grant => {
+            if own.is_some() {
+                release_reservation_tx(transaction, job_key)?;
+            }
             return Ok(ScalarDisposition::Grant);
         }
-        return Ok(ScalarDisposition::Hold);
-    }
-
-    let not_before: Option<i64> = transaction.query_row(
-        "SELECT reservation_not_before_ms FROM jobs WHERE id = ?1",
-        [job_key],
-        |row| row.get(0),
-    )?;
-    if not_before.is_some_and(|not_before| not_before > now) {
-        return Ok(ScalarDisposition::Hold);
-    }
-    let reservations = reservation_claims_tx(transaction, now, None)?;
-    let mut accounted = active.to_vec();
-    accounted.extend(reservations.iter().cloned());
-    if claims.scalar_blockers(capacities, &accounted).is_empty() {
-        return Ok(ScalarDisposition::Grant);
-    }
-    if !claims.has_positive_scalars()
-        || !claims.scalar_blockers(capacities, &reservations).is_empty()
-        || claims
-            .scalar_blockers(capacities, active)
-            .iter()
-            .any(|blocker| blocker.detail.contains("overflow"))
-    {
-        return Ok(ScalarDisposition::Hold);
+        ReservationDecision::Hold => return Ok(ScalarDisposition::Hold),
+        ReservationDecision::Create => {}
     }
     let reservation_id = crate::ReservationId::new(store_uuid);
     let deadline = now
@@ -387,7 +367,15 @@ pub(super) fn reservation_claims_tx(
            AND (?2 IS NULL OR reservations.job_id != ?2)",
     )?;
     let rows = statement.query_map(params![now, excluded_job], |row| row.get::<_, String>(0))?;
-    rows.map(|row| Ok(serde_json::from_str(&row?)?)).collect()
+    let mut debits = rows
+        .map(|row| Ok(serde_json::from_str(&row?)?))
+        .collect::<StoreResult<Vec<_>>>()?;
+    debits.extend(super::machine_reservation::remote_debits(
+        transaction,
+        now,
+        None,
+    )?);
+    Ok(debits)
 }
 
 fn higher_reservation_overlaps(
@@ -397,6 +385,12 @@ fn higher_reservation_overlaps(
     now: i64,
 ) -> StoreResult<bool> {
     let candidate = schedule_key(transaction, job_key, now)?;
+    if super::machine_reservation::remote_debits(transaction, now, Some(candidate))?
+        .iter()
+        .any(|held| claims.overlaps_scalars(held))
+    {
+        return Ok(true);
+    }
     let mut statement = transaction.prepare(
         "SELECT reservations.job_id, reservations.claims_json
          FROM reservations JOIN jobs ON jobs.id = reservations.job_id
@@ -417,9 +411,13 @@ fn higher_reservation_overlaps(
     Ok(false)
 }
 
-fn schedule_key(connection: &Connection, job_key: &str, now: i64) -> StoreResult<ScheduleKey> {
+pub(super) fn schedule_key(
+    connection: &Connection,
+    job_key: &str,
+    now: i64,
+) -> StoreResult<ScheduleKey> {
     let (accepted_ms, rowid, spec_json) = connection.query_row(
-        "SELECT accepted_ms, rowid, spec_json FROM jobs WHERE id = ?1",
+        "SELECT q.accepted_ms, q.sequence, j.spec_json FROM jobs j JOIN machine_queue q ON q.owner='native:' || j.id WHERE j.id = ?1",
         [job_key],
         |row| {
             Ok((

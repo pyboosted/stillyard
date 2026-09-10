@@ -1,6 +1,11 @@
 //! Public, runtime-neutral client contract for Stillyard.
 
+mod admission;
 mod api;
+#[cfg_attr(not(windows), allow(dead_code))]
+mod authority;
+#[cfg_attr(not(windows), allow(dead_code))]
+mod bootstrap;
 mod client;
 #[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) mod daemon;
@@ -10,26 +15,34 @@ mod filesystem;
 pub(crate) mod host_observation;
 mod identity;
 mod instance;
+pub mod machine;
 mod model;
 mod payload;
+mod platform;
 #[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) mod protocol;
 mod resources;
 #[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) mod runner;
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
+mod runtime_metrics;
 mod spec;
 #[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) mod store;
+#[cfg(test)]
+mod test_support;
 
+pub use admission::{ExecutionDomainId, ResourceKind, ScopedResourceId, ScopedResourceSnapshot};
 pub use api::{
-    AdmissionDecisionSnapshot, AdmissionDecisionState, AttemptSnapshot, BatchJobReceipt,
-    BatchReceipt, Blocker, BootId, CancellationToken, ClearContainmentResult, ClearanceOrigin,
-    CompleteDoctorSnapshot, ConditionObservationSnapshot, ConditionObservationSource,
-    ConditionObservationValue, ConditionSnapshot, ConditionState, ContainmentIncidentCursor,
-    ContainmentIncidentSnapshot, ContainmentResolution, ContainmentResolutionAudit,
-    ContainmentSnapshot, ContainmentState, DOCTOR_SNAPSHOT_TTL_SECONDS, DaemonSnapshot,
-    DetectorEvidenceSnapshot, DoctorBoundary, DoctorCheck, DoctorCheckStatus, DoctorCoverage,
-    DoctorHostSnapshot, DoctorIncidentPage, DoctorOverallStatus, DoctorSnapshot,
+    AdmissionDecisionSnapshot, AdmissionDecisionState, AttemptSnapshot, AuthorityDomains,
+    AuthorityHold, AuthoritySnapshot, AuthorityStorageBudget, BatchJobReceipt, BatchReceipt,
+    Blocker, BootId, BootstrapBinding, BootstrapProof, BootstrapWork, CancellationToken,
+    ClearContainmentResult, ClearanceOrigin, CompleteDoctorSnapshot, ConditionObservationSnapshot,
+    ConditionObservationSource, ConditionObservationValue, ConditionSnapshot, ConditionState,
+    ContainmentIncidentCursor, ContainmentIncidentSnapshot, ContainmentResolution,
+    ContainmentResolutionAudit, ContainmentSnapshot, ContainmentState, DOCTOR_SNAPSHOT_TTL_SECONDS,
+    DaemonSnapshot, DetectorEvidenceSnapshot, DoctorBoundary, DoctorCheck, DoctorCheckStatus,
+    DoctorCoverage, DoctorHostSnapshot, DoctorIncidentPage, DoctorOverallStatus, DoctorSnapshot,
     DoctorStoreSnapshot, EffectiveChildSubmissionPolicy, EnsureOptions, EnsureOutcome,
     EnsureReport, EnsuredBatch, EnsuredJob, Estimate, EstimateConfidence, EventCursor, EventGap,
     ExitClassification, ExitSource, ForcedClearanceAudit, GpuProvenance, HostId, InvocationRole,
@@ -38,19 +51,40 @@ pub use api::{
     JobSnapshot, JobSummary, JobTreeNode, JobTreePage, JobTreeRootCursor, JobTreeSelector,
     LogChunk, LogStream, MAX_COMPLETE_DOCTOR_BYTES, MAX_COMPLETE_DOCTOR_INCIDENTS, MAX_DOCTOR_PAGE,
     MAX_OBSERVATION_PAGE, MAX_TREE_PAGE_NODES, MAX_TREE_SELECTOR_JOBS, MAX_WAIT_STREAM_JOBS,
-    ManagedExecutionRecord, ManagedParent, ManagedPolicyAdmissionSnapshot,
-    ObservationCursorParseError, ObservationFrame, ObservedOperandSnapshot, PendingReason,
-    PrimaryInvocationResult, ProcessIdentity, ReconciliationResult, RecoveryResult, RejectReason,
-    ResourceSnapshot, ScalarReservation, ScalarResourceClaims, ScalarResourceSnapshot,
-    SchedulerEvent, SchedulerEventKind, SubmissionContext, SubmissionRef, SubmitOptions,
-    TerminationReason, TreeAttentionBucket, TreeObservationFrame, WaitOutcome, WaitReport,
-    WaitStreamItem,
+    MachineSchedulingMode, MachineSchedulingSnapshot, ManagedExecutionRecord, ManagedParent,
+    ManagedPolicyAdmissionSnapshot, ObservationCursorParseError, ObservationFrame,
+    ObservedOperandSnapshot, PendingReason, PrimaryInvocationResult, ProcessIdentity,
+    ReconciliationResult, RecoveryResult, RejectReason, ResourceSnapshot, ScalarReservation,
+    ScalarResourceClaims, ScalarResourceSnapshot, SchedulerEvent, SchedulerEventKind,
+    SubmissionContext, SubmissionRef, SubmitOptions, TerminationReason, TreeAttentionBucket,
+    TreeObservationFrame, WaitOutcome, WaitReport, WaitStreamItem,
 };
 pub use client::{Client, ClientBuilder, LogFollower, ObservationStream, WaitStream};
 pub use error::{Error, Result};
 pub use instance::{DefaultInstance, default_instance};
+
+/// Internal trusted pre-exec helper; invoked only by the Linux executor.
+#[cfg(target_os = "linux")]
+#[doc(hidden)]
+pub fn run_linux_executor_stub(
+    spec: &std::path::Path,
+    control: &std::path::Path,
+) -> std::io::Result<()> {
+    runner::linux::run_stub(spec, control)
+}
+
+/// Explicit setup entry point for the bundled Linux installation command.
+#[cfg(target_os = "linux")]
+#[doc(hidden)]
+pub fn configure_wsl_attachment(
+    store_root: Option<std::path::PathBuf>,
+    endpoint: Option<String>,
+    configuration: Option<std::path::PathBuf>,
+) -> Result<serde_json::Value> {
+    daemon::configure_wsl_attachment(store_root, endpoint, configuration)
+}
 pub use model::{
-    AttemptId, AttemptVerdict, BatchId, ConditionId, ContainmentId, DurableIdParseError,
+    AttemptId, AttemptVerdict, BatchId, ConditionId, ContainmentId, DurableIdParseError, GrantId,
     InvocationId, JobId, JobOutcome, JobState, ObservationId, ReservationId, SubmissionId,
     SubmissionState,
 };
@@ -63,7 +97,8 @@ pub use spec::{
     ProbeCondition, ProcessRules, QuietDetector, QuietPolicy, ResourceCapacities,
     ResourceClaimLimits, ResourceClaims, RetryPolicy, SCALAR_RESERVATION_BACKOFF_MILLIS,
     SCALAR_RESERVATION_HOLD_MILLIS, SPEC_VERSION, StdinSpec, SubmissionSpec, config_schema_json,
-    managed_execution_schema_json, schema_json,
+    machine_protocol_schema_json, machine_scheduling_schema_json, managed_execution_schema_json,
+    schema_json,
 };
 
 /// Runs the per-user daemon in the foreground.

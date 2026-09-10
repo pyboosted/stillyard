@@ -2,9 +2,9 @@ use super::*;
 
 #[test]
 fn list_events_and_cursor_are_one_public_observation_path() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let mut job = spec(temp.path());
     job.args = vec!["audit".into(), "two words".into()];
@@ -150,8 +150,8 @@ fn list_events_and_cursor_are_one_public_observation_path() {
 
 #[test]
 fn event_ring_reports_gap_and_resynchronizes() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let job = spec(temp.path());
     let hash = normalized_payload_hash(&job).unwrap();
     let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
@@ -223,9 +223,9 @@ fn event_ring_reports_gap_and_resynchronizes() {
 
 #[test]
 fn lifecycle_and_cancellation_transitions_emit_named_events() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let job = spec(temp.path());
     let hash = normalized_payload_hash(&job).unwrap();
@@ -277,8 +277,8 @@ fn lifecycle_and_cancellation_transitions_emit_named_events() {
 
 #[test]
 fn invocation_event_identity_is_atomic_and_required() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let job = spec(temp.path());
     let hash = normalized_payload_hash(&job).unwrap();
     let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
@@ -351,8 +351,8 @@ fn invocation_event_identity_is_atomic_and_required() {
 
 #[test]
 fn list_cursor_is_stable_and_store_scoped() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let mut submitted = Vec::new();
     for _ in 0..3 {
         let job = spec(temp.path());

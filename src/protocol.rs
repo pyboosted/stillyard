@@ -12,7 +12,7 @@ use crate::{
     SubmissionContext, TreeObservationFrame,
 };
 
-pub(crate) const PROTOCOL_VERSION: u32 = 19;
+pub(crate) const PROTOCOL_VERSION: u32 = 25;
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 pub(crate) mod error_code {
@@ -41,6 +41,45 @@ pub(crate) struct StagedInputRef {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Request {
+    Attested {
+        daemon_generation: Uuid,
+        parent: ManagedParent,
+        nonce: [u8; 32],
+        request: Box<Request>,
+    },
+    MachineClearancePreview {
+        domain: crate::ExecutionDomainId,
+    },
+    MachineRetireDomain {
+        request: crate::machine::DomainRetirementRequest,
+    },
+    MachineRecover {},
+    MachineEvents {
+        cursor: Option<crate::machine::EventCursor>,
+        limit: u32,
+    },
+    MachineExchange {
+        request: Box<crate::machine::Request>,
+    },
+    MachinePair {
+        registration: crate::machine::PairingRegistration,
+    },
+    MachineConnectBegin {
+        hello: crate::machine::ConnectHello,
+    },
+    MachineConnectFinish {
+        challenge: crate::machine::ConnectChallenge,
+        tag: [u8; 32],
+    },
+    MachineParticipant {
+        domain: crate::ExecutionDomainId,
+    },
+    BootstrapArm {
+        binding: crate::BootstrapBinding,
+    },
+    BootstrapSeal {
+        proof: crate::BootstrapProof,
+    },
     Ping {},
     StageBegin {
         upload_id: Uuid,
@@ -137,6 +176,16 @@ pub(crate) enum Request {
         limit: u32,
     },
     DaemonStatus {},
+    AuthorityStatus {},
+    AuthorityInitialize {},
+    AuthorityHold {
+        id: Uuid,
+        reason: String,
+    },
+    AuthorityForceRelease {
+        id: Uuid,
+        reason: String,
+    },
     Doctor {
         cursor: Option<ContainmentIncidentCursor>,
         limit: Option<u32>,
@@ -149,6 +198,13 @@ pub(crate) enum Request {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "result", rename_all = "snake_case")]
 pub(crate) enum Response {
+    Attested(Box<crate::identity::attestation::Proof>),
+    MachineClearancePreview(Box<crate::machine::DomainClearancePreview>),
+    MachineDomainRetired(Box<crate::machine::DomainRetirementReceipt>),
+    MachineEvents(crate::machine::EventPage),
+    MachineReply(Box<crate::machine::Reply>),
+    MachineParticipant(crate::machine::ParticipantSnapshot),
+    MachineChallenge(crate::machine::ConnectChallenge),
     Pong {
         protocol_version: u32,
     },
@@ -184,6 +240,7 @@ pub(crate) enum Response {
     },
     Logs(LogChunk),
     DaemonStatus(DaemonSnapshot),
+    Authority(crate::AuthoritySnapshot),
     Doctor(Box<DoctorSnapshot>),
     ContainmentCleared(ClearContainmentResult),
     Error {
@@ -281,6 +338,7 @@ mod tests {
             response,
             Response::DaemonStatus(DaemonSnapshot {
                 resources: None,
+                machine_scheduling: None,
                 ..
             })
         ));

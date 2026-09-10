@@ -51,12 +51,17 @@ impl<T> ComponentEvidence<T> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct MemoryEvidence {
     pub(crate) available_physical_mb: u64,
-    pub(crate) commit_headroom_mb: u64,
+    /// Windows commit headroom. Linux guest availability is an independent
+    /// gate; CommitLimit/Committed_AS do not have Windows commit semantics.
+    pub(crate) commit_headroom_mb: Option<u64>,
 }
 
 impl MemoryEvidence {
     pub(crate) fn headroom_mb(self) -> u64 {
-        self.available_physical_mb.min(self.commit_headroom_mb)
+        self.commit_headroom_mb
+            .map_or(self.available_physical_mb, |commit| {
+                self.available_physical_mb.min(commit)
+            })
     }
 }
 

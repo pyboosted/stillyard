@@ -1,6 +1,100 @@
 use super::*;
 use crate::protocol::error_code;
 
+#[cfg(target_os = "linux")]
+fn attested_request(
+    store: &SharedStore,
+    scheduler: &DaemonReactor,
+    peer: Option<&PeerProcess>,
+    generation: uuid::Uuid,
+    parent: crate::ManagedParent,
+    nonce: [u8; 32],
+    request: Request,
+) -> Response {
+    let result = (|| -> std::result::Result<Response, StoreError> {
+        let context = scheduler.live_containments.linux_server_context(parent)?;
+        if generation != context.server.generation
+            || nonce == [0; 32]
+            || matches!(request, Request::Attested { .. })
+        {
+            return Err(StoreError::Rejected(
+                "stale or nested managed attestation request".into(),
+            ));
+        }
+        let peer = peer.ok_or_else(|| {
+            StoreError::Rejected("attestation requires an authenticated peer".into())
+        })?;
+        // Authenticate the actual Invocation independently of its authority to
+        // submit children. Postconditions/probes also need authenticated reads.
+        // Release the Store lock before consulting the executor journal.
+        store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+            .validate_attested_invocation(parent)?;
+        if scheduler
+            .live_containments
+            .contains_process(parent.invocation_id, peer.handle)?
+            != Some(true)
+        {
+            return Err(StoreError::Rejected(
+                "attested caller is not the claimed kernel-contained parent".into(),
+            ));
+        }
+        let request_sha256 = crate::identity::attestation::request_hash(&request)?;
+        let response = handle_request(store, scheduler, Some(peer), request);
+        Ok(Response::Attested(Box::new(
+            scheduler.live_containments.linux_sign_response(
+                parent,
+                nonce,
+                request_sha256,
+                response,
+            )?,
+        )))
+    })();
+    result.unwrap_or_else(|error| Response::Error {
+        code: "server_attestation_unavailable".into(),
+        message: error.to_string(),
+    })
+}
+
+fn bootstrap_bridge(
+    peer: Option<&PeerProcess>,
+) -> std::result::Result<crate::ProcessIdentity, StoreError> {
+    let peer = peer.ok_or_else(|| {
+        StoreError::Rejected("bootstrap requires an authenticated native bridge".into())
+    })?;
+    let image = super::transport::peer_image_path(peer)?;
+    if std::fs::canonicalize(image)? != std::fs::canonicalize(std::env::current_exe()?)? {
+        return Err(StoreError::Rejected(
+            "bootstrap attestations require this installed daemon executable".into(),
+        ));
+    }
+    peer.identity
+        .clone()
+        .ok_or_else(|| StoreError::Rejected("bootstrap bridge identity unavailable".into()))
+}
+
+fn authority_admin(
+    store: &SharedStore,
+    scheduler: &DaemonReactor,
+    peer: Option<&PeerProcess>,
+) -> std::result::Result<crate::ProcessIdentity, StoreError> {
+    let peer = peer.ok_or_else(|| {
+        StoreError::Rejected("authority administration requires an authenticated pipe peer".into())
+    })?;
+    if submission_context(store, &scheduler.live_containments, Some(peer))?
+        .parent
+        .is_some()
+    {
+        return Err(StoreError::Rejected(
+            "managed work cannot initialize or force-clear the machine authority".into(),
+        ));
+    }
+    peer.identity.clone().ok_or_else(|| {
+        StoreError::Rejected("authority administrator process identity is unavailable".into())
+    })
+}
+
 fn open_read_view(store: &SharedStore) -> std::result::Result<Store, StoreError> {
     store
         .lock()
@@ -15,11 +109,238 @@ pub(super) fn handle_request(
     request: Request,
 ) -> Response {
     let result = match request {
+        Request::Attested {
+            daemon_generation,
+            parent,
+            nonce,
+            request,
+        } => {
+            #[cfg(target_os = "linux")]
+            {
+                return attested_request(
+                    store,
+                    scheduler,
+                    peer,
+                    daemon_generation,
+                    parent,
+                    nonce,
+                    *request,
+                );
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                let _ = (daemon_generation, parent, nonce, request);
+                Err(StoreError::Rejected(
+                    "managed namespace attestation is unsupported on this platform".into(),
+                ))
+            }
+        }
+        Request::MachineRetireDomain { request } => authority_admin(store, scheduler, peer)
+            .and_then(|requester| {
+                let peer = peer.ok_or_else(|| {
+                    StoreError::InvalidState(
+                        "retirement needs an authenticated owner process".into(),
+                    )
+                })?;
+                let principal = super::transport::peer_principal(peer)
+                    .map_err(|e| StoreError::InvalidState(e.to_string()))?;
+                if principal
+                    != crate::instance::current_owner_principal()
+                        .map_err(|e| StoreError::InvalidState(e.to_string()))?
+                {
+                    return Err(StoreError::InvalidState(
+                        "retirement principal differs from the daemon owner".into(),
+                    ));
+                }
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .retire_machine_domain(request, requester, principal)
+            })
+            .map(|receipt| {
+                scheduler.wake();
+                Response::MachineDomainRetired(Box::new(receipt))
+            }),
+        Request::MachineClearancePreview { domain } => authority_admin(store, scheduler, peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .machine_clearance_preview(domain)
+            })
+            .map(|preview| Response::MachineClearancePreview(Box::new(preview))),
+        Request::MachineRecover {} => authority_admin(store, scheduler, peer)
+            .and_then(|_| recover_machine_authority(store))
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::MachineEvents { cursor, limit } => open_read_view(store)
+            .and_then(|store| store.machine_events(cursor, limit))
+            .map(Response::MachineEvents),
+        Request::MachineExchange { request } => bootstrap_bridge(peer)
+            .and_then(|_| {
+                if matches!(
+                    request.command,
+                    crate::machine::Command::AuthorizeInvocation { .. }
+                ) {
+                    // Match native release ordering: provider barrier first,
+                    // Store mutex only inside the freshly sampled callback.
+                    scheduler
+                        .host_observation
+                        .with_release_sample(peer.map_or(0, |p| p.pid), |sample| {
+                            store
+                                .lock()
+                                .map_err(|_| {
+                                    StoreError::InvalidState("store mutex poisoned".into())
+                                })?
+                                .machine_exchange(*request, Some(sample))
+                        })
+                        .map_err(StoreError::InvalidState)?
+                } else {
+                    store
+                        .lock()
+                        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                        .machine_exchange(*request, None)
+                }
+            })
+            .map(|reply| {
+                scheduler.wake();
+                Response::MachineReply(Box::new(reply))
+            }),
+        Request::MachinePair { registration } => authority_admin(store, scheduler, peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .pair_machine_domain(registration)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::MachineParticipant(snapshot)
+            }),
+        Request::MachineConnectBegin { hello } => bootstrap_bridge(peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .machine_connect_begin(hello)
+            })
+            .map(Response::MachineChallenge),
+        Request::MachineConnectFinish { challenge, tag } => bootstrap_bridge(peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .machine_connect_finish(challenge, tag)
+            })
+            .map(Response::MachineParticipant),
+        Request::MachineParticipant { domain } => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| {
+                if store
+                    .authority_snapshot()?
+                    .retired_domains
+                    .iter()
+                    .any(|r| r.domain_id == domain)
+                {
+                    return Err(StoreError::Rejected(
+                        "participant identity is retired; inspect authority retirement receipts"
+                            .into(),
+                    ));
+                }
+                store.machine_participant(domain)
+            })
+            .map(Response::MachineParticipant),
+        Request::BootstrapArm { binding } => bootstrap_bridge(peer)
+            .and_then(|requester| {
+                let context = submission_context(store, &scheduler.live_containments, peer)?;
+                if context.parent != Some(binding.parent) {
+                    return Err(StoreError::Rejected(
+                        "bootstrap parent does not match OS containment".into(),
+                    ));
+                }
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .arm_bootstrap(binding, requester)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::BootstrapSeal { proof } => bootstrap_bridge(peer)
+            .and_then(|requester| {
+                let context = submission_context(store, &scheduler.live_containments, peer)?;
+                let locked = store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+                if let Some(parent) = context.parent {
+                    let state = locked.authority_snapshot()?;
+                    let matching = state.holds.iter().any(|hold| {
+                        hold.id == proof.operation_id
+                            && hold.requester == requester
+                            && hold
+                                .bootstrap
+                                .as_ref()
+                                .is_some_and(|binding| binding.parent == parent)
+                    });
+                    if !matching {
+                        return Err(StoreError::Rejected(
+                            "managed bridge cannot release another invocation's obligation".into(),
+                        ));
+                    }
+                }
+                locked.seal_bootstrap(proof, requester)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
         Request::Ping {} => {
             return Response::Pong {
                 protocol_version: PROTOCOL_VERSION,
             };
         }
+        Request::AuthorityStatus {} => store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+            .and_then(|store| store.authority_snapshot())
+            .map(Response::Authority),
+        Request::AuthorityInitialize {} => authority_admin(store, scheduler, peer)
+            .and_then(|_| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .initialize_authority()
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::AuthorityHold { id, reason } => authority_admin(store, scheduler, peer)
+            .and_then(|requester| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .hold_authority(id, reason, requester)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
+        Request::AuthorityForceRelease { id, reason } => authority_admin(store, scheduler, peer)
+            .and_then(|requester| {
+                store
+                    .lock()
+                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                    .force_release_authority(id, reason, requester)
+            })
+            .map(|snapshot| {
+                scheduler.wake();
+                Response::Authority(snapshot)
+            }),
         Request::StageBegin {
             upload_id,
             expected_sha256,
@@ -366,6 +687,7 @@ pub(super) fn handle_request(
                 snapshot.checks.extend(detector_checks);
                 snapshot.coverage.extend(detector_coverage);
             }
+            snapshot.checks.push(crate::runtime_metrics::doctor_check());
             snapshot
                 .checks
                 .sort_by(|left, right| left.code.cmp(&right.code));

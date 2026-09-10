@@ -66,7 +66,16 @@ pub(super) fn release_never_run_attempt_lease_if_safe(
          WHERE attempt_id = ?1 AND state = 'granted'",
         [attempt_id],
     )? > 0;
-    Ok(released)
+    // Attached mode commits the safe release REQUEST while keeping the Lease
+    // debited until the coordinator acknowledges. Replanning may commit now;
+    // admission still sees the retained Lease and cannot reuse its start right.
+    let requested = transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM attached_local_plans p JOIN leases l ON l.id=p.lease_id
+         WHERE l.attempt_id=?1 AND l.state='granted' AND p.release_pending=1)",
+        [attempt_id],
+        |r| r.get::<_, bool>(0),
+    )?;
+    Ok(released || requested)
 }
 
 pub(super) fn attempt_lease_release_eligible_after_target(

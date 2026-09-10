@@ -2,8 +2,8 @@ use super::*;
 
 #[test]
 fn duplicate_key_returns_one_job() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let key = Uuid::now_v7();
     let spec = spec(temp.path());
     let hash = normalized_payload_hash(&spec).unwrap();
@@ -16,16 +16,16 @@ fn duplicate_key_returns_one_job() {
 
 #[test]
 fn foreign_store_id_rejects_even_if_entity_uuid_collides() {
-    let first_dir = tempfile::tempdir().unwrap();
-    let second_dir = tempfile::tempdir().unwrap();
-    let mut first = Store::open(StorePaths::new(first_dir.path().to_path_buf())).unwrap();
+    let first_dir = model_tempdir().unwrap();
+    let second_dir = model_tempdir().unwrap();
+    let mut first = open_model_store(StorePaths::new(first_dir.path().to_path_buf())).unwrap();
     let job_spec = spec(first_dir.path());
     let hash = normalized_payload_hash(&job_spec).unwrap();
     let receipt = first
         .submit(Uuid::now_v7(), &hash, &job_spec)
         .unwrap()
         .receipt;
-    let second = Store::open(StorePaths::new(second_dir.path().to_path_buf())).unwrap();
+    let second = open_model_store(StorePaths::new(second_dir.path().to_path_buf())).unwrap();
     let foreign = JobId::from_parts(second.store_uuid, receipt.job_id.entity_uuid());
     assert!(matches!(
         first.status(foreign),
@@ -35,8 +35,8 @@ fn foreign_store_id_rejects_even_if_entity_uuid_collides() {
 
 #[test]
 fn same_key_different_payload_conflicts() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let key = Uuid::now_v7();
     let first = spec(temp.path());
     let first_hash = normalized_payload_hash(&first).unwrap();
@@ -52,8 +52,8 @@ fn same_key_different_payload_conflicts() {
 
 #[test]
 fn recovery_never_creates_work_and_distinguishes_conflict() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let key = Uuid::now_v7();
     assert_eq!(
         store.recover_submission(key, "hash").unwrap(),
@@ -80,8 +80,8 @@ fn recovery_never_creates_work_and_distinguishes_conflict() {
 
 #[test]
 fn rejected_idempotency_decision_replays_as_rejected() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let key = Uuid::now_v7();
     let spec = spec(temp.path());
     let hash = normalized_payload_hash(&spec).unwrap();
@@ -109,10 +109,10 @@ fn rejected_idempotency_decision_replays_as_rejected() {
 
 #[test]
 fn restart_interrupts_active_job_without_requeueing_it() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     let job_id = {
-        let mut store = Store::open(paths).unwrap();
+        let mut store = open_model_store(paths).unwrap();
         let spec = spec(temp.path());
         let hash = normalized_payload_hash(&spec).unwrap();
         let submitted = store.submit(Uuid::now_v7(), &hash, &spec).unwrap();
@@ -125,7 +125,7 @@ fn restart_interrupts_active_job_without_requeueing_it() {
             .unwrap();
         prepared.job_id
     };
-    let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let snapshot = store.status(job_id).unwrap();
     assert_eq!(snapshot.state, JobState::Final);
     assert_eq!(snapshot.outcome, Some(JobOutcome::Interrupted));
@@ -150,10 +150,10 @@ fn restart_interrupts_active_job_without_requeueing_it() {
 #[cfg(windows)]
 #[test]
 fn restart_never_uses_pid_only_root_disappearance_as_proof() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     let job_id = {
-        let mut store = Store::open(paths).unwrap();
+        let mut store = open_model_store(paths).unwrap();
         let job_spec = spec(temp.path());
         let hash = normalized_payload_hash(&job_spec).unwrap();
         let submitted = store.submit(Uuid::now_v7(), &hash, &job_spec).unwrap();
@@ -165,7 +165,7 @@ fn restart_never_uses_pid_only_root_disappearance_as_proof() {
         store.mark_root_exited(&prepared, 0).unwrap();
         prepared.job_id
     };
-    let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let (containment, lease): (String, String) = store
         .connection
         .query_row(
@@ -189,10 +189,10 @@ fn restart_never_uses_pid_only_root_disappearance_as_proof() {
 
 #[test]
 fn restart_before_root_retains_boundary_until_reconciled() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     let job_id = {
-        let mut store = Store::open(paths).unwrap();
+        let mut store = open_model_store(paths).unwrap();
         let job_spec = spec(temp.path());
         let hash = normalized_payload_hash(&job_spec).unwrap();
         let submitted = store.submit(Uuid::now_v7(), &hash, &job_spec).unwrap();
@@ -202,7 +202,7 @@ fn restart_before_root_retains_boundary_until_reconciled() {
             .unwrap()
             .job_id
     };
-    let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let snapshot = store.status(job_id).unwrap();
     assert_eq!(snapshot.outcome, Some(JobOutcome::Failed));
     let (verdict, containment, lease): (String, String, String) = store
@@ -225,10 +225,10 @@ fn restart_before_root_retains_boundary_until_reconciled() {
 
 #[test]
 fn restart_after_empty_proof_before_primary_result_is_fail_closed() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     let job_id = {
-        let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+        let mut store = open_model_store_with_capacities(paths, capacities()).unwrap();
         let job_spec = spec(temp.path());
         let hash = normalized_payload_hash(&job_spec).unwrap();
         let receipt = store
@@ -247,7 +247,7 @@ fn restart_after_empty_proof_before_primary_result_is_fail_closed() {
     };
 
     let store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let snapshot = store.status(job_id).unwrap();
     assert_eq!(snapshot.outcome, Some(JobOutcome::Interrupted));
@@ -261,10 +261,10 @@ fn restart_after_empty_proof_before_primary_result_is_fail_closed() {
 
 #[test]
 fn restart_during_prepared_postcondition_retains_attempt_lease() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     let job_id = {
-        let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+        let mut store = open_model_store_with_capacities(paths, capacities()).unwrap();
         let mut job_spec = spec(temp.path());
         job_spec.resources.cargo_slots = Some(1);
         job_spec.postconditions.push(PostconditionSpec {
@@ -299,7 +299,7 @@ fn restart_during_prepared_postcondition_retains_attempt_lease() {
     };
 
     let store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let snapshot = store.status(job_id).unwrap();
     assert_eq!(snapshot.outcome, Some(JobOutcome::Interrupted));
@@ -337,10 +337,10 @@ fn restart_during_prepared_postcondition_retains_attempt_lease() {
 
 #[test]
 fn restart_after_resolved_postcondition_releases_empty_attempt_lease() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     let job_id = {
-        let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+        let mut store = open_model_store_with_capacities(paths, capacities()).unwrap();
         let mut job_spec = spec(temp.path());
         job_spec.resources.cargo_slots = Some(1);
         job_spec.postconditions.push(PostconditionSpec {
@@ -382,7 +382,7 @@ fn restart_after_resolved_postcondition_releases_empty_attempt_lease() {
     };
 
     let store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let snapshot = store.status(job_id).unwrap();
     assert_eq!(snapshot.outcome, Some(JobOutcome::Interrupted));
@@ -404,8 +404,8 @@ fn restart_after_resolved_postcondition_releases_empty_attempt_lease() {
 
 #[test]
 fn uncertain_settlement_retains_lease_and_is_terminal() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let job_spec = spec(temp.path());
     let hash = normalized_payload_hash(&job_spec).unwrap();
     let submitted = store.submit(Uuid::now_v7(), &hash, &job_spec).unwrap();
@@ -449,8 +449,8 @@ fn uncertain_settlement_retains_lease_and_is_terminal() {
 fn logs_publish_only_flushed_committed_prefix() {
     use std::io::Write;
 
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let spec = spec(temp.path());
     let hash = normalized_payload_hash(&spec).unwrap();
     let submitted = store.submit(Uuid::now_v7(), &hash, &spec).unwrap();
@@ -486,8 +486,8 @@ fn logs_publish_only_flushed_committed_prefix() {
 
 #[test]
 fn diagnostic_tail_io_failure_cannot_block_invocation_resolution() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let job_spec = spec(temp.path());
     let hash = normalized_payload_hash(&job_spec).unwrap();
     let receipt = store
@@ -514,13 +514,13 @@ fn diagnostic_tail_io_failure_cannot_block_invocation_resolution() {
 
 #[test]
 fn startup_resumes_durable_received_submission() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     let job_spec = spec(temp.path());
     let hash = normalized_payload_hash(&job_spec).unwrap();
     let key = Uuid::now_v7();
     {
-        let store = Store::open(paths).unwrap();
+        let store = open_model_store(paths).unwrap();
         let submission_id = SubmissionId::new(store.store_uuid);
         store
             .connection
@@ -538,7 +538,7 @@ fn startup_resumes_durable_received_submission() {
             )
             .unwrap();
     }
-    let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     assert!(matches!(
         store.recover_submission(key, &hash).unwrap(),
         RecoveryResult::Accepted(_)
@@ -548,9 +548,9 @@ fn startup_resumes_durable_received_submission() {
 
 #[test]
 fn schema_epoch_mismatch_resets_database_and_preserves_other_files() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut old_store = Store::open_with_capacities(paths, capacities()).unwrap();
+    let mut old_store = open_model_store_with_capacities(paths, capacities()).unwrap();
     let old_uuid = old_store.store_uuid;
     let job_spec = spec(temp.path());
     let hash = normalized_payload_hash(&job_spec).unwrap();
@@ -599,7 +599,7 @@ fn schema_epoch_mismatch_resets_database_and_preserves_other_files() {
         },
     };
     std::fs::write(&paths.config, serde_json::to_vec(&config).unwrap()).unwrap();
-    let store = Store::open(paths).unwrap();
+    let store = open_model_store(paths).unwrap();
     assert_ne!(store.store_uuid, old_uuid);
     assert_eq!(std::fs::read(&log_marker).unwrap(), b"preserve me");
     assert_eq!(
@@ -653,14 +653,14 @@ fn schema_epoch_mismatch_resets_database_and_preserves_other_files() {
 
 #[test]
 fn damaged_schema_and_identity_each_reset_the_whole_database() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let store = Store::open(paths).unwrap();
+    let store = open_model_store(paths).unwrap();
     let first_uuid = store.store_uuid;
     store.connection.execute("DROP TABLE batches", []).unwrap();
     drop(store);
 
-    let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     assert_ne!(store.store_uuid, first_uuid);
     let second_uuid = store.store_uuid;
     store
@@ -669,25 +669,25 @@ fn damaged_schema_and_identity_each_reset_the_whole_database() {
         .unwrap();
     drop(store);
 
-    let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     assert_ne!(store.store_uuid, second_uuid);
 }
 
 #[test]
 fn corrupt_or_empty_database_is_replaced_with_current_schema() {
-    let corrupt = tempfile::tempdir().unwrap();
+    let corrupt = model_tempdir().unwrap();
     let corrupt_paths = StorePaths::new(corrupt.path().to_path_buf());
     corrupt_paths.ensure().unwrap();
     std::fs::write(&corrupt_paths.database, b"not a sqlite database").unwrap();
-    let corrupt_store = Store::open(corrupt_paths).unwrap();
+    let corrupt_store = open_model_store(corrupt_paths).unwrap();
     assert!(schema_is_current(&corrupt_store.connection).unwrap());
 
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     paths.ensure().unwrap();
     File::create(&paths.database).unwrap();
 
-    let store = Store::open(paths).unwrap();
+    let store = open_model_store(paths).unwrap();
     let stored: String = store
         .connection
         .query_row(
@@ -703,9 +703,9 @@ fn corrupt_or_empty_database_is_replaced_with_current_schema() {
 fn corruption_discovered_during_recovery_resets_once() {
     use std::io::Write as _;
 
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open(paths).unwrap();
+    let mut store = open_model_store(paths).unwrap();
     let old_uuid = store.store_uuid;
     let job_spec = spec(temp.path());
     let hash = normalized_payload_hash(&job_spec).unwrap();
@@ -737,7 +737,7 @@ fn corruption_discovered_during_recovery_resets_once() {
     database.sync_all().unwrap();
     drop(database);
 
-    let reopened = Store::open(paths).unwrap();
+    let reopened = open_model_store(paths).unwrap();
     assert_ne!(reopened.store_uuid, old_uuid);
     assert!(reopened.pending_jobs().unwrap().is_empty());
 }
@@ -765,11 +765,11 @@ fn only_corruption_errors_authorize_destructive_reset() {
 
 #[test]
 fn current_schema_reopens_without_changing_store_identity() {
-    let temp = tempfile::tempdir().unwrap();
-    let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let store_uuid = store.store_uuid;
     drop(store);
 
-    let reopened = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let reopened = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     assert_eq!(reopened.store_uuid, store_uuid);
 }

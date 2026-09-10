@@ -2,15 +2,29 @@ use super::*;
 
 #[test]
 fn child_policy_resolution_failure_is_a_durable_typed_rejection() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let mut job = spec(temp.path());
-    let case_variant = PathBuf::from(temp.path().as_os_str().to_string_lossy().to_uppercase());
+    #[cfg(windows)]
+    let alias = PathBuf::from(temp.path().as_os_str().to_string_lossy().to_uppercase());
+    #[cfg(target_os = "linux")]
+    let alias = {
+        let alias = temp.path().join("same-object");
+        std::os::unix::fs::symlink(temp.path(), &alias).unwrap();
+        // A missing child follows the alias as an intermediate component.
+        alias.join("future")
+    };
+    #[cfg(not(any(windows, target_os = "linux")))]
+    let alias = temp.path().to_path_buf();
+    #[cfg(target_os = "linux")]
+    let original = temp.path().join("future");
+    #[cfg(not(target_os = "linux"))]
+    let original = temp.path().to_path_buf();
     job.child_submission_policy = Some(crate::ChildSubmissionPolicy {
         fences: crate::ChildFencePolicy {
-            shared_roots: vec![temp.path().to_path_buf(), case_variant],
+            shared_roots: vec![original, alias],
             ..crate::ChildFencePolicy::default()
         },
         ..crate::ChildSubmissionPolicy::default()
@@ -31,9 +45,9 @@ fn child_policy_resolution_failure_is_a_durable_typed_rejection() {
 
 #[test]
 fn staged_stdin_is_pre_received_immutable_and_idempotent() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+    let mut store = open_model_store_with_capacities(paths, capacities()).unwrap();
     let bytes = (0..90_000)
         .map(|index| (index % 251) as u8)
         .collect::<Vec<_>>();
@@ -95,9 +109,9 @@ fn staged_stdin_is_pre_received_immutable_and_idempotent() {
 
 #[test]
 fn corrupt_staged_input_rejects_before_received() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let input = stage_bytes(&store, b"trusted");
     let blob = store.paths.blob_path(&input.sha256);
@@ -122,11 +136,11 @@ fn corrupt_staged_input_rejects_before_received() {
 
 #[test]
 fn restart_collects_partial_upload_without_submission() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     let key = Uuid::now_v7();
     {
-        let store = Store::open_with_capacities(paths.clone(), capacities()).unwrap();
+        let store = open_model_store_with_capacities(paths.clone(), capacities()).unwrap();
         let bytes = b"never committed";
         let hash = format!("{:x}", Sha256::digest(bytes));
         let upload_id = Uuid::now_v7();
@@ -139,7 +153,7 @@ fn restart_collects_partial_upload_without_submission() {
             RecoveryResult::Unknown
         ));
     }
-    let store = Store::open_with_capacities(paths, capacities()).unwrap();
+    let store = open_model_store_with_capacities(paths, capacities()).unwrap();
     assert_eq!(std::fs::read_dir(&store.paths.uploads).unwrap().count(), 0);
     assert_eq!(std::fs::read_dir(&store.paths.blobs).unwrap().count(), 0);
     let submissions: u64 = store
@@ -151,9 +165,9 @@ fn restart_collects_partial_upload_without_submission() {
 
 #[test]
 fn partial_batch_input_map_is_atomic() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let mut first = spec(temp.path());
     first.stdin = StdinSpec::File {
@@ -189,9 +203,9 @@ fn partial_batch_input_map_is_atomic() {
 
 #[test]
 fn received_batch_revalidates_staged_inputs_before_acceptance() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let mut job = spec(temp.path());
     job.stdin = StdinSpec::File {
@@ -242,9 +256,9 @@ fn received_batch_revalidates_staged_inputs_before_acceptance() {
 
 #[test]
 fn explicit_environment_is_preserved_at_acceptance() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+    let mut store = open_model_store_with_capacities(paths, capacities()).unwrap();
     let mut job = spec(temp.path());
     job.environment
         .set
@@ -262,9 +276,9 @@ fn explicit_environment_is_preserved_at_acceptance() {
 
 #[test]
 fn batch_is_atomic_and_dependencies_use_final_outcomes() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+    let mut store = open_model_store_with_capacities(paths, capacities()).unwrap();
     let mut invalid = BatchSpec {
         spec_version: SPEC_VERSION,
         jobs: vec![member(
@@ -329,9 +343,9 @@ fn batch_is_atomic_and_dependencies_use_final_outcomes() {
 
 #[test]
 fn reverse_order_skip_closure_reaches_terminal_state() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let batch = BatchSpec {
         spec_version: SPEC_VERSION,
@@ -390,9 +404,9 @@ fn reverse_order_skip_closure_reaches_terminal_state() {
 
 #[test]
 fn sqlite_failure_rolls_back_every_batch_member() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     store
         .connection
@@ -445,9 +459,9 @@ fn sqlite_failure_rolls_back_every_batch_member() {
 
 #[test]
 fn complete_leases_serialize_conflicts_but_allow_orthogonal_work() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let mut cpu = spec(temp.path());
     cpu.resources.cpu_units = Some(3);
@@ -510,9 +524,9 @@ fn complete_leases_serialize_conflicts_but_allow_orthogonal_work() {
 
 #[test]
 fn daemon_status_reports_exact_durable_reservations() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let mut first = spec(temp.path());
     first.resources.cpu_units = Some(3);
@@ -589,9 +603,9 @@ fn daemon_status_reports_exact_durable_reservations() {
 
 #[test]
 fn receipt_reports_rank_blocker_and_honest_estimate() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let mut first = spec(temp.path());
     first.resources.cargo_slots = Some(1);
@@ -618,9 +632,9 @@ fn receipt_reports_rank_blocker_and_honest_estimate() {
 
 #[test]
 fn missing_path_fence_identity_survives_later_creation() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let fenced = temp.path().join("future-slot");
     let mut first = spec(temp.path());
@@ -664,9 +678,9 @@ fn missing_path_fence_identity_survives_later_creation() {
 
 #[test]
 fn dependency_outside_fifo_prefix_is_unknown() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let mut short = spec(temp.path());
     short.expected_duration_seconds = Some(5);

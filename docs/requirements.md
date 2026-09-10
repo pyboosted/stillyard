@@ -1,6 +1,7 @@
 # Stillyard Product Requirements
 
-Status: Conditions and readiness amendment v0.14 (2026-09-01)
+Status: Conditions and readiness amendment v0.14 (2026-09-01), with phased
+machine-resource contract amendment MR (2026-09-09; implementation pending).
 
 Product name: Stillyard
 
@@ -15,6 +16,12 @@ Product v0.1 targets Windows 10 version 1809 or newer and Windows Server 2019 or
 Stillyard is host-local. Every host owns an independent queue and store. A caller or owning agent chooses a host and may invoke the same CLI through SSH. Stillyard opens no network listener and performs no remote placement, SSH lifecycle management, or cloud control.
 
 The words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are normative.
+
+The machine-resource extension is specified in section 19 and
+[machine-resource-protocol.md](machine-resource-protocol.md). Its stated exceptions
+supersede the earlier single-store/Windows-only wording for the MR delivery phases
+only. Unamended guarantees remain in force. A normative design is not an assertion
+that the capability exists; see the [implementation ledger](machine-resource-implementation-status.md).
 
 ## 2. Product shape and public API
 
@@ -292,3 +299,108 @@ Product v0.2 — Linux:
 ## 18. Deferred extensions
 
 The following require a later requirements revision rather than hidden v0.1 complexity: general managed wait graphs, power-loss-qualified storage classes, embedded in-process engine hosting, service installation, multi-GPU Jobs, distributed placement, remote APIs, preemption, hostile same-owner isolation, and exactly-once delivery to arbitrary external streams.
+
+## 19. Machine-resource amendment MR
+
+R-MR-1 **Roles and scope** (R-PKG-1..6, R-SCOPE-1..4). One explicitly initialized
+owner authority MUST coordinate native Windows and paired WSL execution domains
+on one physical machine. Standalone, coordinator with native manager/executor, and
+attached manager/executor use one admission core. An attached daemon MUST NOT fall
+back to standalone. Local Unix IPC and an owner-authenticated Windows pipe bridge
+are permitted; no IP listener, remote placement, general multi-host transaction,
+or multi-owner authority is added. The one binary per platform remains; a WSL user
+service, delegation provisioning and external VM keepalive are explicit platform
+prerequisites. Runtime/container creation remains outside Stillyard.
+
+R-MR-2 **Ownership and launch authority** (R-DOM-1..4, R-RUN-1..6,
+R-NEST-1..5). Each manager owns local lifecycle, process identity, containment,
+logs, results and Submission idempotency. The coordinator owns the complete scarce
+resource vector. Work Lease has one Grant across primary and postconditions;
+each probe Lease has its own Grant. Every Invocation requires a fresh single-use
+ticket, durable no-replay start intent and a local cancellation/release barrier.
+Cross-store transitions use durable messages, not a fictitious shared transaction.
+Dependencies and managed ancestry stay within one manager store. Managed waits
+check all scoped ancestor claims and never authenticate parentage from environment
+alone. Loss of an acknowledgement MUST NOT cause duplicate user-code release.
+
+R-MR-3 **Accounting, ordering and evidence** (R-RES-1..9). Machine, VM and domain
+budgets, canonical physical GPU identities, tokens, fences and impacts form one
+atomic vector. Ancestor constraints MUST NOT multiply physical usage. Fences are
+domain-local unless aliases explicitly bind a shared filesystem object. Windows
+and attached candidates MUST enter one priority/aging/reservation order with no
+domain head-of-line blocking. Attached aging originates at first durable authority
+registration, never a backdated guest clock. Ready-candidate expiry releases only
+unused rights. The MR protocol specifies capacities, conservative observation
+debits, bounded offers, finite yield and config epochs. Windows/WSL free-memory
+observations MUST NOT be summed as independent physical capacity. Quiet release
+requires fresh host and local evidence and retained impact exclusions.
+
+R-MR-4 **History loss and recovery** (R-STORE-1..6, R-RUN-4..5). Whole-SQLite reset
+remains the pre-stable schema policy, but MUST NOT erase machine obligations. A
+durable registry and attached pairing anchors outside the reset set MUST gate
+admissions before startup/reset whenever history continuity is unknown. The gate
+also covers Windows work. Missing/corrupt registry MUST NOT auto-create a free
+authority. Disconnect, timeout, daemon generation, absent guest snapshot or a
+runtime name change MUST NOT free a potentially used Grant. Sealed cleanup reports,
+continuous reconciliation watermarks and durable idempotent release outboxes
+provide recovery; unresolved proof requires retained accounting or explicit audited
+risk clearance. Upgrade MUST prevent new admission and preserve control over all
+accepted work before replacement/reset; an empty sampled queue is insufficient.
+
+R-MR-5 **WSL execution** (R-LINUX-1..5, R-SCOPE-1..2, R-RUN-1..6). MR-3 MUST install
+the Linux daemon outside Cargo target, with owner-only IPC, systemd-user delegation,
+dedicated cgroup v2 boundaries, born-contained launch, pidfd/process identities,
+canonical output, complete-tree cleanup and honest uncertainty. WSL has its own
+capability and proof matrix; it does not prove native Linux or Mac support. Linux
+cgroup emptiness does not prove Windows interop children gone. The supported
+execution profile MUST prevent ordinary interop escape or provide verified coverage
+of both trees. Unsetting WSL_INTEROP alone is insufficient. Logout, distro terminate,
+VM suspend/shutdown, daemon restart and host reboot require separate observations.
+External keepalive remains mandatory for WSL session-survival acceptance.
+
+R-MR-6 **Public truth and bounds** (R-PKG-2..6, R-OBS-4, A-19). Public APIs, CLI,
+TUI, events and doctor MUST expose authority/domain/Grant/Lease associations,
+scoped capacity/granted/offered/reserved, stale evidence, config/session revisions
+and reconciliation blockers. Unavailable data MUST NOT be fabricated as zero.
+Protocol framing, candidate/history bounds, GC watermarks, version rejection,
+installation and quantitative idle budgets follow the MR protocol. Attached mode
+permits the explicit persistent bridge and its separately measured budget; standalone
+A-19 remains unchanged. JobSpec/local protocol/schema/store changes require explicit
+version decisions and scheduled schema regeneration, never silent compatibility.
+
+R-MR-7 **Delivery evidence**. MR-0 closes before MR-1, then MR-2 before MR-3.
+Protocol traces alone do not close Linux execution or consumer acceptance. All
+Cargo validation uses system default Stillyard Jobs. MR-3 requires W-C1..4 on the
+installed Windows/WSL pair, three live rounds, fault/cleanup/recovery matrices,
+same-source Windows/WSL gates including MSRV 1.85, installation/upgrade evidence
+and idle measurements. Native Linux/dev-containers (MR-4) and macOS (MR-5) remain
+later deliveries and MUST NOT be reported as supplied by MR-3.
+
+| Acceptance | Required executable scenario and negative control | Phase |
+|---|---|---|
+| A-MR-0 | Native Windows baseline build/check Jobs and safe WSL bootstrap Jobs identify the same source manifest. Kill/cancel/timeout the bootstrap intermediary while a bounded Linux descendant runs; retain allocation until verified empty. Wrapper-exit-means-empty mutant fails. | MR-0 |
+| A-MR-1 | M-A13 expands one physical request through machine/VM/domain limits; shared-core Windows gates retain priority/reservation/managed-wait behavior. Double-counted ancestors and partial-vector mutants fail. | MR-1 |
+| A-MR-2 | M-A01..07, M-A09, M-A11 use public fake participants and fault points before/after each durable protocol boundary. Independent counters, stale-session release, TTL-release, snapshot-absence proof and duplicate-launch mutants fail. | MR-2 |
+| A-MR-3 | Repeat applicable M-A scenarios with real WSL processes, including M-A08/10/12 and three W-C1..4 rounds. Root-only cleanup, global-mutex serialization, stale quiet evidence, unknown-history replay and client-owned lifetime mutants fail. | MR-3 |
+
+The exact crash traces and assertions are in protocol section 7; harnesses and
+observed outcomes are tracked separately in the ledger. A listed scenario without
+an executable harness or required platform result remains incomplete acceptance.
+
+
+R-MR-10 **Managed Linux namespace server authentication** (R-ENV-4 amendment).
+A child in a private PID namespace cannot inspect an ancestor daemon through
+/proc. For that specific managed path, the trusted executor passes a public
+Ed25519 verification key and the exact daemon generation/process/image identity,
+endpoint, store and managed coordinates. The private signing key stays only in
+the daemon. Client connect pins the owner peer by SO_PEERCRED/SO_PEERPIDFD and
+matches the selected expected executable's device/inode/hash to this launch
+context. Every response is signed over the exact request hash, fresh random
+challenge, parent and server identities. Before dispatch/signing, the daemon
+re-establishes the caller's actual cgroup membership and requires the claimed
+parent to match. A proxy outside the Invocation cannot obtain a signed response
+for it; inherited coordinates/public key grant no submission or ancestry rights.
+Unmanaged clients and explicit foreign endpoints retain exact kernel peer/image
+checks. Stale generation, changed image, unsigned/tampered/replayed response,
+wrong key, nested wrapper and unknown membership reject. Acceptance requires
+real nested-namespace client RPC plus these negative controls (MR-3/W-C3).

@@ -1,0 +1,47 @@
+{
+  "spec_version": 4,
+  "executable": "${CARGO_EXE}",
+  "args": [
+    "clippy",
+    "--workspace",
+    "--all-targets",
+    "--all-features",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "working_directory": "${REPOSITORY_ROOT}",
+  "environment": {
+    "set": {
+      "CARGO_HOME": "${CARGO_HOME}",
+      "CARGO_TARGET_DIR": "${CARGO_TARGET_DIR}",
+      "INCLUDE": "${INCLUDE}",
+      "LIB": "${LIB}",
+      "PATH": "${PATH}",
+      "RUSTUP_HOME": "${RUSTUP_HOME}",
+      "SCCACHE_DIR": "${SCCACHE_DIR}",
+      "USERPROFILE": "${USERPROFILE}",
+      "SYSTEMDRIVE": "${SYSTEMDRIVE}",
+      "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+      "COMSPEC": "${COMSPEC}"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "clippy"
+    }
+  ],
+  "expected_duration_seconds": 120,
+  "timeout_seconds": 1800
+}

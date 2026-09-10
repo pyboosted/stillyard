@@ -9,7 +9,9 @@ impl Store {
         root_identity: &ProcessIdentity,
     ) -> StoreResult<()> {
         let (root_host_id, root_boot_id, root_creation_filetime_100ns) =
-            windows_identity_parts(root_identity, root_pid)?;
+            process_records::legacy_columns(root_identity, root_pid)?;
+        let journal = self.authority.clone();
+        let permission = self.native_start_permission(job, executable_hash, Some(root_identity))?;
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -31,6 +33,13 @@ impl Store {
                 state.0, state.1, state.2
             )));
         }
+        if let (Some(journal), Some(permission)) = (journal, permission) {
+            journal
+                .lock()
+                .map_err(|_| StoreError::InvalidState("authority mutex poisoned".into()))?
+                .record_native_start(permission)?;
+        }
+        process_records::record(&transaction, job.invocation_id, root_identity, root_pid)?;
         transaction.execute(
             "UPDATE invocations SET root_pid = ?2, executable_hash = ?3,
                 daemon_generation = ?4, root_host_id = ?5, root_boot_id = ?6,
@@ -57,6 +66,15 @@ impl Store {
         &mut self,
         job: &PreparedJob,
         observation: crate::host_observation::ObservationMoment<'_>,
+    ) -> StoreResult<ReleaseAuthorization> {
+        self.authorize_release_with_ticket(job, observation, None)
+    }
+
+    pub(crate) fn authorize_release_with_ticket(
+        &mut self,
+        job: &PreparedJob,
+        observation: crate::host_observation::ObservationMoment<'_>,
+        ticket: Option<&crate::machine::InvocationTicket>,
     ) -> StoreResult<ReleaseAuthorization> {
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
@@ -226,6 +244,7 @@ impl Store {
                 super::admitting::admission_evidence_json(&context)?,
             ],
         )?;
+        attached::invocation::consume(&transaction, job, self.daemon_generation, ticket)?;
         transaction.commit()?;
         Ok(ReleaseAuthorization::Authorized {
             runtime_deadline_unix_millis: runtime_deadline,
@@ -237,6 +256,15 @@ impl Store {
         &mut self,
         job: &PreparedJob,
         observation: Option<crate::host_observation::ObservationMoment<'_>>,
+    ) -> StoreResult<ReleaseAuthorization> {
+        self.authorize_condition_release_with_ticket(job, observation, None)
+    }
+
+    pub(crate) fn authorize_condition_release_with_ticket(
+        &mut self,
+        job: &PreparedJob,
+        observation: Option<crate::host_observation::ObservationMoment<'_>>,
+        ticket: Option<&crate::machine::InvocationTicket>,
     ) -> StoreResult<ReleaseAuthorization> {
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
@@ -413,6 +441,7 @@ impl Store {
                 release_evidence_json = ?2 WHERE attempt_id = ?1",
             params![job.attempt_id.entity_uuid().to_string(), release_evidence,],
         )?;
+        attached::invocation::consume(&transaction, job, self.daemon_generation, ticket)?;
         transaction.commit()?;
         Ok(ReleaseAuthorization::Authorized {
             runtime_deadline_unix_millis: runtime_deadline,
@@ -714,32 +743,6 @@ impl Store {
         }
         transaction.commit()?;
         Ok(())
-    }
-}
-
-fn windows_identity_parts(
-    root_identity: &ProcessIdentity,
-    root_pid: u32,
-) -> StoreResult<(&str, &str, i64)> {
-    match root_identity {
-        ProcessIdentity::Windows {
-            host_id,
-            boot_id,
-            pid,
-            creation_filetime_100ns,
-        } if *pid == root_pid => Ok((
-            host_id.0.as_str(),
-            boot_id.0.as_str(),
-            i64::try_from(*creation_filetime_100ns).map_err(|_| {
-                StoreError::InvalidState("process creation identity exceeds SQLite range".into())
-            })?,
-        )),
-        ProcessIdentity::Windows { pid, .. } => Err(StoreError::InvalidState(format!(
-            "process identity PID {pid} does not match created PID {root_pid}"
-        ))),
-        ProcessIdentity::Unknown { .. } => Err(StoreError::InvalidState(
-            "unknown process identity cannot authorize native containment".into(),
-        )),
     }
 }
 

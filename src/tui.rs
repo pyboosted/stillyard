@@ -1079,6 +1079,7 @@ fn civil_date_from_unix_days(days: i64) -> (i64, u32, u32) {
     (year, month as u32, day as u32)
 }
 
+#[cfg(any(windows, test))]
 fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
     let year = if month <= 2 { year - 1 } else { year };
     let era = if year >= 0 { year } else { year - 399 } / 400;

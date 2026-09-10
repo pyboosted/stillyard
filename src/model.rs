@@ -98,6 +98,7 @@ durable_id!(ContainmentId);
 durable_id!(ReservationId);
 durable_id!(ConditionId);
 durable_id!(ObservationId);
+durable_id!(GrantId);
 
 #[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Serialize, Deserialize)]
 #[non_exhaustive]

@@ -110,7 +110,8 @@ impl Store {
                     .map(|value| Uuid::parse_str(&value))
                     .transpose()?,
                 root_pid_recorded: root_pid.is_some(),
-                root_identity: process_identity_from_columns(
+                root_identity: self.process_identity_record(
+                    &invocation,
                     root_pid,
                     root_host,
                     root_boot,
@@ -208,7 +209,8 @@ impl Store {
                 .map(|value| Uuid::parse_str(&value))
                 .transpose()?,
             root_pid_recorded: root_pid.is_some(),
-            root_identity: process_identity_from_columns(
+            root_identity: self.process_identity_record(
+                &invocation,
                 root_pid,
                 root_host,
                 root_boot,
@@ -244,7 +246,7 @@ impl Store {
             .collect::<StoreResult<Vec<_>>>()?;
         let mut roots = self.connection.prepare(
             "SELECT invocations.root_pid, invocations.root_host_id,
-                    invocations.root_boot_id, invocations.root_creation_filetime_100ns
+                    invocations.root_boot_id, invocations.root_creation_filetime_100ns, invocations.id
              FROM containments
              JOIN invocations ON invocations.id = containments.invocation_id
              WHERE containments.state = 'uncertain'",
@@ -255,12 +257,15 @@ impl Store {
                 row.get::<_, Option<String>>(1)?,
                 row.get::<_, Option<String>>(2)?,
                 row.get::<_, Option<i64>>(3)?,
+                row.get::<_, String>(4)?,
             ))
         })?;
         let mut identities = Vec::new();
         for row in root_rows {
-            let (pid, host, boot, creation) = row?;
-            if let Some(identity) = process_identity_from_columns(pid, host, boot, creation)? {
+            let (pid, host, boot, creation, invocation) = row?;
+            if let Some(identity) =
+                self.process_identity_record(&invocation, pid, host, boot, creation)?
+            {
                 identities.push(identity);
             }
         }
@@ -430,6 +435,7 @@ impl Store {
             }
         }
         transaction.commit()?;
+        self.reconcile_native_start_permissions()?;
         Ok(Some(ClearContainmentResult {
             schema_version: 1,
             containment_id: candidate.containment_id,

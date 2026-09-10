@@ -137,22 +137,10 @@ pub(super) fn process_identity_from_columns(
     pid: Option<u32>,
     host_id: Option<String>,
     boot_id: Option<String>,
-    creation_filetime_100ns: Option<i64>,
+    creation: Option<i64>,
 ) -> StoreResult<Option<ProcessIdentity>> {
-    match (pid, host_id, boot_id, creation_filetime_100ns) {
-        (Some(pid), Some(host_id), Some(boot_id), Some(creation)) => {
-            Ok(Some(ProcessIdentity::Windows {
-                host_id: HostId(host_id),
-                boot_id: BootId(boot_id),
-                pid,
-                creation_filetime_100ns: u64::try_from(creation).map_err(|_| {
-                    StoreError::InvalidState("negative process creation identity".into())
-                })?,
-            }))
-        }
-        // Tests and records that never released user code may legitimately have no exact root.
-        _ => Ok(None),
-    }
+    crate::identity::decode_legacy_process_record(pid, host_id, boot_id, creation)
+        .map_err(StoreError::InvalidState)
 }
 
 pub(super) fn parse_exit_classification(value: &str) -> StoreResult<ExitClassification> {

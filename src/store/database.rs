@@ -219,7 +219,8 @@ pub(super) fn bind_unbound_store(
     }
 }
 
-pub(super) fn reset_database_files(paths: &StorePaths) -> StoreResult<()> {
+pub(super) fn reset_database_files(paths: &StorePaths, host: Option<&HostId>) -> StoreResult<()> {
+    crate::authority::Authority::before_store_reset(paths.root.join("authority"), host)?;
     for path in [
         sqlite_sidecar_path(&paths.database, "-wal"),
         sqlite_sidecar_path(&paths.database, "-shm"),

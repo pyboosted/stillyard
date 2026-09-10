@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
+#[cfg(target_os = "linux")]
+pub(crate) mod linux;
+
 use fs2::FileExt;
 use sha2::{Digest, Sha256};
 
@@ -86,6 +89,12 @@ impl ClientBuilder {
             .map(Ok)
             .unwrap_or_else(default_daemon_executable)?;
         let client = Client {
+            #[cfg(target_os = "linux")]
+            managed_server: crate::identity::attestation::Trusted::from_environment(
+                &endpoint,
+                &daemon_executable,
+                claimed_parent,
+            )?,
             endpoint,
             daemon_executable,
             claimed_parent,
@@ -143,6 +152,8 @@ impl ClientBuilder {
 
 #[derive(Clone, Debug)]
 pub struct Client {
+    #[cfg(target_os = "linux")]
+    managed_server: Option<crate::identity::attestation::Trusted>,
     endpoint: String,
     daemon_executable: PathBuf,
     claimed_parent: Option<ManagedParent>,
@@ -1702,6 +1713,209 @@ impl Client {
         }
     }
 
+    /// Explicit owner registration. The returned snapshot contains no secret.
+    pub fn machine_exchange(
+        &self,
+        request: crate::machine::Request,
+        deadline: Instant,
+    ) -> Result<crate::machine::Reply> {
+        request.validate()?;
+        match self.request(
+            Request::MachineExchange {
+                request: Box::new(request),
+            },
+            deadline,
+            None,
+        )? {
+            Response::MachineReply(reply) => Ok(*reply),
+            response => response_error(response),
+        }
+    }
+
+    /// Explicit owner registration. The returned snapshot contains no secret.
+    pub fn pair_machine_domain(
+        &self,
+        registration: crate::machine::PairingRegistration,
+        deadline: Instant,
+    ) -> Result<crate::machine::ParticipantSnapshot> {
+        match self.request(Request::MachinePair { registration }, deadline, None)? {
+            Response::MachineParticipant(snapshot) => Ok(snapshot),
+            response => response_error(response),
+        }
+    }
+
+    /// Begin a paired-executor handshake through the selected installed bridge.
+    pub fn machine_connect_begin(
+        &self,
+        hello: crate::machine::ConnectHello,
+        deadline: Instant,
+    ) -> Result<crate::machine::ConnectChallenge> {
+        match self.request(Request::MachineConnectBegin { hello }, deadline, None)? {
+            Response::MachineChallenge(challenge) => Ok(challenge),
+            response => response_error(response),
+        }
+    }
+
+    pub fn machine_connect_finish(
+        &self,
+        challenge: crate::machine::ConnectChallenge,
+        tag: [u8; 32],
+        deadline: Instant,
+    ) -> Result<crate::machine::ParticipantSnapshot> {
+        match self.request(
+            Request::MachineConnectFinish { challenge, tag },
+            deadline,
+            None,
+        )? {
+            Response::MachineParticipant(snapshot) => Ok(snapshot),
+            response => response_error(response),
+        }
+    }
+
+    pub fn machine_participant(
+        &self,
+        domain: crate::ExecutionDomainId,
+        deadline: Instant,
+    ) -> Result<crate::machine::ParticipantSnapshot> {
+        match self.request(Request::MachineParticipant { domain }, deadline, None)? {
+            Response::MachineParticipant(snapshot) => Ok(snapshot),
+            response => response_error(response),
+        }
+    }
+
+    /// Retire a failed manager using an exact preview and explicit risk decision.
+    pub fn retire_machine_domain(
+        &self,
+        request: crate::machine::DomainRetirementRequest,
+        deadline: Instant,
+    ) -> Result<crate::machine::DomainRetirementReceipt> {
+        match self.request(Request::MachineRetireDomain { request }, deadline, None)? {
+            Response::MachineDomainRetired(receipt) => Ok(*receipt),
+            response => response_error(response),
+        }
+    }
+
+    /// Read the exact owner-visible inventory for a prospective domain retirement.
+    pub fn machine_clearance_preview(
+        &self,
+        domain: crate::ExecutionDomainId,
+        deadline: Instant,
+    ) -> Result<crate::machine::DomainClearancePreview> {
+        match self.request(Request::MachineClearancePreview { domain }, deadline, None)? {
+            Response::MachineClearancePreview(preview) => Ok(*preview),
+            response => response_error(response),
+        }
+    }
+
+    /// Rebuild reset coordinator inventory and check platform proof. A retained
+    /// blocker means outstanding managers or native boundaries still need proof.
+    pub fn machine_recover(&self, deadline: Instant) -> Result<crate::AuthoritySnapshot> {
+        match self.request(Request::MachineRecover {}, deadline, None)? {
+            Response::Authority(snapshot) => Ok(snapshot),
+            response => response_error(response),
+        }
+    }
+
+    pub fn machine_events(
+        &self,
+        cursor: Option<crate::machine::EventCursor>,
+        limit: u32,
+        deadline: Instant,
+    ) -> Result<crate::machine::EventPage> {
+        match self.request(Request::MachineEvents { cursor, limit }, deadline, None)? {
+            Response::MachineEvents(page) => Ok(page),
+            response => response_error(response),
+        }
+    }
+
+    /// Returns the durable bootstrap/maintenance admission interlock.
+    #[cfg(windows)]
+    pub(crate) fn arm_bootstrap(
+        &self,
+        binding: crate::BootstrapBinding,
+        deadline: Instant,
+    ) -> Result<crate::AuthoritySnapshot> {
+        match self.request(Request::BootstrapArm { binding }, deadline, None)? {
+            Response::Authority(snapshot) => Ok(snapshot),
+            response => response_error(response),
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn seal_bootstrap(
+        &self,
+        proof: crate::BootstrapProof,
+        deadline: Instant,
+    ) -> Result<crate::AuthoritySnapshot> {
+        match self.request(Request::BootstrapSeal { proof }, deadline, None)? {
+            Response::Authority(snapshot) => Ok(snapshot),
+            response => response_error(response),
+        }
+    }
+
+    /// Returns the durable bootstrap/maintenance admission interlock.
+    pub fn authority_status(
+        &self,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<crate::AuthoritySnapshot> {
+        match self.request(Request::AuthorityStatus {}, deadline, cancellation)? {
+            Response::Authority(snapshot) => Ok(snapshot),
+            response => response_error(response),
+        }
+    }
+
+    /// Explicit owner assertion that a new authority has no outstanding external
+    /// work. Never call automatically on missing/corrupt installation history.
+    pub fn initialize_authority_without_outstanding_work(
+        &self,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<crate::AuthoritySnapshot> {
+        match self.request(Request::AuthorityInitialize {}, deadline, cancellation)? {
+            Response::Authority(snapshot) => Ok(snapshot),
+            response => response_error(response),
+        }
+    }
+
+    /// Atomically closes admission only when no granted Lease remains. Use a
+    /// stable operation ID: replaying a retired hold does not rearm it.
+    pub fn hold_authority(
+        &self,
+        id: uuid::Uuid,
+        reason: String,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<crate::AuthoritySnapshot> {
+        match self.request(
+            Request::AuthorityHold { id, reason },
+            deadline,
+            cancellation,
+        )? {
+            Response::Authority(snapshot) => Ok(snapshot),
+            response => response_error(response),
+        }
+    }
+
+    /// Audited owner risk acceptance, not a platform cleanup proof. Managed work
+    /// cannot use this operation; automatic launchers must not force-clear holds.
+    pub fn force_release_authority(
+        &self,
+        id: uuid::Uuid,
+        reason: String,
+        deadline: Instant,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<crate::AuthoritySnapshot> {
+        match self.request(
+            Request::AuthorityForceRelease { id, reason },
+            deadline,
+            cancellation,
+        )? {
+            Response::Authority(snapshot) => Ok(snapshot),
+            response => response_error(response),
+        }
+    }
+
     pub fn doctor(
         &self,
         cursor: Option<ContainmentIncidentCursor>,
@@ -1839,7 +2053,15 @@ impl Client {
         let endpoint = self.endpoint.clone();
         let daemon_executable = self.daemon_executable.clone();
         let (sender, receiver) = mpsc::sync_channel(1);
+        #[cfg(target_os = "linux")]
+        let managed_server = self.managed_server.clone();
         std::thread::spawn(move || {
+            #[cfg(target_os = "linux")]
+            let result = match managed_server {
+                Some(context) => linux::attested_request(&endpoint, &context, &request, deadline),
+                None => transport_request(&endpoint, &daemon_executable, &request, deadline),
+            };
+            #[cfg(not(target_os = "linux"))]
             let result = transport_request(&endpoint, &daemon_executable, &request, deadline);
             let _ = sender.send(result);
         });
@@ -2269,7 +2491,7 @@ fn transport_request(
     deadline: Instant,
 ) -> Result<Response> {
     use std::os::windows::ffi::OsStrExt;
-    use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
+    use windows_sys::Win32::Foundation::{ERROR_PIPE_BUSY, ERROR_SEM_TIMEOUT};
     use windows_sys::Win32::System::Pipes::WaitNamedPipeW;
 
     let mut pipe = loop {
@@ -2280,13 +2502,25 @@ fn transport_request(
                     return Err(Error::DeadlineElapsed);
                 }
                 let remaining = deadline.saturating_duration_since(Instant::now());
-                let timeout = remaining.min(Duration::from_secs(1)).as_millis().max(1) as u32;
+                // Wait for availability or the request deadline. One-second
+                // timeout/retry polling hides timer wakes in the native bridge.
+                // Exclude the Win32 special values 0 (server default) and MAX
+                // (infinite); normal caller deadlines are finite and bounded.
+                let timeout = remaining.as_millis().clamp(1, u128::from(u32::MAX - 1)) as u32;
                 let endpoint: Vec<u16> = OsStr::new(endpoint)
                     .encode_wide()
                     .chain(std::iter::once(0))
                     .collect();
                 // SAFETY: endpoint is NUL-terminated and remains alive for the call.
-                unsafe { WaitNamedPipeW(endpoint.as_ptr(), timeout) };
+                #[cfg(test)]
+                NATIVE_PIPE_WAITS.with(|count| count.set(count.get() + 1));
+                if unsafe { WaitNamedPipeW(endpoint.as_ptr(), timeout) } == 0 {
+                    let error = std::io::Error::last_os_error();
+                    if error.raw_os_error() == Some(ERROR_SEM_TIMEOUT as i32) {
+                        return Err(Error::DeadlineElapsed);
+                    }
+                    return Err(Error::Unavailable(error.to_string()));
+                }
             }
             Err(error) => return Err(Error::Unavailable(error.to_string())),
         }
@@ -2294,6 +2528,11 @@ fn transport_request(
     verify_pipe_server(&pipe, daemon_executable)?;
     write_frame(&mut pipe, request)?;
     read_frame(&mut pipe).map_err(Error::from)
+}
+
+#[cfg(all(windows, test))]
+thread_local! {
+    static NATIVE_PIPE_WAITS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
 #[cfg(windows)]
@@ -2359,7 +2598,17 @@ fn verify_pipe_server(pipe: &std::fs::File, daemon_executable: &Path) -> Result<
     Ok(())
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn transport_request(
+    endpoint: &str,
+    daemon_executable: &Path,
+    request: &Request,
+    deadline: Instant,
+) -> Result<Response> {
+    linux::request(endpoint, daemon_executable, request, deadline)
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn transport_request(
     _endpoint: &str,
     _daemon_executable: &Path,
@@ -2404,7 +2653,43 @@ fn start_daemon(
         .map_err(|error| Error::Unavailable(format!("cannot start daemon: {error}")))
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn start_daemon(
+    executable: &Path,
+    store_root: &Path,
+    endpoint: &str,
+) -> Result<std::process::Child> {
+    let selected = default_instance()?;
+    let installed = selected.store_path.join("bin/stillyard");
+    if store_root != selected.store_path
+        || endpoint != selected.endpoint
+        || std::fs::canonicalize(executable)? != std::fs::canonicalize(&installed)?
+        || !store_root.join("attachment/anchor.json").is_file()
+    {
+        return Err(Error::Unavailable(
+            "Linux auto-start requires the installed default WSL attachment".into(),
+        ));
+    }
+    // The unit owns delegation and lifetime. Starting it asynchronously avoids
+    // waiting for a service readiness condition that itself needs this client.
+    // SAFETY: geteuid has no preconditions.
+    let runtime = format!("/run/user/{}", unsafe { libc::geteuid() });
+    std::process::Command::new("/usr/bin/systemctl")
+        .args(["--user", "start", "--no-block", "stillyard.service"])
+        .env_clear()
+        .env("XDG_RUNTIME_DIR", &runtime)
+        .env(
+            "DBUS_SESSION_BUS_ADDRESS",
+            format!("unix:path={runtime}/bus"),
+        )
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| Error::Unavailable(format!("cannot start installed WSL service: {e}")))
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn start_daemon(
     _executable: &Path,
     _store_root: &Path,
@@ -2589,7 +2874,7 @@ fn lock_ensure_operation(
         _ => std::env::current_dir()?,
     };
     std::fs::create_dir_all(&parent)?;
-    crate::filesystem::require_fixed_local_ntfs(&parent)?;
+    crate::filesystem::require_durable_local_filesystem(&parent)?;
     let mut lock_name = path.as_os_str().to_os_string();
     lock_name.push(".ensure.lock");
     let lock = OpenOptions::new()
@@ -2857,7 +3142,7 @@ fn with_result_file_lock<T>(
         _ => std::env::current_dir()?,
     };
     std::fs::create_dir_all(&parent)?;
-    crate::filesystem::require_fixed_local_ntfs(&parent)?;
+    crate::filesystem::require_durable_local_filesystem(&parent)?;
     let mut lock_name = path.as_os_str().to_os_string();
     lock_name.push(".lock");
     let lock = OpenOptions::new()
@@ -2914,7 +3199,7 @@ fn write_json_atomically(path: &Path, value: &impl serde::Serialize) -> Result<(
         _ => std::env::current_dir()?,
     };
     std::fs::create_dir_all(&parent)?;
-    crate::filesystem::require_fixed_local_ntfs(&parent)?;
+    crate::filesystem::require_durable_local_filesystem(&parent)?;
     let temp = parent.join(format!(".stillyard-result-{}.tmp", uuid::Uuid::now_v7()));
     let mut file = OpenOptions::new()
         .write(true)
@@ -2937,7 +3222,7 @@ fn write_json_new_atomically(path: &Path, value: &impl serde::Serialize) -> std:
         _ => std::env::current_dir()?,
     };
     std::fs::create_dir_all(&parent)?;
-    crate::filesystem::require_fixed_local_ntfs(&parent).map_err(std::io::Error::other)?;
+    crate::filesystem::require_durable_local_filesystem(&parent).map_err(std::io::Error::other)?;
     let temp = parent.join(format!(".stillyard-result-{}.tmp", uuid::Uuid::now_v7()));
     let result = (|| {
         let mut file = OpenOptions::new()
@@ -2952,6 +3237,8 @@ fn write_json_new_atomically(path: &Path, value: &impl serde::Serialize) -> std:
         // NTFS volume. Removing the temporary name cannot invalidate the published receipt.
         std::fs::hard_link(&temp, path)?;
         let _ = std::fs::remove_file(&temp);
+        #[cfg(target_os = "linux")]
+        std::fs::File::open(&parent)?.sync_all()?;
         Ok(())
     })();
     if result.is_err() {
@@ -2994,12 +3281,69 @@ fn replace_file_atomically(source: &Path, destination: &Path) -> Result<()> {
 #[cfg(not(windows))]
 fn replace_file_atomically(source: &Path, destination: &Path) -> Result<()> {
     std::fs::rename(source, destination)?;
+    #[cfg(target_os = "linux")]
+    std::fs::File::open(
+        destination
+            .parent()
+            .ok_or_else(|| std::io::Error::other("receipt has no parent directory"))?,
+    )?
+    .sync_all()?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn busy_native_pipe_waits_once_until_deadline_without_polling() {
+        use std::os::windows::ffi::OsStrExt;
+        use std::os::windows::io::{FromRawHandle, RawHandle};
+        use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
+        use windows_sys::Win32::Storage::FileSystem::PIPE_ACCESS_DUPLEX;
+        use windows_sys::Win32::System::Pipes::{CreateNamedPipeW, PIPE_TYPE_BYTE, PIPE_WAIT};
+        let endpoint = format!(r"\\.\pipe\stillyard-busy-wait-{}", uuid::Uuid::now_v7());
+        let wide: Vec<u16> = OsStr::new(&endpoint).encode_wide().chain(Some(0)).collect();
+        // One real instance, held connected by another client for the whole
+        // deadline. Availability cannot satisfy the blocked caller's wait.
+        let handle = unsafe {
+            CreateNamedPipeW(
+                wide.as_ptr(),
+                PIPE_ACCESS_DUPLEX,
+                PIPE_TYPE_BYTE | PIPE_WAIT,
+                1,
+                4096,
+                4096,
+                1000,
+                std::ptr::null(),
+            )
+        };
+        assert_ne!(handle, INVALID_HANDLE_VALUE);
+        let _server = unsafe { std::fs::File::from_raw_handle(handle as RawHandle) };
+        let _occupant = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&endpoint)
+            .unwrap();
+        NATIVE_PIPE_WAITS.with(|count| count.set(0));
+        let start = Instant::now();
+        assert!(matches!(
+            transport_request(
+                &endpoint,
+                &std::env::current_exe().unwrap(),
+                &Request::Ping {},
+                start + Duration::from_millis(1250)
+            ),
+            Err(Error::DeadlineElapsed)
+        ));
+        assert_eq!(
+            NATIVE_PIPE_WAITS.with(std::cell::Cell::get),
+            1,
+            "native busy-pipe timeout was retried as a polling interval"
+        );
+        assert!(start.elapsed() >= Duration::from_secs(1));
+    }
 
     #[test]
     fn response_errors_preserve_known_wire_rejections() {
@@ -3069,6 +3413,8 @@ mod tests {
     #[test]
     fn doctor_complete_distinguishes_deadline_and_cancellation_before_connecting() {
         let client = Client {
+            #[cfg(target_os = "linux")]
+            managed_server: None,
             endpoint: "unused".into(),
             daemon_executable: PathBuf::from("unused"),
             claimed_parent: None,
@@ -3206,7 +3552,7 @@ mod tests {
 
     #[test]
     fn result_file_fresh_create_is_atomic_and_never_overwrites() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::test_support::durable_tempdir().unwrap();
         let path = temp.path().join("operation.result.json");
         let first = SubmitOptions::new(uuid::Uuid::now_v7());
         let store_uuid = uuid::Uuid::now_v7();
@@ -3264,7 +3610,7 @@ mod tests {
 
     #[test]
     fn ensure_result_file_claim_is_atomic_and_reports_payload_conflict_without_overwrite() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::test_support::durable_tempdir().unwrap();
         let path = temp.path().join("ensure.result.json");
         let key = uuid::Uuid::now_v7();
         let context = SubmissionContext {
@@ -3332,7 +3678,7 @@ mod tests {
 
     #[test]
     fn ensure_result_file_lock_obeys_the_client_deadline() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::test_support::durable_tempdir().unwrap();
         let path = temp.path().join("contended.result.json");
         let mut lock_name = path.as_os_str().to_os_string();
         lock_name.push(".lock");
@@ -3395,7 +3741,7 @@ mod tests {
 
     #[test]
     fn unknown_recovery_preserves_the_last_durable_receipt() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::test_support::durable_tempdir().unwrap();
         let path = temp.path().join("operation.result.json");
         let record = ResultFileRecord {
             version: RESULT_FILE_VERSION,
@@ -3435,8 +3781,10 @@ mod tests {
 
     #[test]
     fn ensure_unknown_is_a_typed_fail_closed_outcome_without_transport_replay() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::test_support::durable_tempdir().unwrap();
         let client = Client {
+            #[cfg(target_os = "linux")]
+            managed_server: None,
             endpoint: "unused".into(),
             daemon_executable: temp.path().join("must-not-run.exe"),
             claimed_parent: None,
@@ -3460,7 +3808,7 @@ mod tests {
 
     #[test]
     fn stale_recovery_cannot_overwrite_a_concurrent_accepted_receipt() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::test_support::durable_tempdir().unwrap();
         let path = temp.path().join("operation.result.json");
         let store_uuid = uuid::Uuid::now_v7();
         let submission_id = crate::SubmissionId::from_parts(store_uuid, uuid::Uuid::now_v7());
@@ -3520,7 +3868,7 @@ mod tests {
 
     #[test]
     fn accepted_refresh_uses_stable_identity_and_keeps_the_durable_receipt() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::test_support::durable_tempdir().unwrap();
         let path = temp.path().join("operation.result.json");
         let store_uuid = uuid::Uuid::now_v7();
         let submission_id = crate::SubmissionId::from_parts(store_uuid, uuid::Uuid::now_v7());
@@ -3620,7 +3968,7 @@ mod tests {
 
     #[test]
     fn accepted_batch_refresh_pins_the_complete_member_identity() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::test_support::durable_tempdir().unwrap();
         let path = temp.path().join("batch.result.json");
         let store_uuid = uuid::Uuid::now_v7();
         let submission_id = crate::SubmissionId::from_parts(store_uuid, uuid::Uuid::now_v7());
@@ -3719,7 +4067,7 @@ mod tests {
 
     #[test]
     fn only_exact_managed_not_received_receipt_authorizes_result_file_reuse() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::test_support::durable_tempdir().unwrap();
         let path = temp.path().join("managed.result.json");
         let store_uuid = uuid::Uuid::now_v7();
         let parent = managed_parent(store_uuid);
@@ -3915,7 +4263,7 @@ mod tests {
 
     #[test]
     fn recovery_rejects_a_foreign_endpoint_without_touching_the_receipt() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::test_support::durable_tempdir().unwrap();
         let path = temp.path().join("operation.result.json");
         let record = ResultFileRecord {
             version: RESULT_FILE_VERSION,
@@ -3932,6 +4280,8 @@ mod tests {
         write_json_atomically(&path, &record).unwrap();
         let before = std::fs::read(&path).unwrap();
         let client = Client {
+            #[cfg(target_os = "linux")]
+            managed_server: None,
             endpoint: "pipe-b".into(),
             daemon_executable: temp.path().join("unused.exe"),
             claimed_parent: None,
@@ -3947,7 +4297,7 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn recovery_accepts_a_case_variant_of_the_same_windows_endpoint() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::test_support::durable_tempdir().unwrap();
         let path = temp.path().join("operation.result.json");
         let endpoint = format!(r"\\.\pipe\stillyard-result-{}", uuid::Uuid::now_v7());
         let record = ResultFileRecord {
@@ -3974,9 +4324,11 @@ mod tests {
 
     #[test]
     fn recover_missing_result_file_does_not_create_it() {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = crate::test_support::durable_tempdir().unwrap();
         let path = temp.path().join("missing.result.json");
         let client = Client {
+            #[cfg(target_os = "linux")]
+            managed_server: None,
             endpoint: "unused".into(),
             daemon_executable: temp.path().join("unused.exe"),
             claimed_parent: None,

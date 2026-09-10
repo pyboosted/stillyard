@@ -325,9 +325,29 @@ impl Store {
         validate_input_shape(&spec, stdin.as_ref())?;
         let log_directory = self.paths.logs.join(job_id.entity_uuid().to_string());
         std::fs::create_dir_all(&log_directory)?;
-        let invocation_id = InvocationId::new(self.store_uuid);
-        let containment_id = ContainmentId::new(self.store_uuid);
-        let lease_id = Uuid::now_v7();
+        let admission = attached::prepare(
+            &transaction,
+            job_id,
+            AttemptId::from_parts(store_uuid, Uuid::parse_str(&attempt_key)?),
+            None,
+            &spec,
+            &claims,
+        )?;
+        if !admission.ready {
+            if admission.persist {
+                transaction.commit()?;
+            } else {
+                transaction.rollback()?;
+            }
+            return Ok(if admission.changed {
+                PrepareJob::StateChanged
+            } else {
+                PrepareJob::Blocked
+            });
+        }
+        let invocation_id = admission.ids.invocation;
+        let containment_id = admission.ids.containment;
+        let lease_id = admission.ids.lease;
         let waits_for_release = quiet.is_some() || !spec.conditions.is_empty();
         let attempt_started = (!waits_for_release).then_some(now);
         let attempt_deadline = attempt_started.and_then(|started| {
@@ -371,13 +391,14 @@ impl Store {
         transaction.execute(
             "INSERT INTO containments(
                 id, invocation_id, state, host_id, boot_id, daemon_generation, strength, version
-             ) VALUES (?1, ?2, 'creating', ?3, ?4, ?5, 'windows_job_object', 1)",
+             ) VALUES (?1, ?2, 'creating', ?3, ?4, ?5, ?6, 1)",
             params![
                 containment_id.entity_uuid().to_string(),
                 invocation_id.entity_uuid().to_string(),
                 self.startup_identity.host_id.as_ref().map(|value| &value.0),
                 self.startup_identity.boot_id.as_ref().map(|value| &value.0),
                 self.daemon_generation.to_string(),
+                crate::platform::containment_strength(),
             ],
         )?;
         transaction.execute(
@@ -499,17 +520,12 @@ fn accumulated_quiet_budget(
     admission: &AdmissionState,
     context: &crate::host_observation::AdmissionContext,
 ) -> u64 {
-    let generation = context.observation_generation.to_string();
-    let additional = match (
+    crate::host_observation::quiet_budget(
+        admission.quiet_consumed_ms,
         admission.last_eval_generation.as_deref(),
         admission.last_eval_monotonic_ms,
-    ) {
-        (Some(previous_generation), Some(previous)) if previous_generation == generation => {
-            context.evaluated_monotonic_millis.saturating_sub(previous)
-        }
-        _ => 0,
-    };
-    admission.quiet_consumed_ms.saturating_add(additional)
+        context,
+    )
 }
 
 fn next_stability(
@@ -517,25 +533,16 @@ fn next_stability(
     context: &crate::host_observation::AdmissionContext,
     maximum_gap_millis: u64,
 ) -> Stability {
-    if !context.quiet_sample_satisfied || !context.quiet_blockers.is_empty() {
-        return Stability {
-            first_monotonic_ms: None,
-            last_monotonic_ms: None,
-        };
-    }
-    let generation = context.observation_generation.to_string();
-    let continues = admission.quiet_generation.as_deref() == Some(generation.as_str())
-        && admission
-            .quiet_last_monotonic_ms
-            .and_then(|last| context.evaluated_monotonic_millis.checked_sub(last))
-            .is_some_and(|gap| gap <= maximum_gap_millis);
+    let (first_monotonic_ms, last_monotonic_ms) = crate::host_observation::quiet_stability(
+        admission.quiet_generation.as_deref(),
+        admission.quiet_first_monotonic_ms,
+        admission.quiet_last_monotonic_ms,
+        context,
+        maximum_gap_millis,
+    );
     Stability {
-        first_monotonic_ms: if continues {
-            admission.quiet_first_monotonic_ms
-        } else {
-            Some(context.evaluated_monotonic_millis)
-        },
-        last_monotonic_ms: Some(context.evaluated_monotonic_millis),
+        first_monotonic_ms,
+        last_monotonic_ms,
     }
 }
 

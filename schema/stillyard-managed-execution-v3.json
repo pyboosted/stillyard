@@ -94,6 +94,85 @@
         "failed"
       ]
     },
+    "AllocationKey": {
+      "type": "object",
+      "properties": {
+        "authority_epoch": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "domain_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "lease_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "machine_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "manager_store_uuid": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "machine_id",
+        "authority_epoch",
+        "domain_id",
+        "manager_store_uuid",
+        "lease_id"
+      ]
+    },
+    "AllocationOwner": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "attempt_id": {
+              "type": "string"
+            },
+            "job_id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "work"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "job_id",
+            "attempt_id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "invocation_id": {
+              "type": "string"
+            },
+            "job_id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "probe"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "job_id",
+            "invocation_id"
+          ]
+        }
+      ]
+    },
     "AttemptSnapshot": {
       "type": "object",
       "properties": {
@@ -345,6 +424,44 @@
         }
       },
       "additionalProperties": false
+    },
+    "Claims": {
+      "type": "object",
+      "properties": {
+        "exclusive_fences": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "impacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scalars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          }
+        },
+        "shared_fences": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "scalars",
+        "shared_fences",
+        "exclusive_fences",
+        "impacts"
+      ]
     },
     "ConditionDeadline": {
       "oneOf": [
@@ -1410,6 +1527,16 @@
         "driver_version"
       ]
     },
+    "GrantState": {
+      "type": "string",
+      "enum": [
+        "offered",
+        "expired",
+        "armed",
+        "uncertain",
+        "released"
+      ]
+    },
     "InvocationRole": {
       "type": "string",
       "enum": [
@@ -1698,6 +1825,13 @@
             }
           ],
           "default": null
+        },
+        "allocations": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/NativeAllocationSnapshot"
+          }
         },
         "attempt_id": {
           "type": [
@@ -2102,6 +2236,47 @@
         "evaluated_unix_millis",
         "effective_policy",
         "policy_ancestors"
+      ]
+    },
+    "NativeAllocationSnapshot": {
+      "description": "Allocation/Lease association. The historical Rust type name is retained.\nNative admission shares the Grant and Lease UUID; an attached allocation\nreports its actual coordinator Grant ID and separately bound local Lease ID.\nThis observation introduces no second resource counter.",
+      "type": "object",
+      "properties": {
+        "claims": {
+          "$ref": "#/$defs/Claims"
+        },
+        "grant_id": {
+          "type": "string"
+        },
+        "key": {
+          "description": "Absent when authority identity/history cannot be established.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllocationKey"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lease_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "owner": {
+          "$ref": "#/$defs/AllocationOwner"
+        },
+        "state": {
+          "$ref": "#/$defs/GrantState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "grant_id",
+        "lease_id",
+        "owner",
+        "state",
+        "claims"
       ]
     },
     "ObservedOperandSnapshot": {

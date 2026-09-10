@@ -12,7 +12,7 @@ fn none_deadline(predicate: ConditionPredicate) -> ConditionSpec {
 fn probe_condition(root: &Path) -> ConditionSpec {
     none_deadline(ConditionPredicate::Probe {
         probe: Box::new(ProbeCondition {
-            executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+            executable: model_probe_executable(),
             args: vec!["/d".into(), "/c".into(), "exit 0".into()],
             working_directory: root.to_path_buf(),
             environment: EnvironmentSpec::default(),
@@ -51,10 +51,10 @@ fn prepare_until_ready(store: &mut Store, job_id: JobId) -> PreparedJob {
 
 #[test]
 fn path_transition_is_anchored_at_acceptance_and_rescanned_before_lease() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let path = temp.path().join("ready.flag");
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().join("store")), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().join("store")), capacities())
             .unwrap();
     let mut spec = spec(temp.path());
     spec.conditions
@@ -91,10 +91,10 @@ fn path_transition_is_anchored_at_acceptance_and_rescanned_before_lease() {
 
 #[test]
 fn path_absent_waits_for_authoritative_absence() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let path = temp.path().join("present.flag");
     std::fs::write(&path, b"present").unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut job = spec(temp.path());
     job.conditions
         .push(none_deadline(ConditionPredicate::PathAbsent {
@@ -112,8 +112,8 @@ fn path_absent_waits_for_authoritative_absence() {
 
 #[test]
 fn eta_is_unknown_for_external_predicates_and_lower_bound_for_not_before() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut path_spec = spec(temp.path());
     path_spec
         .conditions
@@ -149,10 +149,10 @@ fn eta_is_unknown_for_external_predicates_and_lower_bound_for_not_before() {
 
 #[test]
 fn relative_deadline_is_durable_and_does_not_create_an_attempt() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let missing = temp.path().join("never-created");
     let paths = StorePaths::new(temp.path().join("store"));
-    let mut store = Store::open(paths.clone()).unwrap();
+    let mut store = open_model_store(paths.clone()).unwrap();
     let mut spec = spec(temp.path());
     spec.conditions.push(ConditionSpec {
         predicate: ConditionPredicate::PathExists { path: missing },
@@ -177,7 +177,7 @@ fn relative_deadline_is_durable_and_does_not_create_an_attempt() {
         .unwrap();
     drop(store);
 
-    let mut reopened = Store::open(paths).unwrap();
+    let mut reopened = open_model_store(paths).unwrap();
     assert!(
         reopened
             .prepare_job(receipt.receipt.job_id)
@@ -197,13 +197,13 @@ fn relative_deadline_is_durable_and_does_not_create_an_attempt() {
 
 #[test]
 fn probe_uses_its_own_lease_and_releases_it_before_primary_work() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut config = HostConfig::default();
     config.resources.cargo_slots = 2;
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().join("store")),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut spec = spec(temp.path());
@@ -211,9 +211,9 @@ fn probe_uses_its_own_lease_and_releases_it_before_primary_work() {
     spec.conditions
         .push(none_deadline(ConditionPredicate::Probe {
             probe: Box::new(ProbeCondition {
-                executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+                executable: model_probe_executable(),
                 args: vec!["/d".into(), "/c".into(), "exit 0".into()],
-                working_directory: PathBuf::from(r"C:\"),
+                working_directory: temp.path().to_path_buf(),
                 environment: EnvironmentSpec::default(),
                 resources: ResourceClaims {
                     cargo_slots: Some(1),
@@ -280,13 +280,13 @@ fn probe_uses_its_own_lease_and_releases_it_before_primary_work() {
 
 #[test]
 fn deadline_that_wins_during_a_probe_remains_terminal_after_probe_cleanup() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut spec = spec(temp.path());
     spec.conditions.push(ConditionSpec {
         predicate: ConditionPredicate::Probe {
             probe: Box::new(ProbeCondition {
-                executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+                executable: model_probe_executable(),
                 args: vec!["/d".into(), "/c".into(), "exit 9".into()],
                 working_directory: temp.path().to_path_buf(),
                 environment: EnvironmentSpec::default(),
@@ -352,7 +352,7 @@ fn deadline_that_wins_during_a_probe_remains_terminal_after_probe_cleanup() {
 
 #[test]
 fn pre_release_path_change_replans_same_attempt_then_exhausts_as_readiness_unstable() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let ready = temp.path().join("ready.flag");
     std::fs::write(&ready, b"ready").unwrap();
     let mut config = HostConfig::default();
@@ -360,7 +360,7 @@ fn pre_release_path_change_replans_same_attempt_then_exhausts_as_readiness_unsta
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().join("store")),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut spec = spec(temp.path());
@@ -397,7 +397,7 @@ fn pre_release_path_change_replans_same_attempt_then_exhausts_as_readiness_unsta
 
 #[test]
 fn first_pre_release_deferral_replans_the_same_attempt_and_preserves_budget() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let ready = temp.path().join("ready.flag");
     std::fs::write(&ready, b"ready").unwrap();
     let mut config = HostConfig::default();
@@ -406,7 +406,7 @@ fn first_pre_release_deferral_replans_the_same_attempt_and_preserves_budget() {
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().join("store")),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = spec(temp.path());
@@ -452,7 +452,7 @@ fn first_pre_release_deferral_replans_the_same_attempt_and_preserves_budget() {
 
 #[test]
 fn post_commit_freshness_expiry_replans_the_never_resumed_attempt() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let ready = temp.path().join("ready.flag");
     std::fs::write(&ready, b"ready").unwrap();
     let mut config = HostConfig::default();
@@ -461,7 +461,7 @@ fn post_commit_freshness_expiry_replans_the_never_resumed_attempt() {
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().join("store")),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = spec(temp.path());
@@ -518,10 +518,10 @@ fn post_commit_freshness_expiry_replans_the_never_resumed_attempt() {
 #[test]
 fn pre_release_cancellation_is_never_projected_as_released() {
     for cause in ["cancel", "deadline_canceled"] {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = model_tempdir().unwrap();
         let ready = temp.path().join("ready.flag");
         std::fs::write(&ready, b"ready").unwrap();
-        let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+        let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
         let mut job = spec(temp.path());
         job.conditions.push(ConditionSpec {
             predicate: ConditionPredicate::PathExists { path: ready },
@@ -572,10 +572,10 @@ fn pre_release_cancellation_is_never_projected_as_released() {
 
 #[test]
 fn condition_release_is_publicly_released_while_running_and_after_success() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let ready = temp.path().join("ready.flag");
     std::fs::write(&ready, b"ready").unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut job = spec(temp.path());
     job.conditions
         .push(none_deadline(ConditionPredicate::PathExists {
@@ -629,10 +629,10 @@ fn condition_release_is_publicly_released_while_running_and_after_success() {
 
 #[test]
 fn postcondition_does_not_inherit_primary_conditions_after_release() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let ready = temp.path().join("ready.flag");
     std::fs::write(&ready, b"ready").unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut job = spec(temp.path());
     job.conditions
         .push(none_deadline(ConditionPredicate::PathExists {
@@ -695,10 +695,10 @@ fn postcondition_does_not_inherit_primary_conditions_after_release() {
 
 #[test]
 fn postcondition_start_failure_preserves_primary_start_and_ignores_condition_deadline() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let ready = temp.path().join("ready.flag");
     std::fs::write(&ready, b"ready").unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut job = spec(temp.path());
     job.conditions.push(ConditionSpec {
         predicate: ConditionPredicate::PathExists { path: ready },
@@ -787,13 +787,13 @@ fn postcondition_start_failure_preserves_primary_start_and_ignores_condition_dea
 
 #[test]
 fn post_commit_cancel_and_deadline_are_ordered_before_primary_resume() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     for cause in ["cancel", "deadline", "deadline_during_cleanup"] {
         let root = temp.path().join(cause);
         std::fs::create_dir_all(&root).unwrap();
         let ready = root.join("ready.flag");
         std::fs::write(&ready, b"ready").unwrap();
-        let mut store = Store::open(StorePaths::new(root.join("store"))).unwrap();
+        let mut store = open_model_store(StorePaths::new(root.join("store"))).unwrap();
         let mut job = spec(&root);
         job.conditions
             .push(none_deadline(ConditionPredicate::PathExists {
@@ -907,12 +907,12 @@ fn restart_preserves_the_durable_pre_resume_terminal_latch() {
             AttemptVerdict::Canceled,
         ),
     ] {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = model_tempdir().unwrap();
         let ready = temp.path().join("ready.flag");
         std::fs::write(&ready, b"ready").unwrap();
         let paths = StorePaths::new(temp.path().join("store"));
         let job_id = {
-            let mut store = Store::open(paths.clone()).unwrap();
+            let mut store = open_model_store(paths.clone()).unwrap();
             let mut job = spec(temp.path());
             job.conditions.push(ConditionSpec {
                 predicate: ConditionPredicate::PathExists { path: ready },
@@ -967,7 +967,7 @@ fn restart_preserves_the_durable_pre_resume_terminal_latch() {
             receipt.job_id
         };
 
-        let reopened = Store::open(paths).unwrap();
+        let reopened = open_model_store(paths).unwrap();
         let snapshot = reopened.status(job_id).unwrap();
         assert_eq!(snapshot.state, JobState::Final, "case {case}");
         assert_eq!(snapshot.outcome, Some(expected_outcome), "case {case}");
@@ -1029,10 +1029,10 @@ fn restart_preserves_the_durable_pre_resume_terminal_latch() {
 
 #[test]
 fn worker_start_failure_keeps_condition_deadline_precedence() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let ready = temp.path().join("ready.flag");
     std::fs::write(&ready, b"ready").unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut job = spec(temp.path());
     job.conditions.push(ConditionSpec {
         predicate: ConditionPredicate::PathExists { path: ready },
@@ -1066,11 +1066,11 @@ fn worker_start_failure_keeps_condition_deadline_precedence() {
 
 #[test]
 fn restart_invalidates_generation_local_path_evidence_and_rescans() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let ready = temp.path().join("ready.flag");
     std::fs::write(&ready, b"ready").unwrap();
     let paths = StorePaths::new(temp.path().join("store"));
-    let mut store = Store::open(paths.clone()).unwrap();
+    let mut store = open_model_store(paths.clone()).unwrap();
     let mut spec = spec(temp.path());
     spec.conditions
         .push(none_deadline(ConditionPredicate::PathExists {
@@ -1085,7 +1085,7 @@ fn restart_invalidates_generation_local_path_evidence_and_rescans() {
     drop(store);
     std::fs::remove_file(&ready).unwrap();
 
-    let mut reopened = Store::open(paths).unwrap();
+    let mut reopened = open_model_store(paths).unwrap();
     assert!(
         reopened
             .prepare_job(receipt.receipt.job_id)
@@ -1104,20 +1104,19 @@ fn restart_invalidates_generation_local_path_evidence_and_rescans() {
 
 #[test]
 fn restart_retains_only_the_unresolved_probe_claims_and_blocks_reprobe_until_clearance() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().join("store"));
     let mut config = HostConfig::default();
     config.resources.cargo_slots = 3;
     let (job_id, probe_invocation) = {
         let mut store =
-            Store::open_with_config(paths.clone(), config.clone(), probe_startup_identity())
-                .unwrap();
+            Store::open_with_config(paths.clone(), config.clone(), model_identity()).unwrap();
         let mut spec = spec(temp.path());
         spec.resources.cargo_slots = Some(3);
         spec.conditions
             .push(none_deadline(ConditionPredicate::Probe {
                 probe: Box::new(ProbeCondition {
-                    executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+                    executable: model_probe_executable(),
                     args: vec!["/d".into(), "/c".into(), "exit 0".into()],
                     working_directory: temp.path().to_path_buf(),
                     environment: EnvironmentSpec::default(),
@@ -1136,7 +1135,7 @@ fn restart_retains_only_the_unresolved_probe_claims_and_blocks_reprobe_until_cle
         (receipt.receipt.job_id, probe.invocation_id)
     };
 
-    let mut reopened = Store::open_with_config(paths, config, probe_startup_identity()).unwrap();
+    let mut reopened = Store::open_with_config(paths, config, model_identity()).unwrap();
     let snapshot = reopened.status(job_id).unwrap();
     assert_eq!(snapshot.state, JobState::Pending);
     let probe = snapshot.attempts[0]
@@ -1166,15 +1165,15 @@ fn restart_retains_only_the_unresolved_probe_claims_and_blocks_reprobe_until_cle
 
 #[test]
 fn restart_repairs_the_legacy_split_probe_settlement_window() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().join("store"));
     let job_id = {
-        let mut store = Store::open(paths.clone()).unwrap();
+        let mut store = open_model_store(paths.clone()).unwrap();
         let mut job = spec(temp.path());
         job.conditions
             .push(none_deadline(ConditionPredicate::Probe {
                 probe: Box::new(ProbeCondition {
-                    executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+                    executable: model_probe_executable(),
                     args: vec!["/d".into(), "/c".into(), "exit 0".into()],
                     working_directory: temp.path().to_path_buf(),
                     environment: EnvironmentSpec::default(),
@@ -1225,7 +1224,7 @@ fn restart_repairs_the_legacy_split_probe_settlement_window() {
         receipt.receipt.job_id
     };
 
-    let mut reopened = Store::open(paths).unwrap();
+    let mut reopened = open_model_store(paths).unwrap();
     let snapshot = reopened.status(job_id).unwrap();
     assert_eq!(snapshot.conditions[0].state, ConditionState::Waiting);
     assert_eq!(snapshot.conditions[0].probe_invocation_id, None);
@@ -1264,13 +1263,13 @@ fn restart_repairs_the_legacy_split_probe_settlement_window() {
 
 #[test]
 fn cancel_waits_for_live_probe_boundary_before_publishing_final() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut job = spec(temp.path());
     job.conditions
         .push(none_deadline(ConditionPredicate::Probe {
             probe: Box::new(ProbeCondition {
-                executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+                executable: model_probe_executable(),
                 args: vec!["/d".into(), "/c".into(), "exit 0".into()],
                 working_directory: temp.path().to_path_buf(),
                 environment: EnvironmentSpec::default(),
@@ -1305,8 +1304,8 @@ fn cancel_waits_for_live_probe_boundary_before_publishing_final() {
 
 #[test]
 fn terminal_intent_waits_for_every_live_probe_and_cancel_never_starts_another() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut job = spec(temp.path());
     job.conditions = vec![
         probe_condition(temp.path()),
@@ -1356,10 +1355,10 @@ fn terminal_intent_waits_for_every_live_probe_and_cancel_never_starts_another() 
 
 #[test]
 fn failed_deadline_latch_survives_refresh_until_probe_cleanup() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let ready = temp.path().join("ready.flag");
     std::fs::write(&ready, b"ready").unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut job = spec(temp.path());
     job.conditions
         .push(none_deadline(ConditionPredicate::PathExists {
@@ -1424,9 +1423,9 @@ fn failed_deadline_latch_survives_refresh_until_probe_cleanup() {
 
 #[test]
 fn due_deadline_wins_over_cancel_before_and_during_probe_cleanup() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
 
-    let mut direct_store = Store::open(StorePaths::new(temp.path().join("direct"))).unwrap();
+    let mut direct_store = open_model_store(StorePaths::new(temp.path().join("direct"))).unwrap();
     let mut direct_job = spec(temp.path());
     direct_job
         .conditions
@@ -1452,7 +1451,7 @@ fn due_deadline_wins_over_cancel_before_and_during_probe_cleanup() {
         Some("condition_deadline_expired")
     );
 
-    let mut probe_store = Store::open(StorePaths::new(temp.path().join("probe"))).unwrap();
+    let mut probe_store = open_model_store(StorePaths::new(temp.path().join("probe"))).unwrap();
     let mut probe_job = spec(temp.path());
     probe_job.conditions.push(probe_condition(temp.path()));
     let probe_receipt = submit_condition_job(&mut probe_store, &probe_job);
@@ -1490,12 +1489,12 @@ fn due_deadline_wins_over_cancel_before_and_during_probe_cleanup() {
 
 #[test]
 fn restart_finalizes_cancel_and_deadline_after_probe_becomes_uncertain() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     for case in ["cancel", "deadline_latched", "deadline_during_downtime"] {
         let cancel = case == "cancel";
         let paths = StorePaths::new(temp.path().join(case));
         let job_id = {
-            let mut store = Store::open(paths.clone()).unwrap();
+            let mut store = open_model_store(paths.clone()).unwrap();
             let mut job = spec(temp.path());
             job.conditions.push(probe_condition(temp.path()));
             let receipt = submit_condition_job(&mut store, &job);
@@ -1551,7 +1550,7 @@ fn restart_finalizes_cancel_and_deadline_after_probe_becomes_uncertain() {
             std::thread::sleep(Duration::from_millis(50));
         }
 
-        let reopened = Store::open(paths).unwrap();
+        let reopened = open_model_store(paths).unwrap();
         let snapshot = reopened.status(job_id).unwrap();
         assert_eq!(snapshot.state, JobState::Final, "restart case {case}");
         assert_eq!(
@@ -1580,8 +1579,8 @@ fn restart_finalizes_cancel_and_deadline_after_probe_becomes_uncertain() {
 
 #[test]
 fn deadline_is_enforced_before_retry_backoff_and_dependency_filters() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut backoff = spec(temp.path());
     backoff
         .conditions
@@ -1664,8 +1663,8 @@ fn deadline_is_enforced_before_retry_backoff_and_dependency_filters() {
 
 #[test]
 fn expired_monotonic_evidence_does_not_create_a_zero_delay_retry_spin() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut job = spec(temp.path());
     job.conditions
         .push(none_deadline(ConditionPredicate::PathExists {
@@ -1704,8 +1703,8 @@ fn expired_monotonic_evidence_does_not_create_a_zero_delay_retry_spin() {
 
 #[test]
 fn freshness_that_expires_during_a_long_pass_yields_before_rescan() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut job = spec(temp.path());
     job.conditions
         .push(none_deadline(ConditionPredicate::PathExists {
@@ -1734,8 +1733,8 @@ fn freshness_that_expires_during_a_long_pass_yields_before_rescan() {
 
 #[test]
 fn monotonic_expiry_yields_despite_a_future_wall_deadline() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut job = spec(temp.path());
     job.conditions
         .push(none_deadline(ConditionPredicate::PathExists {
@@ -1764,13 +1763,13 @@ fn monotonic_expiry_yields_despite_a_future_wall_deadline() {
 
 #[test]
 fn already_stale_refresh_blocks_once_then_yields_instead_of_replanning() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut config = HostConfig::default();
     config.observation.condition_rescan_interval_millis = 100;
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().join("store")),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = spec(temp.path());
@@ -1796,8 +1795,8 @@ fn already_stale_refresh_blocks_once_then_yields_instead_of_replanning() {
 
 #[test]
 fn deadline_crossing_during_scan_wins_over_impossible_dependency() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let predecessor_spec = spec(temp.path());
     let predecessor = submit_condition_job(&mut store, &predecessor_spec).receipt;
     store
@@ -1854,13 +1853,13 @@ fn deadline_crossing_during_scan_wins_over_impossible_dependency() {
 
 #[test]
 fn prepared_probe_start_failure_atomically_releases_its_lease_and_requeues() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut job = spec(temp.path());
     job.conditions
         .push(none_deadline(ConditionPredicate::Probe {
             probe: Box::new(ProbeCondition {
-                executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+                executable: model_probe_executable(),
                 args: vec!["/d".into(), "/c".into(), "exit 0".into()],
                 working_directory: temp.path().to_path_buf(),
                 environment: EnvironmentSpec::default(),
@@ -1894,8 +1893,8 @@ fn prepared_probe_start_failure_atomically_releases_its_lease_and_requeues() {
 
 #[test]
 fn monotonic_expiry_forces_rescan_despite_a_future_wall_freshness_and_history_is_bounded() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut job = spec(temp.path());
     job.conditions
         .push(none_deadline(ConditionPredicate::PathExists {
@@ -1957,8 +1956,8 @@ fn monotonic_expiry_forces_rescan_despite_a_future_wall_freshness_and_history_is
 
 #[test]
 fn probe_history_is_pruned_after_its_pinning_events_leave_the_ring() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().join("store"))).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().join("store"))).unwrap();
     let mut job = spec(temp.path());
     job.conditions.push(probe_condition(temp.path()));
     let receipt = submit_condition_job(&mut store, &job);

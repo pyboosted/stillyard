@@ -94,7 +94,6 @@ pub(super) fn resolve_managed_membership(
     Ok(Some(immediate.parent))
 }
 
-#[cfg(windows)]
 pub(super) fn authenticate_managed_peer(
     live_containments: &crate::runner::LiveContainments,
     peer: &PeerProcess,
@@ -112,27 +111,19 @@ pub(super) fn authenticate_managed_peer(
     })
 }
 
-#[cfg(not(windows))]
-pub(super) fn authenticate_managed_peer(
-    _live_containments: &crate::runner::LiveContainments,
-    _peer: &PeerProcess,
-    _candidates: &[ManagedCandidate],
-) -> std::result::Result<Option<crate::ManagedParent>, StoreError> {
-    Ok(None)
-}
-
 impl DaemonReactor {
     pub(super) fn start(
         store: SharedStore,
         endpoint: String,
         observation_config: crate::HostObservationConfig,
         doctor_snapshots: crate::store::DoctorSnapshotCache,
+        live_containments: crate::runner::LiveContainments,
     ) -> Arc<Self> {
         let scheduler = Arc::new(Self {
             signal: Arc::new((Mutex::new(false), Condvar::new())),
             events: Arc::new((Mutex::new(0), Condvar::new())),
             endpoint: Arc::from(endpoint),
-            live_containments: crate::runner::LiveContainments::default(),
+            live_containments,
             reconciliation_observations: Mutex::new(Default::default()),
             doctor_snapshots: Mutex::new(doctor_snapshots),
             host_observation: Arc::new(crate::host_observation::HostObservationService::new(
@@ -204,6 +195,7 @@ impl DaemonReactor {
                     .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
                 generation = waited.0;
                 if waited.1.timed_out() {
+                    crate::runtime_metrics::waited(crate::runtime_metrics::Timer::Subscriber, true);
                     break;
                 }
             }
@@ -254,6 +246,7 @@ impl DaemonReactor {
                     .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
                 generation = waited.0;
                 if waited.1.timed_out() {
+                    crate::runtime_metrics::waited(crate::runtime_metrics::Timer::Subscriber, true);
                     break;
                 }
             }
@@ -316,6 +309,7 @@ impl DaemonReactor {
                     .map_err(|_| StoreError::InvalidState("event mutex poisoned".into()))?;
                 generation = waited.0;
                 if waited.1.timed_out() {
+                    crate::runtime_metrics::waited(crate::runtime_metrics::Timer::Subscriber, true);
                     break;
                 }
             }
@@ -368,6 +362,10 @@ impl DaemonReactor {
                             }
                             if let Some(resolution) = resolution {
                                 let committed = store.lock().ok().and_then(|mut guard| {
+                                    #[cfg(target_os = "linux")]
+                                    self.live_containments
+                                        .persist_linux_cleanup(&mut guard, candidate.invocation_id)
+                                        .ok()?;
                                     guard
                                         .commit_containment_resolution(
                                             candidate,
@@ -495,11 +493,13 @@ impl DaemonReactor {
                     );
                     self.wake();
                     std::thread::sleep(Duration::from_millis(100));
+                    crate::runtime_metrics::waited(crate::runtime_metrics::Timer::Backoff, true);
                 }
                 continue;
             }
             if retry {
                 std::thread::sleep(Duration::from_millis(100));
+                crate::runtime_metrics::waited(crate::runtime_metrics::Timer::Backoff, true);
                 continue;
             }
             let retry_delay = store
@@ -537,6 +537,10 @@ impl DaemonReactor {
                     };
                     pending = waited.0;
                     if waited.1.timed_out() {
+                        crate::runtime_metrics::waited(
+                            crate::runtime_metrics::Timer::Reactor,
+                            true,
+                        );
                         break;
                     }
                 } else {

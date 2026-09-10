@@ -35,7 +35,7 @@ fn sample(generation: Uuid, captured: u64, cpu: u8) -> HostSample {
             captured,
             MemoryEvidence {
                 available_physical_mb: 64_000,
-                commit_headroom_mb: 64_000,
+                commit_headroom_mb: Some(64_000),
             },
         ),
         cpu_utilization: ComponentEvidence::available(
@@ -157,11 +157,11 @@ fn prepare_suspended_quiet_primary(
 
 #[test]
 fn stale_memory_and_low_commit_headroom_never_create_a_lease_or_invocation() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         observation_config(),
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = spec(temp.path());
@@ -176,7 +176,7 @@ fn stale_memory_and_low_commit_headroom_never_create_a_lease_or_invocation() {
         1_000,
         MemoryEvidence {
             available_physical_mb: 64_000,
-            commit_headroom_mb: 64_000,
+            commit_headroom_mb: Some(64_000),
         },
     );
     assert!(
@@ -192,7 +192,7 @@ fn stale_memory_and_low_commit_headroom_never_create_a_lease_or_invocation() {
         5_000,
         MemoryEvidence {
             available_physical_mb: 64_000,
-            commit_headroom_mb: 20_000,
+            commit_headroom_mb: Some(20_000),
         },
     );
     assert!(
@@ -232,14 +232,14 @@ fn stale_memory_and_low_commit_headroom_never_create_a_lease_or_invocation() {
 
 #[test]
 fn condition_scan_time_ages_host_evidence_before_observed_grant() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut config = observation_config();
     config.observation.sample_interval_millis = 100;
     config.observation.memory_max_sample_age_millis = 100;
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = spec(temp.path());
@@ -287,7 +287,7 @@ fn condition_scan_time_ages_host_evidence_before_observed_grant() {
 
 #[test]
 fn condition_release_rechecks_observed_evidence_before_resume() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let ready = temp.path().join("ready.flag");
     std::fs::write(&ready, b"ready").unwrap();
     let mut config = observation_config();
@@ -296,7 +296,7 @@ fn condition_release_rechecks_observed_evidence_before_resume() {
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = spec(temp.path());
@@ -350,7 +350,7 @@ fn condition_release_rechecks_observed_evidence_before_resume() {
 
 #[test]
 fn observed_condition_runtime_timeout_starts_at_release() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let ready = temp.path().join("ready.flag");
     std::fs::write(&ready, b"ready").unwrap();
     let config = observation_config();
@@ -359,7 +359,7 @@ fn observed_condition_runtime_timeout_starts_at_release() {
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = spec(temp.path());
@@ -425,14 +425,14 @@ fn observed_condition_runtime_timeout_starts_at_release() {
 
 #[test]
 fn condition_scan_time_ages_host_evidence_before_probe_grant() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut config = observation_config();
     config.observation.sample_interval_millis = 100;
     config.observation.memory_max_sample_age_millis = 100;
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = spec(temp.path());
@@ -446,7 +446,7 @@ fn condition_scan_time_ages_host_evidence_before_probe_grant() {
     job.conditions.push(ConditionSpec {
         predicate: ConditionPredicate::Probe {
             probe: Box::new(crate::ProbeCondition {
-                executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+                executable: model_probe_executable(),
                 args: vec!["/d".into(), "/c".into(), "exit 0".into()],
                 working_directory: temp.path().to_path_buf(),
                 environment: EnvironmentSpec::default(),
@@ -491,7 +491,7 @@ fn condition_scan_time_ages_host_evidence_before_probe_grant() {
 
 #[test]
 fn sidecar_gpu_and_vram_claims_fail_closed_then_preserve_grant_provenance() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut config = observation_config();
     config.resources.gpu_slots = 1;
     config
@@ -503,7 +503,7 @@ fn sidecar_gpu_and_vram_claims_fail_closed_then_preserve_grant_provenance() {
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = spec(temp.path());
@@ -640,11 +640,11 @@ fn sidecar_gpu_and_vram_claims_fail_closed_then_preserve_grant_provenance() {
 
 #[test]
 fn quiet_wait_holds_no_lease_and_final_recheck_reuses_the_attempt_without_running_code() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         observation_config(),
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = quiet_job(temp.path());
@@ -855,11 +855,11 @@ fn quiet_wait_holds_no_lease_and_final_recheck_reuses_the_attempt_without_runnin
 
 #[test]
 fn cancel_that_wins_during_contaminated_cleanup_cannot_replan_or_release_code() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         observation_config(),
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let job = quiet_job(temp.path());
@@ -920,13 +920,13 @@ fn cancel_that_wins_during_contaminated_cleanup_cannot_replan_or_release_code() 
 
 #[test]
 fn quiet_stability_resets_on_sample_gap_and_observation_generation_change() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut config = observation_config();
     config.observation.quiet_max_sample_gap_millis = 1_000;
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = quiet_job(temp.path());
@@ -972,11 +972,11 @@ fn quiet_stability_resets_on_sample_gap_and_observation_generation_change() {
 
 #[test]
 fn final_observed_ram_check_excludes_only_its_own_granted_lease() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         observation_config(),
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = quiet_job(temp.path());
@@ -1014,7 +1014,7 @@ fn final_observed_ram_check_excludes_only_its_own_granted_lease() {
         2_100,
         MemoryEvidence {
             available_physical_mb: 26_000,
-            commit_headroom_mb: 26_000,
+            commit_headroom_mb: Some(26_000),
         },
     );
     assert!(matches!(
@@ -1027,11 +1027,11 @@ fn final_observed_ram_check_excludes_only_its_own_granted_lease() {
 
 #[test]
 fn direct_observed_admission_remains_released_without_a_final_barrier() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         observation_config(),
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = spec(temp.path());
@@ -1082,13 +1082,12 @@ fn direct_observed_admission_remains_released_without_a_final_barrier() {
 
 #[test]
 fn restart_preserves_admitting_attempt_budget_resets_stability_and_allows_cancel() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     let config = observation_config();
     let (job_id, attempt_id, wall_deadline) = {
         let mut store =
-            Store::open_with_config(paths.clone(), config.clone(), probe_startup_identity())
-                .unwrap();
+            Store::open_with_config(paths.clone(), config.clone(), model_identity()).unwrap();
         let job = quiet_job(temp.path());
         let hash = normalized_payload_hash(&job).unwrap();
         let receipt = store.submit(Uuid::now_v7(), &hash, &job).unwrap().receipt;
@@ -1129,7 +1128,7 @@ fn restart_preserves_admitting_attempt_budget_resets_stability_and_allows_cancel
         )
     };
 
-    let mut reopened = Store::open_with_config(paths, config, probe_startup_identity()).unwrap();
+    let mut reopened = Store::open_with_config(paths, config, model_identity()).unwrap();
     let snapshot = reopened.status(job_id).unwrap();
     assert_eq!(snapshot.state, JobState::Pending);
     assert_eq!(snapshot.attempt_id, Some(attempt_id));
@@ -1169,7 +1168,7 @@ fn restart_preserves_admitting_attempt_budget_resets_stability_and_allows_cancel
 
 #[test]
 fn incompatible_impact_consumes_the_admission_wall_clock_and_fails_finitely() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut config = observation_config();
     config.observation.admission_wall_clock_limit_seconds = 1;
     config
@@ -1178,7 +1177,7 @@ fn incompatible_impact_consumes_the_admission_wall_clock_and_fails_finitely() {
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
 
@@ -1251,11 +1250,11 @@ fn incompatible_impact_consumes_the_admission_wall_clock_and_fails_finitely() {
 
 #[test]
 fn missing_observation_pauses_quiet_budget_and_rebuilds_stability() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         observation_config(),
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let job = quiet_job(temp.path());
@@ -1310,7 +1309,7 @@ fn missing_observation_pauses_quiet_budget_and_rebuilds_stability() {
 
 #[test]
 fn static_contention_pauses_quiet_budget_and_rebuilds_stability() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut config = observation_config();
     config
         .impact_incompatibilities
@@ -1318,7 +1317,7 @@ fn static_contention_pauses_quiet_budget_and_rebuilds_stability() {
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut strict = quiet_job(temp.path());
@@ -1392,11 +1391,11 @@ fn static_contention_pauses_quiet_budget_and_rebuilds_stability() {
 
 #[test]
 fn starting_strict_job_keeps_sampler_demand_until_release() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         observation_config(),
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let job = quiet_job(temp.path());
@@ -1441,13 +1440,13 @@ fn starting_strict_job_keeps_sampler_demand_until_release() {
 
 #[test]
 fn clean_deferral_exhaustion_uses_the_job_retry_policy() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut config = observation_config();
     config.observation.pre_release_max_deferrals = 1;
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = quiet_job(temp.path());
@@ -1456,7 +1455,7 @@ fn clean_deferral_exhaustion_uses_the_job_retry_policy() {
     job.conditions.push(ConditionSpec {
         predicate: ConditionPredicate::Probe {
             probe: Box::new(crate::ProbeCondition {
-                executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+                executable: model_probe_executable(),
                 args: vec!["/d".into(), "/c".into(), "exit 0".into()],
                 working_directory: temp.path().to_path_buf(),
                 environment: EnvironmentSpec::default(),
@@ -1545,13 +1544,13 @@ fn clean_deferral_exhaustion_uses_the_job_retry_policy() {
 
 #[test]
 fn quiet_only_deferral_exhaustion_still_uses_the_job_retry_policy() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut config = observation_config();
     config.observation.pre_release_max_deferrals = 1;
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = quiet_job(temp.path());
@@ -1625,13 +1624,13 @@ fn quiet_only_deferral_exhaustion_still_uses_the_job_retry_policy() {
 
 #[test]
 fn uncertain_pre_release_cleanup_is_final_and_retains_the_lease() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut config = observation_config();
     config.resources.cargo_slots = 1;
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = quiet_job(temp.path());
@@ -1710,13 +1709,13 @@ fn uncertain_pre_release_cleanup_is_final_and_retains_the_lease() {
 
 #[test]
 fn uncertain_pre_release_cleanup_preserves_explicit_cancellation() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut config = observation_config();
     config.resources.cargo_slots = 1;
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut job = quiet_job(temp.path());
@@ -1772,7 +1771,7 @@ fn uncertain_pre_release_cleanup_preserves_condition_deadline_outcome() {
     .into_iter()
     .enumerate()
     {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = model_tempdir().unwrap();
         let mut config = observation_config();
         config.resources.cargo_slots = 1;
         // Leave deliberate slack for the authoritative PathExists scan. The
@@ -1782,7 +1781,7 @@ fn uncertain_pre_release_cleanup_preserves_condition_deadline_outcome() {
         let mut store = Store::open_with_config(
             StorePaths::new(temp.path().to_path_buf()),
             config,
-            probe_startup_identity(),
+            model_identity(),
         )
         .unwrap();
         let mut job = quiet_job(temp.path());
@@ -1845,7 +1844,7 @@ fn uncertain_pre_release_cleanup_preserves_condition_deadline_outcome() {
 
 #[test]
 fn restart_refuses_host_policy_that_invalidates_a_retained_job() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     let mut original = observation_config();
     original.observation.pre_release_max_deferrals = 1;
@@ -1862,15 +1861,14 @@ fn restart_refuses_host_policy_that_invalidates_a_retained_job() {
         .collect();
     {
         let mut store =
-            Store::open_with_config(paths.clone(), original.clone(), probe_startup_identity())
-                .unwrap();
+            Store::open_with_config(paths.clone(), original.clone(), model_identity()).unwrap();
         let hash = normalized_payload_hash(&job).unwrap();
         store.submit(Uuid::now_v7(), &hash, &job).unwrap();
     }
 
     let mut incompatible = original;
     incompatible.observation.pre_release_max_deferrals = 2;
-    let error = Store::open_with_config(paths, incompatible, probe_startup_identity())
+    let error = Store::open_with_config(paths, incompatible, model_identity())
         .err()
         .expect("incompatible retained Job must reject daemon startup");
     assert!(
@@ -1882,7 +1880,7 @@ fn restart_refuses_host_policy_that_invalidates_a_retained_job() {
 
 #[test]
 fn restart_refuses_gpu_placement_change_for_a_retained_job() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     let mut original = observation_config();
     original.resources.gpu_slots = 1;
@@ -1899,8 +1897,7 @@ fn restart_refuses_gpu_placement_change_for_a_retained_job() {
         .insert(format!("vram_mb:{GPU_UUID}"), 8_192);
     {
         let mut store =
-            Store::open_with_config(paths.clone(), original.clone(), probe_startup_identity())
-                .unwrap();
+            Store::open_with_config(paths.clone(), original.clone(), model_identity()).unwrap();
         let hash = normalized_payload_hash(&job).unwrap();
         store.submit(Uuid::now_v7(), &hash, &job).unwrap();
     }
@@ -1910,7 +1907,7 @@ fn restart_refuses_gpu_placement_change_for_a_retained_job() {
     incompatible.observation.gpu_slot_uuid = Some(replacement_uuid.into());
     incompatible.observation.vram_safety_margin_mb = 1_024;
     incompatible.resources.custom = [(format!("vram_mb:{replacement_uuid}"), 24_000)].into();
-    let error = Store::open_with_config(paths, incompatible, probe_startup_identity())
+    let error = Store::open_with_config(paths, incompatible, model_identity())
         .err()
         .expect("GPU placement change must reject daemon startup");
     assert!(

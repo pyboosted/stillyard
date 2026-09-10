@@ -1,5 +1,26 @@
+#[cfg(target_os = "linux")]
+pub(super) fn probe_reconciliation_candidate(
+    live: &crate::runner::LiveContainments,
+    candidate: &crate::store::ReconciliationCandidate,
+    _context: &(crate::HostId, crate::BootId, uuid::Uuid),
+) -> (
+    Option<crate::ContainmentResolution>,
+    crate::ReconciliationResult,
+) {
+    // Linux requires the executor's durable exact-boundary seal. A different
+    // boot, absent PID/path or unavailable installation cannot substitute it.
+    match live.reconcile_linux(candidate, Instant::now() + Duration::from_millis(100)) {
+        Ok(crate::ReconciliationResult::ProvenEmpty) => (
+            Some(crate::ContainmentResolution::ProvenEmpty),
+            crate::ReconciliationResult::ProvenEmpty,
+        ),
+        _ => (None, crate::ReconciliationResult::BoundaryUninspectable),
+    }
+}
+
 use super::*;
 
+#[cfg(windows)]
 pub(super) fn probe_reconciliation_candidate(
     live_containments: &crate::runner::LiveContainments,
     candidate: &crate::store::ReconciliationCandidate,
@@ -159,6 +180,15 @@ pub(super) fn force_clear_containment(
         observations.record(candidate.containment_id, automatic_evidence.clone());
     }
     if let Some(resolution) = automatic_resolution {
+        #[cfg(target_os = "linux")]
+        {
+            let mut guard = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+            scheduler
+                .live_containments
+                .persist_linux_cleanup(&mut guard, candidate.invocation_id)?;
+        }
         if let Some(result) = store
             .lock()
             .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
@@ -313,4 +343,44 @@ pub(super) fn force_clear_containment(
         code: "containment_authorization_unavailable".into(),
         detail: "containment evidence changed during force-clear".into(),
     })
+}
+
+/// The external native journal is enrolled only for the Windows Job Object
+/// backend. Exact creator death closes its noninheritable kill-on-close handle;
+/// exact root disappearance (or positive host reboot evidence) completes proof.
+/// Linux generations and arbitrary process absence never enter this branch.
+pub(super) fn recover_machine_authority(
+    store: &SharedStore,
+) -> std::result::Result<crate::AuthoritySnapshot, StoreError> {
+    let (snapshot, context) = {
+        let mut locked = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+        let snapshot = locked.prepare_machine_reset_recovery()?;
+        (snapshot, locked.reconciliation_context())
+    };
+    let native_empty = context.is_some_and(|(host, boot, generation)| {
+        let dead = |identity: &crate::ProcessIdentity| {
+            matches!(
+                crate::identity::probe_recorded_process(identity, &host, &boot),
+                crate::ReconciliationResult::IdentityAbsent
+                    | crate::ReconciliationResult::PidReused
+                    | crate::ReconciliationResult::PriorBoot
+            )
+        };
+        snapshot.coordinator.as_ref().is_some_and(|history| {
+            history.pending_reset.is_some()
+                && history.daemon_generation != generation
+                && dead(&history.process_identity)
+        }) && snapshot.native_obligations.iter().all(|p| {
+            p.boundary_kind == "windows_job_object"
+                && p.daemon_generation != generation
+                && dead(&p.creator_identity)
+                && dead(&p.root_identity)
+        })
+    });
+    store
+        .lock()
+        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+        .finish_machine_reset_recovery(&snapshot, native_empty)
 }

@@ -1,5 +1,28 @@
 use super::*;
 
+pub(super) fn peer_principal(peer: &PeerProcess) -> Result<String> {
+    crate::instance::process_user_sid_string(peer.handle)
+}
+
+#[cfg(windows)]
+pub(super) struct PeerProcess {
+    pub(super) handle: usize,
+    pub(super) pid: u32,
+    pub(super) identity: Option<crate::ProcessIdentity>,
+}
+
+#[cfg(windows)]
+impl Drop for PeerProcess {
+    fn drop(&mut self) {
+        // SAFETY: the accept loop transfers one owned process handle into this guard.
+        unsafe {
+            windows_sys::Win32::Foundation::CloseHandle(
+                self.handle as windows_sys::Win32::Foundation::HANDLE,
+            )
+        };
+    }
+}
+
 #[cfg(windows)]
 pub(super) struct EndpointLease(windows_sys::Win32::Foundation::HANDLE);
 
@@ -238,6 +261,7 @@ pub(super) fn serve(
                 Ok(pipe) => pipe,
                 Err(_) => {
                     std::thread::sleep(Duration::from_millis(25));
+                    crate::runtime_metrics::waited(crate::runtime_metrics::Timer::Backoff, true);
                     continue;
                 }
             },
@@ -333,6 +357,7 @@ pub(super) fn serve(
                 CloseHandle(peer_process);
             }
             std::thread::sleep(Duration::from_millis(25));
+            crate::runtime_metrics::waited(crate::runtime_metrics::Timer::Backoff, true);
         }
     }
 }
@@ -340,4 +365,20 @@ pub(super) fn serve(
 #[cfg(not(windows))]
 pub(super) fn serve(_store: SharedStore, _scheduler: Arc<DaemonReactor>) -> Result<()> {
     Err(Error::UnsupportedPlatform(std::env::consts::OS))
+}
+
+#[cfg(windows)]
+pub(super) fn peer_image_path(peer: &PeerProcess) -> std::io::Result<PathBuf> {
+    use windows_sys::Win32::System::Threading::QueryFullProcessImageNameW;
+    let mut image = vec![0_u16; 32768];
+    let mut length = image.len() as u32;
+    // SAFETY: the authenticated peer owns this live process handle; the output
+    // buffer remains writable throughout the OS call.
+    if unsafe { QueryFullProcessImageNameW(peer.handle as _, 0, image.as_mut_ptr(), &mut length) }
+        == 0
+    {
+        return Err(std::io::Error::last_os_error());
+    }
+    image.truncate(length as usize);
+    Ok(PathBuf::from(String::from_utf16_lossy(&image)))
 }

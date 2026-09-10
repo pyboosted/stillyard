@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MachineSchedulingSnapshot",
+  "type": "object",
+  "properties": {
+    "authority_epoch": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "blocker": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Blocker"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "configuration_sha256": {
+      "type": "string"
+    },
+    "domains": {
+      "$ref": "#/$defs/AuthorityDomains"
+    },
+    "mode": {
+      "$ref": "#/$defs/MachineSchedulingMode"
+    },
+    "observed_unix_millis": {
+      "type": "integer",
+      "format": "int64"
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ScopedResourceSnapshot"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "authority_epoch",
+    "domains",
+    "mode",
+    "observed_unix_millis",
+    "configuration_sha256",
+    "resources"
+  ],
+  "$defs": {
+    "AuthorityDomains": {
+      "description": "Persistent identities outside resettable job history. The machine resource\nscope and its native execution child are different domains.",
+      "type": "object",
+      "properties": {
+        "machine_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "machine_scope": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "native_domain": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "machine_id",
+        "machine_scope",
+        "native_domain"
+      ]
+    },
+    "Blocker": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "detail"
+      ]
+    },
+    "MachineSchedulingMode": {
+      "type": "string",
+      "enum": [
+        "standalone",
+        "coordinator",
+        "attached"
+      ]
+    },
+    "ResourceKind": {
+      "type": "string",
+      "enum": [
+        "scalar",
+        "filesystem_fence",
+        "impact"
+      ]
+    },
+    "ScopedResourceId": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ResourceKind"
+        },
+        "resource_id": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "kind",
+        "resource_id"
+      ]
+    },
+    "ScopedResourceSnapshot": {
+      "type": "object",
+      "properties": {
+        "capacity": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "granted": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "offered": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "reserved": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "resource": {
+          "$ref": "#/$defs/ScopedResourceId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "capacity",
+        "granted",
+        "offered",
+        "reserved"
+      ]
+    }
+  }
+}

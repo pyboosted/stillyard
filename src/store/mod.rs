@@ -78,7 +78,7 @@ impl StorePaths {
 
     pub(crate) fn ensure(&self) -> StoreResult<()> {
         std::fs::create_dir_all(&self.root)?;
-        crate::filesystem::require_fixed_local_ntfs(&self.root)?;
+        crate::filesystem::require_durable_local_filesystem(&self.root)?;
         std::fs::create_dir_all(&self.logs)?;
         std::fs::create_dir_all(&self.uploads)?;
         std::fs::create_dir_all(&self.blobs)?;
@@ -444,6 +444,7 @@ pub(crate) struct Store {
     config_sha256: String,
     startup_identity: StartupIdentity,
     bound_host_id: Option<HostId>,
+    authority: Option<std::sync::Arc<std::sync::Mutex<crate::authority::Authority>>>,
 }
 
 impl Store {
@@ -476,6 +477,7 @@ impl Store {
             config_sha256: self.config_sha256.clone(),
             startup_identity: self.startup_identity.clone(),
             bound_host_id: self.bound_host_id.clone(),
+            authority: self.authority.clone(),
         })
     }
 
@@ -485,7 +487,10 @@ impl Store {
         // it from observing the connection until the writer commits and releases that mutex.
         self.connection.update_hook(Some(
             move |_action: rusqlite::hooks::Action, _database: &str, table: &str, _row_id: i64| {
-                if table == "events" {
+                if table == "events"
+                    || table == "attached_outbox"
+                    || table == "attached_local_plans"
+                {
                     notifier();
                 }
             },
@@ -494,7 +499,14 @@ impl Store {
 
     pub(crate) fn open(paths: StorePaths) -> StoreResult<Self> {
         let config = load_host_config(&paths.config)?;
-        Self::open_with_config(paths, config, probe_startup_identity())
+        let identity = probe_startup_identity();
+        #[cfg(target_os = "linux")]
+        let identity = if attached::installation::load(&paths.root)?.is_some() {
+            crate::identity::probe_attached_linux_identity()
+        } else {
+            identity
+        };
+        Self::open_with_config(paths, config, identity)
     }
 
     #[cfg(test)]
@@ -522,14 +534,14 @@ impl Store {
         let database_existed = paths.database.try_exists()?;
         if !database_existed {
             // A crash may have left sidecars without a main database file.
-            reset_database_files(&paths)?;
+            reset_database_files(&paths, startup_identity.host_id.as_ref())?;
             return Self::open_fresh(paths, config, startup_identity);
         }
 
         let connection = match Connection::open(&paths.database) {
             Ok(connection) => connection,
             Err(error) if is_database_corruption(&error) => {
-                reset_database_files(&paths)?;
+                reset_database_files(&paths, startup_identity.host_id.as_ref())?;
                 return Self::open_fresh(paths, config, startup_identity);
             }
             Err(error) => return Err(error.into()),
@@ -537,13 +549,13 @@ impl Store {
         connection.busy_timeout(std::time::Duration::from_secs(5))?;
         if !schema_is_current(&connection)? {
             drop(connection);
-            reset_database_files(&paths)?;
+            reset_database_files(&paths, startup_identity.host_id.as_ref())?;
             return Self::open_fresh(paths, config, startup_identity);
         }
 
         if !host_binding_is_acceptable(&connection, startup_identity.host_id.as_ref())? {
             drop(connection);
-            reset_database_files(&paths)?;
+            reset_database_files(&paths, startup_identity.host_id.as_ref())?;
             return Self::open_fresh(paths, config, startup_identity);
         }
         bind_unbound_store(&connection, startup_identity.host_id.as_ref())?;
@@ -556,7 +568,7 @@ impl Store {
         ) {
             Ok(store) => Ok(store),
             Err(StoreError::Sqlite(error)) if is_database_corruption(&error) => {
-                reset_database_files(&paths)?;
+                reset_database_files(&paths, startup_identity.host_id.as_ref())?;
                 Self::open_fresh(paths, config, startup_identity)
             }
             Err(error) => Err(error),
@@ -586,8 +598,15 @@ impl Store {
     ) -> StoreResult<Self> {
         configure_database(&connection)?;
         validate_retained_jobs(&connection, &config)?;
+        machine::initialize_schema(&connection)?;
+        process_records::initialize(&connection)?;
+        attached::initialize_schema(&connection)?;
+        // A new daemon generation must reconnect before any attached admission.
+        connection.execute("UPDATE attached_local_mode SET connected=0", [])?;
         normalize_reservations_for_capacities(&mut connection, &config.resources, now_millis())?;
         let store_uuid = current_store_uuid(&connection)?;
+        #[cfg(target_os = "linux")]
+        attached::installation::validate_store(&paths.root, &connection, store_uuid)?;
         let config_sha256 = format!("{:x}", Sha256::digest(serde_json::to_vec(&config)?));
         let bound_host_id = meta_value(&connection, "bound_host_id")?.map(HostId);
         let daemon_generation = Uuid::now_v7();
@@ -613,6 +632,7 @@ impl Store {
             config_sha256,
             startup_identity,
             bound_host_id,
+            authority: None,
         };
         store.recover_interrupted()?;
         store.resume_received()?;
@@ -675,12 +695,24 @@ fn validate_retained_jobs(connection: &Connection, config: &HostConfig) -> Store
 
 mod admission;
 mod admitting;
+pub(crate) mod attached;
+mod authority;
 mod condition;
 mod database;
 mod input;
 mod lease;
 mod lifecycle;
+mod machine;
+mod machine_allocation;
+mod machine_clearance;
+mod machine_events;
+mod machine_queue;
+mod machine_recovery;
+mod machine_reservation;
+mod machine_reset;
+mod machine_ticket;
 mod observation;
+mod process_records;
 mod reconciliation;
 mod recovery;
 mod release;
@@ -701,7 +733,7 @@ use lease::*;
 use reservation::*;
 use values::*;
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 pub(crate) use database::open_lock;
 pub(crate) use input::{
     normalized_batch_payload_hash_with_inputs, normalized_payload_hash_with_input,

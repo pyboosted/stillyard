@@ -1,7 +1,8 @@
+use super::logs::spawn_drain;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, c_void};
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom};
 use std::mem::{size_of, zeroed};
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::fs::OpenOptionsExt;
@@ -39,10 +40,13 @@ use windows_sys::Win32::System::Threading::{
 };
 
 use crate::store::{PreparedJob, Store, StoreError};
-use crate::{
-    AttemptVerdict, ExitClassification, InvocationRole, InvocationVerdict, LogStream,
-    TerminationReason,
-};
+use crate::{AttemptVerdict, InvocationRole, LogStream};
+
+#[cfg(test)]
+use super::lifecycle::failed_run_classification;
+use super::lifecycle::{RunProgress, RunResult, pending_stop_verdict, persist_uncertain_cleanup};
+#[cfg(test)]
+use crate::{InvocationVerdict, TerminationReason};
 
 #[cfg(test)]
 thread_local! {
@@ -162,20 +166,6 @@ impl Drop for AttributeList {
     }
 }
 
-#[derive(Default)]
-struct RunProgress {
-    user_code_released: bool,
-    durable_release_authorized: bool,
-    release_authorized: bool,
-    pre_release_replanned: bool,
-    cleanup_proven: bool,
-    uncertainty_persisted: bool,
-    exit_code: Option<i32>,
-    timed_out: bool,
-    canceled: bool,
-    never_run_reason: Option<String>,
-}
-
 enum GuardedRelease {
     Resumed {
         runtime_deadline_unix_millis: Option<i64>,
@@ -185,13 +175,6 @@ enum GuardedRelease {
     },
 }
 
-struct PendingStop {
-    verdict: AttemptVerdict,
-    reason: String,
-}
-
-type RunResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
-
 pub(super) fn run_with_wake(
     job: &PreparedJob,
     store: &Arc<Mutex<Store>>,
@@ -200,262 +183,15 @@ pub(super) fn run_with_wake(
     host_observation: &crate::host_observation::HostObservationService,
     reconciliation_wake: &super::ReconciliationWake,
 ) {
-    if job.role == InvocationRole::Probe {
-        run_probe_with_wake(
-            job,
-            store,
-            endpoint,
-            live_containments,
-            host_observation,
-            reconciliation_wake,
-        );
-        return;
-    }
-    let mut progress = RunProgress {
-        cleanup_proven: true,
-        ..RunProgress::default()
-    };
-    let primary = match run_inner(
+    super::lifecycle::run_with_wake(
         job,
         store,
         endpoint,
         live_containments,
         host_observation,
-        &mut progress,
         reconciliation_wake,
-    ) {
-        Ok(result) => result,
-        Err(error) => {
-            finish_failed_invocation(job, store, live_containments, &progress, false);
-            report_runner_error(job, error.as_ref());
-            return;
-        }
-    };
-    if progress.pre_release_replanned {
-        return;
-    }
-    let mut verdict = if progress.canceled {
-        AttemptVerdict::Canceled
-    } else if primary.1 {
-        AttemptVerdict::TimedOut
-    } else if primary.0 == 0 {
-        AttemptVerdict::Succeeded
-    } else {
-        AttemptVerdict::ProcessFailed
-    };
-    if let Ok(mut locked) = store.lock() {
-        match locked
-            .mark_invocation_resolved(job, Some(primary.0 as i32), None)
-            .and_then(|()| record_primary_result(&mut locked, job, verdict).map(|_| ()))
-        {
-            Ok(()) => live_containments.clear(job.invocation_id),
-            Err(error) => {
-                drop(locked);
-                finish_completed_invocation(
-                    job,
-                    store,
-                    live_containments,
-                    Some(primary.0 as i32),
-                    None,
-                    verdict,
-                );
-                report_runner_error(job, &error);
-                return;
-            }
-        }
-    } else {
-        return;
-    }
-
-    if !matches!(verdict, AttemptVerdict::Canceled | AttemptVerdict::TimedOut) {
-        for index in 0..job.spec.postconditions.len() {
-            match pending_stop_verdict(job, store, false) {
-                Ok(Some(stop)) => {
-                    verdict = stop.verdict;
-                    break;
-                }
-                Ok(None) => {}
-                Err(error) => {
-                    verdict = AttemptVerdict::Interrupted;
-                    report_runner_error(job, error.as_ref());
-                    break;
-                }
-            }
-            let postcondition = match store
-                .lock()
-                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-                .and_then(|mut locked| locked.prepare_postcondition(job, index))
-            {
-                Ok(postcondition) => postcondition,
-                Err(error) => {
-                    verdict = AttemptVerdict::PostconditionFailed;
-                    report_runner_error(job, &error);
-                    break;
-                }
-            };
-            let mut post_progress = RunProgress {
-                cleanup_proven: true,
-                ..RunProgress::default()
-            };
-            let result = match run_inner(
-                &postcondition,
-                store,
-                endpoint,
-                live_containments,
-                host_observation,
-                &mut post_progress,
-                reconciliation_wake,
-            ) {
-                Ok(result) => result,
-                Err(error) => {
-                    finish_failed_invocation(
-                        &postcondition,
-                        store,
-                        live_containments,
-                        &post_progress,
-                        true,
-                    );
-                    report_runner_error(&postcondition, error.as_ref());
-                    return;
-                }
-            };
-            if post_progress.canceled || result.1 {
-                let stop = if post_progress.canceled {
-                    AttemptVerdict::Canceled
-                } else {
-                    AttemptVerdict::TimedOut
-                };
-                if let Ok(mut locked) = store.lock() {
-                    match locked.mark_invocation_resolved(
-                        &postcondition,
-                        Some(result.0 as i32),
-                        None,
-                    ) {
-                        Ok(()) => live_containments.clear(postcondition.invocation_id),
-                        Err(error) => {
-                            drop(locked);
-                            finish_completed_invocation(
-                                &postcondition,
-                                store,
-                                live_containments,
-                                Some(result.0 as i32),
-                                None,
-                                stop,
-                            );
-                            report_runner_error(&postcondition, &error);
-                            return;
-                        }
-                    }
-                } else {
-                    return;
-                }
-                verdict = stop;
-                break;
-            }
-            let definition = &job.spec.postconditions[index];
-            let classification = if definition.accepted_exit_codes.contains(&(result.0 as i32)) {
-                ExitClassification::Accepted
-            } else if definition.retryable_exit_codes.contains(&(result.0 as i32)) {
-                ExitClassification::Retryable
-            } else {
-                ExitClassification::Failed
-            };
-            let classified_verdict = match classification {
-                ExitClassification::Accepted => verdict,
-                ExitClassification::Retryable => AttemptVerdict::PostconditionRetryable,
-                ExitClassification::Failed => AttemptVerdict::PostconditionFailed,
-            };
-            if let Ok(mut locked) = store.lock() {
-                match locked.mark_invocation_resolved(
-                    &postcondition,
-                    Some(result.0 as i32),
-                    Some(classification),
-                ) {
-                    Ok(()) => live_containments.clear(postcondition.invocation_id),
-                    Err(error) => {
-                        drop(locked);
-                        finish_completed_invocation(
-                            &postcondition,
-                            store,
-                            live_containments,
-                            Some(result.0 as i32),
-                            Some(classification),
-                            classified_verdict,
-                        );
-                        report_runner_error(&postcondition, &error);
-                        return;
-                    }
-                }
-            } else {
-                return;
-            }
-            verdict = classified_verdict;
-            if classification != ExitClassification::Accepted {
-                break;
-            }
-        }
-    }
-    if let Ok(mut locked) = store.lock() {
-        if let Err(error) = locked.settle_attempt(job, verdict) {
-            report_runner_error(job, &error);
-        }
-    }
-}
-
-fn run_probe_with_wake(
-    job: &PreparedJob,
-    store: &Arc<Mutex<Store>>,
-    endpoint: &str,
-    live_containments: &super::LiveContainments,
-    host_observation: &crate::host_observation::HostObservationService,
-    reconciliation_wake: &super::ReconciliationWake,
-) {
-    let mut progress = RunProgress {
-        cleanup_proven: true,
-        ..RunProgress::default()
-    };
-    match run_inner(
-        job,
-        store,
-        endpoint,
-        live_containments,
-        host_observation,
-        &mut progress,
-        reconciliation_wake,
-    ) {
-        Ok((exit_code, timed_out)) => {
-            let settled = store
-                .lock()
-                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-                .and_then(|mut locked| locked.settle_probe(job, Some(exit_code as i32), timed_out));
-            match settled {
-                Ok(()) => live_containments.clear(job.invocation_id),
-                Err(error) => report_runner_error(job, &error),
-            }
-        }
-        Err(error) => {
-            if progress.cleanup_proven {
-                let settled = store
-                    .lock()
-                    .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
-                    .and_then(|mut locked| {
-                        locked.settle_probe(job, progress.exit_code, progress.timed_out)
-                    });
-                match settled {
-                    Ok(()) => live_containments.clear(job.invocation_id),
-                    Err(settle_error) => report_runner_error(job, &settle_error),
-                }
-            } else if !progress.uncertainty_persisted {
-                if let Ok(mut locked) = store.lock() {
-                    if let Err(persist_error) = locked.mark_probe_uncertain(job, progress.exit_code)
-                    {
-                        report_runner_error(job, &persist_error);
-                    }
-                }
-            }
-            report_runner_error(job, error.as_ref());
-        }
-    }
+        run_inner,
+    );
 }
 
 #[cfg(test)]
@@ -470,192 +206,6 @@ fn run(job: &PreparedJob, store: &Arc<Mutex<Store>>, endpoint: &str) {
         &observation,
         &wake,
     );
-}
-
-fn pending_stop_verdict(
-    job: &PreparedJob,
-    store: &Arc<Mutex<Store>>,
-    preserve_readiness_terminal: bool,
-) -> RunResult<Option<PendingStop>> {
-    let mut locked = store
-        .lock()
-        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
-    if preserve_readiness_terminal {
-        if let Some(reason) = locked.pre_resume_defer_reason(job.job_id)? {
-            let verdict = if reason.contains("outcome=failed") {
-                AttemptVerdict::SafetyFailed
-            } else {
-                AttemptVerdict::Canceled
-            };
-            return Ok(Some(PendingStop { verdict, reason }));
-        }
-    } else if locked.invocation_stop_requested(job.job_id)? {
-        return Ok(Some(PendingStop {
-            verdict: AttemptVerdict::Canceled,
-            reason: "cancel_requested".into(),
-        }));
-    }
-    drop(locked);
-    let now: i64 = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis()
-        .try_into()
-        .unwrap_or(i64::MAX);
-    Ok(job
-        .attempt_deadline_unix_millis
-        .is_some_and(|deadline| deadline <= now)
-        .then_some(PendingStop {
-            verdict: AttemptVerdict::TimedOut,
-            reason: "attempt_timeout".into(),
-        }))
-}
-
-fn finish_completed_invocation(
-    job: &PreparedJob,
-    store: &Arc<Mutex<Store>>,
-    live_containments: &super::LiveContainments,
-    exit_code: Option<i32>,
-    classification: Option<ExitClassification>,
-    verdict: AttemptVerdict,
-) {
-    if let Ok(mut locked) = store.lock() {
-        if locked
-            .mark_invocation_resolved(job, exit_code, classification)
-            .is_ok()
-            && (job.role != InvocationRole::Primary
-                || record_primary_result(&mut locked, job, verdict).is_ok())
-        {
-            live_containments.clear(job.invocation_id);
-            if let Err(error) = locked.settle_attempt(job, verdict) {
-                report_runner_error(job, &error);
-            }
-        }
-    }
-}
-
-fn failed_run_verdict(progress: &RunProgress) -> AttemptVerdict {
-    if progress.canceled {
-        AttemptVerdict::Canceled
-    } else if progress.timed_out {
-        AttemptVerdict::TimedOut
-    } else if progress.user_code_released {
-        AttemptVerdict::Interrupted
-    } else {
-        AttemptVerdict::StartFailed
-    }
-}
-
-#[cfg(test)]
-fn failed_run_classification(progress: &RunProgress) -> (crate::JobOutcome, &'static str) {
-    let verdict = failed_run_verdict(progress);
-    let outcome = match verdict {
-        AttemptVerdict::TimedOut => crate::JobOutcome::TimedOut,
-        AttemptVerdict::Interrupted => crate::JobOutcome::Interrupted,
-        AttemptVerdict::Canceled => crate::JobOutcome::Canceled,
-        _ => crate::JobOutcome::Failed,
-    };
-    (outcome, verdict.as_str())
-}
-
-fn finish_failed_invocation(
-    job: &PreparedJob,
-    store: &Arc<Mutex<Store>>,
-    live_containments: &super::LiveContainments,
-    progress: &RunProgress,
-    postcondition: bool,
-) {
-    if let Ok(mut locked) = store.lock() {
-        if progress.cleanup_proven {
-            if let Some(reason) = progress
-                .never_run_reason
-                .as_deref()
-                .filter(|_| !progress.user_code_released)
-            {
-                match locked.replan_never_run(job, reason) {
-                    Ok(()) => live_containments.clear(job.invocation_id),
-                    Err(error) => report_runner_error(job, &error),
-                }
-                return;
-            }
-            let failed_verdict = failed_run_verdict(progress);
-            let verdict = if postcondition && failed_verdict == AttemptVerdict::StartFailed {
-                AttemptVerdict::PostconditionFailed
-            } else {
-                failed_verdict
-            };
-            let classification = (verdict == AttemptVerdict::PostconditionFailed)
-                .then_some(ExitClassification::Failed);
-            if locked
-                .mark_invocation_resolved(job, progress.exit_code, classification)
-                .is_ok()
-                && (job.role != InvocationRole::Primary
-                    || record_primary_result(&mut locked, job, verdict).is_ok())
-            {
-                live_containments.clear(job.invocation_id);
-                if let Err(error) = locked.settle_attempt(job, verdict) {
-                    report_runner_error(job, &error);
-                }
-            }
-        } else {
-            // The unproven path transfers its still-owned Job Object to the reconciler before
-            // returning. Never remove that authority merely because the outer settlement
-            // observes or retries the durable uncertain transition.
-            if !progress.uncertainty_persisted {
-                if let Err(error) = persist_uncertain_cleanup(&mut locked, job, progress) {
-                    report_runner_error(job, &error);
-                }
-            }
-        }
-    }
-}
-
-fn persist_uncertain_cleanup(
-    store: &mut Store,
-    job: &PreparedJob,
-    progress: &RunProgress,
-) -> crate::store::StoreResult<()> {
-    if job.role == InvocationRole::Probe {
-        store.mark_probe_uncertain(job, progress.exit_code)
-    } else if (job.spec.quiet.is_some() || !job.spec.conditions.is_empty())
-        && !progress.release_authorized
-    {
-        store.mark_pre_release_cleanup_uncertain(job, progress.exit_code)
-    } else {
-        store.mark_uncertain(job, progress.exit_code, "interrupted")
-    }
-}
-
-fn record_primary_result(
-    store: &mut Store,
-    job: &PreparedJob,
-    verdict: AttemptVerdict,
-) -> crate::store::StoreResult<crate::PrimaryInvocationResult> {
-    let (invocation_verdict, termination) = match verdict {
-        AttemptVerdict::Succeeded => (InvocationVerdict::Succeeded, TerminationReason::Exited),
-        AttemptVerdict::ProcessFailed => {
-            (InvocationVerdict::ProcessFailed, TerminationReason::Exited)
-        }
-        AttemptVerdict::StartFailed => (
-            InvocationVerdict::StartFailed,
-            TerminationReason::StartFailed,
-        ),
-        AttemptVerdict::TimedOut => (InvocationVerdict::TimedOut, TerminationReason::Timeout),
-        AttemptVerdict::Interrupted => {
-            (InvocationVerdict::Interrupted, TerminationReason::Interrupt)
-        }
-        AttemptVerdict::SafetyFailed => (
-            InvocationVerdict::SafetyFailed,
-            TerminationReason::SafetyFailure,
-        ),
-        AttemptVerdict::Canceled => (InvocationVerdict::Canceled, TerminationReason::Cancel),
-        AttemptVerdict::PostconditionRetryable | AttemptVerdict::PostconditionFailed => {
-            return Err(StoreError::InvalidState(
-                "postcondition verdict cannot define the primary Invocation result".into(),
-            ));
-        }
-    };
-    store.record_primary_result(job, invocation_verdict, termination)
 }
 
 fn authorize_condition_and_resume(
@@ -704,9 +254,10 @@ fn authorize_condition_and_resume(
                         let force_resume_failure = false;
                         // SAFETY: the primary remains suspended in its complete Job Object; the
                         // Store mutex orders cancellation/deadline commits after this release point.
-                        if force_resume_failure
-                            || unsafe { ResumeThread(thread_handle) } == u32::MAX
-                        {
+                        if force_resume_failure || {
+                            locked.check_authority_release()?;
+                            (unsafe { ResumeThread(thread_handle) }) == u32::MAX
+                        } {
                             return Err(std::io::Error::last_os_error().into());
                         }
                         progress.release_authorized = true;
@@ -721,15 +272,6 @@ fn authorize_condition_and_resume(
             }
         },
     )
-}
-
-fn report_runner_error(job: &PreparedJob, error: &dyn std::error::Error) {
-    use std::io::Write as _;
-    let _ = writeln!(
-        std::io::stderr(),
-        "stillyard runner for {} failed: {error}",
-        job.job_id
-    );
 }
 
 fn run_inner(
@@ -1027,7 +569,10 @@ fn run_inner(
                     #[cfg(not(test))]
                     let force_resume_failure = false;
                     if force_resume_failure
-                        || unsafe { ResumeThread(thread_handle.raw()) } == u32::MAX
+                        || {
+                            locked.check_authority_release()?;
+                            (unsafe { ResumeThread(thread_handle.raw()) }) == u32::MAX
+                        }
                     {
                         return Err(std::io::Error::last_os_error().into());
                     }
@@ -1160,6 +705,7 @@ fn run_inner(
                         .then_some(AttemptVerdict::TimedOut)
                 };
                 if stop.is_none() {
+                    locked.check_authority_release()?;
                     // SAFETY: the thread remains suspended and the store mutex orders a
                     // concurrent cancellation/deadline commit after this release point.
                     if unsafe { ResumeThread(thread_handle.raw()) } == u32::MAX {
@@ -1479,44 +1025,6 @@ fn open_stdin(job: &PreparedJob) -> std::io::Result<File> {
         return Err(std::io::Error::last_os_error());
     }
     Ok(file)
-}
-
-fn spawn_drain(
-    mut input: File,
-    path: PathBuf,
-    job_id: crate::JobId,
-    stream: LogStream,
-    store: Arc<Mutex<Store>>,
-    publish_job_offset: bool,
-) -> std::io::Result<std::thread::JoinHandle<RunResult<()>>> {
-    std::thread::Builder::new()
-        .name(format!("stillyard-log-{}-{stream:?}", job_id.entity_uuid()))
-        .spawn(move || {
-            let mut output = OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .open(path)?;
-            let mut offset = 0_u64;
-            let mut buffer = [0_u8; 64 * 1024];
-            loop {
-                let read = input.read(&mut buffer)?;
-                if read == 0 {
-                    break;
-                }
-                output.write_all(&buffer[..read])?;
-                output.sync_data()?;
-                offset += read as u64;
-                if publish_job_offset {
-                    store
-                        .lock()
-                        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
-                        .commit_log_offset(job_id, stream, offset)?;
-                }
-            }
-            output.sync_all()?;
-            Ok(())
-        })
 }
 
 fn wait_job_empty(handle: HANDLE, timeout: Duration) -> std::io::Result<()> {

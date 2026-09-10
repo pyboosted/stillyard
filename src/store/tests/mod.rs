@@ -4,6 +4,74 @@ use crate::{
     PostconditionSpec, ResourceClaims, RetryPolicy, SPEC_VERSION, StdinSpec,
 };
 
+// These controls exercise the durable Store model without launching OS code.
+// Platform/runtime controls supply their own real identities and executor proof.
+fn model_tempdir() -> std::io::Result<tempfile::TempDir> {
+    crate::test_support::durable_tempdir()
+}
+
+#[cfg(target_os = "linux")]
+fn model_identity() -> StartupIdentity {
+    let host = HostId("store-model-fixture".into());
+    let boot = BootId("store-model-boot".into());
+    StartupIdentity {
+        host_id: Some(host.clone()),
+        boot_id: Some(boot.clone()),
+        daemon_process: Some(ProcessIdentity::Windows {
+            host_id: host,
+            boot_id: boot,
+            pid: 123,
+            creation_filetime_100ns: 456,
+        }),
+        failures: vec![],
+    }
+}
+#[cfg(not(target_os = "linux"))]
+fn model_identity() -> StartupIdentity {
+    probe_startup_identity()
+}
+
+fn open_model_store(paths: StorePaths) -> StoreResult<Store> {
+    #[cfg(target_os = "linux")]
+    {
+        let config = load_host_config(&paths.config)?;
+        Store::open_with_config(paths, config, model_identity())
+    }
+    #[cfg(not(target_os = "linux"))]
+    Store::open(paths)
+}
+
+fn open_model_store_with_capacities(
+    paths: StorePaths,
+    capacities: ResourceCapacities,
+) -> StoreResult<Store> {
+    #[cfg(target_os = "linux")]
+    {
+        Store::open_with_config(
+            paths,
+            HostConfig {
+                resources: capacities,
+                impact_incompatibilities: Default::default(),
+                observation: Default::default(),
+            },
+            model_identity(),
+        )
+    }
+    #[cfg(not(target_os = "linux"))]
+    Store::open_with_capacities(paths, capacities)
+}
+
+fn model_probe_executable() -> PathBuf {
+    #[cfg(windows)]
+    {
+        PathBuf::from(r"C:\Windows\System32\cmd.exe")
+    }
+    #[cfg(not(windows))]
+    {
+        PathBuf::from("/usr/bin/true")
+    }
+}
+
 fn spec(root: &Path) -> JobSpec {
     JobSpec {
         spec_version: SPEC_VERSION,

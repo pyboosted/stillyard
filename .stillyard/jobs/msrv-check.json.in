@@ -1,7 +1,13 @@
 {
   "spec_version": 4,
   "executable": "${CARGO_EXE}",
-  "args": ["+1.85.0", "check", "--workspace", "--all-targets", "--all-features"],
+  "args": [
+    "+1.85.0",
+    "check",
+    "--workspace",
+    "--all-targets",
+    "--all-features"
+  ],
   "working_directory": "${REPOSITORY_ROOT}",
   "environment": {
     "set": {
@@ -13,16 +19,26 @@
       "RUSTUP_HOME": "${RUSTUP_HOME}",
       "SCCACHE_DIR": "${SCCACHE_DIR}",
       "USERPROFILE": "${USERPROFILE}",
-      "SYSTEMDRIVE": "${SYSTEMDRIVE}"
+      "SYSTEMDRIVE": "${SYSTEMDRIVE}",
+      "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+      "COMSPEC": "${COMSPEC}"
     }
   },
   "resources": {
     "cargo_slots": 1,
-    "impacts": ["cpu_heavy"]
+    "impacts": [
+      "cpu_heavy"
+    ]
   },
   "labels": [
-    {"key": "project", "value": "stillyard"},
-    {"key": "gate", "value": "msrv-check"}
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "msrv-check"
+    }
   ],
   "expected_duration_seconds": 60,
   "timeout_seconds": 900

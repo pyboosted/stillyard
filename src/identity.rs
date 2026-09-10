@@ -2,6 +2,11 @@
 use crate::ReconciliationResult;
 use crate::{BootId, Error, HostId, ProcessIdentity, Result};
 
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub(crate) mod attestation;
+#[cfg(target_os = "linux")]
+pub(crate) mod linux;
+
 #[derive(Clone, Debug)]
 pub(crate) struct StartupIdentity {
     pub(crate) host_id: Option<HostId>,
@@ -46,6 +51,33 @@ pub(crate) fn probe_startup_identity() -> StartupIdentity {
         boot_id: None,
         daemon_process: None,
         failures: vec!["native containment identity is unavailable on this platform".into()],
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn probe_attached_linux_identity() -> StartupIdentity {
+    // This branch is selected only by an explicit installed attachment. Opening
+    // an ordinary unpaired Linux Store does not enable an execution backend.
+    match linux::Process::open(std::process::id(), unsafe { libc::geteuid() }) {
+        Ok(process) => match process.identity {
+            ProcessIdentity::Linux {
+                ref host_id,
+                ref boot_id,
+                ..
+            } => StartupIdentity {
+                host_id: Some(host_id.clone()),
+                boot_id: Some(boot_id.clone()),
+                daemon_process: Some(process.identity),
+                failures: Vec::new(),
+            },
+            _ => unreachable!(),
+        },
+        Err(error) => StartupIdentity {
+            host_id: None,
+            boot_id: None,
+            daemon_process: None,
+            failures: vec![error.to_string()],
+        },
     }
 }
 
@@ -299,6 +331,34 @@ pub(crate) fn process_identity_from_handle(
     Err(Error::UnsupportedPlatform(std::env::consts::OS))
 }
 
+#[cfg(target_os = "linux")]
+pub(crate) fn probe_recorded_process(
+    recorded: &ProcessIdentity,
+    host: &HostId,
+    boot: &BootId,
+) -> crate::ReconciliationResult {
+    let ProcessIdentity::Linux {
+        pid,
+        uid,
+        host_id,
+        boot_id,
+        ..
+    } = recorded
+    else {
+        return crate::ReconciliationResult::IdentityUnavailable;
+    };
+    if host_id == host
+        && boot_id == boot
+        && linux::Process::open(*pid, *uid).is_ok_and(|p| &p.identity == recorded)
+    {
+        crate::ReconciliationResult::StillResolves
+    } else {
+        // Absence in a different observer PID namespace is not process death.
+        // Linux whole-tree cleanup uses the durable cgroup backend instead.
+        crate::ReconciliationResult::IdentityUnavailable
+    }
+}
+
 #[cfg(all(test, windows))]
 mod tests {
     use std::os::windows::io::AsRawHandle;
@@ -327,7 +387,7 @@ mod tests {
                 pid,
                 creation_filetime_100ns: creation_filetime_100ns.saturating_add(1),
             },
-            ProcessIdentity::Unknown { .. } => panic!("Windows probe returned unknown identity"),
+            _ => panic!("Windows probe returned non-Windows identity"),
         };
         assert_eq!(
             probe_recorded_process(&reused, &host, &boot),
@@ -350,5 +410,57 @@ mod tests {
             probe_recorded_process(&child_identity, &host, &boot),
             ReconciliationResult::IdentityAbsent
         );
+    }
+}
+
+// Legacy SQLite process columns encode Windows FILETIME identities. Keeping their
+// codec here preserves old history without teaching generic lifecycle about Windows.
+pub(crate) fn encode_process_record(
+    root_identity: &ProcessIdentity,
+    root_pid: u32,
+) -> std::result::Result<(&str, &str, i64), String> {
+    match root_identity {
+        ProcessIdentity::Windows {
+            host_id,
+            boot_id,
+            pid,
+            creation_filetime_100ns,
+        } if *pid == root_pid => Ok((
+            host_id.0.as_str(),
+            boot_id.0.as_str(),
+            i64::try_from(*creation_filetime_100ns)
+                .map_err(|_| "process creation identity exceeds SQLite range".to_owned())?,
+        )),
+        ProcessIdentity::Windows { pid, .. } => Err(format!(
+            "process identity PID {pid} does not match created PID {root_pid}"
+        )),
+        ProcessIdentity::Unknown { .. } => {
+            Err("unknown process identity cannot authorize native containment".into())
+        }
+        ProcessIdentity::Linux { .. } => Err(
+            "Linux identity requires the platform identity journal, not legacy FILETIME columns"
+                .into(),
+        ),
+    }
+}
+
+pub(crate) fn decode_legacy_process_record(
+    pid: Option<u32>,
+    host_id: Option<String>,
+    boot_id: Option<String>,
+    creation_filetime_100ns: Option<i64>,
+) -> std::result::Result<Option<ProcessIdentity>, String> {
+    match (pid, host_id, boot_id, creation_filetime_100ns) {
+        (Some(pid), Some(host_id), Some(boot_id), Some(creation)) => {
+            Ok(Some(ProcessIdentity::Windows {
+                host_id: HostId(host_id),
+                boot_id: BootId(boot_id),
+                pid,
+                creation_filetime_100ns: u64::try_from(creation)
+                    .map_err(|_| "negative process creation identity".to_owned())?,
+            }))
+        }
+        // Tests and records that never released user code may legitimately have no exact root.
+        _ => Ok(None),
     }
 }

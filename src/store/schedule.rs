@@ -204,6 +204,9 @@ impl Store {
     pub(super) fn blockers_for_job(&self, job_id: JobId) -> StoreResult<Vec<Blocker>> {
         let job_key = self.local_id(job_id)?;
         let mut blockers = self.dependency_blockers(&job_key)?.0;
+        if let Some(blocker) = self.authority_blocker()? {
+            blockers.push(blocker);
+        }
         blockers.extend(condition_blockers_tx(&self.connection, &job_key)?);
         if !self.startup_identity.capable() {
             blockers.push(Blocker {
@@ -277,7 +280,7 @@ impl Store {
     pub(super) fn granted_and_reserved_claims(
         &self,
     ) -> StoreResult<(Vec<ResolvedClaims>, Vec<ResolvedClaims>)> {
-        let granted = self.active_claims()?;
+        let granted = super::machine_queue::native_debits(&self.connection)?;
         let reserved = self
             .active_reservations()?
             .into_iter()
@@ -334,11 +337,9 @@ impl Store {
     }
 
     pub(super) fn active_claims(&self) -> StoreResult<Vec<ResolvedClaims>> {
-        let mut statement = self
-            .connection
-            .prepare("SELECT claims_json FROM leases WHERE state = 'granted'")?;
-        let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
-        rows.map(|row| Ok(serde_json::from_str(&row?)?)).collect()
+        let mut claims = super::machine_queue::native_debits(&self.connection)?;
+        claims.extend(super::machine_queue::remote_debits(&self.connection)?);
+        Ok(claims)
     }
 
     pub(super) fn estimate_for_job(
@@ -544,6 +545,7 @@ impl Store {
         loop {
             let mut skipped_in_pass = false;
             for job_id in self.pending_jobs()? {
+                state_changed |= self.machine_offer_before_native(Some(job_id))?;
                 match self.prepare_job_inner(job_id, observation()?)? {
                     PrepareJob::Ready(job) => {
                         return Ok(PrepareNext {
@@ -559,6 +561,7 @@ impl Store {
                 }
             }
             if !skipped_in_pass {
+                state_changed |= self.machine_offer_before_native(None)?;
                 return Ok(PrepareNext {
                     job: None,
                     state_changed,
@@ -587,6 +590,9 @@ impl Store {
         if !self.startup_identity.capable() {
             return Ok(PrepareJob::Blocked);
         }
+        if self.authority_blocker()?.is_some() {
+            return Ok(PrepareJob::Blocked);
+        }
         let pending_spec = self
             .connection
             .query_row(
@@ -608,9 +614,6 @@ impl Store {
         let capacities = self.capacities.clone();
         let impact_incompatibilities = self.impact_incompatibilities.clone();
         let store_uuid = self.store_uuid;
-        let invocation_id = InvocationId::new(self.store_uuid);
-        let containment_id = ContainmentId::new(self.store_uuid);
-        let lease_id = Uuid::now_v7();
         let now = now_millis();
         let transaction = self
             .connection
@@ -785,6 +788,22 @@ impl Store {
                 attempt_id
             }
         };
+        let admission = attached::prepare(&transaction, job_id, attempt_id, None, &spec, &claims)?;
+        if !admission.ready {
+            if admission.persist {
+                transaction.commit()?;
+            } else {
+                transaction.rollback()?;
+            }
+            return Ok(if admission.changed {
+                PrepareJob::StateChanged
+            } else {
+                PrepareJob::Blocked
+            });
+        }
+        let invocation_id = admission.ids.invocation;
+        let containment_id = admission.ids.containment;
+        let lease_id = admission.ids.lease;
         transaction.execute(
             "UPDATE jobs SET state = 'active', attempt_id = ?2, invocation_id = ?3,
                 containment_id = ?4, stdout_len = 0, stderr_len = 0,
@@ -838,13 +857,14 @@ impl Store {
         transaction.execute(
             "INSERT INTO containments(
                 id, invocation_id, state, host_id, boot_id, daemon_generation, strength, version
-             ) VALUES (?1, ?2, 'creating', ?3, ?4, ?5, 'windows_job_object', 1)",
+             ) VALUES (?1, ?2, 'creating', ?3, ?4, ?5, ?6, 1)",
             params![
                 containment_id.entity_uuid().to_string(),
                 invocation_id.entity_uuid().to_string(),
                 self.startup_identity.host_id.as_ref().map(|value| &value.0),
                 self.startup_identity.boot_id.as_ref().map(|value| &value.0),
                 self.daemon_generation.to_string(),
+                crate::platform::containment_strength(),
             ],
         )?;
         transaction.execute(
@@ -970,13 +990,14 @@ impl Store {
         transaction.execute(
             "INSERT INTO containments(
                 id, invocation_id, state, host_id, boot_id, daemon_generation, strength, version
-             ) VALUES (?1, ?2, 'creating', ?3, ?4, ?5, 'windows_job_object', 1)",
+             ) VALUES (?1, ?2, 'creating', ?3, ?4, ?5, ?6, 1)",
             params![
                 containment_id.entity_uuid().to_string(),
                 invocation_id.entity_uuid().to_string(),
                 self.startup_identity.host_id.as_ref().map(|value| &value.0),
                 self.startup_identity.boot_id.as_ref().map(|value| &value.0),
                 self.daemon_generation.to_string(),
+                crate::platform::containment_strength(),
             ],
         )?;
         transaction.execute(
@@ -1051,11 +1072,18 @@ impl Store {
             ));
         }
         jobs.sort_by(|left, right| {
-            right
-                .1
-                .cmp(&left.1)
-                .then(left.2.cmp(&right.2))
-                .then(left.3.cmp(&right.3))
+            crate::admission::schedule_order(
+                crate::admission::ScheduleKey {
+                    effective_priority: left.1,
+                    accepted_ms: left.2,
+                    rowid: left.3,
+                },
+                crate::admission::ScheduleKey {
+                    effective_priority: right.1,
+                    accepted_ms: right.2,
+                    rowid: right.3,
+                },
+            )
         });
         Ok(jobs.into_iter().map(|row| row.0).collect())
     }
@@ -1185,6 +1213,14 @@ impl Store {
                  SELECT conditions.next_probe_ms AS deadline FROM conditions
                  JOIN jobs ON jobs.id = conditions.job_id
                  WHERE jobs.state = 'pending' AND conditions.next_probe_ms > ?1
+                 UNION ALL
+                 SELECT deadline_ms FROM machine_grants WHERE state='offered' AND deadline_ms>?1
+                 UNION ALL
+                 SELECT not_before_ms FROM machine_candidates WHERE state='ready' AND not_before_ms>?1
+                 UNION ALL
+                 SELECT expires_ms FROM machine_candidates WHERE state='ready' AND expires_ms>?1
+                 UNION ALL
+                 SELECT reservation_deadline_ms FROM machine_candidates WHERE state='ready' AND reservation_deadline_ms>?1
              )",
             [scheduling_pass_started],
             |row| row.get(0),

@@ -22,8 +22,37 @@ pub(crate) struct AdmissionContext {
     pub(crate) detectors: Vec<DetectorEvidenceSnapshot>,
 }
 
+/// Borrowed policy inputs shared by native admission and attached tickets.
+pub(crate) struct ObservationRequest<'a> {
+    pub(crate) resources: &'a crate::ResourceClaims,
+    pub(crate) observed: &'a Option<crate::ObservedResourcePolicy>,
+    pub(crate) quiet: &'a Option<crate::QuietPolicy>,
+}
+
 pub(crate) fn evaluate_admission(
     job: &JobSpec,
+    config: &HostConfig,
+    sample: &HostSample,
+    granted: &[ResolvedClaims],
+    now_unix_millis: i64,
+    now_monotonic_millis: u64,
+) -> AdmissionContext {
+    evaluate_request(
+        &ObservationRequest {
+            resources: &job.resources,
+            observed: &job.observed,
+            quiet: &job.quiet,
+        },
+        config,
+        sample,
+        granted,
+        now_unix_millis,
+        now_monotonic_millis,
+    )
+}
+
+pub(crate) fn evaluate_request(
+    job: &ObservationRequest<'_>,
     config: &HostConfig,
     sample: &HostSample,
     granted: &[ResolvedClaims],
@@ -213,7 +242,7 @@ fn sort_blockers(blockers: &mut Vec<Blocker>) {
 }
 
 fn evaluate_vram(
-    job: &JobSpec,
+    job: &ObservationRequest<'_>,
     config: &HostConfig,
     gpu: &GpuEvidence,
     granted: &[ResolvedClaims],
@@ -270,7 +299,7 @@ fn evaluate_vram(
     }
 }
 
-fn required_gpu_max_age(job: &JobSpec, config: &HostConfig) -> Option<u64> {
+fn required_gpu_max_age(job: &ObservationRequest<'_>, config: &HostConfig) -> Option<u64> {
     let mut ages = Vec::new();
     if job.resources.gpu_slots.unwrap_or(0) > 0
         || job
@@ -323,7 +352,7 @@ fn checked_granted(name: &str, mut values: impl Iterator<Item = u64>) -> Result<
 }
 
 fn evaluate_observed(
-    job: &JobSpec,
+    job: &ObservationRequest<'_>,
     sample: &HostSample,
     gpu: &GpuEvidence,
     now_monotonic_millis: u64,
@@ -360,7 +389,7 @@ fn evaluate_observed(
 }
 
 fn evaluate_observed_cpu(
-    job: &JobSpec,
+    job: &ObservationRequest<'_>,
     sample: &HostSample,
     now_monotonic_millis: u64,
     blockers: &mut Vec<Blocker>,
@@ -400,7 +429,7 @@ fn evaluate_observed_cpu(
 }
 
 fn evaluate_quiet(
-    job: &JobSpec,
+    job: &ObservationRequest<'_>,
     config: &HostConfig,
     sample: &HostSample,
     gpu: Option<&GpuEvidence>,
@@ -668,6 +697,47 @@ fn resource_evidence_blocker(name: &str, failure: super::evidence::EvidenceFailu
     }
 }
 
+pub(crate) fn quiet_budget(
+    consumed: u64,
+    previous_generation: Option<&str>,
+    previous_millis: Option<u64>,
+    context: &AdmissionContext,
+) -> u64 {
+    let generation = context.observation_generation.to_string();
+    let additional = match (previous_generation, previous_millis) {
+        (Some(previous_generation), Some(previous)) if previous_generation == generation => {
+            context.evaluated_monotonic_millis.saturating_sub(previous)
+        }
+        _ => 0,
+    };
+    consumed.saturating_add(additional)
+}
+
+pub(crate) fn quiet_stability(
+    previous_generation: Option<&str>,
+    previous_first: Option<u64>,
+    previous_last: Option<u64>,
+    context: &AdmissionContext,
+    maximum_gap_millis: u64,
+) -> (Option<u64>, Option<u64>) {
+    if !context.quiet_sample_satisfied || !context.quiet_blockers.is_empty() {
+        return (None, None);
+    }
+    let generation = context.observation_generation.to_string();
+    let continues = previous_generation == Some(generation.as_str())
+        && previous_last
+            .and_then(|last| context.evaluated_monotonic_millis.checked_sub(last))
+            .is_some_and(|gap| gap <= maximum_gap_millis);
+    (
+        if continues {
+            previous_first
+        } else {
+            Some(context.evaluated_monotonic_millis)
+        },
+        Some(context.evaluated_monotonic_millis),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -758,7 +828,7 @@ mod tests {
                 captured,
                 super::super::MemoryEvidence {
                     available_physical_mb: 64_000,
-                    commit_headroom_mb: 12_000,
+                    commit_headroom_mb: Some(12_000),
                 },
             ),
             cpu_utilization: ComponentEvidence::available(10_000, captured, 0),
