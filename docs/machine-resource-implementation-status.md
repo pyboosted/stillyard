@@ -26,7 +26,7 @@ before the subsequent trusted-bootstrap changes.
 | MR-0 | complete | Normative contract/amendment and failure traces; installed safe bootstrap; matched native/WSL check/build baseline; concrete consumer commands and validator controls. Linux compiler failures are the permitted portability baseline. |
 | MR-1 | complete | Shared admission/lifecycle core installed in Windows alpha.16 / IPC 21; native gates and installed test Job passed, scoped accounting observed. |
 | MR-2 | complete | Durable coordinator/manager protocol and public fault controls passed; final review disposition closed; Windows alpha.17 / IPC 22 installed and ordinary default Job passed. |
-| MR-3 | in_progress | Windows/WSL z11f alpha.20 installed and paired; three W-C1..4 rounds passed on z3 with shared capacity 2/2/1. Cross-OS Store-reset, live capacity and incarnation controls passed on z8. M-A04/M-A07 passed. Final consumer confirmation, complete lifecycle coverage, aggregate idle timers and exit review remain pending. |
+| MR-3 | in_progress | Windows/WSL z11f alpha.20 installed and paired; three W-C1..4 rounds passed on z3 with shared capacity 2/2/1. Cross-OS Store-reset, live capacity and incarnation controls passed on z8. M-A04/M-A07 passed. Final-source W-C1..4 confirmation passed on z11f. Complete lifecycle coverage, aggregate idle timers and exit review remain pending. |
 | MR-4 | not_started | Later native Linux/container delivery. |
 | MR-5 | not_started | Later macOS delivery. |
 
@@ -84,8 +84,8 @@ Installed postconditions/probes, three complete live consumer rounds, priority/
 aging, bridge loss, active daemon crash and forced cleanup failure passed.
 Cross-OS isolated Store-reset, live capacity and explicit incarnation controls
 passed on z8. Remaining: complete VM/distro/logout/
-reboot lifecycle evidence, aggregate timer wakes, final-source consumer
-confirmation and independent exit review. z8 native/Linux Clippy, full tests,
+reboot lifecycle evidence, aggregate timer wakes and independent exit review.
+Final-source z11f consumer confirmation passed. z8 native/Linux Clippy, full tests,
 MSRV tests and release builds passed and were installed. The actual attached
 wait-path negative control passed; helper timer coverage remains open. The five-minute idle observation passed CPU/memory; aggregate timer coverage remains open.
 Historical “current” notes below are superseded by this section.
@@ -2830,3 +2830,28 @@ its one managed child. Both agent adapter calls completed sequentially and
 recovered the same child/Attempt/receipt/key; authenticated postcondition passed.
 Actual pending-child/active-Windows overlap was captured under shared capacity 1.
 [Canonical Jobs and results](evidence/mr3-consumer-confirmation-20260910z11f/).
+
+After final-source W-C3 passed, its disposable scratch target was removed: 637.04 MiB reclaimed. Both Job histories were fully paged and active/queued specs plus process references checked; source retained. Only the current Windows/Linux gate caches remain for recovery canaries. [Cleanup](evidence/mr3-cleanup-20260910z11f/finished-scratch.json).
+
+### Final idle collection attempts and prepared lifecycle window
+
+The first z11f idle attempt failed before baseline completion: native WMI exceeded
+30 seconds, so no interval started. [Collector failure](evidence/mr3-idle-20260910z11f/).
+The observer now allows 60 seconds for WMI and excludes snapshot collection
+windows from rate denominators, conservatively counting their deltas.
+z11f2 captured a baseline but discovered an external installed Windows `watch`
+client (PID 44148). This violates the no-subscriber idle precondition. The observer
+was stopped and the interval invalidated; the user's watch was not terminated.
+[Retained invalid interval](evidence/mr3-idle-20260910z11f2/). A temporary pause of
+that viewer has been requested before the clean final interval.
+
+Independent h lifecycle review found no remaining safety blocker; concrete
+robustness changes are retained in the prepared i bundle. Native helper-control
+W`01a08b71-e191-7641-a606-c8e29ac8747e` and read-only preflight
+W`01a08b71-e259-75a3-9cef-0e7d857f41ce` passed. The helper control covers actual
+exit-259 process rejection, empty/BOM quiet-list parsing and WSL-path rejection.
+[Prepared i bundle](evidence/mr3-lifecycle-window-20260910z11i/);
+[review disposition](evidence/mr3-opus-lifecycle-window-20260910z11h/triage.md).
+Only terminate/shutdown plus later canaries are prepared for an interruption
+window; sleep/logout/reboot remain separately unprepared. No disruptive approval
+file exists and no disruptive Job has been submitted.

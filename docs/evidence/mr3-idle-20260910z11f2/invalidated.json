@@ -1,0 +1,8 @@
+{
+  "reason": "External native stillyard watch subscriber present",
+  "pid": 44148,
+  "command": "installed stillyard.exe watch",
+  "acceptance": "invalid idle precondition; not counted as idle acceptance",
+  "watch_terminated": false,
+  "unix_ns": 1789046149827287896
+}

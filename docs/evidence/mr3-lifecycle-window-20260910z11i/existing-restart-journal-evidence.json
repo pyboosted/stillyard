@@ -1,0 +1,7 @@
+{
+  "journal_sha256": "eacada591cf3c2aad406b3a47416d273fe23c2a114530f5298e66176458c5957",
+  "before_restart": "mr3-installed-20260910z11f/linux/pair-e0a9a47b13e14accaf5f00fd5f12f838/bridge-pin/bridge-pin-f1643559d6d04a2bb2eb36014ff1d4b4/barrier-after-stop.json",
+  "after_restart": "mr3-installed-20260910z11f/linux/pair-e0a9a47b13e14accaf5f00fd5f12f838/linux/upgrade-2f74c5aea9ab49d094ae56b8f63c81e3/barrier.json",
+  "same_bytes": true,
+  "scope": "actual already-accepted service restart during bridge-pin rotation; not a whole-VM fault result"
+}

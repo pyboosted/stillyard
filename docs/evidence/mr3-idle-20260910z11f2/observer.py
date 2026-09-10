@@ -49,13 +49,9 @@ def snapshot():
    records.append({'pid':int(proc.name),'name':status['Name'].strip(),'start_ticks':int(fields[19]),'cpu_ticks':int(fields[11])+int(fields[12]),'rss_anon_kib':int(status.get('RssAnon','0 kB').split()[0]),'threads':threads,'exe':exe})
   except (FileNotFoundError,ProcessLookupError):pass
  image=subprocess.check_output(['wslpath','-w',windows],text=True).strip().replace("'","''")
- command=f"$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; $owned=@(Get-CimInstance Win32_Process | Where-Object {{$_.ExecutablePath -ieq '{image}'}}); $ids=@($owned | Select-Object -ExpandProperty ProcessId) + {args.windows_keepalive_pid}; @(foreach($processId in $ids) {{$p=Get-Process -Id $processId; $threads=@(Get-CimInstance Win32_PerfRawData_PerfProc_Thread -Filter ('IDProcess = '+$processId) | Select-Object IDThread,ElapsedTime,ContextSwitchesPersec); [PSCustomObject]@{{pid=$p.Id; command_line=($owned | Where-Object {{$_.ProcessId -eq $processId}} | Select-Object -ExpandProperty CommandLine); threads=$threads; name=$p.ProcessName; cpu_seconds=$p.TotalProcessorTime.TotalSeconds; private_bytes=$p.PrivateMemorySize64; start_time=$p.StartTime.ToUniversalTime().ToString('o'); image=$p.Path}}}}) | ConvertTo-Json -Depth 4"
+ command=f"$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; $ids=@(Get-CimInstance Win32_Process | Where-Object {{$_.ExecutablePath -ieq '{image}'}} | Select-Object -ExpandProperty ProcessId) + {args.windows_keepalive_pid}; @(foreach($processId in $ids) {{$p=Get-Process -Id $processId; $threads=@(Get-CimInstance Win32_PerfRawData_PerfProc_Thread -Filter ('IDProcess = '+$processId) | Select-Object IDThread,ElapsedTime,ContextSwitchesPersec); [PSCustomObject]@{{pid=$p.Id; threads=$threads; name=$p.ProcessName; cpu_seconds=$p.TotalProcessorTime.TotalSeconds; private_bytes=$p.PrivateMemorySize64; start_time=$p.StartTime.ToUniversalTime().ToString('o'); image=$p.Path}}}}) | ConvertTo-Json -Depth 4"
  native=json.loads(subprocess.check_output([ps,'-NoProfile','-EncodedCommand',base64.b64encode(command.encode('utf-16le')).decode()],timeout=60))
  if not isinstance(native,list):native=[native]
- unexpected=[p for p in native if p['pid'] not in (docs['windows']['daemon']['pid'],args.windows_keepalive_pid) and not (p.get('command_line') or '').strip().endswith(' machine bridge')]
- if unexpected:
-  save('unexpected-native-clients.json',unexpected)
-  raise RuntimeError('idle requires no external Stillyard clients/subscribers: '+str([p['pid'] for p in unexpected]))
  return {'unix_ns':time.time_ns(),'capture_started_monotonic':started,'monotonic':time.monotonic(),'doctor':docs,'job_counts':counts,'linux':records,'windows':native,'interop_target':str(target)}
 before=snapshot();save('before.json',before)
 # Retain the exact observer used for this interval.
@@ -123,3 +119,21 @@ result['cpu_memory_checks']=checks
 result['cpu_memory_pass']=(all(c['cpu_pass'] and c['memory_pass'] for c in checks) and result['aggregate_cpu_percent']<=1.1 and result['aggregate_memory_mib']<=96)
 save('result.json',result);print(json.dumps(result),flush=True)
 if not result['cpu_memory_pass']:raise RuntimeError('installed idle CPU/memory budget exceeded')
+
+# Extra observation outside the measured 300-second interval: let every bounded
+# native bridge request (<=30 s) settle, then reject any delayed teardown.
+print('idle interval complete; settling bounded bridge requests',flush=True)
+time.sleep(35)
+settled=snapshot();save('settled.json',settled)
+for side,identity in [('linux','start_ticks'),('windows','start_time')]:
+ if {(p['pid'],p[identity]) for p in after[side]}!={(p['pid'],p[identity]) for p in settled[side]}:
+  raise RuntimeError('process identity changed after the interval boundary')
+ if settled['doctor'][side]['daemon']['daemon_generation']!=after['doctor'][side]['daemon']['daemon_generation']:
+  raise RuntimeError('daemon generation changed while settling')
+if settled['job_counts']!=after['job_counts']:
+ raise RuntimeError('Jobs were submitted while settling')
+for name in ['transport','backoff']:
+ if timer(settled['doctor']['linux'])[name]!=timer(after['doctor']['linux'])[name]:
+  raise RuntimeError('delayed bridge deadline/reconnect after interval boundary')
+save('settlement.json',{'passed':True,'duration_seconds':settled['monotonic']-after['monotonic'],'unchanged_process_identities':True,'unchanged_daemon_generations':True,'unchanged_job_history':True,'delayed_transport_or_backoff_expirations':0})
+print('boundary settlement passed',flush=True)

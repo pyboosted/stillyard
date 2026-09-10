@@ -1,0 +1,14 @@
+{
+  "requested_model": "opus",
+  "effort": "high",
+  "profile": "/home/pythonic/.claude2",
+  "route": "claude.ai/firstParty",
+  "invocation": {
+    "STILLYARD_JOB_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b7b-7eb2-88f0-feb5e49130ee",
+    "STILLYARD_ATTEMPT": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b84-7430-972a-bc25a3291a2b",
+    "STILLYARD_INVOCATION_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b85-7002-9131-c913a90f32ee",
+    "STILLYARD_ENDPOINT": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock"
+  },
+  "brief_sha256": "6323e6238553cbc517caf071d00937e247c5d9d90927e02c917bfcf9258a5ded",
+  "executable_sha256": "dbfd4e5fb529f34573f88467f89d46b4cce55a43611c4ef73443177e75458ed0"
+}

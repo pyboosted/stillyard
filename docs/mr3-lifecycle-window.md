@@ -18,7 +18,7 @@ controller is a default Windows Job with no Cargo claim; its own receipt and
 Job ID identify each operation. Keep the same intent/key when reconnecting.
 The controller rejects execution from Linux or without its actual native primary
 Invocation identity. The controller/starter bundle, revised after independent review, and unsubmitted
-JobSpecs are retained in [prepared evidence](evidence/mr3-lifecycle-window-20260910z11h/).
+JobSpecs are retained in [prepared evidence](evidence/mr3-lifecycle-window-20260910z11i/).
 
 Before submitting the disruptive Job, record the user's separately agreed scope
 in an operation-specific `approval.json`: permitted operations, exact running
@@ -43,6 +43,13 @@ Keep pairing anchors private; hashes and public identities suffice.
 This first window tests restart/lifetime with already sealed history. Existing
 active-daemon SIGKILL and bridge-loss Jobs cover live work. It must not be
 reported as active-work whole-VM cleanup acceptance.
+
+The prepared approval scope below covers operations 1–3 and subsequent canaries.
+Sleep/resume, logout/login and reboot remain separate unprepared windows.
+The bundle includes a non-authorizing `approval.template.json`; copy the exact
+running distributions and sorted foreign-work array from a fresh preflight only
+after the user agrees. The controller also verifies the external starter has
+more than 180 seconds of its original wait budget immediately before the fault.
 
 ## Separate operations and recovery
 
