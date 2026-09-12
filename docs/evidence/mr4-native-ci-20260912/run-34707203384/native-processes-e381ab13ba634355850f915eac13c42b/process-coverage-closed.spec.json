@@ -1,0 +1,38 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "raise RuntimeError('unavailable process coverage released user code')"
+  ],
+  "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-e381ab13ba634355850f915eac13c42b",
+  "timeout_seconds": 30,
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "native-process-process-coverage-closed"
+    }
+  ],
+  "quiet": {
+    "stable_seconds": 1,
+    "max_sample_age_seconds": 5,
+    "wait_budget_seconds": 3,
+    "detectors": [
+      {
+        "kind": "blocked_processes"
+      }
+    ]
+  }
+}

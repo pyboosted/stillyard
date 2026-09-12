@@ -51,6 +51,14 @@ consumer gap is closed. Observation/history controls and five-minute idle are
 next; A-19 no-helper is explicitly outstanding because the native profile
 currently retains a Python delegation supervisor. No WSL lifecycle action occurred.
 
+Native no-helper checkpoint `b5a34dc` passed complete native CI34707203384:
+installed process/resource consumers, daemon crash, quiescent corrupt history
+refusal/restoration, Cargo check/test and A-19 idle (one daemon, 300.072s,
+3.914MiB RssAnon, zero observed CPU-tick delta/timer expirations).
+[Canonical report](native-linux-acceptance.md). Persistent-host reboot/session
+and additional fault coverage remain open; MR-4 goal remains active.
+Windows gates now use the local host's default Stillyard, as the user requested.
+
 Recovery after the user-reported unexpected restart: working files and native
 evidence survived. The first CLI reconnect returned auto-start OS error 5;
 subsequent discovery found the installed alpha.14 daemon already running as PID

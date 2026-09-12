@@ -1,0 +1,28 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import pathlib,socket; assert 'nameserver' in pathlib.Path('/etc/resolv.conf').read_text(); assert socket.getaddrinfo('static.crates.io',443); print('native-resolver-passed',flush=True)"
+  ],
+  "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-e381ab13ba634355850f915eac13c42b",
+  "timeout_seconds": 30,
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "native-process-resolver"
+    }
+  ]
+}

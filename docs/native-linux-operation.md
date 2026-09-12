@@ -3,7 +3,7 @@
 The `linux` branch contains a native Linux manager, local coordinator and cgroup
 executor. It uses one local Lease/Grant and needs no Windows coordinator.
 [Acceptance evidence](native-linux-acceptance.md) distinguishes the accepted
-supervised native CI installation from the newer no-helper service experiment.
+no-helper native CI installation from earlier supervised checkpoints.
 This remains a development preview; persistent-host reboot recovery and upgrades
 are not yet accepted. Containers use a separate adapter planned in MR-4.
 
@@ -75,14 +75,14 @@ its resources, regardless of which laptop initiated the SSH session.
 | Capability | Native reference status |
 |---|---|
 | Local slots, complete claims, two concurrent Jobs | Accepted under installed native Jobs |
-| Descendants, cancellation, timeout, retry and all Invocation roles | Accepted on the supervised reference installation |
+| Descendants, cancellation, timeout, retry and all Invocation roles | Accepted on the no-helper reference installation |
 | Managed child authentication and repeated ensure | Accepted |
 | Cargo check/test consumer and resolver through private `/run` | Accepted |
-| Daemon crash, retained epoch, cleanup seal and original submission | Accepted on the supervised reference installation; no-helper rerun pending |
-| CPU/RAM admission and strict CPU/disk release evidence | Native assertions under validation |
+| Daemon crash, retained epoch, cleanup seal and original submission | Accepted on the no-helper reference installation |
+| CPU/RAM admission and strict CPU/disk release evidence | Accepted with actual native samples |
 | Namespace-wide process rules | Incomplete when root-owned executable identities cannot be inspected; strict policy stays closed |
 | GPU/NVML | No GPU acceptance on the reference VM; unavailable evidence is not zero load |
-| Five-minute standalone idle / no-helper | Experimental profile under validation |
+| Five-minute standalone idle / no-helper | Accepted: one process, 3.914 MiB RssAnon, zero measured timer expirations |
 | SSH logout, host reboot, user-manager restart | Not accepted; loss of executor tree currently blocks startup |
 | Upgrade/downgrade and existing installation replacement | Not implemented by the first-install tool |
 | Dev-container domains | Separate pending MR-4 adapter and matrices |

@@ -1,0 +1,26 @@
+{
+  "native_process_suite_passed": true,
+  "jobs": {
+    "canary": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-02db-7163-9b62-08e7829732b5",
+    "resolver": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-04b1-74d1-bf33-ed67bee2908d",
+    "observed-cpu-memory": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-0798-72c2-8dcd-cf720cdf4b7d",
+    "quiet-cpu-disk": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-09d1-7a00-8c88-ee26ae6b6c0a",
+    "process-coverage-closed": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-1151-74a3-9104-569126640c7b",
+    "descendant": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-1f53-7822-aee9-57f8fb96c23d",
+    "parallel-a": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-23b4-7b30-a898-2d23ae818093",
+    "parallel-b": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-2402-7620-9ec0-8b3ad21c6eee",
+    "parallel-c": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-258d-7c21-b042-8253bc9ca5eb",
+    "probe-and-postcondition": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-47b0-7812-88f6-29713f9c45a0",
+    "retry": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-559c-70e2-9a65-a9fde8cceb48",
+    "managed-parent": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-5ade-76c0-bbfe-df80f247682e",
+    "managed-child": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-6cda-7bd0-a16d-2f257d5accef",
+    "timeout": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-7878-71a0-9b22-589094481ea3",
+    "cancel": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-7ce9-7fc0-9b8e-a3e2702f1e10"
+  },
+  "remaining": [
+    "daemon crash and history faults",
+    "logout/reboot and idle budget",
+    "persistent host consumers",
+    "container matrix"
+  ]
+}

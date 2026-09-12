@@ -1,0 +1,343 @@
+{
+  "schema_version": 1,
+  "observed_unix_millis": 1789232840533,
+  "overall": "attention_required",
+  "daemon": {
+    "store_uuid": "01a09695-f984-7190-b8c3-e8beeebf48a1",
+    "daemon_generation": "01a09695-f9be-7432-bf3f-725fe93b76db",
+    "version": "0.1.0-alpha.20",
+    "pid": 4558,
+    "process_identity": {
+      "platform": "linux",
+      "host_id": "sha256:26b1e73eb3f39e8bde671fbfab77ed395b2611ceef76971ad5ab01df9ef4151b",
+      "boot_id": "32174a57-7aff-4bbe-b31a-170b15372aa5",
+      "pid": 4558,
+      "start_ticks": 26225,
+      "pid_namespace_inode": 4026531836,
+      "uid": 1001
+    },
+    "endpoint": "/home/runner/.local/share/stillyard/stillyard-v6.sock",
+    "store_path": "/home/runner/.local/share/stillyard",
+    "config_path": "/home/runner/.local/share/stillyard/config.json",
+    "capacities": {
+      "cpu_units": 4,
+      "ram_mb": 4096,
+      "cargo_slots": 2,
+      "gpu_slots": 0,
+      "custom": {}
+    },
+    "resources": {
+      "cpu_units": {
+        "capacity": 4,
+        "granted": 0,
+        "reserved": 0
+      },
+      "ram_mb": {
+        "capacity": 4096,
+        "granted": 0,
+        "reserved": 0
+      },
+      "cargo_slots": {
+        "capacity": 2,
+        "granted": 0,
+        "reserved": 0
+      },
+      "gpu_slots": {
+        "capacity": 0,
+        "granted": 0,
+        "reserved": 0
+      },
+      "custom": {}
+    },
+    "machine_scheduling": {
+      "authority_epoch": "01a09695-f998-79d3-9ef1-30c5eee53b8b",
+      "domains": {
+        "machine_id": "01a09695-f998-79d3-9ef1-30d2b7176b8f",
+        "machine_scope": "01a09695-f998-79d3-9ef1-30ecbe3ea6fd",
+        "native_domain": "01a09695-f998-79d3-9ef1-30f2339f0a1b"
+      },
+      "mode": "standalone",
+      "observed_unix_millis": 1789232840533,
+      "configuration_sha256": "57ead544eb6dab1bcb257ada391429a4162268d1e95bd6990e425b0b262c2cb7",
+      "resources": [
+        {
+          "resource": {
+            "scope": "01a09695-f998-79d3-9ef1-30ecbe3ea6fd",
+            "kind": "scalar",
+            "resource_id": "cargo_slots"
+          },
+          "capacity": 2,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a09695-f998-79d3-9ef1-30ecbe3ea6fd",
+            "kind": "scalar",
+            "resource_id": "cpu_units"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a09695-f998-79d3-9ef1-30ecbe3ea6fd",
+            "kind": "scalar",
+            "resource_id": "gpu_slots"
+          },
+          "capacity": 0,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a09695-f998-79d3-9ef1-30ecbe3ea6fd",
+            "kind": "scalar",
+            "resource_id": "ram_mb"
+          },
+          "capacity": 4096,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        }
+      ],
+      "blocker": null
+    },
+    "config_sha256": "57ead544eb6dab1bcb257ada391429a4162268d1e95bd6990e425b0b262c2cb7",
+    "queued_jobs": 0,
+    "running_jobs": 0
+  },
+  "host": {
+    "platform": "linux",
+    "host_name": "runnervmlun5p",
+    "host_id": "sha256:26b1e73eb3f39e8bde671fbfab77ed395b2611ceef76971ad5ab01df9ef4151b",
+    "boot_id": "32174a57-7aff-4bbe-b31a-170b15372aa5",
+    "containment_strength": "linux_cgroup_v2",
+    "session_survival": "not_verified"
+  },
+  "store": {
+    "store_uuid": "01a09695-f984-7190-b8c3-e8beeebf48a1",
+    "schema_epoch": "stillyard-conditions-r3-2026-09-02",
+    "bound_host_id": "sha256:26b1e73eb3f39e8bde671fbfab77ed395b2611ceef76971ad5ab01df9ef4151b",
+    "filesystem": "local_ext4",
+    "sqlite_journal_mode": "wal",
+    "sqlite_synchronous": "full",
+    "foreign_keys_enabled": true
+  },
+  "checks": [
+    {
+      "code": "authority.admission",
+      "status": "pass",
+      "summary": "authority_ready",
+      "remediation": null
+    },
+    {
+      "code": "configuration.loaded",
+      "status": "pass",
+      "summary": "loaded configuration evidence is available",
+      "remediation": null
+    },
+    {
+      "code": "containment.linux_cgroup_v2",
+      "status": "pass",
+      "summary": "born-contained cgroup v2 executor requires an installed Linux runtime and delegated boundary",
+      "remediation": null
+    },
+    {
+      "code": "containment.unresolved",
+      "status": "pass",
+      "summary": "0 unresolved containment incident(s)",
+      "remediation": null
+    },
+    {
+      "code": "detector.commit_headroom",
+      "status": "warning",
+      "summary": "commit-limit headroom is temporarily unavailable",
+      "remediation": "Windows commit headroom is checked by the paired coordinator; guest availability is separate"
+    },
+    {
+      "code": "detector.cpu",
+      "status": "warning",
+      "summary": "total CPU utilization is temporarily unavailable",
+      "remediation": "warming_up"
+    },
+    {
+      "code": "detector.disk",
+      "status": "warning",
+      "summary": "aggregate disk utilization is temporarily unavailable",
+      "remediation": "warming_up"
+    },
+    {
+      "code": "detector.nvml",
+      "status": "warning",
+      "summary": "NVML GPU evidence is unavailable",
+      "remediation": "unsupported NVML provider"
+    },
+    {
+      "code": "detector.physical_memory",
+      "status": "pass",
+      "summary": "available physical memory evidence is available",
+      "remediation": null
+    },
+    {
+      "code": "detector.process_rules",
+      "status": "pass",
+      "summary": "process policy has 3 block and 0 ignore pattern(s)",
+      "remediation": null
+    },
+    {
+      "code": "detector.processes",
+      "status": "warning",
+      "summary": "bounded process inventory provider failed",
+      "remediation": "visible process executable unavailable; namespace-wide process coverage is incomplete"
+    },
+    {
+      "code": "detector.sampler_freshness",
+      "status": "pass",
+      "summary": "synchronous observation sample is fresh",
+      "remediation": null
+    },
+    {
+      "code": "host.boot_identity",
+      "status": "pass",
+      "summary": "startup-latched boot identity",
+      "remediation": null
+    },
+    {
+      "code": "host.machine_identity",
+      "status": "pass",
+      "summary": "current host matches the durable store binding",
+      "remediation": null
+    },
+    {
+      "code": "host.session_survival",
+      "status": "not_verified",
+      "summary": "native Linux session survival requires the delegated user service, linger and separate runtime acceptance",
+      "remediation": null
+    },
+    {
+      "code": "ipc.owner_only",
+      "status": "pass",
+      "summary": "Unix socket uses owner credentials and pinned process identity",
+      "remediation": null
+    },
+    {
+      "code": "runtime_timer_expirations",
+      "status": "pass",
+      "summary": "{\"attached\":0,\"backoff\":0,\"reactor\":4,\"subscriber\":0,\"transport\":0}",
+      "remediation": null
+    },
+    {
+      "code": "store.filesystem",
+      "status": "pass",
+      "summary": "store path was validated as local ext4 with owner-only access",
+      "remediation": null
+    },
+    {
+      "code": "store.schema",
+      "status": "pass",
+      "summary": "validated schema epoch stillyard-conditions-r3-2026-09-02",
+      "remediation": null
+    },
+    {
+      "code": "store.sqlite_durability",
+      "status": "pass",
+      "summary": "journal=wal, synchronous=2, foreign_keys=true",
+      "remediation": null
+    }
+  ],
+  "coverage": [
+    {
+      "provider": "linux_memavailable",
+      "detector": "physical_memory",
+      "status": "pass",
+      "observed_unix_millis": 1789232840533,
+      "observation_generation": "01a09696-7f56-7fb0-b82f-209bae136176",
+      "remediation": null
+    },
+    {
+      "provider": "linux_memavailable",
+      "detector": "commit_headroom",
+      "status": "warning",
+      "observed_unix_millis": 1789232840533,
+      "observation_generation": "01a09696-7f56-7fb0-b82f-209bae136176",
+      "remediation": "Windows commit headroom is checked by the paired coordinator; guest availability is separate"
+    },
+    {
+      "provider": "linux_proc_stat",
+      "detector": "cpu",
+      "status": "warning",
+      "observed_unix_millis": 1789232840533,
+      "observation_generation": "01a09696-7f56-7fb0-b82f-209bae136176",
+      "remediation": "warming_up"
+    },
+    {
+      "provider": "linux_diskstats_pressure",
+      "detector": "disk",
+      "status": "warning",
+      "observed_unix_millis": 1789232840533,
+      "observation_generation": "01a09696-7f56-7fb0-b82f-209bae136176",
+      "remediation": "warming_up"
+    },
+    {
+      "provider": "linux_visible_pid_namespace",
+      "detector": "processes",
+      "status": "warning",
+      "observed_unix_millis": 1789232840533,
+      "observation_generation": "01a09696-7f56-7fb0-b82f-209bae136176",
+      "remediation": "visible process executable unavailable; namespace-wide process coverage is incomplete"
+    },
+    {
+      "provider": "linux_visible_pid_namespace",
+      "detector": "process_rules",
+      "status": "pass",
+      "observed_unix_millis": 1789232840533,
+      "observation_generation": "01a09696-7f56-7fb0-b82f-209bae136176",
+      "remediation": null
+    },
+    {
+      "provider": "host_sampler",
+      "detector": "sampler_freshness",
+      "status": "pass",
+      "observed_unix_millis": 1789232840533,
+      "observation_generation": "01a09696-7f56-7fb0-b82f-209bae136176",
+      "remediation": null
+    },
+    {
+      "provider": "nvml",
+      "detector": "nvml",
+      "status": "warning",
+      "observed_unix_millis": 1789232840533,
+      "observation_generation": "01a09696-7f56-7fb0-b82f-209bae136176",
+      "remediation": "unsupported NVML provider"
+    }
+  ],
+  "incidents": {
+    "total_unresolved": 0,
+    "incidents": [],
+    "truncated": false,
+    "next_cursor": null
+  },
+  "boundaries": [
+    {
+      "code": "cloned_host_identity",
+      "statement": "simultaneous machine clones with the same MachineGuid cannot be distinguished"
+    },
+    {
+      "code": "no_hard_resource_partition",
+      "statement": "resource admission is not CPU, GPU, or RAM hard enforcement"
+    },
+    {
+      "code": "physical_power_loss_after_ack",
+      "statement": "physical power loss may exceed the acknowledged storage boundary"
+    },
+    {
+      "code": "same_owner_out_of_boundary_process",
+      "statement": "deliberate same-owner out-of-boundary process creation is outside the cooperative guarantee"
+    }
+  ]
+}

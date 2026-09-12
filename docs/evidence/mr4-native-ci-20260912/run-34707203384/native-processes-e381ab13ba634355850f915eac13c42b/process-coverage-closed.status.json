@@ -1,0 +1,151 @@
+{
+  "job_id": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-1151-74a3-9104-569126640c7b",
+  "submission_id": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-1150-7812-a410-90c81045214b",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-1158-73d2-8e27-afb373dd6873",
+  "invocation_id": null,
+  "containment_id": null,
+  "root_exit_code": null,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789232812369,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": null,
+  "finished_unix_millis": 1789232815502,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "-c",
+      "raise RuntimeError('unavailable process coverage released user code')"
+    ],
+    "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-e381ab13ba634355850f915eac13c42b",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "PATH": "/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "native-process-process-coverage-closed"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 30,
+    "quiet": {
+      "stable_seconds": 1,
+      "max_sample_age_seconds": 5,
+      "wait_budget_seconds": 3,
+      "detectors": [
+        {
+          "kind": "blocked_processes"
+        }
+      ]
+    },
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a09695-f984-7190-b8c3-e8beeebf48a1~01a09696-1158-73d2-8e27-afb373dd6873",
+      "attempt_index": 1,
+      "verdict": "safety_failed",
+      "reason_code": "quiet_unattainable",
+      "created_unix_millis": 1789232812376,
+      "started_unix_millis": null,
+      "deadline_unix_millis": null,
+      "finished_unix_millis": 1789232815502,
+      "primary_result": null,
+      "admission": {
+        "state": "failed",
+        "evaluated_unix_millis": 1789232814407,
+        "observation_generation": "01a09696-01e0-7fe1-b8bc-5a811767591c",
+        "blockers": [
+          {
+            "code": "detector_unavailable",
+            "detail": "blocked_processes: visible process executable unavailable; namespace-wide process coverage is incomplete"
+          }
+        ],
+        "operands": [],
+        "detectors": [
+          {
+            "detector": "quiet.blocked_processes",
+            "observed": null,
+            "threshold": 0,
+            "satisfied": false,
+            "detail": "blocked_processes: visible process executable unavailable; namespace-wide process coverage is incomplete"
+          }
+        ],
+        "gpu_provenance": null,
+        "final_sample": false,
+        "deferral_count": 0
+      },
+      "invocations": []
+    }
+  ],
+  "allocations": [],
+  "gpu_provenance": null,
+  "admission": {
+    "state": "failed",
+    "evaluated_unix_millis": 1789232814407,
+    "observation_generation": "01a09696-01e0-7fe1-b8bc-5a811767591c",
+    "blockers": [
+      {
+        "code": "detector_unavailable",
+        "detail": "blocked_processes: visible process executable unavailable; namespace-wide process coverage is incomplete"
+      }
+    ],
+    "operands": [],
+    "detectors": [
+      {
+        "detector": "quiet.blocked_processes",
+        "observed": null,
+        "threshold": 0,
+        "satisfied": false,
+        "detail": "blocked_processes: visible process executable unavailable; namespace-wide process coverage is incomplete"
+      }
+    ],
+    "gpu_provenance": null,
+    "final_sample": false,
+    "deferral_count": 0
+  },
+  "daemon_generation": "01a09695-f9be-7432-bf3f-725fe93b76db"
+}

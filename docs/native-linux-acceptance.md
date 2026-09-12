@@ -1,4 +1,14 @@
-# Standalone Linux acceptance — in progress
+# Standalone Linux acceptance — native checkpoint passed, rollout in progress
+
+The no-helper native installation at source `b5a34dc` passed installed process
+and resource consumers, daemon-crash recovery, quiescent corrupt-history refusal
+and exact restoration, native Cargo check/test, and A-19 five-minute idle.
+[Accepted run 34707203384](https://github.com/pyboosted/stillyard/actions/runs/34707203384)
+and [canonical evidence](evidence/mr4-native-ci-20260912/run-34707203384/).
+Persistent-host reboot/session recovery, upgrades and further fault coverage
+remain open. The records below retain earlier failures and supervised checkpoints.
+
+## Earlier supervised installation
 
 Source `a0c58a7`, native Ubuntu 24.04 Azure VM, kernel 6.17, systemd 255,
 UID 1001, ext4 and cgroup v2. This is an ephemeral native CI installation,
@@ -86,3 +96,33 @@ native profile has a persistent Python delegation supervisor. A-19's no-helper
 condition is therefore **not passed**; quantitative measurement will not hide this
 architectural gap or amend the normative limit. A systemd lifetime alternative
 is under review.
+
+## Accepted no-helper native checkpoint
+
+[Native run 34707203384](https://github.com/pyboosted/stillyard/actions/runs/34707203384),
+source `b5a34dc`, passed the entire installed no-helper suite: all process and
+resource controls, exact daemon crash recovery, corrupt executor-history startup
+refusal and restoration canary, installed Cargo check/test, and five-minute idle.
+A single daemon remained during 300.072 seconds: endpoint-sampled RssAnon
+3.914 MiB, no observed CPU tick increase and zero instrumented timer expirations.
+The no-helper condition and quantitative A-19 bounds passed on this native VM.
+[Canonical evidence](evidence/mr4-native-ci-20260912/run-34707203384/).
+
+CPU/RAM admission retained real satisfied operands; strict CPU/disk release
+retained final samples. Incomplete process visibility yielded Job `failed`,
+Attempt `safety_failed/quiet_unattainable`, and no primary release. The two
+delegation/root inodes survived actual daemon restart. A deliberately invalid
+executor checksum prevented startup; restoring its exact original bytes
+preserved Store/domain/epoch and allowed a new canary with a sealed boundary.
+
+Remaining native work includes persistent-host/session and quiescent reboot
+restoration, active-work history-loss/SQL-rollback and pre-release fault controls,
+release packaging and upgrade procedures. Missing executor tree still blocks
+startup even after a prior drain; this is not yet an everyday reboot-tolerant
+installation claim. Full MR-4 dev-container work remains separate.
+
+After the user's clarification, Windows gates for source `b0786d9` run directly
+on the workstation Windows host from a verified disposable NTFS snapshot through
+its installed default Stillyard. Native run 34707513945 was canceled as redundant
+for that Windows-test-only source change. Source manifests and Job evidence are
+retained; the snapshot target will be removed once these gates finish.

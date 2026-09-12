@@ -1,0 +1,20 @@
+Sep 12 17:06:46 runnervmlun5p systemd[910]: Starting stillyard.service - Stillyard standalone Linux scheduler...
+Sep 12 17:06:46 runnervmlun5p systemd[910]: Started stillyard.service - Stillyard standalone Linux scheduler.
+Sep 12 17:07:21 runnervmlun5p systemd[910]: stillyard.service: Main process exited, code=killed, status=9/KILL
+Sep 12 17:07:21 runnervmlun5p systemd[910]: stillyard.service: Failed with result 'signal'.
+Sep 12 17:07:21 runnervmlun5p systemd[910]: stillyard.service: Consumed 6.431s CPU time, 11.1M memory peak, 0B memory swap peak.
+Sep 12 17:07:23 runnervmlun5p systemd[910]: stillyard.service: Scheduled restart job, restart counter is at 1.
+Sep 12 17:07:23 runnervmlun5p systemd[910]: Starting stillyard.service - Stillyard standalone Linux scheduler...
+Sep 12 17:07:23 runnervmlun5p systemd[910]: Started stillyard.service - Stillyard standalone Linux scheduler.
+Sep 12 17:07:26 runnervmlun5p systemd[910]: stillyard.service: Main process exited, code=killed, status=9/KILL
+Sep 12 17:07:26 runnervmlun5p systemd[910]: stillyard.service: Failed with result 'signal'.
+Sep 12 17:07:26 runnervmlun5p systemd[910]: stillyard.service: Consumed 2.068s CPU time, 8.9M memory peak, 0B memory swap peak.
+Sep 12 17:07:28 runnervmlun5p systemd[910]: stillyard.service: Scheduled restart job, restart counter is at 2.
+Sep 12 17:07:28 runnervmlun5p systemd[910]: Starting stillyard.service - Stillyard standalone Linux scheduler...
+Sep 12 17:07:28 runnervmlun5p systemd[910]: Started stillyard.service - Stillyard standalone Linux scheduler.
+Sep 12 17:07:28 runnervmlun5p stillyard[6638]: stillyard: the local daemon is unavailable: I/O: executor history/anchor is unknown or mismatched
+Sep 12 17:07:28 runnervmlun5p systemd[910]: stillyard.service: Main process exited, code=exited, status=69/UNAVAILABLE
+Sep 12 17:07:28 runnervmlun5p systemd[910]: stillyard.service: Failed with result 'exit-code'.
+Sep 12 17:07:30 runnervmlun5p systemd[910]: stillyard.service: Scheduled restart job, restart counter is at 3.
+Sep 12 17:07:30 runnervmlun5p systemd[910]: Starting stillyard.service - Stillyard standalone Linux scheduler...
+Sep 12 17:07:30 runnervmlun5p systemd[910]: Started stillyard.service - Stillyard standalone Linux scheduler.

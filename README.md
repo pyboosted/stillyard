@@ -19,8 +19,8 @@ boundaries are described in the [Windows/WSL operator guide](docs/windows-wsl-op
 
 The `linux` branch adds a [standalone Linux preview](docs/native-linux-operation.md).
 An independent native Ubuntu installation has passed real process, Cargo check/test
-and daemon-crash acceptance. Its newer service profile without a persistent helper
-and remaining native lifecycle checks are still under validation.
+and daemon-crash acceptance. The service profile without a persistent helper also
+passed five-minute idle acceptance; persistent-host lifecycle checks remain open.
 
 ## What works today
 
