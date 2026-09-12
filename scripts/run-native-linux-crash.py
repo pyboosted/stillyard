@@ -47,7 +47,21 @@ def main():
     unit = subprocess.check_output(['/usr/bin/systemctl', '--user', 'show', 'stillyard.service',
                                     '--property=MainPID', '--value'], text=True, timeout=10)
     supervisor = int(unit.strip())
-    if supervisor == before['pid'] or supervisor <= 1:
+    delegation = None
+    if supervisor == before['pid']:
+        def delegation_snapshot():
+            state = subprocess.check_output(['/usr/bin/systemctl', '--user', 'show', 'stillyard-delegation.service',
+                                              '--property=ActiveState', '--property=SubState', '--property=MainPID',
+                                              '--property=ControlGroup'], text=True, timeout=10)
+            values = dict(line.split('=', 1) for line in state.splitlines())
+            group = Path('/sys/fs/cgroup') / values['ControlGroup'].lstrip('/')
+            if values['ActiveState'] != 'active' or values['SubState'] != 'exited' or values['MainPID'] != '0':
+                raise RuntimeError('native delegation unit needs active/exited state without a helper')
+            return {'unit': values, 'group_inode': group.stat().st_ino,
+                    'executor_inode': (group / 'executors').stat().st_ino}
+        delegation = delegation_snapshot()
+        save('delegation-before', delegation)
+    elif supervisor <= 1:
         raise RuntimeError('a distinct live delegation supervisor is required')
     subject = '/proc/' + str(before['pid'])
     descriptor = os.pidfd_open(before['pid'])
@@ -134,8 +148,14 @@ def main():
             raise RuntimeError('native recovery changed identity, lost interruption or retained an unproven debit')
         current_supervisor = int(subprocess.check_output(['/usr/bin/systemctl', '--user', 'show', 'stillyard.service',
                                                         '--property=MainPID', '--value'], text=True, timeout=10))
-        if current_supervisor != supervisor:
-            raise RuntimeError('delegation supervisor restarted during daemon-only crash')
+        if delegation is None:
+            if current_supervisor != supervisor:
+                raise RuntimeError('delegation supervisor restarted during daemon-only crash')
+        else:
+            current_delegation = delegation_snapshot()
+            save('delegation-after', current_delegation)
+            if current_supervisor != after['pid'] or current_delegation != delegation:
+                raise RuntimeError('retained delegation changed during native daemon restart')
         journal = (root / 'native-linux/executor/state.json').read_bytes()
         (directory / 'executor-journal.json').write_bytes(journal)
         record = json.loads(journal)['state']['records'][state['invocation_id']]
@@ -159,7 +179,8 @@ def main():
             raise RuntimeError('crashed submission was replayed as new user work')
         save('result', {'daemon_crash_recovery_passed': True, 'job_id': job,
                         'old_generation': before['daemon_generation'], 'new_generation': after['daemon_generation'],
-                        'supervisor_pid': supervisor, 'remaining': ['pre-release fault boundaries',
+                        'supervisor_pid': supervisor if delegation is None else None,
+                        'retained_delegation_unit': delegation, 'remaining': ['pre-release fault boundaries',
                             'native unknown-history controls', 'service/logout/reboot lifecycle']})
         print(directory, job, flush=True)
     finally:

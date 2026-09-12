@@ -53,6 +53,11 @@ def main():
                                          '--property=ControlGroup', '--value'], text=True, timeout=10).strip()
         if not group.startswith('/') or not group.endswith('/stillyard.service'):
             raise RuntimeError('cannot identify the installed service process boundary')
+        groups = [group]
+        delegation = subprocess.run(['/usr/bin/systemctl', '--user', 'show', 'stillyard-delegation.service',
+                                     '--property=ControlGroup', '--value'], capture_output=True, text=True, timeout=10)
+        if delegation.returncode == 0 and delegation.stdout.strip():
+            groups.append(delegation.stdout.strip())
         processes = {}
         for proc in Path('/proc').iterdir():
             if not proc.name.isdigit():
@@ -63,7 +68,7 @@ def main():
                     exe = os.readlink(proc / 'exe')
                 except PermissionError:
                     exe = None
-                owned = membership == '0::' + group or membership.startswith('0::' + group + '/')
+                owned = any(membership == '0::' + g or membership.startswith('0::' + g + '/') for g in groups)
                 if exe == str(cli) and not owned:
                     raise RuntimeError('external Stillyard client/subscriber invalidates idle measurement')
                 if not owned:

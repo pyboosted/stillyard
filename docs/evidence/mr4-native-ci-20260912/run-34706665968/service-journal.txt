@@ -1,0 +1,3 @@
+Sep 12 16:56:04 runnervmlun5p systemd[1287]: Started stillyard.service - Stillyard standalone Linux scheduler.
+Sep 12 16:56:04 runnervmlun5p python3[4752]: {"kind": "native_linux_delegation", "executors": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard.service/executors", "memory_max": "4294967296", "controllers": "cpu memory pids"}
+Sep 12 16:56:05 runnervmlun5p python3[4752]: {"kind": "native_linux_daemon_started", "supervisor_pid": 4752, "daemon_pid": 4754, "executable": "/home/runner/.local/share/stillyard/bin/stillyard"}

@@ -74,11 +74,47 @@ def initialize(root, daemon, executors):
     sync_directory(root)
 
 
+def delegated_unit_setup(root, executors, ram_mb):
+    """Attach only during first setup, after the oneshot unit's initial prune.
+
+    The active/exited delegated unit keeps the cgroup without a resident helper.
+    Daemon restarts must never recreate a missing installed executor tree.
+    """
+    unit = 'stillyard-delegation.service'
+    def property_value(name):
+        return subprocess.check_output(['/usr/bin/systemctl', '--user', 'show', unit,
+                                        '--property=' + name, '--value'], text=True, timeout=10).strip()
+    group = Path('/sys/fs/cgroup') / property_value('ControlGroup').lstrip('/')
+    if (property_value('ActiveState') != 'active' or property_value('SubState') != 'exited'
+            or property_value('MainPID') != '0' or executors != group / 'executors'):
+        raise RuntimeError('native delegation unit is not active/exited at the installed path')
+    first = (root / 'native-install-request.json').exists()
+    if first:
+        if executors.exists() or (root / 'native-install-started.json').exists():
+            raise RuntimeError('first delegation setup conflicts with prior state')
+        subprocess.run(['/usr/bin/busctl', '--user', 'call', 'org.freedesktop.systemd1',
+                        '/org/freedesktop/systemd1', 'org.freedesktop.systemd1.Manager',
+                        'AttachProcessesToUnit', 'ssau', unit, '', '1', str(os.getpid())], check=True, timeout=10)
+        setup = group / 'setup'
+        setup.mkdir()
+        (setup / 'cgroup.procs').write_text(str(os.getpid()))
+        (group / 'cgroup.subtree_control').write_text('+cpu +memory +pids')
+        executors.mkdir()
+        (executors / 'cgroup.subtree_control').write_text('+cpu +memory +pids')
+        (executors / 'memory.max').write_text(str(ram_mb * 1024 * 1024))
+        (executors / 'pids.max').write_text('4096')
+    if (not executors.is_dir() or not {'cpu', 'memory', 'pids'}.issubset(
+            (executors / 'cgroup.subtree_control').read_text().split())
+            or (executors / 'memory.max').read_text().strip() != str(ram_mb * 1024 * 1024)):
+        raise RuntimeError('native delegated executor tree is missing or changed; history retained')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--executors', type=Path, required=True)
     parser.add_argument('--ram-mb', type=int, required=True)
+    parser.add_argument('--setup-only', action='store_true')
     args = parser.parse_args()
     kernel = Path('/proc/sys/kernel/osrelease').read_text().lower()
     if 'microsoft' in kernel or 'wsl' in kernel:
@@ -91,10 +127,14 @@ def main():
     lifetime = importlib.util.module_from_spec(module)
     module.loader.exec_module(lifetime)
     lifetime.private_directory(root)
-    lifetime.delegate(args.executors, args.ram_mb, kind='native_linux')
+    if args.setup_only:
+        delegated_unit_setup(root, args.executors, args.ram_mb)
+    else:
+        lifetime.delegate(args.executors, args.ram_mb, kind='native_linux')
     daemon = root / 'bin/stillyard'
     initialize(root, daemon, args.executors)
-    lifetime.supervise(args.executors, daemon, kind='native_linux')
+    if not args.setup_only:
+        lifetime.supervise(args.executors, daemon, kind='native_linux')
 
 
 if __name__ == '__main__':

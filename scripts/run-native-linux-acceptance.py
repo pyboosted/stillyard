@@ -102,9 +102,10 @@ def main():
            resources={'cargo_slots': 1, 'ram_mb': 64},
            observed={'max_sample_age_seconds': 5, 'cpu_utilization_percent_at_most': 100})
     observed = finish('observed-cpu-memory')['admission']
-    if (not observed or not observed['final_sample'] or not observed['observation_generation']
-            or not observed['operands'] or any(not o['satisfied'] for o in observed['operands'])):
-        raise RuntimeError('native observed admission lacks satisfied final operands')
+    if (not observed or not observed['observation_generation'] or observed['state'] != 'released'
+            or not observed['operands'] or any(not o['satisfied'] for o in observed['operands'])
+            or not observed['detectors'] or any(d['observed'] is None or not d['satisfied'] for d in observed['detectors'])):
+        raise RuntimeError('native observed admission lacks satisfied RAM/CPU operands')
     submit('quiet-cpu-disk', "print('native-quiet-release',flush=True)", quiet={
         'stable_seconds': 1, 'max_sample_age_seconds': 5, 'wait_budget_seconds': 20,
         'detectors': [{'kind': 'cpu_utilization', 'max_percent': 100},

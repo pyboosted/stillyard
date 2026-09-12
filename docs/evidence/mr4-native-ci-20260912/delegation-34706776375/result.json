@@ -1,0 +1,8 @@
+{
+  "delegation_prerequisite_passed": true,
+  "unit": "stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service",
+  "remaining": [
+    "installed daemon restart with actual journal",
+    "whole-host lifecycle"
+  ]
+}

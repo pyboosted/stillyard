@@ -1,0 +1,33 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "print('native-observed-admission',flush=True)"
+  ],
+  "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-354a1cc0b497422990537d0fcefd70cd",
+  "timeout_seconds": 30,
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1,
+    "ram_mb": 64
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "native-process-observed-cpu-memory"
+    }
+  ],
+  "observed": {
+    "max_sample_age_seconds": 5,
+    "cpu_utilization_percent_at_most": 100
+  }
+}

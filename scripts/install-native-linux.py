@@ -57,6 +57,7 @@ def main():
     parser.add_argument('--ram-mb', type=int, default=4096)
     parser.add_argument('--cargo-slots', type=int, default=2)
     parser.add_argument('--apply', action='store_true')
+    parser.add_argument('--no-helper', action='store_true', help='Use the experimental retained delegation unit profile')
     args = parser.parse_args()
     os.umask(0o077)
     kernel = Path('/proc/sys/kernel/osrelease').read_text().lower()
@@ -79,6 +80,9 @@ def main():
     if any(ord(character) < 32 for character in str(root)):
         parser.error('native service installation path must not contain control characters')
     unit = Path.home() / '.config/systemd/user/stillyard.service'
+    delegation_unit = unit.with_name('stillyard-delegation.service')
+    if args.no_helper and (delegation_unit.exists() or delegation_unit.is_symlink()):
+        parser.error('first installation refuses an existing delegation service')
     if root.exists() or root.is_symlink() or unit.exists() or unit.is_symlink():
         parser.error('first installation refuses existing Store or service; preserve it for audited upgrade/recovery')
     if root != root.resolve():
@@ -92,6 +96,8 @@ def main():
     if probe.returncode != 0 or not preflight['prerequisites_passed']:
         parser.error('native prerequisites did not pass; retained at ' + str(evidence))
     executors = Path(f'/sys/fs/cgroup/user.slice/user-{os.geteuid()}.slice/user@{os.geteuid()}.service/app.slice/stillyard.service/executors')
+    if args.no_helper:
+        executors = executors.parent.with_name('stillyard-delegation.service') / 'executors'
     daemon = root / 'bin/stillyard'
     helper = root / 'libexec/native-linux-service.py'
     configuration = {
@@ -122,12 +128,50 @@ UnsetEnvironment=STILLYARD_STORE STILLYARD_ENDPOINT STILLYARD_JOB_ID STILLYARD_A
 [Install]
 WantedBy=default.target
 '''
+    delegation_text = None
+    if args.no_helper:
+        delegation_text = '''[Unit]
+Description=Stillyard retained native executor delegation
+StopWhenUnneeded=no
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/true
+RemainAfterExit=yes
+Delegate=cpu memory pids
+Slice=app.slice
+KillMode=control-group
+'''
+        unit_text = f'''[Unit]
+Description=Stillyard standalone Linux scheduler
+Requires=stillyard-delegation.service
+After=stillyard-delegation.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+ExecStartPre=/usr/bin/python3 {quote(helper)} --root {quote(root)} --executors {quote(executors)} --ram-mb {args.ram_mb} --setup-only
+ExecStart={quote(daemon)} daemon
+WorkingDirectory={str(root).replace('%', '%%')}
+Environment={quote('XDG_DATA_HOME=' + str(root.parent))}
+Slice=app.slice
+KillMode=control-group
+TimeoutStopSec=10
+Restart=on-failure
+RestartSec=2
+UMask=0077
+UnsetEnvironment=STILLYARD_STORE STILLYARD_ENDPOINT STILLYARD_JOB_ID STILLYARD_ATTEMPT STILLYARD_INVOCATION_ID STILLYARD_ROLE
+
+[Install]
+WantedBy=default.target
+'''
     inputs = {name: args.source_root / 'scripts' / name
               for name in ('native-linux-service.py', 'wsl-service.py')}
     hashes = {name: digest(path) for name, path in inputs.items()}
     save(evidence / 'plan.json', {'candidate_sha256': args.candidate_sha256,
                                 'build_origin': args.build_origin, 'store': str(root),
                                 'helper_sha256': hashes, 'unit': str(unit), 'unit_text': unit_text,
+                                'delegation_unit_text': delegation_text, 'no_helper': args.no_helper,
                                 'configuration': configuration, 'apply': args.apply})
     if args.apply:
         root.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -149,6 +193,8 @@ WantedBy=default.target
             'executor_cgroup': str(executors),
         })
         unit.parent.mkdir(parents=True, exist_ok=True)
+        if delegation_text:
+            write_new(delegation_unit, delegation_text.encode())
         write_new(unit, unit_text.encode())
         subprocess.run(['/usr/bin/systemd-analyze', '--user', 'verify', str(unit)], check=True, timeout=15)
         subprocess.run(['/usr/bin/systemctl', '--user', 'daemon-reload'], check=True, timeout=15)

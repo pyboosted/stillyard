@@ -138,3 +138,32 @@ Follow-up script controls passed default WSL Job
 The process suite now also checks detached-descendant cleanup with a durable
 executor seal, active cancellation, managed-child peer authentication and
 idempotent child submission replay. These are staged assertions until native CI runs them.
+
+## No-helper native delegation profile experiment
+
+A-19 retains the standalone no-helper condition. The original native service
+supervisor therefore cannot close that row. An independent source review of
+systemd v255 rejected using a slice (no delegated ownership) or an ordinary
+RemainAfterExit unit alone (initial transition prunes its empty cgroup).
+The experimental `--no-helper` profile starts a separate delegated oneshot unit,
+waits for active/exited, then uses the supported AttachProcessesToUnit API to
+realize its cgroup after that initial prune. A short setup process creates the
+executor tree; the daemon runs in a separate service with automatic restart.
+The delegation unit has no PartOf restart relationship and no resident process.
+Restarting an installed daemon never recreates a missing executor tree.
+
+[Delegation prerequisite 34706776375](https://github.com/pyboosted/stillyard/actions/runs/34706776375)
+passed on a disposable native Ubuntu VM: controller delegation, a live child
+after setup exit, all processes gone with unchanged empty cgroup inodes, and
+unchanged inodes after daemon-reload; MainPID remained zero and unit active/exited.
+[Raw proof](evidence/mr4-native-ci-20260912/delegation-34706776375/).
+This prerequisite is not yet actual installed Stillyard crash/lifecycle evidence.
+The next native CI selects this experimental profile and repeats the real suite.
+
+Native observation control run 34706665968 revealed an incorrect harness
+expectation: ordinary observed admission intentionally has `final_sample=false`
+(as asserted by the existing direct-observed admission test), while strict quiet
+uses the final release barrier. The control now checks actual RAM/CPU operands
+and released state; its quiet case continues requiring final samples.
+[Failed controller evidence](evidence/mr4-native-ci-20260912/run-34706665968/).
+Superseded native run 34706776316 was canceled before repeating that known failure.

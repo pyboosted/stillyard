@@ -1,0 +1,47 @@
+[
+  {
+    "name": "setup-exited-child-alive",
+    "unit_state": "MainPID=0\nActiveState=active\nSubState=exited",
+    "inodes": {
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service": 6799,
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service/setup": 6849,
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service/executors": 6899,
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service/executors/empty": 6949,
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service/executors/live": 6999
+    },
+    "events": {
+      "populated": "1",
+      "frozen": "0"
+    }
+  },
+  {
+    "name": "all-processes-exited",
+    "unit_state": "MainPID=0\nActiveState=active\nSubState=exited",
+    "inodes": {
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service": 6799,
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service/setup": 6849,
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service/executors": 6899,
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service/executors/empty": 6949,
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service/executors/live": 6999
+    },
+    "events": {
+      "populated": "0",
+      "frozen": "0"
+    }
+  },
+  {
+    "name": "empty-after-daemon-reload",
+    "unit_state": "MainPID=0\nActiveState=active\nSubState=exited",
+    "inodes": {
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service": 6799,
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service/setup": 6849,
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service/executors": 6899,
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service/executors/empty": 6949,
+      "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation-probe-df5df758e0e541f8a4a2441c564a3908.service/executors/live": 6999
+    },
+    "events": {
+      "populated": "0",
+      "frozen": "0"
+    }
+  }
+]

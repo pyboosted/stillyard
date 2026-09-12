@@ -54,7 +54,7 @@ jobs:
             --candidate "$PWD/target/debug/stillyard" \
             --candidate-sha256 "$(sha256sum target/debug/stillyard | cut -d ' ' -f1)" \
             --build-origin "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-            --evidence-directory "$PWD/native-evidence" --ram-mb 4096 --cargo-slots 2 --apply
+            --evidence-directory "$PWD/native-evidence" --ram-mb 4096 --cargo-slots 2 --no-helper --apply
       - name: Native process and local-allocation acceptance
         run: python3 scripts/run-native-linux-acceptance.py --evidence-directory "$PWD/native-evidence"
       - name: Native daemon crash with retained executor history
@@ -73,6 +73,8 @@ jobs:
           mkdir -p native-evidence
           journalctl --user -u stillyard.service --no-pager > native-evidence/service-journal.txt || true
           systemctl --user show stillyard.service > native-evidence/service-state.txt || true
+          systemctl --user show stillyard-delegation.service > native-evidence/delegation-state.txt || true
+          journalctl --user -u stillyard-delegation.service --no-pager > native-evidence/delegation-journal.txt || true
           sudo aa-status > native-evidence/apparmor-status.txt || true
           sudo journalctl -k --no-pager > native-evidence/kernel-journal.txt || true
           python3 - <<'PY'

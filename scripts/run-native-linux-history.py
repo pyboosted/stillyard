@@ -109,7 +109,8 @@ def main():
         while True:
             output = journal()
             delta = output[len(baseline):] if output.startswith(baseline) else output
-            if 'executor history/anchor is unknown or mismatched' in delta and 'native_linux_daemon_exited' in delta:
+            if ('executor history/anchor is unknown or mismatched' in delta
+                    and ('native_linux_daemon_exited' in delta or 'Main process exited' in delta)):
                 break
             if time.monotonic() >= until:
                 (directory / 'failed-service-journal.txt').write_text(output)
