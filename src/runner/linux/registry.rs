@@ -25,11 +25,71 @@ enum Entry {
     Sealed,
     Uninspectable,
 }
+
+pub(crate) struct NativeObligation {
+    pub(crate) invocation: InvocationId,
+    pub(crate) containment: crate::ContainmentId,
+    pub(crate) lease: uuid::Uuid,
+    pub(crate) sealed: bool,
+    pub(crate) permission: Option<crate::machine::NativeStartPermission>,
+}
 fn poisoned() -> io::Error {
     io::Error::other("Linux containment registry mutex poisoned")
 }
 
 impl Registry {
+    pub(crate) fn native_inventory(&self) -> io::Result<Vec<NativeObligation>> {
+        self.with_journal(|journal| {
+            journal
+                .records()?
+                .iter()
+                .map(|(invocation, record)| {
+                    if record.release_intent.is_some() {
+                        return Err(io::Error::other(
+                            "native executor history contains an attached Ticket",
+                        ));
+                    }
+                    Ok(NativeObligation {
+                        invocation: *invocation,
+                        containment: record.containment,
+                        lease: record.lease,
+                        sealed: record.seal.is_some(),
+                        permission: record.native_release_intent.clone(),
+                    })
+                })
+                .collect()
+        })
+    }
+    pub(crate) fn has_durable_seal(&self, invocation: InvocationId) -> io::Result<bool> {
+        self.with_journal(|journal| {
+            Ok(journal
+                .records()?
+                .get(&invocation)
+                .is_some_and(|record| record.seal.is_some()))
+        })
+    }
+    pub(crate) fn verify_durable_seal(
+        &self,
+        invocation: InvocationId,
+        boundary: &str,
+        proof: &str,
+    ) -> io::Result<()> {
+        self.with_journal(|journal| {
+            let seal = journal
+                .records()?
+                .get(&invocation)
+                .and_then(|record| record.seal.as_ref())
+                .ok_or_else(|| {
+                    io::Error::other("native Invocation has no durable executor seal")
+                })?;
+            if seal.boundary_sha256 != boundary || seal.sha256()? != proof {
+                return Err(io::Error::other(
+                    "native cleanup proof differs from executor history",
+                ));
+            }
+            Ok(())
+        })
+    }
     pub(crate) fn durable_seals(&self) -> io::Result<Vec<(InvocationId, String, String)>> {
         self.with_journal(|journal| {
             journal
@@ -61,7 +121,7 @@ impl Registry {
                 })?;
             Ok((seal.boundary_sha256.clone(), seal.sha256()?))
         })?;
-        store.record_attached_cleanup(invocation, &boundary, &proof, None)
+        store.record_linux_cleanup(invocation, &boundary, &proof, None)
     }
     pub(super) fn install(
         &self,

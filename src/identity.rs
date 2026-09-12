@@ -56,7 +56,7 @@ pub(crate) fn probe_startup_identity() -> StartupIdentity {
 
 #[cfg(target_os = "linux")]
 pub(crate) fn probe_attached_linux_identity() -> StartupIdentity {
-    // This branch is selected only by an explicit installed attachment. Opening
+    // Selected only by an explicit installed Linux runtime. Opening
     // an ordinary unpaired Linux Store does not enable an execution backend.
     match linux::Process::open(std::process::id(), unsafe { libc::geteuid() }) {
         Ok(process) => match process.identity {

@@ -1,0 +1,29 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import pathlib,subprocess; files=['install-native-linux.py','native-linux-service.py','probe-native-linux.py','wsl-service.py','test-native-linux-service.py']; [(compile((pathlib.Path('scripts')/name).read_text(), name, 'exec')) for name in files]; subprocess.run(['/usr/bin/python3','scripts/test-native-linux-service.py'],check=True,timeout=30); subprocess.run(['/usr/bin/python3','scripts/test-wsl-service.py'],check=True,timeout=40)"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard",
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin",
+      "PYTHONDONTWRITEBYTECODE": "1"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1
+  },
+  "timeout_seconds": 90,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "native-linux-service-controls"
+    }
+  ]
+}

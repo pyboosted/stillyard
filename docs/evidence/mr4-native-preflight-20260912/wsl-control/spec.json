@@ -1,0 +1,28 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import json,subprocess,sys; r=subprocess.run([sys.executable,'scripts/probe-native-linux.py'],capture_output=True,text=True,timeout=25); print(r.stdout,flush=True); print(r.stderr,file=sys.stderr,flush=True); d=json.loads(r.stdout); assert r.returncode==2 and not d['prerequisites']['native_linux'] and not d['native_installation_accepted']; print('wsl-is-not-native-control-passed',flush=True)"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard",
+  "environment": {
+    "set": {
+      "HOME": "/home/pythonic",
+      "PATH": "/usr/bin:/bin",
+      "LANG": "C.UTF-8"
+    }
+  },
+  "resources": {},
+  "timeout_seconds": 40,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "case",
+      "value": "mr4-native-preflight-wsl-negative"
+    }
+  ]
+}

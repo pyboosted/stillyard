@@ -44,6 +44,13 @@ impl Drop for ContainmentRegistration {
 
 impl LiveContainments {
     #[cfg(target_os = "linux")]
+    pub(crate) fn native_linux(registry: linux::registry::Registry) -> Self {
+        Self {
+            linux: registry,
+            linux_releases: Default::default(),
+        }
+    }
+    #[cfg(target_os = "linux")]
     pub(crate) fn persist_linux_cleanup(
         &self,
         store: &mut Store,

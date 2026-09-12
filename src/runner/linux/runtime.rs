@@ -30,7 +30,7 @@ pub(in crate::runner) fn execute(
     progress: &mut RunProgress,
     wake: &ReconciliationWake,
 ) -> RunResult<(u32, bool)> {
-    let (lease, parent, generation) = lock(store)?.attached_launch_identity(job)?;
+    let (lease, parent, generation, attached) = lock(store)?.linux_launch_identity(job)?;
     #[cfg(test)]
     let parent = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT")
         .map(std::path::PathBuf::from)
@@ -106,12 +106,13 @@ pub(in crate::runner) fn execute(
         })?);
         live.linux
             .register(job.invocation_id, Arc::clone(&boundary))?;
-        launch = Some(PreparedLaunch::prepare(
+        launch = Some(PreparedLaunch::prepare_profile(
             &boundary,
             &helper,
             &spec,
             stdin,
             Instant::now() + Duration::from_secs(30),
+            attached,
         )?);
         let child = launch.as_mut().unwrap();
         live.linux
@@ -158,55 +159,62 @@ pub(in crate::runner) fn execute(
                 job.role == InvocationRole::Primary,
             )?);
         }
-        lock(store)?.request_attached_ticket(
-            job,
-            &root,
-            &child.requested_sha256,
-            &boundary_hash,
-        )?;
-        wake();
-        let until = Instant::now()
-            + Duration::from_secs(
-                job.spec
-                    .quiet
-                    .as_ref()
-                    .map_or(5, |q| q.wait_budget_seconds.saturating_add(5)),
-            );
-        let mut retry_at = Instant::now() + Duration::from_secs(1);
-        let ticket = loop {
-            if let Some(stop) = lifecycle::pending_stop_verdict(job, store, is_guarded(job))? {
-                progress.canceled = stop.verdict == crate::AttemptVerdict::Canceled;
-                progress.timed_out = stop.verdict == crate::AttemptVerdict::TimedOut;
-                if is_guarded(job) {
-                    progress.never_run_reason = Some(stop.reason.clone());
+        let ticket = if attached {
+            lock(store)?.request_attached_ticket(
+                job,
+                &root,
+                &child.requested_sha256,
+                &boundary_hash,
+            )?;
+            wake();
+            let until = Instant::now()
+                + Duration::from_secs(
+                    job.spec
+                        .quiet
+                        .as_ref()
+                        .map_or(5, |q| q.wait_budget_seconds.saturating_add(5)),
+                );
+            let mut retry_at = Instant::now() + Duration::from_secs(1);
+            let ticket = loop {
+                if let Some(stop) = lifecycle::pending_stop_verdict(job, store, is_guarded(job))? {
+                    progress.canceled = stop.verdict == crate::AttemptVerdict::Canceled;
+                    progress.timed_out = stop.verdict == crate::AttemptVerdict::TimedOut;
+                    if is_guarded(job) {
+                        progress.never_run_reason = Some(stop.reason.clone());
+                    }
+                    return Err(io::Error::other(stop.reason).into());
                 }
-                return Err(io::Error::other(stop.reason).into());
-            }
-            if let Some(ticket) = lock(store)?.attached_ticket(job.invocation_id)? {
-                break ticket;
-            }
-            if Instant::now() >= retry_at {
-                let retried = lock(store)?.retry_waiting_attached_ticket(job.invocation_id)?;
-                if retried {
-                    wake();
+                if let Some(ticket) = lock(store)?.attached_ticket(job.invocation_id)? {
+                    break ticket;
                 }
-                retry_at = Instant::now() + Duration::from_secs(1);
-            }
-            if Instant::now() >= until {
-                return Err(io::Error::new(
-                    io::ErrorKind::TimedOut,
-                    "Invocation Ticket response deadline",
-                )
-                .into());
-            }
-            std::thread::sleep(Duration::from_millis(5));
+                if Instant::now() >= retry_at {
+                    let retried = lock(store)?.retry_waiting_attached_ticket(job.invocation_id)?;
+                    if retried {
+                        wake();
+                    }
+                    retry_at = Instant::now() + Duration::from_secs(1);
+                }
+                if Instant::now() >= until {
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "Invocation Ticket response deadline",
+                    )
+                    .into());
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            };
+            live.linux
+                .with_journal(|journal| journal.release_intent(&ticket))?;
+            Some(ticket)
+        } else {
+            None
         };
-        let barrier = live.linux_releases.barrier(job.invocation_id)?;
+        let barrier = if attached {
+            Some(live.linux_releases.barrier(job.invocation_id)?)
+        } else {
+            None
+        };
         let executable_hash = child.requested_sha256.clone();
-        live.linux
-            .with_journal(|journal| journal.release_intent(&ticket))?;
-        #[cfg(test)]
-        crate::test_support::linux_runtime_checkpoint("release-intent");
         let runtime_deadline = Cell::new(job.attempt_deadline_unix_millis);
         let evidence_expiry = Cell::new(u64::MAX);
         let consumed = Cell::new(false);
@@ -214,127 +222,163 @@ pub(in crate::runner) fn execute(
         let mut release =
             |sample: Option<&crate::host_observation::HostSample>| -> RunResult<Disposition> {
                 let mut guard = lock(store)?;
+                if !attached {
+                    let permission = guard
+                        .native_start_permission(job, &executable_hash, Some(&root))?
+                        .ok_or_else(|| {
+                            io::Error::other("native launch requires local start permission")
+                        })?;
+                    live.linux
+                        .with_journal(|journal| journal.native_release_intent(&permission))?;
+                    if is_guarded(job) {
+                        guard.record_suspended_root(job, pid, &executable_hash, &root)?;
+                    }
+                }
+                #[cfg(test)]
+                crate::test_support::linux_runtime_checkpoint("release-intent");
                 let locked = RefCell::new(&mut *guard);
-                let disposition = barrier.release(
-                    &ticket,
-                    generation,
-                    || {
-                        let mut store = locked.borrow_mut();
-                        store.check_authority_release().map_err(protocol_error)?;
-                        if !store
-                            .attached_observation_ready(job, lease, sample)
+                let local_ready = || -> crate::machine::manager::Result<bool> {
+                    let mut store = locked.borrow_mut();
+                    store.check_authority_release().map_err(protocol_error)?;
+                    if !store
+                        .attached_observation_ready(job, lease, sample)
+                        .map_err(protocol_error)?
+                    {
+                        return Ok(false);
+                    }
+                    if store
+                        .invocation_stop_requested(job.job_id)
+                        .map_err(protocol_error)?
+                    {
+                        return Ok(false);
+                    }
+                    let (wall, monotonic) = crate::host_observation::observation_clock()?;
+                    if runtime_deadline
+                        .get()
+                        .is_some_and(|deadline| wall >= deadline)
+                        || monotonic >= evidence_expiry.get()
+                    {
+                        return Ok(false);
+                    }
+                    if is_guarded(job)
+                        && store
+                            .pre_resume_defer_reason(job.job_id)
                             .map_err(protocol_error)?
+                            .is_some()
+                    {
+                        return Ok(false);
+                    }
+                    if let Some(sample) = sample {
+                        let Some(wall_age) = wall
+                            .checked_sub(sample.captured_unix_millis)
+                            .and_then(|n| u64::try_from(n).ok())
+                        else {
+                            return Ok(false);
+                        };
+                        let Some(age) = monotonic.checked_sub(sample.captured_monotonic_millis)
+                        else {
+                            return Ok(false);
+                        };
+                        if wall_age.abs_diff(age) > observation.release_discontinuity_limit_millis()
                         {
                             return Ok(false);
                         }
-                        if store
-                            .invocation_stop_requested(job.job_id)
-                            .map_err(protocol_error)?
-                        {
-                            return Ok(false);
-                        }
-                        let (wall, monotonic) = crate::host_observation::observation_clock()?;
-                        if runtime_deadline
-                            .get()
-                            .is_some_and(|deadline| wall >= deadline)
-                            || monotonic >= evidence_expiry.get()
-                        {
-                            return Ok(false);
-                        }
-                        if is_guarded(job)
-                            && store
-                                .pre_resume_defer_reason(job.job_id)
-                                .map_err(protocol_error)?
-                                .is_some()
-                        {
-                            return Ok(false);
-                        }
-                        if let Some(sample) = sample {
-                            let Some(wall_age) = wall
-                                .checked_sub(sample.captured_unix_millis)
-                                .and_then(|n| u64::try_from(n).ok())
-                            else {
-                                return Ok(false);
-                            };
-                            let Some(age) = monotonic.checked_sub(sample.captured_monotonic_millis)
-                            else {
-                                return Ok(false);
-                            };
-                            if wall_age.abs_diff(age)
-                                > observation.release_discontinuity_limit_millis()
-                            {
-                                return Ok(false);
-                            }
-                        }
-                        Ok(true)
-                    },
-                    || {
-                        let mut store = locked.borrow_mut();
-                        let (wall, monotonic) = crate::host_observation::observation_clock()?;
-                        let moment =
-                            sample.map(|sample| crate::host_observation::ObservationMoment {
-                                sample,
-                                now_unix_millis: wall,
-                                now_monotonic_millis: monotonic,
-                                live_clock: true,
-                            });
-                        let authorization = if is_guarded(job) {
-                            if job.spec.quiet.is_some() {
-                                store.authorize_release_with_ticket(
-                                    job,
-                                    moment.ok_or_else(|| {
-                                        protocol_error("quiet sample unavailable")
-                                    })?,
-                                    Some(&ticket),
-                                )
-                            } else {
-                                store.authorize_condition_release_with_ticket(
-                                    job,
-                                    moment,
-                                    Some(&ticket),
-                                )
-                            }
+                    }
+                    Ok(true)
+                };
+                let commit = || -> crate::machine::manager::Result<bool> {
+                    let mut store = locked.borrow_mut();
+                    let (wall, monotonic) = crate::host_observation::observation_clock()?;
+                    let moment = sample.map(|sample| crate::host_observation::ObservationMoment {
+                        sample,
+                        now_unix_millis: wall,
+                        now_monotonic_millis: monotonic,
+                        live_clock: true,
+                    });
+                    let authorization = if is_guarded(job) {
+                        if job.spec.quiet.is_some() {
+                            store.authorize_release_with_ticket(
+                                job,
+                                moment.ok_or_else(|| protocol_error("quiet sample unavailable"))?,
+                                ticket.as_ref(),
+                            )
                         } else {
-                            store
-                                .mark_started_with_ticket(
-                                    job,
-                                    pid,
-                                    &executable_hash,
-                                    Some(&root),
-                                    Some(&ticket),
-                                )
-                                .map(|()| ReleaseAuthorization::Authorized {
-                                    runtime_deadline_unix_millis: job.attempt_deadline_unix_millis,
-                                    evidence_expires_monotonic_millis: u64::MAX,
-                                })
+                            store.authorize_condition_release_with_ticket(
+                                job,
+                                moment,
+                                ticket.as_ref(),
+                            )
                         }
-                        .map_err(protocol_error)?;
-                        match authorization {
-                            ReleaseAuthorization::Authorized {
-                                runtime_deadline_unix_millis,
-                                evidence_expires_monotonic_millis,
-                            } => {
-                                runtime_deadline.set(runtime_deadline_unix_millis);
-                                evidence_expiry.set(evidence_expires_monotonic_millis);
-                                consumed.set(true);
-                                Ok(true)
-                            }
-                            ReleaseAuthorization::Deferred { reason } => {
-                                *deferred.borrow_mut() = Some(reason.clone());
-                                Err(protocol_error(reason))
-                            }
+                    } else {
+                        store
+                            .mark_started_with_ticket(
+                                job,
+                                pid,
+                                &executable_hash,
+                                Some(&root),
+                                ticket.as_ref(),
+                            )
+                            .map(|()| ReleaseAuthorization::Authorized {
+                                runtime_deadline_unix_millis: job.attempt_deadline_unix_millis,
+                                evidence_expires_monotonic_millis: u64::MAX,
+                            })
+                    }
+                    .map_err(protocol_error)?;
+                    match authorization {
+                        ReleaseAuthorization::Authorized {
+                            runtime_deadline_unix_millis,
+                            evidence_expires_monotonic_millis,
+                        } => {
+                            runtime_deadline.set(runtime_deadline_unix_millis);
+                            evidence_expiry.set(evidence_expires_monotonic_millis);
+                            consumed.set(true);
+                            Ok(true)
                         }
-                    },
-                    || {
-                        #[cfg(test)]
-                        crate::test_support::linux_runtime_checkpoint("consumed");
-                        child.release()?;
-                        #[cfg(test)]
-                        crate::test_support::linux_runtime_checkpoint("released");
-                        Ok(())
-                    },
-                )?;
-                Ok(disposition)
+                        ReleaseAuthorization::Deferred { reason } => {
+                            *deferred.borrow_mut() = Some(reason.clone());
+                            Err(protocol_error(reason))
+                        }
+                    }
+                };
+                let mut kernel_release = || -> io::Result<()> {
+                    #[cfg(test)]
+                    crate::test_support::linux_runtime_checkpoint("consumed");
+                    child.release()?;
+                    #[cfg(test)]
+                    crate::test_support::linux_runtime_checkpoint("released");
+                    Ok(())
+                };
+                if let (Some(barrier), Some(ticket)) = (barrier.as_ref(), ticket.as_ref()) {
+                    Ok(barrier.release(ticket, generation, local_ready, commit, kernel_release)?)
+                } else {
+                    // The Store mutex serializes local authority, cancellation,
+                    // lifecycle commit and the final kernel release. Native
+                    // admission uses the same local Lease, without a Ticket.
+                    if !local_ready()? {
+                        if is_guarded(job) {
+                            *deferred.borrow_mut() =
+                                Some("native readiness unavailable before commit".into());
+                        }
+                        return Err(io::Error::other("native release is locally unready").into());
+                    }
+                    if !commit()? {
+                        return Err(io::Error::other("native release already committed").into());
+                    }
+                    if !local_ready().unwrap_or(false) {
+                        if is_guarded(job) {
+                            *deferred.borrow_mut() =
+                                Some("readiness expired after native commit".into());
+                        }
+                        return Err(io::Error::other(
+                            "native kernel release prevented after commit",
+                        )
+                        .into());
+                    }
+                    Ok(match kernel_release() {
+                        Ok(()) => Disposition::Released,
+                        Err(error) => Disposition::Uncertain(error),
+                    })
+                }
             };
         let released = if job.spec.requires_host_observation() {
             observation
@@ -346,6 +390,15 @@ pub(in crate::runner) fn execute(
         };
         progress.durable_release_authorized = consumed.get();
         progress.never_run_reason = deferred.into_inner();
+        if !attached && released.is_err() {
+            if let Some(stop) = lifecycle::pending_stop_verdict(job, store, is_guarded(job))? {
+                progress.canceled = stop.verdict == crate::AttemptVerdict::Canceled;
+                progress.timed_out = stop.verdict == crate::AttemptVerdict::TimedOut;
+                if is_guarded(job) {
+                    progress.never_run_reason = Some(stop.reason);
+                }
+            }
+        }
         match released? {
             Disposition::Released => {
                 progress.user_code_released = true;
@@ -393,13 +446,15 @@ pub(in crate::runner) fn execute(
             .cleanup(job.invocation_id, Instant::now() + Duration::from_secs(30))?;
         #[cfg(test)]
         crate::test_support::linux_runtime_checkpoint("sealed");
-        lock(store)?.record_attached_cleanup(
+        lock(store)?.record_linux_cleanup(
             job.invocation_id,
             &seal.boundary_sha256,
             &seal.sha256()?,
             never.as_deref(),
         )?;
-        live.linux_releases.retire(job.invocation_id)?;
+        if attached {
+            live.linux_releases.retire(job.invocation_id)?;
+        }
         progress.cleanup_proven = true;
         if let Some(child) = launch.as_mut() {
             if let Some(exit) = child.reap_after_cleanup(Instant::now() + Duration::from_secs(5))? {

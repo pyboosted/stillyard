@@ -1,0 +1,134 @@
+[
+  {
+    "directory": "wsl-fmt-write-74284463c7104d20b701c4fe100421ba",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09658-a439-7c00-97f0-c67e8fd399a9",
+    "state": "final",
+    "outcome": "succeeded",
+    "grants": [
+      {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a09658-a45c-7831-8d88-5a69e896c10c",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "directory": "wsl-check-89b7d3c9020047b296748d12b3ecc24b",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09664-4e77-7d12-9132-735a348da014",
+    "state": "final",
+    "outcome": "succeeded",
+    "grants": [
+      {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a09664-4e95-7f50-9ac0-167b2ee31bc7",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "directory": "wsl-clippy-e604667cd06b4dcc901537e8d2b8b716",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0965f-afa8-7e52-93c7-72cd926fa779",
+    "state": "final",
+    "outcome": "failed",
+    "grants": [
+      {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0965f-afc7-72f3-af77-1c1018097287",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "directory": "wsl-clippy-d6230fc8eef3444cb31655948572a118",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09664-4e92-7bd0-8943-dac3a89062bb",
+    "state": "final",
+    "outcome": "succeeded",
+    "grants": [
+      {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a09664-6cc8-7690-a957-57a11b7eefdc",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "directory": "wsl-fmt-write-b02e10f70a2646dfbb36870d5a92372d",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0965f-8ce0-7481-b40b-eefffd49a3b3",
+    "state": "final",
+    "outcome": "succeeded",
+    "grants": [
+      {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0965f-8d01-79b2-abd8-ed054d072b69",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "directory": "wsl-test-be062a0e7def404b83bc0b8f6f527562",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0965c-f58c-73b2-9e60-cbd335f934db",
+    "state": "final",
+    "outcome": "succeeded",
+    "grants": [
+      {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0965c-f5ac-7ea1-8215-347c25016197",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "directory": "wsl-check-9adc36798aa7490cae12ee40608623ff",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09659-0085-78e0-8731-5f3d5d6be18f",
+    "state": "final",
+    "outcome": "failed",
+    "grants": [
+      {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a09659-00c2-7f71-a506-89592d5918ce",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "directory": "wsl-fmt-write-0db05fc1a82e4e2ca3fc14a0baffd88c",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09663-e508-7c71-8927-eb892dfef8ac",
+    "state": "final",
+    "outcome": "succeeded",
+    "grants": [
+      {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a09663-e526-7562-83b5-25ad6e29cf37",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "directory": "wsl-test-5c3ab3fff7554bc7bb3fbc09b2272957",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0965f-b448-7822-9c3c-253bc61dbbaa",
+    "state": "final",
+    "outcome": "succeeded",
+    "grants": [
+      {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0965f-d173-7322-9fef-68abc69b751f",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "directory": "wsl-fmt-write-06e5319ce98e4960a0dbf7bf910a2554",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0965c-72b5-7291-94f6-6d59306be95a",
+    "state": "final",
+    "outcome": "succeeded",
+    "grants": [
+      {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0965c-72d4-7863-b34d-437a567d16c8",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "directory": "native-service-controls",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09664-528c-7261-b43d-e6048766311d",
+    "state": "final",
+    "outcome": "succeeded",
+    "grants": [
+      {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a09664-8d2d-7ba3-ac9c-663bbfd22280",
+        "state": "released"
+      }
+    ]
+  }
+]

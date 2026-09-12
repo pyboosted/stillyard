@@ -67,7 +67,7 @@ def keepalive(root):
         signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
 
 
-def delegate(executors, ram_mb):
+def delegate(executors, ram_mb, kind="wsl"):
     # DelegateSubgroup=manager keeps service processes out of the delegated
     # parent, which must be empty before enabling domain controllers.
     entry = Path("/proc/self/cgroup").read_text().strip()
@@ -87,12 +87,12 @@ def delegate(executors, ram_mb):
         raise RuntimeError("invalid executor RAM hard limit")
     (executors / "memory.max").write_text(str(ram_mb * 1024 * 1024))
     (executors / "pids.max").write_text("4096")
-    print(json.dumps({"kind": "wsl_delegation", "executors": str(executors),
+    print(json.dumps({"kind": kind + "_delegation", "executors": str(executors),
                       "memory_max": (executors / "memory.max").read_text().strip(),
                       "controllers": (executors / "cgroup.subtree_control").read_text().strip()}), flush=True)
 
 
-def supervise(executors, daemon):
+def supervise(executors, daemon, kind="wsl"):
     """Keep delegation alive across daemon crashes; never clean user cgroups.
 
     systemd 259 may spawn a restarted unit into a non-leaf cgroup (EBUSY).
@@ -166,7 +166,7 @@ def supervise(executors, daemon):
                 pidfd = os.pidfd_open(child.pid)
                 selector.register(pidfd, selectors.EVENT_READ)
                 registered = True
-                emit({"kind": "wsl_daemon_started", "supervisor_pid": os.getpid(),
+                emit({"kind": kind + "_daemon_started", "supervisor_pid": os.getpid(),
                       "daemon_pid": child.pid, "executable": str(daemon)})
                 while child.poll() is None and not closing:
                     for key, _ in selector.select():
@@ -183,7 +183,7 @@ def supervise(executors, daemon):
                         clear_control()
                 code = child.wait(timeout=1)
                 clear_control()
-                emit({"kind": "wsl_daemon_exited", "daemon_pid": child.pid,
+                emit({"kind": kind + "_daemon_exited", "daemon_pid": child.pid,
                       "exit_code": code, "service_stopping": closing})
                 child = None
                 if closing:
@@ -191,7 +191,7 @@ def supervise(executors, daemon):
             except Exception as error:
                 # Retain the main process and delegated tree even when spawn,
                 # inspection or teardown fails. Never infer executor emptiness.
-                emit({"kind": "wsl_supervisor_retry", "error": str(error),
+                emit({"kind": kind + "_supervisor_retry", "error": str(error),
                       "service_stopping": closing})
             finally:
                 if registered:

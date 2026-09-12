@@ -28,6 +28,16 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     #[cfg(target_os = "linux")]
+    /// Install a fresh stopped native Linux store with its own machine coordinator.
+    LinuxInstall {
+        /// Select an isolated store; requires --endpoint as well.
+        #[arg(long)]
+        store: Option<PathBuf>,
+        /// Empty delegated cgroup reserved for this installation's executors.
+        #[arg(long)]
+        executor_cgroup: PathBuf,
+    },
+    #[cfg(target_os = "linux")]
     /// Prepare a stopped WSL store or apply its owner-only pairing configuration.
     WslInstall {
         /// Select an isolated store; requires --endpoint as well.
@@ -433,6 +443,17 @@ fn main() {
 fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let Cli { endpoint, command } = cli;
     match command {
+        #[cfg(target_os = "linux")]
+        Command::LinuxInstall {
+            store,
+            executor_cgroup,
+        } => {
+            print_json(&stillyard::configure_native_linux(
+                store,
+                endpoint,
+                executor_cgroup,
+            )?)?;
+        }
         #[cfg(target_os = "linux")]
         Command::WslInstall {
             store,

@@ -183,12 +183,24 @@ pub(super) struct PreparedLaunch {
 }
 
 impl PreparedLaunch {
+    #[cfg(test)]
     pub(super) fn prepare(
         boundary: &Boundary,
         helper: &Path,
         spec: &LaunchSpec,
         stdin: File,
         deadline: Instant,
+    ) -> io::Result<Self> {
+        Self::prepare_profile(boundary, helper, spec, stdin, deadline, true)
+    }
+
+    pub(super) fn prepare_profile(
+        boundary: &Boundary,
+        helper: &Path,
+        spec: &LaunchSpec,
+        stdin: File,
+        deadline: Instant,
+        hide_wsl_interop: bool,
     ) -> io::Result<Self> {
         let control = ControlDirectory::new()?;
         let spec_path = control.0.join("spec.json");
@@ -229,15 +241,15 @@ impl PreparedLaunch {
             "--unshare-cgroup",
             "--new-session",
             "--die-with-parent",
-            "--ro-bind",
-            "/dev/null",
-            "/init",
             "--tmpfs",
             "/run",
             "--ro-bind",
             "/sys/fs/cgroup",
             "/sys/fs/cgroup",
         ]);
+        if hide_wsl_interop {
+            command.args(["--ro-bind", "/dev/null", "/init"]);
+        }
         // Tests receive a writable alias inside the outer bootstrap cgroup.
         // The actual Invocation must not inherit that alternate writable mount.
         if let Some(alias) = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT") {

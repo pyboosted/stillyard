@@ -445,6 +445,8 @@ pub(crate) struct Store {
     startup_identity: StartupIdentity,
     bound_host_id: Option<HostId>,
     authority: Option<std::sync::Arc<std::sync::Mutex<crate::authority::Authority>>>,
+    #[cfg(target_os = "linux")]
+    native_executor: Option<crate::runner::linux::registry::Registry>,
 }
 
 impl Store {
@@ -478,6 +480,8 @@ impl Store {
             startup_identity: self.startup_identity.clone(),
             bound_host_id: self.bound_host_id.clone(),
             authority: self.authority.clone(),
+            #[cfg(target_os = "linux")]
+            native_executor: self.native_executor.clone(),
         })
     }
 
@@ -503,6 +507,15 @@ impl Store {
         #[cfg(target_os = "linux")]
         let identity = if attached::installation::load(&paths.root)?.is_some() {
             crate::identity::probe_attached_linux_identity()
+        } else if let Some(configuration) = native_linux::load(&paths.root)? {
+            native_linux::require_native_host()?;
+            let identity = crate::identity::probe_attached_linux_identity();
+            if identity.host_id.as_ref() != Some(&configuration.host_id) {
+                return Err(StoreError::InvalidState(
+                    "native installation belongs to another host".into(),
+                ));
+            }
+            identity
         } else {
             identity
         };
@@ -601,12 +614,16 @@ impl Store {
         machine::initialize_schema(&connection)?;
         process_records::initialize(&connection)?;
         attached::initialize_schema(&connection)?;
+        #[cfg(target_os = "linux")]
+        native_linux::initialize_schema(&connection)?;
         // A new daemon generation must reconnect before any attached admission.
         connection.execute("UPDATE attached_local_mode SET connected=0", [])?;
         normalize_reservations_for_capacities(&mut connection, &config.resources, now_millis())?;
         let store_uuid = current_store_uuid(&connection)?;
         #[cfg(target_os = "linux")]
         attached::installation::validate_store(&paths.root, &connection, store_uuid)?;
+        #[cfg(target_os = "linux")]
+        native_linux::validate_store(&paths.root, &connection, store_uuid)?;
         let config_sha256 = format!("{:x}", Sha256::digest(serde_json::to_vec(&config)?));
         let bound_host_id = meta_value(&connection, "bound_host_id")?.map(HostId);
         let daemon_generation = Uuid::now_v7();
@@ -633,6 +650,8 @@ impl Store {
             startup_identity,
             bound_host_id,
             authority: None,
+            #[cfg(target_os = "linux")]
+            native_executor: None,
         };
         store.recover_interrupted()?;
         store.resume_received()?;
@@ -711,6 +730,8 @@ mod machine_recovery;
 mod machine_reservation;
 mod machine_reset;
 mod machine_ticket;
+#[cfg(target_os = "linux")]
+pub(crate) mod native_linux;
 mod observation;
 mod process_records;
 mod reconciliation;

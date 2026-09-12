@@ -15,6 +15,26 @@ MSVC environment; production code remains unchanged.
 **Full original MR-3 delivery remains incomplete:** lifecycle coverage is
 explicitly deferred, not passed. Standalone Linux and containers remain MR-4.
 
+The user subsequently requested starting standalone Linux as the next active
+goal. MR-4 development starts from main `49b9b95`, on branch `linux`, without
+reopening the prohibited WSL lifecycle window. The first slice is the native
+Linux manager/coordinator/executor and its installation/acceptance; container
+runtime delivery remains a separate required part of full MR-4. A separate
+native Linux acceptance host has been requested; WSL results will not be
+relabeled as native-host acceptance. [Implementation and evidence plan](native-linux-plan.md).
+
+Native core checkpoint: explicit stopped installation, local start permissions,
+native executor history and retained-debit recovery gate are implemented. Default
+WSL test Job `01a0965f-b448-7822-9c3c-253bc61dbbaa`, check
+`01a09664-4e77-7d12-9132-735a348da014`, Clippy
+`01a09664-4e92-7bd0-8943-dac3a89062bb` and service control
+`01a09664-528c-7261-b43d-e6048766311d` succeeded (Linux Store prefix
+`01a089b1-9a6a-7711-a600-39e2b74e495d~`). Actual released Windows Grants,
+initial failed gates and canonical outputs are in the
+[checkpoint evidence](evidence/mr4-native-core-20260912/). Native installation,
+live consumers, kernel failures and Windows candidate regression remain pending.
+The installed pair is unchanged; one current Linux cache is retained for ongoing work.
+
 Recovery after the user-reported unexpected restart: working files and native
 evidence survived. The first CLI reconnect returned auto-start OS error 5;
 subsequent discovery found the installed alpha.14 daemon already running as PID
@@ -39,7 +59,7 @@ before the subsequent trusted-bootstrap changes.
 | MR-1 | complete | Shared admission/lifecycle core installed in Windows alpha.16 / IPC 21; native gates and installed test Job passed, scoped accounting observed. |
 | MR-2 | complete | Durable coordinator/manager protocol and public fault controls passed; final review disposition closed; Windows alpha.17 / IPC 22 installed and ordinary default Job passed. |
 | MR-3 | in_progress | Installed z11f alpha.20 daily-use slice integrated into main after scoped exit review and fresh smoke/replay on 2026-09-12. Post-integration Windows/Ubuntu CI passed after test-fixture and CI-environment repairs. Three W-C1..4 rounds, final-source confirmation, M-A01..10 and aggregate idle acceptance passed with exact source distinctions below. Full M-A11/M-A12 lifecycle coverage remains deferred. Direct multicall coreutils fd-exec compatibility is an explicit follow-up with a documented contained wrapper. |
-| MR-4 | not_started | Later native Linux/container delivery. |
+| MR-4 | in_progress | Standalone Linux requested as the next goal on 2026-09-12. Implement explicit native installation and local launch/recovery using the existing admission core; native-host acceptance and later container runtime matrix remain outstanding. |
 | MR-5 | not_started | Later macOS delivery. |
 
 ## Current slice and source identity

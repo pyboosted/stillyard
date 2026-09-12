@@ -48,6 +48,17 @@ impl Store {
     /// Runtime attachment happens before the reactor can release any process.
     /// Store-only unit tests remain free to exercise the existing admission core.
     pub(crate) fn attach_authority(&mut self) -> StoreResult<()> {
+        #[cfg(target_os = "linux")]
+        let native_domain = super::native_linux::load(&self.paths.root)?.map(|c| c.domain);
+        #[cfg(not(target_os = "linux"))]
+        let native_domain = None;
+        self.attach_authority_inner(native_domain)
+    }
+
+    pub(super) fn attach_authority_inner(
+        &mut self,
+        native_domain: Option<crate::ExecutionDomainId>,
+    ) -> StoreResult<()> {
         if self.connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM attached_local_mode)",
             [],
@@ -62,10 +73,25 @@ impl Store {
             .unwrap_or_else(|| HostId("identity-unavailable".into()));
         let mut authority =
             crate::authority::Authority::open(self.paths.root.join("authority"), host);
+        if native_domain.is_some_and(|domain| {
+            authority
+                .snapshot()
+                .domains
+                .as_ref()
+                .is_none_or(|domains| domains.native_domain != domain)
+        }) {
+            return Err(StoreError::InvalidState(
+                "native installation and authority domain history disagree".into(),
+            ));
+        }
         if let Some(identity) = self.startup_identity.daemon_process.clone() {
             authority.bind_coordinator(self.store_uuid, self.daemon_generation, identity)?;
         }
         self.authority = Some(std::sync::Arc::new(std::sync::Mutex::new(authority)));
+        #[cfg(target_os = "linux")]
+        if native_domain.is_some() {
+            self.validate_native_executor_inventory()?;
+        }
         self.reconcile_pending_domain_retirement()?;
         self.reconcile_pending_machine_commit()?;
         self.validate_machine_history()?;
@@ -84,7 +110,7 @@ impl Store {
     /// Build the same reset-independent permission for every native launch path.
     /// The caller publishes it after lifecycle validation, before recording a
     /// root in SQLite and before the suspended process can execute user code.
-    pub(super) fn native_start_permission(
+    pub(crate) fn native_start_permission(
         &self,
         job: &PreparedJob,
         executable_hash: &str,
@@ -120,7 +146,16 @@ impl Store {
                 )?,
                 daemon_generation: self.daemon_generation,
                 executable_sha256: executable_hash.into(),
-                boundary_kind: "windows_job_object".into(),
+                boundary_kind: match root_identity {
+                    ProcessIdentity::Linux { .. } => "linux_cgroup_v2",
+                    ProcessIdentity::Windows { .. } => "windows_job_object",
+                    ProcessIdentity::Unknown { .. } => {
+                        return Err(StoreError::InvalidState(
+                            "native permission requires a verified root identity".into(),
+                        ));
+                    }
+                }
+                .into(),
             })
         } else {
             None
@@ -141,6 +176,21 @@ impl Store {
             let empty: bool = self.connection.query_row("SELECT EXISTS(SELECT 1 FROM containments c JOIN invocations i ON c.invocation_id=i.id WHERE c.id=?1 AND i.id=?2 AND c.state IN ('empty','cleared') AND i.state='resolved')",
                 params![permission.containment_id.entity_uuid().to_string(),permission.invocation_id.entity_uuid().to_string()],|r|r.get(0))?;
             if empty {
+                #[cfg(target_os = "linux")]
+                if super::native_linux::load(&self.paths.root)?.is_some()
+                    && !self
+                        .native_executor
+                        .as_ref()
+                        .ok_or_else(|| {
+                            StoreError::InvalidState(
+                                "native executor journal must be open before permission retirement"
+                                    .into(),
+                            )
+                        })?
+                        .has_durable_seal(permission.invocation_id)?
+                {
+                    continue;
+                }
                 proven.push(permission.invocation_id);
             }
         }
@@ -171,6 +221,10 @@ impl Store {
             &self.connection,
             self.store_uuid,
         )?;
+        #[cfg(target_os = "linux")]
+        super::native_linux::validate_store(&self.paths.root, &self.connection, self.store_uuid)?;
+        #[cfg(target_os = "linux")]
+        self.validate_native_executor_inventory()?;
         let attached: Option<bool> = self
             .connection
             .query_row(

@@ -83,6 +83,17 @@ pub fn configure_wsl_attachment(
 ) -> Result<serde_json::Value> {
     daemon::configure_wsl_attachment(store_root, endpoint, configuration)
 }
+
+/// Explicit setup entry point for the bundled native Linux installation command.
+#[cfg(target_os = "linux")]
+#[doc(hidden)]
+pub fn configure_native_linux(
+    store_root: Option<std::path::PathBuf>,
+    endpoint: Option<String>,
+    executor_cgroup: std::path::PathBuf,
+) -> Result<serde_json::Value> {
+    daemon::configure_native_linux(store_root, endpoint, executor_cgroup)
+}
 pub use model::{
     AttemptId, AttemptVerdict, BatchId, ConditionId, ContainmentId, DurableIdParseError, GrantId,
     InvocationId, JobId, JobOutcome, JobState, ObservationId, ReservationId, SubmissionId,

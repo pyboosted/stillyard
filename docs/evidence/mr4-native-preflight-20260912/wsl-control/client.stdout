@@ -1,0 +1,208 @@
+{
+  "outcome": {
+    "outcome": "final",
+    "value": {
+      "receipt": {
+        "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2cf-7391-abbc-db18429b44dc",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2d4-7af0-b63a-e31d4ca2f347",
+        "submission_state": "accepted",
+        "job_state": "pending",
+        "reason_code": null,
+        "accepted_unix_millis": 1789228065492,
+        "priority": 0,
+        "effective_priority": 0,
+        "blockers": [],
+        "queue_rank": 1,
+        "reservation": null,
+        "conditions": [],
+        "estimate": {
+          "confidence": "estimated",
+          "start_in_millis": 0,
+          "assumptions": [
+            "currently admissible"
+          ]
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4"
+      },
+      "snapshot": {
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2d4-7af0-b63a-e31d4ca2f347",
+        "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2cf-7391-abbc-db18429b44dc",
+        "batch_id": null,
+        "batch_member": null,
+        "state": "final",
+        "outcome": "succeeded",
+        "reason_code": null,
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2e9-7742-98bb-4c1954cf8fd9",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2ea-74e2-baa0-ec989d525a11",
+        "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2ea-74e2-baa0-eca2ed15ad87",
+        "root_exit_code": 0,
+        "cancel_requested": false,
+        "accepted_unix_millis": 1789228065492,
+        "priority": 0,
+        "effective_priority": null,
+        "queue_rank": null,
+        "reservation": null,
+        "conditions": [],
+        "started_unix_millis": 1789228065847,
+        "finished_unix_millis": 1789228065981,
+        "spec": {
+          "spec_version": 4,
+          "priority": 0,
+          "executable": "/usr/bin/python3",
+          "args": [
+            "-c",
+            "import json,subprocess,sys; r=subprocess.run([sys.executable,'scripts/probe-native-linux.py'],capture_output=True,text=True,timeout=25); print(r.stdout,flush=True); print(r.stderr,file=sys.stderr,flush=True); d=json.loads(r.stdout); assert r.returncode==2 and not d['prerequisites']['native_linux'] and not d['native_installation_accepted']; print('wsl-is-not-native-control-passed',flush=True)"
+          ],
+          "working_directory": "/home/pythonic/Development/stillyard",
+          "stdin": {
+            "kind": "eof"
+          },
+          "environment": {
+            "set": {
+              "HOME": "/home/pythonic",
+              "LANG": "C.UTF-8",
+              "PATH": "/usr/bin:/bin"
+            },
+            "unset": []
+          },
+          "resources": {
+            "cpu_units": null,
+            "ram_mb": null,
+            "cargo_slots": null,
+            "gpu_slots": null,
+            "custom": {},
+            "shared_fences": [],
+            "exclusive_fences": [],
+            "impacts": []
+          },
+          "observed": null,
+          "conditions": [],
+          "retry": {
+            "max_attempts": 1,
+            "backoff_seconds": 0,
+            "retryable": []
+          },
+          "postconditions": [],
+          "labels": [
+            {
+              "key": "project",
+              "value": "stillyard"
+            },
+            {
+              "key": "case",
+              "value": "mr4-native-preflight-wsl-negative"
+            }
+          ],
+          "expected_duration_seconds": null,
+          "timeout_seconds": 40,
+          "quiet": null,
+          "artifacts": [],
+          "child_submission_policy": null
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "blockers": [],
+        "attempts": [
+          {
+            "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2e9-7742-98bb-4c1954cf8fd9",
+            "attempt_index": 1,
+            "verdict": "succeeded",
+            "reason_code": null,
+            "created_unix_millis": 1789228065512,
+            "started_unix_millis": 1789228065662,
+            "deadline_unix_millis": 1789228105662,
+            "finished_unix_millis": 1789228065981,
+            "primary_result": {
+              "schema_version": 1,
+              "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2d4-7af0-b63a-e31d4ca2f347",
+              "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2e9-7742-98bb-4c1954cf8fd9",
+              "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2ea-74e2-baa0-ec989d525a11",
+              "verdict": "succeeded",
+              "root_exit_code": 0,
+              "termination": "exited",
+              "containment": "empty",
+              "started_unix_millis": 1789228065847,
+              "exited_unix_millis": 1789228065952,
+              "resolved_unix_millis": 1789228065975
+            },
+            "admission": null,
+            "invocations": [
+              {
+                "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2ea-74e2-baa0-ec989d525a11",
+                "role": "primary",
+                "role_index": 0,
+                "state": "resolved",
+                "root_pid": 4161145,
+                "root_identity": {
+                  "platform": "linux",
+                  "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+                  "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+                  "pid": 4161145,
+                  "start_ticks": 27417243,
+                  "pid_namespace_inode": 4026534295,
+                  "uid": 1000
+                },
+                "root_exit_code": 0,
+                "exit_classification": null,
+                "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+                "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+                "started_unix_millis": 1789228065847,
+                "finished_unix_millis": 1789228065975,
+                "containment": {
+                  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2ea-74e2-baa0-eca2ed15ad87",
+                  "state": "empty",
+                  "strength": "linux_cgroup_v2",
+                  "incident_id": null,
+                  "incident": null,
+                  "resolution": null,
+                  "resolution_audit": null
+                },
+                "stdout_tail": "{\n  \"kind\": \"native_linux_prerequisite_probe\",\n  \"kernel\": \"6.6.87.2-microsoft-standard-WSL2\",\n  \"managed_job_id\": \"01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2d4-7af0-b63a-e31d4ca2f347\",\n  \"observation_scope\": \"caller-visible namespaces; a managed Job is not a host service inventory\",\n  \"architecture\": \"x86_64\",\n  \"owner_uid\": 1000,\n  \"boot_id\": \"08af9757-cbec-4d73-8d66-bdb520bffd29\",\n  \"requested_store\": \"/home/pythonic/.local/share/stillyard\",\n  \"store_filesystem\": {\n    \"mount\": \"/\",\n    \"filesystem\": \"ext4\",\n    \"existing_ancestor\": \"/home/pythonic/.local/share/stillyard\"\n  },\n  \"current_cgroup\": \"0::/\",\n  \"user_service\": {\n    \"exit_code\": 1,\n    \"stdout\": \"\",\n    \"stderr\": \"Failed to connect to user scope bus via local transport: $DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR not defined (consider using --machine=<user>@.host --user to connect to bus of other user)\"\n  },\n  \"linger\": {\n    \"exit_code\": 1,\n    \"stdout\": \"\",\n    \"stderr\": \"System has not been booted with systemd as init system (PID 1). Can't operate.\\nFailed to connect to system scope bus via local transport: Host is down\"\n  },\n  \"bubblewrap\": \"/usr/bin/bwrap\",\n  \"namespace_exec_stop\": {\n    \"exit_code\": 0,\n    \"stdout\": \"namespace-exec-stop-passed\",\n    \"stderr\": \"\"\n  },\n  \"executor_delegation\": null,\n  \"prerequisites\": {\n    \"native_linux\": false,\n    \"x86_64\": true,\n    \"local_ext4\": true,\n    \"cgroup_v2\": true,\n    \"systemd_user_manager\": false,\n    \"linger_enabled\": false,\n    \"namespace_exec_stop\": true\n  },\n  \"prerequisites_passed\": false,\n  \"native_installation_accepted\": false,\n  \"remaining\": [\n    \"installed executor delegation and born-contained canary\",\n    \"durable installation, authority and executor history\",\n    \"native consumer, recovery and performance acceptance\"\n  ]\n}\n\nwsl-is-not-native-control-passed\n",
+                "stderr_tail": "\n"
+              }
+            ]
+          }
+        ],
+        "allocations": [
+          {
+            "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0964d-a30a-70d3-af55-140255ff67fa",
+            "lease_id": "01a0964d-a2ea-74e2-baa0-ecb3e9e466bb",
+            "key": {
+              "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+              "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+              "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+              "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+              "lease_id": "01a0964d-a2ea-74e2-baa0-ecb3e9e466bb"
+            },
+            "owner": {
+              "kind": "work",
+              "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2d4-7af0-b63a-e31d4ca2f347",
+              "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0964d-a2e9-7742-98bb-4c1954cf8fd9"
+            },
+            "state": "armed",
+            "claims": {
+              "scalars": {
+                "cargo_slots": 0,
+                "cpu_units": 0,
+                "gpu_slots": 0,
+                "ram_mb": 0
+              },
+              "shared_fences": [],
+              "exclusive_fences": [],
+              "impacts": []
+            }
+          }
+        ],
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4"
+      }
+    }
+  },
+  "exit_source": "scheduler",
+  "exit_code": 0
+}

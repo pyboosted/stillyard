@@ -49,10 +49,18 @@ pub(crate) fn run(store_root: Option<PathBuf>, endpoint: Option<String>) -> Resu
     let (live_containments, releases) = match attached {
         Some((live, releases)) => (live, Some(releases)),
         None => {
-            store
-                .attach_authority()
-                .map_err(|e| Error::Unavailable(e.to_string()))?;
-            (crate::runner::LiveContainments::default(), None)
+            match store
+                .native_linux_runtime(&endpoint)
+                .map_err(|e| Error::Unavailable(e.to_string()))?
+            {
+                Some(live) => (live, None),
+                None => {
+                    store
+                        .attach_authority()
+                        .map_err(|e| Error::Unavailable(e.to_string()))?;
+                    (crate::runner::LiveContainments::default(), None)
+                }
+            }
         }
     };
     #[cfg(windows)]
@@ -123,6 +131,29 @@ fn open_store_under_lock(paths: StorePaths) -> Result<(std::fs::File, Store)> {
 
 /// Explicit stopped-manager setup. Resolving coordinates neither starts the
 /// daemon nor creates machine authority or outstanding scheduling rights.
+#[cfg(target_os = "linux")]
+pub(crate) fn configure_native_linux(
+    store_root: Option<PathBuf>,
+    endpoint: Option<String>,
+    executor_cgroup: PathBuf,
+) -> Result<serde_json::Value> {
+    crate::store::native_linux::require_native_host()
+        .map_err(|e| Error::Unavailable(e.to_string()))?;
+    validate_instance_tuple(store_root.is_some(), endpoint.is_some())?;
+    let store_root = resolve_store_root(store_root)?;
+    let endpoint = resolve_endpoint(endpoint)?;
+    let _endpoint_lease = acquire_endpoint_lease(&endpoint)?;
+    let (_lock, mut store) = open_store_under_lock(StorePaths::new(store_root.clone()))?;
+    let configuration = store
+        .install_native_linux(&executor_cgroup)
+        .map_err(|e| Error::Unavailable(e.to_string()))?;
+    Ok(serde_json::json!({
+        "store_uuid": store.store_uuid(), "store_path": store_root,
+        "endpoint": endpoint, "configuration": configuration,
+    }))
+}
+
+/// Explicit stopped-manager setup for a Windows-coordinated WSL installation.
 #[cfg(target_os = "linux")]
 pub(crate) fn configure_wsl_attachment(
     store_root: Option<PathBuf>,

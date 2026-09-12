@@ -48,10 +48,63 @@ pub(super) struct Record {
     pub(super) root: Option<ProcessIdentity>,
     pub(super) executable_sha256: Option<String>,
     pub(super) release_intent: Option<crate::machine::InvocationTicket>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) native_release_intent: Option<crate::machine::NativeStartPermission>,
     pub(super) seal: Option<Seal>,
 }
 
 impl Record {
+    fn possibly_released(&self) -> bool {
+        self.release_intent.is_some() || self.native_release_intent.is_some()
+    }
+
+    fn validate_native_permission(
+        &self,
+        anchor: &Anchor,
+        invocation: InvocationId,
+        permission: &crate::machine::NativeStartPermission,
+    ) -> io::Result<()> {
+        let key = permission
+            .allocation
+            .key
+            .as_ref()
+            .ok_or_else(|| invalid("native executor permission has no allocation identity"))?;
+        if permission.invocation_id != invocation
+            || self.boundary.is_none()
+            || !matches!(permission.root_identity, ProcessIdentity::Linux { .. })
+            || !matches!(permission.creator_identity, ProcessIdentity::Linux { .. })
+            || permission.containment_id != self.containment
+            || permission.daemon_generation != self.daemon_generation
+            || Some(&permission.root_identity) != self.root.as_ref()
+            || permission.creator_identity != self.creator
+            || permission.boundary_kind != "linux_cgroup_v2"
+            || self.executable_sha256.as_deref() != Some(permission.executable_sha256.as_str())
+            || key.manager_store_uuid != anchor.store
+            || key.machine_id.is_nil()
+            || key.authority_epoch.is_nil()
+            || key.domain_id != anchor.domain
+            || key.lease_id != self.lease
+            || permission.allocation.lease_id != self.lease
+            || permission.allocation.grant_id.store_uuid() != anchor.store
+            || permission.allocation.grant_id.entity_uuid() != self.lease
+            || permission.allocation.state != crate::machine::GrantState::Armed
+            || match permission.allocation.owner {
+                crate::machine::AllocationOwner::Work { job_id, attempt_id } => {
+                    job_id.store_uuid() != anchor.store || attempt_id.store_uuid() != anchor.store
+                }
+                crate::machine::AllocationOwner::Probe {
+                    job_id,
+                    invocation_id,
+                } => job_id.store_uuid() != anchor.store || invocation_id != invocation,
+            }
+        {
+            return Err(invalid(
+                "native permission differs from the prepared executor obligation",
+            ));
+        }
+        Ok(())
+    }
+
     pub(super) fn boundary_sha256(&self) -> io::Result<String> {
         let boundary = self
             .boundary
@@ -231,11 +284,19 @@ impl Journal {
             {
                 return Err(invalid("executor history contains a foreign obligation"));
             }
+            if record.release_intent.is_some() && record.native_release_intent.is_some() {
+                return Err(invalid(
+                    "executor history mixes native and attached start rights",
+                ));
+            }
+            if let Some(permission) = &record.native_release_intent {
+                record.validate_native_permission(&anchor, *invocation, permission)?;
+            }
             if let Some(seal) = &record.seal {
                 if seal.invocation != *invocation
                     || seal.seal_id.is_nil()
                     || seal.boundary_sha256 != record.boundary_sha256()?
-                    || seal.possibly_released != record.release_intent.is_some()
+                    || seal.possibly_released != record.possibly_released()
                 {
                     return Err(invalid("invalid executor seal"));
                 }
@@ -357,6 +418,7 @@ impl Journal {
                 root: None,
                 executable_sha256: None,
                 release_intent: None,
+                native_release_intent: None,
                 seal: None,
             },
         );
@@ -378,7 +440,7 @@ impl Journal {
             .records
             .get_mut(&invocation)
             .ok_or_else(|| invalid("unknown executor intent"))?;
-        if record.seal.is_some() || record.root.is_some() || record.release_intent.is_some() {
+        if record.seal.is_some() || record.root.is_some() || record.possibly_released() {
             return Err(invalid("executor root was already prepared or sealed"));
         }
         let boundary = Boundary::reopen(
@@ -410,7 +472,7 @@ impl Journal {
             .get_mut(&ticket.intent.invocation_id)
             .ok_or_else(|| invalid("unknown executor ticket"))?;
         if record.seal.is_some()
-            || record.release_intent.is_some()
+            || record.possibly_released()
             || record.root.is_none()
             || ticket.key.manager_store_uuid != next.anchor.store
             || ticket.key.domain_id != next.anchor.domain
@@ -424,6 +486,34 @@ impl Journal {
             ));
         }
         record.release_intent = Some(ticket.clone());
+        self.commit(next)
+    }
+
+    pub(super) fn native_release_intent(
+        &mut self,
+        permission: &crate::machine::NativeStartPermission,
+    ) -> io::Result<()> {
+        if serde_json::to_vec(permission)?.len() > 8192 {
+            return Err(invalid(
+                "native permission exceeds reserved executor history bound",
+            ));
+        }
+        let mut next = self.state.clone();
+        let record = next
+            .records
+            .get_mut(&permission.invocation_id)
+            .ok_or_else(|| invalid("unknown native executor intent"))?;
+        if record.seal.is_some()
+            || record.possibly_released()
+            || record.root.is_none()
+            || record.boundary.is_none()
+        {
+            return Err(invalid(
+                "native executor was not prepared or already has a start right",
+            ));
+        }
+        record.validate_native_permission(&next.anchor, permission.invocation_id, permission)?;
+        record.native_release_intent = Some(permission.clone());
         self.commit(next)
     }
 
@@ -453,7 +543,7 @@ impl Journal {
             invocation,
             boundary_sha256: record.boundary_sha256()?,
             seal_id: Uuid::now_v7(),
-            possibly_released: record.release_intent.is_some(),
+            possibly_released: record.possibly_released(),
         };
         let mut next = self.state.clone();
         next.records.get_mut(&invocation).unwrap().seal = Some(seal.clone());
@@ -662,3 +752,5 @@ mod tests {
 
 #[cfg(test)]
 mod cross_os;
+#[cfg(test)]
+mod native_tests;

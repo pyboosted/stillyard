@@ -252,6 +252,25 @@ R-LINUX-4 Linux release runs every platform-neutral acceptance scenario plus nat
 
 R-LINUX-5 Stillyard does not keep a WSL2 virtual machine alive. `doctor` MUST report the observed host keepalive/`vmIdleTimeout` capability or unknown; session-survival acceptance on WSL2 is inadmissible without an asserted external keepalive.
 
+R-LINUX-6 **Standalone installation (MR-4)**. An explicitly installed native Linux
+daemon owns the host-local coordinator and uses the existing atomic local Lease
+admission. It MUST NOT synthesize an attached session or count a second Grant for
+the same local allocation. Installation binds owner, host, Store, native domain,
+executor journal and delegated cgroup in durable private history outside SQLite.
+Missing, partial, corrupt or conflicting installation history MUST block starts;
+startup MUST NOT recreate authority or turn a WSL attachment into a coordinator.
+The executor journal MUST be opened before recovery can retire native start
+permissions. Each launch records its exact native permission before authority/SQL
+publication and kernel release; guarded primaries record the suspended root before
+release authorization. Cleanup and recovery require the same durable cgroup seal.
+The initial profile explicitly requires systemd user delegation and linger,
+bubblewrap with working user/PID namespaces and ptrace exec-stop, pidfd and cgroup
+v2 kill/recursive emptiness, plus supported local durable storage. These Linux
+profile prerequisites amend the dependency-free packaging baseline in R-PKG-1;
+absence is an unsupported-capability error, never weaker containment. WSL-only
+interop masking is selected by its installed profile. Native service lifetime,
+live consumers and failure acceptance require separate native-host evidence.
+
 ## 16. Acceptance contract
 
 Acceptance uses the shipped public crate and CLI path. Each row includes a negative control that must make the test fail.
