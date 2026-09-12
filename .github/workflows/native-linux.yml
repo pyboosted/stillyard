@@ -59,10 +59,14 @@ jobs:
         run: python3 scripts/run-native-linux-acceptance.py --evidence-directory "$PWD/native-evidence"
       - name: Native daemon crash with retained executor history
         run: python3 scripts/run-native-linux-crash.py --disposable-native-host --evidence-directory "$PWD/native-evidence"
+      - name: Native corrupt executor history refuses startup
+        run: python3 scripts/run-native-linux-history.py --disposable-native-host --evidence-directory "$PWD/native-evidence"
       - name: Installed native Cargo check Job
         run: python3 scripts/run-linux-job.py check --evidence-directory "$PWD/native-evidence"
       - name: Installed native Cargo test Job
         run: python3 scripts/run-linux-job.py test --evidence-directory "$PWD/native-evidence"
+      - name: Native five-minute idle measurement
+        run: python3 scripts/observe-native-linux-idle.py --evidence-directory "$PWD/native-evidence"
       - name: Retain native service and canonical Job evidence
         if: always()
         run: |

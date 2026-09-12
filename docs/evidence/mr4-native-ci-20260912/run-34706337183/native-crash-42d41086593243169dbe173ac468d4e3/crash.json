@@ -1,0 +1,7 @@
+{
+  "job_id": "01a09685-ec48-7a91-a688-905f40eb4b13~01a09686-7d7c-7603-a9b2-1fdc064be7f9",
+  "daemon_pid": 4865,
+  "supervisor_pid": 4863,
+  "daemon_generation": "01a09685-ec8d-7ff0-b484-0a10736a5d88",
+  "signal": "SIGKILL"
+}

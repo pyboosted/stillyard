@@ -1,0 +1,15 @@
+{
+  "configuration": {
+    "domain": "01a09685-ec66-7fe3-89d7-29e5110daf8c",
+    "executor_cgroup": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard.service/executors",
+    "host_id": "sha256:26b1e73eb3f39e8bde671fbfab77ed395b2611ceef76971ad5ab01df9ef4151b",
+    "installation": "01a09685-ec64-7f82-a2bf-c66e6a50a1a0",
+    "journal": "01a09685-ec6c-7660-abc7-cc7f578ea7f8",
+    "owner_uid": 1001,
+    "store_uuid": "01a09685-ec48-7a91-a688-905f40eb4b13",
+    "version": 1
+  },
+  "endpoint": "/home/runner/.local/share/stillyard/stillyard-v6.sock",
+  "store_path": "/home/runner/.local/share/stillyard",
+  "store_uuid": "01a09685-ec48-7a91-a688-905f40eb4b13"
+}

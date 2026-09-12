@@ -44,6 +44,13 @@ completed persistent Linux rollout. [Native acceptance report](native-linux-acce
 Workstation Rust 1.85 check/test also passed under default WSL Jobs. Windows and
 Ubuntu ordinary CI passed checkpoints 2217cce and 3282449. MR-4 remains in progress.
 
+Native run 34706337183 (`c08372a`) passed installed native Cargo check/test and
+complete daemon-only crash recovery including descendant seal and retained
+submission identity. [Canonical report](native-linux-acceptance.md). The DNS
+consumer gap is closed. Observation/history controls and five-minute idle are
+next; A-19 no-helper is explicitly outstanding because the native profile
+currently retains a Python delegation supervisor. No WSL lifecycle action occurred.
+
 Recovery after the user-reported unexpected restart: working files and native
 evidence survived. The first CLI reconnect returned auto-start OS error 5;
 subsequent discovery found the installed alpha.14 daemon already running as PID

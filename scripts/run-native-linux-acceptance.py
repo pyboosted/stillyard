@@ -98,6 +98,29 @@ def main():
     finish('canary')
     submit('resolver', "import pathlib,socket; assert 'nameserver' in pathlib.Path('/etc/resolv.conf').read_text(); assert socket.getaddrinfo('static.crates.io',443); print('native-resolver-passed',flush=True)")
     finish('resolver')
+    submit('observed-cpu-memory', "print('native-observed-admission',flush=True)",
+           resources={'cargo_slots': 1, 'ram_mb': 64},
+           observed={'max_sample_age_seconds': 5, 'cpu_utilization_percent_at_most': 100})
+    observed = finish('observed-cpu-memory')['admission']
+    if (not observed or not observed['final_sample'] or not observed['observation_generation']
+            or not observed['operands'] or any(not o['satisfied'] for o in observed['operands'])):
+        raise RuntimeError('native observed admission lacks satisfied final operands')
+    submit('quiet-cpu-disk', "print('native-quiet-release',flush=True)", quiet={
+        'stable_seconds': 1, 'max_sample_age_seconds': 5, 'wait_budget_seconds': 20,
+        'detectors': [{'kind': 'cpu_utilization', 'max_percent': 100},
+                      {'kind': 'disk_utilization', 'max_percent': 100}]})
+    quiet = finish('quiet-cpu-disk')['admission']
+    if (not quiet or not quiet['final_sample'] or len(quiet['detectors']) != 2
+            or any(d['observed'] is None or not d['satisfied'] for d in quiet['detectors'])):
+        raise RuntimeError('native quiet release lacks actual CPU/disk evidence')
+    # This unprivileged profile cannot inspect root-owned process executables.
+    # Missing namespace-wide evidence must not become an all-clear result.
+    submit('process-coverage-closed', "raise RuntimeError('unavailable process coverage released user code')", quiet={
+        'stable_seconds': 1, 'max_sample_age_seconds': 5, 'wait_budget_seconds': 3,
+        'detectors': [{'kind': 'blocked_processes'}]})
+    closed = finish('process-coverage-closed', 'safety_failed')
+    if closed['started_unix_millis'] is not None or closed['reason_code'] != 'quiet_unattainable':
+        raise RuntimeError('missing process coverage did not remain closed before user release')
     descendant = "import pathlib,time; p=pathlib.Path('descendant-heartbeat'); end=time.monotonic()+60\nwhile time.monotonic()<end:\n p.write_text(str(time.monotonic_ns())); time.sleep(.05)"
     submit('descendant', "import pathlib,subprocess,time; "
            f"subprocess.Popen(['/usr/bin/python3','-c',{descendant!r}],start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); "

@@ -66,3 +66,23 @@ The controller now waits for a durable seal, released allocations and healthy
 authority, and pins the complete process identity before its fault. This run
 is retained as a failed controller result, not successful crash acceptance.
 [Raw evidence](evidence/mr4-native-ci-20260912/run-34706013508/).
+
+Native run [34706337183](https://github.com/pyboosted/stillyard/actions/runs/34706337183)
+(source `c08372a`) passed installation, all process controls, daemon-only crash
+recovery, and actual installed native Cargo check and test consumers.
+Store `01a09685-ec48-7a91-a688-905f40eb4b13`; check Job
+`01a09686-96c6-7ac1-ae86-aa01858d0c46`, test Job
+`01a09687-1005-7903-aa51-53f344c3b1d5`, crash Job
+`01a09686-7d7c-7603-a9b2-1fdc064be7f9` (all qualified by that Store).
+Crash recovery retained the supervisor PID, Store and authority epoch, killed
+the descendant, sealed and removed its cgroup, released the allocation, and
+replayed the original ensure as the same interrupted Job without another launch.
+[Canonical native evidence](evidence/mr4-native-ci-20260912/run-34706337183/).
+
+Next controls cover final CPU/RAM/disk admission samples, refusal of strict
+process rules with incomplete unprivileged namespace coverage, quiescent journal
+corruption with exact restoration, and five-minute idle measurements. The current
+native profile has a persistent Python delegation supervisor. A-19's no-helper
+condition is therefore **not passed**; quantitative measurement will not hide this
+architectural gap or amend the normative limit. A systemd lifetime alternative
+is under review.

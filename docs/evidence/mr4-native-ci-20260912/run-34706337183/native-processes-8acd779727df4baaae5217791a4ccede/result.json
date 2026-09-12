@@ -1,0 +1,23 @@
+{
+  "native_process_suite_passed": true,
+  "jobs": {
+    "canary": "01a09685-ec48-7a91-a688-905f40eb4b13~01a09685-fc37-7da2-bf4a-8da7ed12c41f",
+    "resolver": "01a09685-ec48-7a91-a688-905f40eb4b13~01a09685-ff58-7c01-8f01-6e84b8829ea1",
+    "descendant": "01a09685-ec48-7a91-a688-905f40eb4b13~01a09686-02fd-7c80-b79b-2b3867697b82",
+    "parallel-a": "01a09685-ec48-7a91-a688-905f40eb4b13~01a09686-07c3-7600-8d74-ad93ddce087b",
+    "parallel-b": "01a09685-ec48-7a91-a688-905f40eb4b13~01a09686-07ee-79a0-8d16-83234d57e104",
+    "parallel-c": "01a09685-ec48-7a91-a688-905f40eb4b13~01a09686-0811-7691-99ae-00433e8df143",
+    "probe-and-postcondition": "01a09685-ec48-7a91-a688-905f40eb4b13~01a09686-2e62-7d00-b9be-49fabce59e1a",
+    "retry": "01a09685-ec48-7a91-a688-905f40eb4b13~01a09686-3917-78b1-aeb6-2c30d5f1c90c",
+    "managed-parent": "01a09685-ec48-7a91-a688-905f40eb4b13~01a09686-407d-7a93-b449-ef348921cd98",
+    "managed-child": "01a09685-ec48-7a91-a688-905f40eb4b13~01a09686-60f2-7633-81f5-df48d826fc18",
+    "timeout": "01a09685-ec48-7a91-a688-905f40eb4b13~01a09686-74b6-7953-8897-b2524d736e0c",
+    "cancel": "01a09685-ec48-7a91-a688-905f40eb4b13~01a09686-7924-7501-a690-07b1ab44911d"
+  },
+  "remaining": [
+    "daemon crash and history faults",
+    "logout/reboot and idle budget",
+    "persistent host consumers",
+    "container matrix"
+  ]
+}
