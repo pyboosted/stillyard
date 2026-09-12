@@ -1,0 +1,81 @@
+{
+  "executor_records": {
+    "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-e392-74e0-919e-4398a12da8a3": {
+      "containment": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-e392-74e0-919e-43a18e452e8e",
+      "lease": "01a08a22-e392-74e0-919e-43b8b781b889",
+      "daemon_generation": "01a08a20-4b37-7cb0-8340-8704746b9685",
+      "creator": {
+        "platform": "linux",
+        "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+        "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+        "pid": 102070,
+        "start_ticks": 6987398,
+        "pid_namespace_inode": 4026532221,
+        "uid": 1000
+      },
+      "boundary": {
+        "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service/executors/invocation-01a08a22-e392-74e0-919e-4398a12da8a3",
+        "device": 23,
+        "inode": 57315
+      },
+      "root": {
+        "platform": "linux",
+        "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+        "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+        "pid": 108569,
+        "start_ticks": 7004431,
+        "pid_namespace_inode": 4026534297,
+        "uid": 1000
+      },
+      "executable_sha256": "dbfd4e5fb529f34573f88467f89d46b4cce55a43611c4ef73443177e75458ed0",
+      "release_intent": {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e3ae-7d23-b4b2-47b20d04ef87",
+        "key": {
+          "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+          "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+          "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+          "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+          "lease_id": "01a08a22-e392-74e0-919e-43b8b781b889"
+        },
+        "offer_nonce": "01a08a22-e3ae-7d23-b4b2-47c5a2af5d47",
+        "intent": {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-e392-74e0-919e-4398a12da8a3",
+          "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-e392-74e0-919e-43a18e452e8e",
+          "role": "primary",
+          "role_index": 0,
+          "release_sequence": 1,
+          "executable_sha256": "dbfd4e5fb529f34573f88467f89d46b4cce55a43611c4ef73443177e75458ed0",
+          "boundary_sha256": "4a2262f68cae4195e1cf9af7bd1f4b32c213f1e15485fbae3535fe33b1f86161",
+          "readiness_challenge": "01a08a22-e475-7f02-8d51-8073f25422f3",
+          "previous_cleanup": null
+        },
+        "configuration_sha256": "416f29b3c89739deab0d632337412ec02539d6d5bdde06ceea9d7c3ad32c3dcf",
+        "issued_unix_millis": 1789023937679,
+        "host_observation_generation": "01a08a22-1d87-79f1-a0be-0898a1b4f99e",
+        "host_sample_unix_millis": 1789023937660,
+        "session": {
+          "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+          "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+          "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+          "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+          "executor_incarnation": "01a08a20-4b37-7cb0-8340-8704746b9685",
+          "connection_epoch": 6
+        }
+      },
+      "seal": {
+        "invocation": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-e392-74e0-919e-4398a12da8a3",
+        "boundary_sha256": "4a2262f68cae4195e1cf9af7bd1f4b32c213f1e15485fbae3535fe33b1f86161",
+        "seal_id": "01a08a23-cafb-7e20-8202-5af028caedae",
+        "possibly_released": true
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-e392-74e0-919e-4398a12da8a3",
+      "boundary_sha256": "4a2262f68cae4195e1cf9af7bd1f4b32c213f1e15485fbae3535fe33b1f86161",
+      "proof_sha256": "fe2811bc58829b39e86a9bab222ca7d1794bf7f56d2db97786c9a41d3fc7af29"
+    }
+  ]
+}

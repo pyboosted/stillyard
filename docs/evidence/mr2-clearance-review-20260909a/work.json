@@ -1,0 +1,24 @@
+{
+  "distribution": "Ubuntu-SSD",
+  "user": "pythonic",
+  "executable": "/usr/bin/python3",
+  "args": [
+    "/home/pythonic/.codex-account-2/skills/opus-review/scripts/run_opus_review.py",
+    "--prompt-file",
+    "/mnt/c/Development/stillyard-mr2-clearance-review-20260909a/brief.txt",
+    "--perspective",
+    "conceptual sanity check of audited domain retirement, session fencing and crash recovery",
+    "--cwd",
+    "/mnt/c/Development/stillyard-mr2-clearance-review-20260909a",
+    "--timeout",
+    "1200",
+    "--output",
+    "/mnt/c/Development/stillyard-mr2-clearance-review-20260909a/review-results.json"
+  ],
+  "working_directory": "/mnt/c/Development/stillyard-mr2-clearance-review-20260909a",
+  "timeout_seconds": 1500,
+  "environment": {
+    "HOME": "/home/pythonic",
+    "PATH": "/home/pythonic/.local/bin:/usr/local/bin:/usr/bin:/bin"
+  }
+}

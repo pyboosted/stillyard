@@ -1,0 +1,147 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b2-1ec3-7551-a136-63a4305bba6d",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b2-1ec2-7222-802f-19114de74232",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b3-2062-7af2-9012-1be06c9c0209",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b3-2062-7af2-9012-1bb887f498af",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b3-2062-7af2-9012-1bced0015e3f",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788982992579,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788983058543,
+  "finished_unix_millis": 1788983928569,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr2-opus-review-20260909o\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr2-opus-review-20260909o",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 3
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr2-opus-review"
+      },
+      {
+        "key": "source",
+        "value": "b0d7b6cd15f22f7fe9b8f840946364588b516e68688c542399f5895b1784f46d"
+      }
+    ],
+    "expected_duration_seconds": 300,
+    "timeout_seconds": 1530,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b3-2062-7af2-9012-1be06c9c0209",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1788983058530,
+      "started_unix_millis": 1788983058530,
+      "deadline_unix_millis": 1788984588530,
+      "finished_unix_millis": 1788983928569,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b2-1ec3-7551-a136-63a4305bba6d",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b3-2062-7af2-9012-1be06c9c0209",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b3-2062-7af2-9012-1bb887f498af",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1788983058543,
+        "exited_unix_millis": 1788983928562,
+        "resolved_unix_millis": 1788983928567
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b3-2062-7af2-9012-1bb887f498af",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 34272,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 34272,
+            "creation_filetime_100ns": 134334566585401349
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "38246f2e6c04b3983d98b30e9da4434f26ed27afd63f25e9a504f7b2c5f0d732",
+          "daemon_generation": "01a08727-6971-79a1-a1b3-fd73badf9036",
+          "started_unix_millis": 1788983058543,
+          "finished_unix_millis": 1788983928567,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b3-2062-7af2-9012-1bced0015e3f",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "e ticket so the manager can enforce `own_monotonic_now - stamp <= 250 ms` under the release barrier before `consume_ticket`.\\n**Test:** delay the reply artificially past 250 ms and assert the manager refuses to consume; suspend between sample and release and assert the ticket is invalidated and the never-run boundary is cleaned (this is the F5 case too).\\n\\n---\\n\\n### F9 \u2014 `GrantState::Uncertain` is unreachable, and there is no audited clearance for an attached Grant or for the reset gate\\n**Severity: Medium-High (MR-2 closure requirement, R-MR-4 / R-RUN-4 parity).**\\n`src/machine.rs:311-319`; searched all supplied coordinator paths \u2014 `Uncertain` is only ever *matched* (`machine_allocation.rs:565`, `:458-463`, `machine_queue.rs:18`, `machine_ticket.rs:161`), never *assigned*.\\n\\nConsequences:\\n- A manager that can neither prove its boundary empty nor seal has no way for the coordinator to record \\\"retained accounting, proof unresolved\\\" distinctly from a healthy `Armed`. The `Inspect`/`doctor` surface therefore cannot name a reconciliation blocker per R-MR-6.\\n- There is no attached analogue of `doctor clear-containment ID --force`. `force_release_authority` (`store/authority.rs:225-234`) releases *holds* only \u2014 it cannot touch `machine_permissions` or `pending_reset`.\\n- The only exit from `pending_reset` is `finish_machine_reset_recovery`, which requires the full safe-recovery predicate. If any of its preconditions is structurally unsatisfiable (see F10), the gate is permanent with no operator escape.\\n\\n**Invariant violated:** R-MR-4 \\\"unresolved proof requires retained accounting **or explicit audited risk clearance**\\\"; protocol \u00a79 \\\"Clearance identifies all affected grants and outstanding tickets and records operator identity plus explicit risk acceptance.\\\"\\n\\n**Fix:** add an explicit coordinator transition `Armed \u2192 Uncertain` (driven by reconciliation timeout / manager-reported unresolved proof), surface it in `Inspect`/events, and implement an audited `doctor machine clear-grant <GrantId> --force` and `doctor machine clear-reset --force` that write the same style of audit record `complete_machine_reset` already writes (`authority.rs:586-598`) and never silently delete the registry.\\n\\n---\\n\\n### F10 \u2014 In-place upgrade with running work sets `pending_reset` on a store that can never satisfy the recovery predicate\\n**Severity: Medium-High (upgrade recovery liveness, R-MR-4).**\\n`src/store/authority.rs:69-74`; `src/authority.rs:293-316`, `:572-575`; `src/store/machine_reset.rs:18-22`.\\n\\n`establish_native_coverage` runs at every `attach_authority`. If `native_coverage_store` is `None` (any pre-MR-2 registry) and the store is **not** empty, it calls `record_reset(\\\"native start history predates external coverage and is not empty\\\")`.\\n\\nNow the only exits both require `native_coverage_store == Some(history.store_uuid)`:\\n- `prepare_machine_reset_recovery` returns early at `machine_reset.rs:20-22`.\\n- `complete_machine_reset` rejects at `authority.rs:573`.\\n\\nSince coverage was never established, **neither can ever be satisfied**. The machine is permanently `authority_reconciliation_required` with no implemented clearance (F9).\\n\\nEvent trace: alpha.16 \u2192 alpha.17 in place, one job running, daemon restarts \u2192 gate set \u2192 every subsequent start attempt blocked forever.\\n\\n**Invariant violated:** R-MR-4 \\\"Upgrade MUST prevent new admission and preserve control over all accepted work before replacement/reset; an empty sampled queue is insufficient\\\" \u2014 the implementation instead makes a non-empty upgrade unrecoverable rather than gated-and-drainable.\\n\\n**Fix:** on first attach with `native_coverage_store == None` and non-empty work, establish coverage from the *existing* SQL inventory (every granted lease + non-empty containment becomes a `NativeStartPermission` reconstructed from the recorded root/creator identities) rather than gating; gate only when those identities are missing. Pair this with the audited clearance from F9 as the backstop. Document the maintenance-gate-then-drain upgrade sequence from protocol \u00a79 as a prerequisite and enforce it in the installer.\\n**Test:** populate a store with a running job and no `native_coverage_store`, attach, assert either successful coverage reconstruction or a gate with a working documented clearance \u2014 never an unsatisfiable predicate.\\n\\n---\\n\\n### F11 \u2014 Coordinator sequence rollback after reset leaves the manager permanently unable to bind; no resynchronization path\\n**Severity: Medium-High (recovery liveness).**\\n`src/machine/manager.rs:59-99`; `src/store/machine_allocation.rs:251-254`; `src/store/machine_reset.rs:72-86`.\\n\\n`checkpoint_machine_sequence` runs **after** `tx.commit()` for non-`prepared` operations. A crash in that window leaves `anchor.accepted_sequence` behind SQL. `validate_machine_history` repairs this while the SQL survives (`store/machine.rs:132-135`), but after a whole-DB reset the SQL truth is gone and `prepare_machine_reset_recovery` restores `accepted = anchor.accepted_sequence.max(pending\u2026)` \u2014 one or more operations *behind* what the manager already applied.\\n\\nThen:\\n- Manager `bind` rejects on `participant.accepted_sequence < applied` (`manager.rs:72`).\\n- Coordinator `machine_exchange` rejects the manager's next request on `participant.accepted_sequence.checked_add(1) != Some(request.request_sequence)` (`:109`).\\n- `retire_machine_sequences(domain, accepted)` has already pinned a floor at the stale value, so the manager's own `Acknowledge` cannot bridge the gap.\\n\\nNeither side can move. `bind`'s doc comment says \\\"the caller must first run full inventory recovery\\\", but no such manager-side recovery exists in the supplied module.\\n\\n**Fix:** journal `accepted_sequence` in the same external write as the operation for *all* operations (make `prepared` unconditional, or write a lightweight sequence-only record before `tx.commit()`), and add an explicit manager-side resynchronization: on a detected coordinator rollback, run `ReconcileBegin/Page/Commit` against the coordinator's advertised `accepted_sequence` and adopt it as the new `applied`, retaining every unacknowledged obligation.\\n**Test:** crash between `tx.commit()` and `checkpoint_machine_sequence`, reset the coordinator store, run `machine recover`, reconnect the manager, assert convergence with zero obligations lost.\\n\\n---\\n\\n### F12 \u2014 `prepare_machine_commit` intent can exceed the 4 MiB registry on a multi-release `ReconcileCommit` \u2192 reconciliation never commits\\n**Severity: Medium.**\\n`src/store/machine_allocation.rs:219-224`, `:232-239`; `src/authority.rs:1117-1126`.\\n\\n`Outcome::Reconciled { released }` loads a `GrantSnapshot` per released key into `intent.grants`, all of which are serialized into `registry.json`. With up to 4,096 allocations per domain and grants carrying ticket histories, the intent readily exceeds 4 MiB. `publish` fails *before* `tx.commit()` (good \u2014 fail-closed), but the manager retries the identical `ReconcileCommit` forever and `reconciliation_required` never clears, so the domain stays permanently gated.\\n\\n**Fix:** journal released allocations as identity-only records (`grant_id`, `allocation_key`, `sealed_sequence`, seal digest) rather than full snapshots; the full snapshot is already in SQL and the journal only needs to prove the retirement decision. Alternatively chunk `ReconcileCommit` into bounded release batches.\\n**Test:** reconcile 2,000 sealed allocations in one commit; assert it succeeds and `reconciliation_required` reaches 0.\\n\\n---\\n\\n### F13 \u2014 Nondeterministic tie order among allocations of the same attached Job causes reservation churn\\n**Severity: Medium-Low (fairness/stability).**\\n`src/store/machine_allocation.rs:652-657`; `src/store/machine_queue.rs:272-293`, `:355`.\\n\\nQueue identity is per-Job (`remote:{job}`), so a Job's work allocation and its probe allocation share `accepted_ms`, `sequence` and `priority` \u2014 identical `ScheduleKey`. The `ready` query has **no `ORDER BY`**, and `sort_by(schedule_order)` is stable, so their relative order is whatever SQLite returns that pass and can differ between passes. In the reservation prefix-retention loop (`:358-387`), a flip decides which of the two keeps its reservation, and the loser gets `not_before_ms = now + 5000`. Under contention this alternates.\\n\\n**Fix:** add `ORDER BY allocation_key` to the ready and reservation queries and make `allocation_key` (or the grant's `lease_id`) the final tiebreaker in the comparison, so the prefix is deterministic across passes.\\n**Test:** two same-job allocations competing for one scalar; assert 100 consecutive passes select the same retained reservation.\\n\\n---\\n\\n### F14 \u2014 `enqueue` silently returns success for an already-answered operation\\n**Severity: Medium (API hazard; can hang a caller).**\\n`src/machine/manager.rs:120-132`.\\n\\nThe prior-operation branch returns `Ok(sequence)` whenever the payload hash matches, without distinguishing \\\"queued, will be sent\\\" from \\\"already answered, will never be sent\\\" (`pending()` filters on `outcome_json IS NULL`). A caller that retries a durably-rejected operation \u2014 e.g. re-requesting an `AuthorizeInvocation` after a `quiet_waiting` rejection \u2014 with the same operation UUID gets `Ok`, enqueues nothing, and waits forever.\\n\\n**Fix:** return an enum (`Queued(seq)` / `Answered(seq, Outcome)`) so the caller must handle the answered case explicitly.\\n**Test:** enqueue \u2192 accept a `Rejected` outcome \u2192 re-enqueue the same operation ID; assert the caller observes `Answered` and must mint a new operation ID.\\n\\n---\\n\\n## Evidence Gaps\\n\\nThese materially affect two findings and I could not close them from the supplied files:\\n\\n1. **`crate::admission::ResourceTopology::expand`, `ScopedClaims::blockers`, `ResolvedClaims::blockers`, `reservation_decision`, `outranks`, `schedule_order`, `effective_priority_at`, `machine_capacities`, `scalar_claim_entries`** are all referenced but not supplied. F4 rests on the *shape* difference between `physical_claims`'s `domain:{scope}:{id}` fence strings and `native_debits`'s raw lease claims, which is visible in the supplied lines \u2014 but the exact aliasing semantics of `expand` would determine whether the offer-barrier path is also affected or only the ticket/native-admission paths.\\n2. **The caller of `machine_offer_before_native`** is not supplied. Whether it is invoked once per scheduling pass with the head native job, or iterated in rank order across native candidates, determines whether the `break` at `machine_queue.rs:390-392` is correct scanning or genuine domain head-of-line blocking under R-MR-3. **This is the single highest-value gap** \u2014 if it is called only for the head, attached candidates below an inadmissible native head are starved, which is exactly the M-A02/A-MR-1 negative control.\\n3. **The native admission path** (which consumes `machine_queue::remote_debits` and `machine_reservation::remote_debits`) is not supplied; I inferred the `granted + offered + reserved` composition from the debit helpers' shapes.\\n4. **The transport/bridge layer** is not supplied, so `MAX_IN_FLIGHT` and `MAX_QUEUED_BYTES` may be enforced there; in the supplied code they are unreferenced constants. Likewise the actual reply-framing site referenced in F3.\\n5. **The manager runtime** that calls `consume_ticket` / `record_cleanup` is not supplied, so the exact ordering of the freshness recheck relative to `consume_ticket` (F5's window width) is assumed from the module doc comment at `manager.rs:341-343`.\\n6. **`crate::host_observation::{quiet_budget, quiet_stability, evaluate_request}`** are not supplied; F6's polling-cost argument depends only on the per-operation durability path, which *is* supplied.\\n7. The brief states the fake-manager public integration slice is not claimed passed. Nothing in the supplied unit tests (`machine.rs:615-755`, `machine_events.rs:223-286`) exercises the queue, reservation, or accounting paths \u2014 the offer/reservation loop in `machine_queue.rs` has no supplied test coverage at all.\\n\\n---\\n\\n## Recommendations\\n\\n**Blocking for MR-2 closure**, in dependency order:\\n\\n1. **F1, F2, F3, F12 \u2014 fix the bounds before anything else.** All four are \\\"normal operation reaches a limit and the machine never recovers.\\\" Each needs an executable negative control in the A-MR-2 harness: a mutant that keeps the current bound must fail. These are cheap fixes with large blast radius.\\n2. **F4 \u2014 unify the two comparators.** One `ScopedClaims`-based accounting function used at offer, ticket and native admission. This is the invariant A-04 and M-A13 actually test; two implementations will drift again.\\n3. **F5 + F8 together \u2014 the never-run boundary.** They are the same scenario (\u00a77 \\\"Suspend between quiet sample and release\\\"). Add the `disposition` field, the timestamped challenge, and one M-A11 harness covering consume \u2192 invalidate \u2192 clean \u2192 seal \u2192 release.\\n4. **F9 + F10 \u2014 implement the clearance and the upgrade path.** Right now several ordinary events produce a gate with no exit. At minimum, ship the audited `doctor machine clear-*` before claiming R-MR-4.\\n5. **F11 \u2014 make the sequence checkpoint atomic with the SQL commit**, and implement the manager-side inventory recovery that `bind`'s doc comment already promises.\\n6. **F6 \u2014 resolve the offer-delivery design** before W-C1. Without a push or connect-only query, the 5 s offer TTL and the per-operation fsync path make the two-cargo-slot concurrency evidence hard to obtain, and the MR-3 idle budget hard to meet.\\n7. **F7, F13, F14** \u2014 smaller, but F7 is a visible cross-domain fairness violation and should land with the reset-recovery work.\\n\\n**Additional test coverage I would require before calling MR-2 done**, beyond the fault points already passing: a sustained-throughput harness (thousands of allocations) that exercises F1/F2's limits, and a deterministic multi-pass scheduler test asserting the complete ordered scan across native and attached candidates with an inadmissible head (F13 + the gap-2 question).\\n\\n---\\n\\n## Confidence\\n\\n- **High** in F1, F2, F3, F12, F13, F14 \u2014 each follows from arithmetic or control flow entirely within the supplied lines, and I have given the exact expressions.\\n- **High** in F5, F9, F10, F11 \u2014 these are structural (an unreachable enum variant, an unsatisfiable predicate, a missing code path), verifiable by reading the supplied files.\\n- **Medium-High** in F4 \u2014 the fence-string shape mismatch is directly visible (`machine_queue.rs:59,64` vs `:8-14`); my claim about which barriers are affected depends on `ResourceTopology::expand`, which I have not seen. If `expand` already returns machine-scope physical fence identities for aliased entries, the offer barrier is fine and only the ticket and native-admission barriers are wrong \u2014 the finding stands either way, its scope narrows.\\n- **Medium-High** in F8 \u2014 the protocol text is unambiguous and the wire type plainly cannot carry the required information; I am assuming there is no out-of-band timing channel in the unsupplied transport.\\n- **Medium** in F6 \u2014 the durability cost per operation and the absence of an offer push are established from the supplied code; whether this produces an actual livelock depends on the unsupplied transport and scheduling cadence. I would treat it as a design question to answer rather than a confirmed defect.\\n- **Medium** in F7 \u2014 the reset path clearly regenerates attached queue identity from grant data; I am assuming `machine_queue.accepted_ms` is the sole aging origin, which matches `remote_reservations` and the ready query.\\n\\nQuestions that would most change my view: (a) how `machine_offer_before_native` is driven \u2014 once per pass or per native candidate; (b) whether `ResourceTopology::expand` canonicalizes aliased fences to a shared scope; (c) whether the unsupplied transport enforces `MAX_IN_FLIGHT`/`MAX_QUEUED_BYTES` and whether any unsequenced query channel exists.\",\n        \"ttft_ms\": 409663,\n        \"type\": \"result\",\n        \"duration_ms\": 585054,\n        \"uuid\": \"ea89a618-55f3-48f7-b280-98f3d57dcbb1\",\n        \"ttft_stream_ms\": 2595,\n        \"time_to_request_ms\": 77,\n        \"first_content_frame_ms\": 2828,\n        \"queued_turn_count\": 0\n      },\n      \"stderr\": \"\"\n    }\n  ]\n}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08727-6971-79a1-a1b3-fd73badf9036"
+}

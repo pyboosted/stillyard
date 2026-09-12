@@ -1,0 +1,68 @@
+[
+  {
+    "side": "windows",
+    "gate": "build-release",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af4-6b69-7af0-ab68-6539ae64173e",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "clippy",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af0-822e-77c1-8dc0-7c62405a3189",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "fmt-write",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aea-a47f-7412-bd30-1583c9d705cd",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "msrv-test",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af2-9322-7dc1-9981-07b13183bfe4",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "test",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af0-c084-7280-94d5-7c9dd5b64592",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "wsl-bootstrap-msrv-test",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aef-a9cc-7b31-9b65-3a503302b9d7",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "windows",
+    "gate": "wsl-bootstrap-test",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aeb-c3ae-7fb3-bce7-1ed711eccd10",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-build-release",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08af5-28cf-7ad2-a8d7-703ec57ad0b0",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-clippy",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aed-acdf-7381-8ef6-c766f7cd7c77",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-test",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aed-dd89-79d3-9cab-082cdd77b85f",
+    "outcome": "succeeded"
+  },
+  {
+    "side": "linux",
+    "gate": "wsl-msrv-test",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aee-8424-7d61-916d-d6c77bc77dc1",
+    "outcome": "succeeded"
+  }
+]

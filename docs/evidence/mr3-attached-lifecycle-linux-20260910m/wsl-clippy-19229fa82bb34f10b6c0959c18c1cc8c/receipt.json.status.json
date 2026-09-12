@@ -1,0 +1,177 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088d5-3d75-73b0-8c7c-d01aeeec31d3",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088d5-3d73-7ed3-a894-0359cc15c6a5",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088d5-3d7b-76d1-a7d4-5352f7039586",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088d5-3d7a-7203-adfd-1d053a51762f",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088d5-3d7a-7203-adfd-1d1939ab9ac6",
+  "root_exit_code": 101,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789002071413,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789002071435,
+  "finished_unix_millis": 1789002079808,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr3-attached-lifecycle-linux-evidence-20260910m\\wsl-clippy-19229fa82bb34f10b6c0959c18c1cc8c\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr3-attached-lifecycle-linux-evidence-20260910m\\wsl-clippy-19229fa82bb34f10b6c0959c18c1cc8c",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-bootstrap-clippy"
+      },
+      {
+        "key": "source",
+        "value": "cf7761291897769f18e5e438526a33b5a9881aafbd7d936fc69f3bc0fdf0cd94"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1830,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088d5-3d7b-76d1-a7d4-5352f7039586",
+      "attempt_index": 1,
+      "verdict": "process_failed",
+      "reason_code": null,
+      "created_unix_millis": 1789002071418,
+      "started_unix_millis": 1789002071418,
+      "deadline_unix_millis": 1789003901418,
+      "finished_unix_millis": 1789002079808,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088d5-3d75-73b0-8c7c-d01aeeec31d3",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088d5-3d7b-76d1-a7d4-5352f7039586",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088d5-3d7a-7203-adfd-1d053a51762f",
+        "verdict": "process_failed",
+        "root_exit_code": 101,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789002071435,
+        "exited_unix_millis": 1789002079799,
+        "resolved_unix_millis": 1789002079803
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088d5-3d7a-7203-adfd-1d053a51762f",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 52664,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 52664,
+            "creation_filetime_100ns": 134334756714305504
+          },
+          "root_exit_code": 101,
+          "exit_classification": null,
+          "executable_hash": "60b595c07732199f891f8fe76f1f684e4c13c5e599bff7fff06be3bb0aa246f4",
+          "daemon_generation": "01a0888c-4082-7550-96a3-f1288b6210d0",
+          "started_unix_millis": 1789002071435,
+          "finished_unix_millis": 1789002079803,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088d5-3d7a-7203-adfd-1d1939ab9ac6",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": "    Checking signature v2.2.0\n    Checking zeroize v1.9.0\n    Checking ed25519 v2.2.3\n    Checking curve25519-dalek v4.1.3\n    Checking ed25519-dalek v2.2.0\n    Checking stillyard v0.1.0-alpha.19 (/home/pythonic/Development/stillyard-mr3-attached-lifecycle-20260910m)\nerror: items after a test module\n   --> src/runner/linux/registry.rs:18:1\n    |\n 18 | mod tests {\n    | ^^^^^^^^^\n...\n146 | enum Entry {\n    | ^^^^^^^^^^\n...\n151 | fn poisoned() -> io::Error {\n    | ^^^^^^^^^^^^^^^^^^^^^^^^^^\n...\n155 | impl Registry {\n    | ^^^^^^^^^^^^^\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#items_after_test_module\n    = note: `-D clippy::items-after-test-module` implied by `-D warnings`\n    = help: to override `-D warnings` add `#[allow(clippy::items_after_test_module)]`\n\nerror: could not compile `stillyard` (lib test) due to 1 previous error\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088d5-3d7a-7203-adfd-1d29a1e3b720",
+      "lease_id": "01a088d5-3d7a-7203-adfd-1d29a1e3b720",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+        "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+        "lease_id": "01a088d5-3d7a-7203-adfd-1d29a1e3b720"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088d5-3d75-73b0-8c7c-d01aeeec31d3",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088d5-3d7b-76d1-a7d4-5352f7039586"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a0888c-4082-7550-96a3-f1288b6210d0"
+}

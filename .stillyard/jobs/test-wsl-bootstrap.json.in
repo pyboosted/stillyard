@@ -1,0 +1,51 @@
+{
+  "spec_version": 4,
+  "executable": "${CARGO_EXE}",
+  "args": [
+    "test",
+    "--test",
+    "isolated_daemon",
+    "wsl_bootstrap_",
+    "--",
+    "--ignored",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "working_directory": "${REPOSITORY_ROOT}",
+  "environment": {
+    "set": {
+      "CARGO_HOME": "${CARGO_HOME}",
+      "CARGO_TARGET_DIR": "${CARGO_TARGET_DIR}",
+      "INCLUDE": "${INCLUDE}",
+      "LIB": "${LIB}",
+      "PATH": "${PATH}",
+      "RUSTUP_HOME": "${RUSTUP_HOME}",
+      "SCCACHE_DIR": "${SCCACHE_DIR}",
+      "USERPROFILE": "${USERPROFILE}",
+      "SYSTEMDRIVE": "${SYSTEMDRIVE}",
+      "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+      "COMSPEC": "${COMSPEC}",
+      "MR_WSL_TEST_DISTRO": "${WSL_TEST_DISTRO}",
+      "MR_WINDOWS_PYTHON": "${WINDOWS_PYTHON}",
+      "MR_WSL_TEST_USER": "${WSL_TEST_USER}"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "test-wsl-bootstrap"
+    }
+  ],
+  "expected_duration_seconds": 180,
+  "timeout_seconds": 1800
+}

@@ -183,6 +183,7 @@ impl Store {
                             Vec::new()
                         },
                         attempts: self.attempt_snapshots(job_id, observations)?,
+                        allocations: self.native_allocations(job_id)?,
                         gpu_provenance: self.gpu_provenance_for_job(job_id)?,
                         admission: self.admission_for_job(job_id)?,
                         daemon_generation: self.daemon_generation,
@@ -884,7 +885,8 @@ impl Store {
                     role_index,
                     state: parse_invocation_state(&invocation_state)?,
                     root_pid,
-                    root_identity: process_identity_from_columns(
+                    root_identity: self.process_identity_record(
+                        &invocation,
                         root_pid,
                         root_host_id.clone(),
                         root_boot_id.clone(),
@@ -937,7 +939,8 @@ impl Store {
                                             .map(parse_reconciliation_result)
                                             .transpose()?,
                                     },
-                                    root_identity: process_identity_from_columns(
+                                    root_identity: self.process_identity_record(
+                                        &invocation,
                                         root_pid,
                                         root_host_id.clone(),
                                         root_boot_id.clone(),
@@ -1086,10 +1089,106 @@ impl Store {
             config_path: self.paths.config.clone(),
             capacities: self.capacities.clone(),
             resources: Some(self.resource_snapshot()?),
+            machine_scheduling: self.machine_scheduling_snapshot()?,
             config_sha256: self.config_sha256.clone(),
             queued_jobs,
             running_jobs,
         })
+    }
+
+    fn machine_scheduling_snapshot(&self) -> StoreResult<Option<crate::MachineSchedulingSnapshot>> {
+        if self.authority.is_none() {
+            #[cfg(target_os = "linux")]
+            return self.attached_machine_snapshot();
+            #[cfg(not(target_os = "linux"))]
+            return Ok(None);
+        }
+        let authority = self.authority_snapshot()?;
+        if authority.pending_machine_operation.is_some()
+            || authority
+                .coordinator
+                .as_ref()
+                .is_some_and(|history| history.pending_reset.is_some())
+        {
+            // The empty replacement database cannot stand in for lost usage.
+            return Ok(None);
+        }
+        let (Some(authority_epoch), Some(domains)) = (authority.epoch, authority.domains) else {
+            return Ok(None);
+        };
+        let (granted, reserved) = self.granted_and_reserved_claims()?;
+        let (resources, mode) = if let Some((_, topology)) = self.machine_topology()? {
+            let expand_native = |claims: &[ResolvedClaims]| {
+                claims
+                    .iter()
+                    .map(|c| {
+                        topology
+                            .expand(domains.native_domain, c)
+                            .map_err(StoreError::InvalidState)
+                    })
+                    .collect::<StoreResult<Vec<_>>>()
+            };
+            let mut granted = expand_native(&granted)?;
+            let mut reserved = expand_native(&reserved)?;
+            for remote in
+                super::machine_reservation::remote_reservations(&self.connection, now_millis())?
+            {
+                let c = remote.candidate;
+                reserved.push(
+                    topology
+                        .expand(
+                            c.key.domain_id,
+                            &super::machine_queue::claims(&c.claims).scalar_only(),
+                        )
+                        .map_err(StoreError::InvalidState)?,
+                );
+            }
+            let mut offered = Vec::new();
+            let mut statement = self.connection.prepare("SELECT snapshot_json FROM machine_grants WHERE state IN ('offered','armed','uncertain')")?;
+            for row in statement.query_map([], |row| row.get::<_, String>(0))? {
+                let grant: crate::machine::GrantSnapshot = serde_json::from_str(&row?)?;
+                let claims = topology
+                    .expand(
+                        grant.candidate.key.domain_id,
+                        &super::machine_queue::claims(&grant.candidate.claims),
+                    )
+                    .map_err(StoreError::InvalidState)?;
+                if grant.state == crate::machine::GrantState::Offered {
+                    offered.push(claims);
+                } else {
+                    granted.push(claims);
+                }
+            }
+            (
+                topology
+                    .accounting(&granted, &offered, &reserved)
+                    .map_err(StoreError::InvalidState)?,
+                crate::MachineSchedulingMode::Coordinator,
+            )
+        } else {
+            (
+                crate::admission::native_accounting(
+                    &domains,
+                    &self.capacities,
+                    &granted,
+                    &reserved,
+                )
+                .map_err(StoreError::InvalidState)?,
+                crate::MachineSchedulingMode::Standalone,
+            )
+        };
+        Ok(Some(crate::MachineSchedulingSnapshot {
+            authority_epoch,
+            domains,
+            mode,
+            observed_unix_millis: now_millis(),
+            configuration_sha256: self.config_sha256.clone(),
+            resources,
+            blocker: authority.blocker.map(|code| Blocker {
+                code,
+                detail: authority.detail.unwrap_or_default(),
+            }),
+        }))
     }
 
     fn resource_snapshot(&self) -> StoreResult<crate::ResourceSnapshot> {
@@ -1278,7 +1377,8 @@ impl Store {
                         .map(parse_reconciliation_result)
                         .transpose()?,
                 },
-                root_identity: process_identity_from_columns(
+                root_identity: self.process_identity_record(
+                    &invocation,
                     root_pid,
                     root_host,
                     root_boot,
@@ -1357,13 +1457,13 @@ impl Store {
                 }),
             },
             DoctorCheck {
-                code: "containment.windows_job_object".into(),
+                code: crate::platform::containment_check_code().into(),
                 status: if self.startup_identity.capable() {
                     DoctorCheckStatus::Pass
                 } else {
                     DoctorCheckStatus::Fail
                 },
-                summary: "born-contained Windows Job Object capability".into(),
+                summary: crate::platform::containment_summary().into(),
                 remediation: (!self.startup_identity.capable())
                     .then(|| self.startup_identity.failures.join("; ")),
             },
@@ -1389,20 +1489,35 @@ impl Store {
             },
             DoctorCheck {
                 code: "host.session_survival".into(),
-                status: DoctorCheckStatus::Pass,
-                summary: "detached per-user daemon session is active".into(),
+                status: crate::platform::session_survival_status(),
+                summary: if cfg!(windows) {
+                    "detached per-user daemon session is active"
+                } else {
+                    "WSL lifetime requires the installed external keepalive and runtime acceptance"
+                }
+                .into(),
                 remediation: None,
             },
             DoctorCheck {
                 code: "ipc.owner_only".into(),
                 status: DoctorCheckStatus::Pass,
-                summary: "named pipe is owner-only and rejects remote clients".into(),
+                summary: if cfg!(target_os = "linux") {
+                    "Unix socket uses owner credentials and pinned process identity"
+                } else {
+                    "named pipe is owner-only and rejects remote clients"
+                }
+                .into(),
                 remediation: None,
             },
             DoctorCheck {
                 code: "store.filesystem".into(),
                 status: DoctorCheckStatus::Pass,
-                summary: "store path was validated as local fixed NTFS".into(),
+                summary: if cfg!(target_os = "linux") {
+                    "store path was validated as local ext4 with owner-only access"
+                } else {
+                    "store path was validated as local fixed NTFS"
+                }
+                .into(),
                 remediation: None,
             },
             DoctorCheck {
@@ -1424,6 +1539,19 @@ impl Store {
                 remediation: None,
             },
         ];
+        if self.authority.is_some() {
+            let snapshot = self.authority_snapshot()?;
+            checks.push(DoctorCheck {
+                code: "authority.admission".into(),
+                status: if snapshot.blocker.is_some() {
+                    DoctorCheckStatus::Fail
+                } else {
+                    DoctorCheckStatus::Pass
+                },
+                summary: snapshot.blocker.unwrap_or_else(|| "authority_ready".into()),
+                remediation: snapshot.detail,
+            });
+        }
         for check in &mut checks {
             check.code = bounded_doctor_code(std::mem::take(&mut check.code));
             check.summary =
@@ -1455,17 +1583,17 @@ impl Store {
             daemon: self.daemon_status(endpoint)?,
             host: DoctorHostSnapshot {
                 platform: std::env::consts::OS.into(),
-                host_name: std::env::var("COMPUTERNAME").ok(),
+                host_name: crate::platform::host_name(),
                 host_id: self.startup_identity.host_id.clone(),
                 boot_id: self.startup_identity.boot_id.clone(),
-                containment_strength: "windows_job_object".into(),
-                session_survival: DoctorCheckStatus::Pass,
+                containment_strength: crate::platform::containment_strength().into(),
+                session_survival: crate::platform::session_survival_status(),
             },
             store: DoctorStoreSnapshot {
                 store_uuid: self.store_uuid,
                 schema_epoch: STORE_SCHEMA_EPOCH.into(),
                 bound_host_id: self.bound_host_id.clone(),
-                filesystem: "local_fixed_ntfs".into(),
+                filesystem: crate::platform::durable_filesystem_name().into(),
                 sqlite_journal_mode: journal_mode,
                 sqlite_synchronous: if synchronous == 2 {
                     "full".into()
@@ -1517,8 +1645,12 @@ mod command_preview_tests {
 
     #[test]
     fn preview_is_bounded_single_line_and_identifies_the_command() {
+        #[cfg(windows)]
+        let executable = r"C:\tools\review runner.exe";
+        #[cfg(not(windows))]
+        let executable = "/tools/review runner.exe";
         let preview = command_preview_from_parts(
-            std::path::Path::new(r"C:\tools\review runner.exe"),
+            std::path::Path::new(executable),
             &["audit".into(), "two words".into(), "line\nbreak".into()],
             48,
         );

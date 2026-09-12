@@ -1,0 +1,225 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-ebec-7772-9d2c-18bc9824b22e",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-ebea-7c00-88c9-b8b99dfa13f4",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-ebf0-71d3-a384-aa83a36123b1",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-ebf0-71d3-a384-aa923696038f",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-ebf0-71d3-a384-aaa85f4423c9",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789019417580,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789019542823,
+  "finished_unix_millis": 1789019557711,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/home/pythonic/.cargo/bin/cargo",
+    "args": [
+      "check",
+      "--locked",
+      "--workspace",
+      "--all-features",
+      "--all-targets"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-wc3-scratch-20260910",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CARGO_BUILD_JOBS": "4",
+        "CARGO_HOME": "/home/pythonic/.cargo",
+        "CARGO_TARGET_DIR": "/home/pythonic/Development/stillyard-wc3-scratch-20260910/target/scheduled-linux",
+        "HOME": "/home/pythonic",
+        "PATH": "/home/pythonic/.cargo/bin:/usr/bin:/bin",
+        "RUSTUP_HOME": "/home/pythonic/.rustup",
+        "RUSTUP_TOOLCHAIN": "stable-x86_64-unknown-linux-gnu"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "acceptance",
+        "value": "W-C3-child"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 600,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": {
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d179-7212-8e74-2c3df93ede77",
+    "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d17e-7883-9e65-b6904c7271a5",
+    "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d17e-7883-9e65-b6ae5ed0d0c6"
+  },
+  "managed_policy_admission": {
+    "parent": {
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d179-7212-8e74-2c3df93ede77",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d17e-7883-9e65-b6904c7271a5",
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d17e-7883-9e65-b6ae5ed0d0c6"
+    },
+    "evaluated_unix_millis": 1789019417580,
+    "effective_policy": {
+      "min_priority": 0,
+      "max_priority": 0,
+      "max_claims": {
+        "cpu_units": null,
+        "ram_mb": null,
+        "cargo_slots": 1,
+        "gpu_slots": null,
+        "custom": {}
+      },
+      "allowed_impacts": [
+        "cpu_heavy"
+      ],
+      "required_labels": [
+        {
+          "key": "project",
+          "value": "stillyard"
+        }
+      ],
+      "fences": {
+        "shared_roots": [],
+        "exclusive_roots": []
+      },
+      "allow_observed": false,
+      "allow_quiet": false,
+      "allow_delegation": false
+    },
+    "policy_ancestors": [
+      "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d179-7212-8e74-2c3df93ede77"
+    ]
+  },
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-ebf0-71d3-a384-aa83a36123b1",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789019417583,
+      "started_unix_millis": 1789019542682,
+      "deadline_unix_millis": 1789020142682,
+      "finished_unix_millis": 1789019557711,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-ebec-7772-9d2c-18bc9824b22e",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-ebf0-71d3-a384-aa83a36123b1",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-ebf0-71d3-a384-aa923696038f",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789019542823,
+        "exited_unix_millis": 1789019557699,
+        "resolved_unix_millis": 1789019557708
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-ebf0-71d3-a384-aa923696038f",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 4100291,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 4100291,
+            "start_ticks": 6564941,
+            "pid_namespace_inode": 4026533828,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71",
+          "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608",
+          "started_unix_millis": 1789019542823,
+          "finished_unix_millis": 1789019557708,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-ebf0-71d3-a384-aaa85f4423c9",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": "   Compiling proc-macro2 v1.0.107\n   Compiling unicode-ident v1.0.24\n   Compiling quote v1.0.47\n   Compiling libc v0.2.189\n    Checking cfg-if v1.0.4\n   Compiling version_check v0.9.5\n    Checking typenum v1.20.1\n   Compiling generic-array v0.14.7\n   Compiling rustversion v1.0.23\n   Compiling syn v3.0.4\n   Compiling syn v2.0.119\n   Compiling serde_core v1.0.229\n    Checking bitflags v2.13.1\n    Checking crypto-common v0.1.7\n    Checking block-buffer v0.10.4\n    Checking errno v0.3.14\n    Checking allocator-api2 v0.2.21\n   Compiling signal-hook v0.3.18\n    Checking subtle v2.6.1\n   Compiling parking_lot_core v0.9.12\n   Compiling shlex v2.0.1\n   Compiling strsim v0.11.1\n    Checking equivalent v1.0.2\n   Compiling fnv v1.0.7\n   Compiling semver v1.0.28\n    Checking foldhash v0.1.5\n    Checking smallvec v1.15.2\n   Compiling heck v0.5.0\n   Compiling find-msvc-tools v0.1.11\n   Compiling getrandom v0.4.3\n   Compiling ident_case v1.0.1\n   Compiling cc v1.4.4\n    Checking hashbrown v0.15.5\n   Compiling rustc_version v0.4.1\n    Checking digest v0.10.7\n    Checking signal-hook-registry v1.4.8\n   Compiling darling_core v0.20.11\n    Checking log v0.4.34\n   Compiling vcpkg v0.2.15\n   Compiling pkg-config v0.3.34\n   Compiling rustix v0.38.44\n    Checking scopeguard v1.2.0\n    Checking itoa v1.0.18\n   Compiling zmij v1.0.23\n    Checking utf8parse v0.2.2\n    Checking anstyle-parse v1.0.0\n   Compiling libsqlite3-sys v0.35.0\n    Checking lock_api v0.4.14\n    Checking mio v1.2.2\n   Compiling curve25519-dalek v4.1.3\n   Compiling darling_macro v0.20.11\n    Checking is_terminal_polyfill v1.70.2\n    Checking linux-raw-sys v0.4.15\n    Checking anstyle-query v1.1.5\n    Checking either v1.18.0\n    Checking colorchoice v1.0.5\n   Compiling paste v1.0.15\n   Compiling serde_json v1.0.151\n    Checking anstyle v1.0.14\n   Compiling serde v1.0.229\n    Checking cpufeatures v0.2.17\n   Compiling instability v0.3.10\n   Compiling ref-cast v1.0.27\n    Checking anstream v1.0.0\n   Compiling darling v0.20.11\n    Checking itertools v0.13.0\n    Checking signal-hook-mio v0.2.5\n    Checking parking_lot v0.12.5\n   Compiling curve25519-dalek-derive v0.1.1\n   Compiling strum_macros v0.26.4\n   Compiling serde_derive v1.0.229\n   Compiling ref-cast-impl v1.0.27\n   Compiling serde_derive_internals v0.30.0\n    Checking castaway v0.2.4\n    Checking zeroize v1.9.0\n    Checking unicode-segmentation v1.13.3\n   Compiling thiserror v2.0.20\n   Compiling indoc v2.0.7\n    Checking static_assertions v1.1.0\n    Checking ryu v1.0.23\n    Checking clap_lex v1.1.0\n    Checking unicode-width v0.1.14\n    Checking signature v2.2.0\n    Checking option-ext v0.2.0\n    Checking memchr v2.8.3\n    Checking dirs-sys v0.5.0\n    Checking unicode-truncate v1.1.0\n    Checking ed25519 v2.2.3\n    Checking clap_builder v4.6.6\n    Checking compact_str v0.8.2\n   Compiling schemars_derive v1.2.2\n    Checking strum v0.26.3\n    Checking crossterm v0.28.1\n    Checking sha2 v0.10.9\n    Checking uuid v1.26.0\n   Compiling thiserror-impl v2.0.20\n   Compiling clap_derive v4.6.4\n    Checking lru v0.12.5\n    Checking hashlink v0.10.0\n    Checking cassowary v0.3.0\n    Checking fallible-iterator v0.3.0\n   Compiling rustix v1.1.4\n    Checking fallible-streaming-iterator v0.1.9\n    Checking dyn-clone v1.0.20\n    Checking unicode-width v0.2.0\n    Checking schemars v1.2.2\n    Checking ratatui v0.29.0\n    Checking clap v4.6.6\n    Checking ed25519-dalek v2.2.0\n    Checking directories v6.0.0\n    Checking hmac v0.12.1\n    Checking fs2 v0.4.3\n    Checking linux-raw-sys v0.12.1\n    Checking once_cell v1.21.4\n    Checking fastrand v2.5.0\n    Checking rusqlite v0.37.0\n    Checking stillyard v0.1.0-alpha.20 (/home/pythonic/Development/stillyard-wc3-scratch-20260910)\n    Checking tempfile v3.27.0\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 14.82s\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089df-d410-7dc2-874d-4eeec4fece5d",
+      "lease_id": "01a089dd-ebf0-71d3-a384-aabcc5e7e125",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a089dd-ebf0-71d3-a384-aabcc5e7e125"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-ebec-7772-9d2c-18bc9824b22e",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-ebf0-71d3-a384-aa83a36123b1"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608"
+}

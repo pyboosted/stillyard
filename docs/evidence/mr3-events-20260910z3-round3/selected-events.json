@@ -1,0 +1,520 @@
+[
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 558
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a26-9c9d-7451-aa67-4b94592eff53",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a26-9c8a-74e0-a478-d8a5ce64888d"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-9c83-7662-b381-3d9d36a5a64e",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-9c89-7072-9723-fa341ee8c1ec"
+    },
+    "state": "offered",
+    "tickets_issued": 0,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 1,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "committed_unix_millis": 1789024181405
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 559
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a26-9c9d-7451-aa67-4b94592eff53",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a26-9c8a-74e0-a478-d8a5ce64888d"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-9c83-7662-b381-3d9d36a5a64e",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-9c89-7072-9723-fa341ee8c1ec"
+    },
+    "state": "armed",
+    "tickets_issued": 0,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 1,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "committed_unix_millis": 1789024181429
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 560
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a26-9c9d-7451-aa67-4b94592eff53",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a26-9c8a-74e0-a478-d8a5ce64888d"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-9c83-7662-b381-3d9d36a5a64e",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-9c89-7072-9723-fa341ee8c1ec"
+    },
+    "state": "armed",
+    "tickets_issued": 1,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 1,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "committed_unix_millis": 1789024181586
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 567
+    },
+    "native": true,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a26-a2d1-7242-a6ed-dbd6ce12e611",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+      "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "lease_id": "01a08a26-a2d1-7242-a6ed-dbd6ce12e611"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a26-a2c6-7433-a54e-920ee2438f02",
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a26-a2d1-7242-a6ed-dbac9a3626b7"
+    },
+    "state": "armed",
+    "tickets_issued": 0,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 1,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "committed_unix_millis": 1789024182993
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 568
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a26-9c9d-7451-aa67-4b94592eff53",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a26-9c8a-74e0-a478-d8a5ce64888d"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-9c83-7662-b381-3d9d36a5a64e",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-9c89-7072-9723-fa341ee8c1ec"
+    },
+    "state": "released",
+    "tickets_issued": 1,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 1,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "committed_unix_millis": 1789024224087
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 569
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a27-436f-7f61-ae8d-a7d8bb234f02",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a26-b5d8-7010-83ed-09ccd5423895"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-b5d3-76a2-8272-bf8a735cc7a5",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-b5d8-7010-83ed-099be98b3597"
+    },
+    "state": "offered",
+    "tickets_issued": 0,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 1,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "committed_unix_millis": 1789024224110
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 570
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a27-436f-7f61-ae8d-a7d8bb234f02",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a26-b5d8-7010-83ed-09ccd5423895"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-b5d3-76a2-8272-bf8a735cc7a5",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-b5d8-7010-83ed-099be98b3597"
+    },
+    "state": "armed",
+    "tickets_issued": 0,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 1,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "committed_unix_millis": 1789024224140
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 571
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a27-436f-7f61-ae8d-a7d8bb234f02",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a26-b5d8-7010-83ed-09ccd5423895"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-b5d3-76a2-8272-bf8a735cc7a5",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-b5d8-7010-83ed-099be98b3597"
+    },
+    "state": "armed",
+    "tickets_issued": 1,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 1,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "committed_unix_millis": 1789024224386
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 572
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a27-436f-7f61-ae8d-a7d8bb234f02",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a26-b5d8-7010-83ed-09ccd5423895"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-b5d3-76a2-8272-bf8a735cc7a5",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-b5d8-7010-83ed-099be98b3597"
+    },
+    "state": "released",
+    "tickets_issued": 1,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 1,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "committed_unix_millis": 1789024224635
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 574
+    },
+    "native": true,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a26-a2d1-7242-a6ed-dbd6ce12e611",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+      "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "lease_id": "01a08a26-a2d1-7242-a6ed-dbd6ce12e611"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a26-a2c6-7433-a54e-920ee2438f02",
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a26-a2d1-7242-a6ed-dbac9a3626b7"
+    },
+    "state": "released",
+    "tickets_issued": 0,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 1,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "committed_unix_millis": 1789024273819
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 575
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a28-05a3-7a62-b549-b867c7007650",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a27-953f-7e50-8db8-5ed62f082370"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a1a6-7071-b6fa-414cfe3ac858",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a1c5-7f03-8ad6-0f9868ff988b"
+    },
+    "state": "offered",
+    "tickets_issued": 0,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 0,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "measurement"
+      ]
+    },
+    "committed_unix_millis": 1789024273826
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 576
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a28-05a3-7a62-b549-b867c7007650",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a27-953f-7e50-8db8-5ed62f082370"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a1a6-7071-b6fa-414cfe3ac858",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a1c5-7f03-8ad6-0f9868ff988b"
+    },
+    "state": "armed",
+    "tickets_issued": 0,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 0,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "measurement"
+      ]
+    },
+    "committed_unix_millis": 1789024273866
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 577
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a28-05a3-7a62-b549-b867c7007650",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a27-953f-7e50-8db8-5ed62f082370"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a1a6-7071-b6fa-414cfe3ac858",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a1c5-7f03-8ad6-0f9868ff988b"
+    },
+    "state": "armed",
+    "tickets_issued": 1,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 0,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "measurement"
+      ]
+    },
+    "committed_unix_millis": 1789024278033
+  },
+  {
+    "cursor": {
+      "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+      "sequence": 578
+    },
+    "native": false,
+    "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a28-05a3-7a62-b549-b867c7007650",
+    "key": {
+      "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+      "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+      "lease_id": "01a08a27-953f-7e50-8db8-5ed62f082370"
+    },
+    "owner": {
+      "kind": "work",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a1a6-7071-b6fa-414cfe3ac858",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a1c5-7f03-8ad6-0f9868ff988b"
+    },
+    "state": "released",
+    "tickets_issued": 1,
+    "risk_clearance": null,
+    "claims": {
+      "scalars": {
+        "cargo_slots": 0,
+        "cpu_units": 0,
+        "gpu_slots": 0,
+        "ram_mb": 0
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "measurement"
+      ]
+    },
+    "committed_unix_millis": 1789024279096
+  }
+]

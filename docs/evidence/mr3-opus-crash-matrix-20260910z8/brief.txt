@@ -1,0 +1,2918 @@
+Read-only focused design review for remaining MR3 M-A04 acceptance and recovery. Lens: smallest sound real-kernel crash/duplicate matrix. Contract M-A04 is crashes/duplicates before/after Arm, local commit, release; must detect second user launch or premature TTL release. MR2 already runs actual isolated native coordinator crashes at before_journal/after_journal/after_sql/after_ack for Arm/Authorize/Release; its peer is a model. MR3 accepted installed Windows/WSL live consumers, bridge-loss during Cargo (tokenheld44suntilactualjournalSeal), installed daemon SIGKILL during realroot+descendant (supervisor retains delegation; newdaemon cleanup+release sameStore), realkernelJournal/Store reset with isolatedactualnative coordinator, stale/new executorincarnations and livecapacity1->0->1. Those do not by themselves complete M-A04. Current Linux attachedkernel fixture (supplied) uses real Store/PreparedLaunch/ReleaseBarrier/cgroup but synthetic authenticated coordinator replies. Need add minimal bounded test matrix without weakening product authority/freshness or using installed production fault hooks. Proposed: debug_assertions-only fault checkpoints gated by explicit isolated Store-root (matching existing native faultpattern), only prebuilt isolated debug Linux daemon inside defaultWindowsJob protectedbootstrap; actual controller observes durablestage and kills only exactisolateddaemonpid. Need actual isolated Windows coordinator RPC + Linux Driver link (privatepairing) if compositional evidence insufficient. Linux kernel helper/daemon outside childInvocation cgroups under existing nestedprotectedbootstrap, nativebridge ordinary descendant of outerWindowsJob; stores onext4, mailbox privateNTFS withallowlistedexports. Never change installedstores or inject faultsinto installedreleaseimage. Question: can smaller extension of existing actualStore/kernel_runtime tests with syntheticreply + existing nativecrashmatrix meet M-A04 via composition, or must fullDriver/coordinator be run together at everyboundary? Give concrete minimal tests and checkpoints and expected irreversible states. Specifically identify pending unrecoverable remove-beforeSeal and create-beforeboundarycommit gaps (code supplied) that must retain uncertainty; do not suggest pathabsence/generationchange asproof. Point out whether these liveness gaps block MR3 or needexplicitrecoverypath. Do not implement, do not invent unseenconstraints. Return JSON verdict/summary/findings; include priority, evidence, proposedboundedimplementation.
+
+FILE src/store/attached.rs
+//! Local lifecycle binding for an attached executor. SQLite guards cover every
+//! Lease insertion/release path, including probes and reconciliation.
+use super::*;
+mod cleanup;
+#[cfg(target_os = "linux")]
+pub(crate) mod driver;
+#[cfg(target_os = "linux")]
+pub(super) mod installation;
+pub(super) mod invocation;
+#[cfg(target_os = "linux")]
+mod observation;
+mod queue;
+mod recovery;
+#[cfg(target_os = "linux")]
+mod runtime;
+use crate::machine::{
+    AllocationKey, AllocationOwner, Candidate, Command, GrantState, SessionIdentity,
+};
+
+pub(super) fn initialize_schema(c: &Connection) -> StoreResult<()> {
+    c.execute_batch("CREATE TABLE IF NOT EXISTS attached_local_mode(
+        singleton INTEGER PRIMARY KEY CHECK(singleton=1), store_uuid TEXT NOT NULL,
+        session_json TEXT, configuration_sha256 TEXT, connected INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS attached_local_plans(
+        slot TEXT PRIMARY KEY, lease_id TEXT UNIQUE NOT NULL, job_id TEXT NOT NULL,
+        attempt_id TEXT NOT NULL, invocation_id TEXT UNIQUE NOT NULL,
+        containment_id TEXT UNIQUE NOT NULL, allocation_key TEXT UNIQUE NOT NULL,
+        candidate_json TEXT NOT NULL, claims_json TEXT NOT NULL,
+        armed INTEGER NOT NULL DEFAULT 0, committed INTEGER NOT NULL DEFAULT 0,
+        release_pending INTEGER NOT NULL DEFAULT 0, released INTEGER NOT NULL DEFAULT 0);
+        CREATE TRIGGER IF NOT EXISTS attached_lease_insert BEFORE INSERT ON leases
+        WHEN EXISTS(SELECT 1 FROM attached_local_mode) BEGIN
+          SELECT CASE WHEN NOT EXISTS(
+            SELECT 1 FROM attached_local_plans p JOIN attached_local_mode m
+            WHERE p.lease_id=NEW.id AND p.attempt_id=NEW.attempt_id
+              AND p.claims_json=NEW.claims_json AND p.armed=1 AND p.committed=1
+              AND p.release_pending=0 AND p.released=0 AND m.connected=1
+              AND ((NEW.invocation_id IS NULL AND json_extract(p.candidate_json,'$.owner.kind')='work')
+                OR (NEW.invocation_id=p.invocation_id AND json_extract(p.candidate_json,'$.owner.kind')='probe'))
+          ) THEN RAISE(ABORT,'attached Lease has no committed Armed Grant') END;
+        END;
+        CREATE TRIGGER IF NOT EXISTS attached_lease_release BEFORE UPDATE OF state ON leases
+        WHEN NEW.state='released' AND OLD.state='granted'
+          AND EXISTS(SELECT 1 FROM attached_local_mode) BEGIN
+          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM attached_local_plans WHERE lease_id=OLD.id)
+            THEN RAISE(ABORT,'attached Lease lost its Grant binding') END;
+          UPDATE attached_local_plans SET release_pending=1 WHERE lease_id=OLD.id;
+          SELECT CASE WHEN NOT EXISTS(
+            SELECT 1 FROM attached_local_plans WHERE lease_id=OLD.id AND released=1
+          ) THEN RAISE(IGNORE) END;
+        END;")?;
+    queue::initialize(c)?;
+    invocation::initialize(c)?;
+    #[cfg(target_os = "linux")]
+    observation::initialize(c)?;
+    cleanup::initialize(c)
+}
+
+fn protocol_error(e: crate::machine::manager::JournalError) -> StoreError {
+    StoreError::InvalidState(e.to_string())
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct PlannedIds {
+    pub invocation: InvocationId,
+    pub containment: ContainmentId,
+    pub lease: Uuid,
+}
+pub(super) struct Admission {
+    pub ids: PlannedIds,
+    pub ready: bool,
+    pub changed: bool,
+    pub persist: bool,
+}
+
+type ModeRow = (String, Option<String>, Option<String>, bool);
+type PlanRow = (String, String, String, String, bool, bool, bool);
+
+/// Called only AFTER local dependencies, conditions and capacity have been
+/// checked. A pending remote reply commits the plan, not a local Lease.
+pub(super) fn prepare(
+    tx: &Transaction<'_>,
+    job: JobId,
+    attempt: AttemptId,
+    condition: Option<ConditionId>,
+    spec: &JobSpec,
+    claims: &ResolvedClaims,
+) -> StoreResult<Admission> {
+    let fresh = || PlannedIds {
+        invocation: InvocationId::new(job.store_uuid()),
+        containment: ContainmentId::new(job.store_uuid()),
+        lease: Uuid::now_v7(),
+    };
+    let mode: Option<ModeRow> = tx.query_row(
+        "SELECT store_uuid,session_json,configuration_sha256,connected FROM attached_local_mode WHERE singleton=1",
+        [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
+    let Some((store, session, configuration, connected)) = mode else {
+        return Ok(Admission {
+            ids: fresh(),
+            ready: true,
+            changed: false,
+            persist: false,
+        });
+    };
+    if store != job.store_uuid().to_string() {
+        return Err(StoreError::InvalidState(
+            "attached store differs from its installed binding".into(),
+        ));
+    }
+    if !connected {
+        return Ok(Admission {
+            ids: fresh(),
+            ready: false,
+            changed: false,
+            persist: false,
+        });
+    }
+    let session: SessionIdentity = serde_json::from_str(
+        &session.ok_or_else(|| StoreError::InvalidState("attached session missing".into()))?,
+    )?;
+    let configuration = configuration
+        .ok_or_else(|| StoreError::InvalidState("attached configuration missing".into()))?;
+    let probe = condition.is_some();
+    let role = if probe { "probe" } else { "primary" };
+    let index: u64 = tx.query_row(
+        "SELECT COALESCE(MAX(role_index),-1)+1 FROM invocations WHERE attempt_id=?1 AND role=?2",
+        params![attempt.entity_uuid().to_string(), role],
+        |r| r.get(0),
+    )?;
+    let slot = format!(
+        "{attempt}:{role}:{index}:{}",
+        condition.map(|id| id.to_string()).unwrap_or_default()
+    );
+    let previous: Option<PlanRow> = tx.query_row(
+        "SELECT invocation_id,containment_id,lease_id,candidate_json,armed,release_pending,released FROM attached_local_plans WHERE slot=?1",
+        [&slot], |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?))).optional()?;
+    let ids = match &previous {
+        Some((invocation, containment, lease, ..)) => PlannedIds {
+            invocation: InvocationId::from_parts(job.store_uuid(), Uuid::parse_str(invocation)?),
+            containment: ContainmentId::from_parts(job.store_uuid(), Uuid::parse_str(containment)?),
+            lease: Uuid::parse_str(lease)?,
+        },
+        None => fresh(),
+    };
+    let scalars = crate::admission::scalar_claim_entries(claims);
+    let candidate = Candidate {
+        key: AllocationKey {
+            machine_id: session.machine_id,
+            authority_epoch: session.authority_epoch,
+            domain_id: session.domain_id,
+            manager_store_uuid: job.store_uuid(),
+            lease_id: ids.lease,
+        },
+        owner: if probe {
+            AllocationOwner::Probe {
+                job_id: job,
+                invocation_id: ids.invocation,
+            }
+        } else {
+            AllocationOwner::Work {
+                job_id: job,
+                attempt_id: attempt,
+            }
+        },
+        revision: 1,
+        priority: spec.priority,
+        claims: crate::machine::Claims {
+            scalars,
+            shared_fences: claims.shared_fences.iter().cloned().collect(),
+            exclusive_fences: claims.exclusive_fences.iter().cloned().collect(),
+            impacts: claims.impacts.iter().cloned().collect(),
+        },
+        configuration_sha256: configuration,
+        observed: spec.observed.clone(),
+        quiet: spec.quiet.clone(),
+    };
+    let json = serde_json::to_string(&candidate)?;
+    if let Some((_, _, _, old, armed, pending, released)) = previous {
+        if old != json || pending || released {
+            return Err(StoreError::InvalidState(
+                "attached candidate changed or was sealed; reconcile before replanning".into(),
+            ));
+        }
+        queue::touch(tx, ids.lease, false)?;
+        if armed {
+            tx.execute(
+                "UPDATE attached_local_plans SET committed=1 WHERE slot=?1",
+                [&slot],
+            )?;
+        }
+        return Ok(Admission {
+            ids,
+            ready: armed,
+            changed: false,
+            persist: true,
+        });
+    }
+    let count: u64 = tx.query_row(
+        "SELECT COUNT(*) FROM attached_local_plans WHERE released=0",
+        [],
+        |r| r.get(0),
+    )?;
+    if count >= crate::machine::MAX_DOMAIN_CANDIDATES as u64 {
+        return Ok(Admission {
+            ids,
+            ready: false,
+            changed: false,
+            persist: false,
+        });
+    }
+    tx.execute("INSERT INTO attached_local_plans(slot,lease_id,job_id,attempt_id,invocation_id,containment_id,allocation_key,candidate_json,claims_json)
+        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",params![slot,ids.lease.to_string(),job.entity_uuid().to_string(),attempt.entity_uuid().to_string(),
+            ids.invocation.entity_uuid().to_string(),ids.containment.entity_uuid().to_string(),serde_json::to_string(&candidate.key)?,json,serde_json::to_string(claims)?])?;
+    tx.execute(
+        "UPDATE jobs SET attempt_id=?2 WHERE id=?1 AND state='pending'",
+        params![
+            job.entity_uuid().to_string(),
+            attempt.entity_uuid().to_string()
+        ],
+    )?;
+    queue::touch(tx, ids.lease, true)?;
+    crate::machine::manager::enqueue(tx, Uuid::now_v7(), &Command::CandidateUpsert { candidate })
+        .map_err(protocol_error)?;
+    Ok(Admission {
+        ids,
+        ready: false,
+        changed: true,
+        persist: true,
+    })
+}
+
+/// Apply the remote acknowledgement and local lifecycle effect in ONE commit.
+/// An unanswered Release leaves both the local Lease and machine Grant debited.
+#[allow(dead_code)] // Called by the attached bridge worker in the next runtime slice.
+pub(super) fn accept(
+    tx: &Transaction<'_>,
+    request: &crate::machine::Request,
+    reply: &crate::machine::Reply,
+) -> StoreResult<bool> {
+    let changed = crate::machine::manager::accept(tx, request, reply).map_err(protocol_error)?;
+    if !changed {
+        return Ok(false);
+    }
+    match &reply.outcome {
+        crate::machine::Outcome::Grant { grant } if grant.state == GrantState::Armed => {
+            let count = tx.execute("UPDATE attached_local_plans SET armed=1 WHERE allocation_key=?1 AND candidate_json=?2 AND released=0 AND release_pending=0",
+                params![serde_json::to_string(&grant.candidate.key)?,serde_json::to_string(&grant.candidate)?])?;
+            if count != 1 {
+                return Err(StoreError::InvalidState(
+                    "Armed Grant has no matching local candidate".into(),
+                ));
+            }
+        }
+        crate::machine::Outcome::Released { .. } => {
+            let Command::Release { release } = &request.command else {
+                unreachable!()
+            };
+            let key = serde_json::to_string(&release.key)?;
+            tx.execute(
+                "UPDATE attached_local_plans SET released=1 WHERE allocation_key=?1",
+                [&key],
+            )?;
+            tx.execute("UPDATE leases SET state='released' WHERE state='granted' AND id IN (SELECT lease_id FROM attached_local_plans WHERE allocation_key=?1 AND release_pending=1 AND released=1)",[key])?;
+        }
+        crate::machine::Outcome::Reconciled { released, .. } => {
+            for key in released {
+                let key = serde_json::to_string(key)?;
+                tx.execute(
+                    "UPDATE attached_local_plans SET released=1 WHERE allocation_key=?1",
+                    [&key],
+                )?;
+                tx.execute("UPDATE leases SET state='released' WHERE state='granted' AND id IN (SELECT lease_id FROM attached_local_plans WHERE allocation_key=?1 AND release_pending=1 AND released=1)",[key])?;
+            }
+        }
+        _ => {}
+    }
+    queue::accepted(tx, request, &reply.outcome)?;
+    cleanup::apply(tx)?;
+    if matches!(
+        reply.outcome,
+        crate::machine::Outcome::InventoryPage { next: None, .. }
+            | crate::machine::Outcome::Reconciled { .. }
+    ) {
+        recovery::synchronize(tx)?;
+    }
+    Ok(changed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::machine::{
+        InstallationIdentity, Outcome, PairingSecret, ParticipantRole, ParticipantSnapshot, manager,
+    };
+
+    fn reply(tx: &Transaction<'_>, secret: &PairingSecret, outcome: Outcome) {
+        let request = manager::pending(tx, secret).unwrap().unwrap();
+        let reply = crate::machine::Reply {
+            coordinator_revision: 1,
+            session: request.session.clone(),
+            operation_id: request.operation_id,
+            request_sequence: request.request_sequence,
+            outcome,
+        };
+        accept(tx, &request, &reply).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    fn kernel_runtime(
+        store: Store,
+        prepared: PreparedJob,
+        session: SessionIdentity,
+        secret: PairingSecret,
+        paths: &StorePaths,
+        scenario: &str,
+    ) {
+        use std::sync::{Arc, Mutex};
+        use std::time::{Duration, Instant};
+        let config = installation::load(&paths.root).unwrap().unwrap();
+        let history = paths.root.join("executor");
+        crate::runner::linux::initialize_history(
+            &history,
+            config.journal,
+            session.manager_store_uuid,
+            session.domain_id,
+        )
+        .unwrap();
+        let registry = crate::runner::linux::installed_registry(
+            &history,
+            config.journal,
+            session.manager_store_uuid,
+            session.domain_id,
+            session.executor_incarnation,
+            "/tmp/attached-fixture.sock".into(),
+        )
+        .unwrap();
+        let releases = Arc::new(driver::ReleaseState::default());
+        let live = crate::runner::LiveContainments::attached_linux(registry, Arc::clone(&releases));
+        let store = Arc::new(Mutex::new(store));
+        let peer_store = Arc::clone(&store);
+        let peer_secret = PairingSecret::from_anchor(*secret.anchor_bytes());
+        let retry_waiting = scenario == "ticket_wait";
+        let waiting_stdout = prepared.stdout_path.clone();
+        let peer = std::thread::spawn(move || {
+            let until = Instant::now() + Duration::from_secs(35);
+            let mut rejected_operation = None;
+            loop {
+                let mut store = peer_store.lock().unwrap();
+                let tx = store.connection.transaction().unwrap();
+                if let Some(request) = manager::pending(&tx, &peer_secret).unwrap() {
+                    let Command::AuthorizeInvocation {
+                        key,
+                        offer_nonce,
+                        intent,
+                    } = &request.command
+                    else {
+                        panic!("unexpected runtime request");
+                    };
+                    releases
+                        .challenge(&request, session.executor_incarnation, "c".repeat(64))
+                        .unwrap();
+                    if retry_waiting && rejected_operation.is_none() {
+                        assert!(
+                            std::fs::read_to_string(&waiting_stdout)
+                                .unwrap_or_default()
+                                .is_empty()
+                        );
+                        let outcome = Outcome::Rejected {
+                            code: "detector_unavailable".into(),
+                            detail: "warming_up".into(),
+                        };
+                        reply(&tx, &peer_secret, outcome.clone());
+                        tx.commit().unwrap();
+                        releases.accepted_rejection(&request, &outcome).unwrap();
+                        rejected_operation = Some(request.operation_id);
+                        drop(store);
+                        continue;
+                    }
+                    if let Some(operation) = rejected_operation {
+                        assert_ne!(operation, request.operation_id);
+                        assert!(
+                            std::fs::read_to_string(&waiting_stdout)
+                                .unwrap_or_default()
+                                .is_empty(),
+                            "waiting response released user code without a Ticket"
+                        );
+                    }
+                    let json: String = tx
+                        .query_row(
+                            "SELECT grant_json FROM attached_grants WHERE allocation_key=?1",
+                            [serde_json::to_string(key).unwrap()],
+                            |r| r.get(0),
+                        )
+                        .unwrap();
+                    let grant: crate::machine::GrantSnapshot = serde_json::from_str(&json).unwrap();
+                    reply(
+                        &tx,
+                        &peer_secret,
+                        Outcome::Ticket {
+                            ticket: Box::new(crate::machine::InvocationTicket {
+                                grant_id: grant.grant_id,
+                                key: key.clone(),
+                                offer_nonce: *offer_nonce,
+                                intent: intent.clone(),
+                                configuration_sha256: "c".repeat(64),
+                                issued_unix_millis: now_millis(),
+                                host_observation_generation: Uuid::now_v7(),
+                                host_sample_unix_millis: now_millis(),
+                                session: session.clone(),
+                            }),
+                        },
+                    );
+                    tx.commit().unwrap();
+                    return;
+                }
+                tx.rollback().unwrap();
+                drop(store);
+                assert!(
+                    Instant::now() < until,
+                    "prepared executor never requested Ticket"
+                );
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        });
+        let job_id = prepared.job_id;
+        let invocation = prepared.invocation_id;
+        let stdout = prepared.stdout_path.clone();
+        let cancel = (scenario == "cancel").then(|| {
+            let store = Arc::clone(&store);
+            let stdout = stdout.clone();
+            std::thread::spawn(move || {
+                let until = Instant::now() + Duration::from_secs(30);
+                loop {
+                    if std::fs::read_to_string(&stdout)
+                        .is_ok_and(|s| s.contains("attached-kernel-runtime"))
+                    {
+                        store.lock().unwrap().cancel_jobs(&[job_id]).unwrap();
+                        break;
+                    }
+                    assert!(
+                        Instant::now() < until,
+                        "user code never reached cancellation marker"
+                    );
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            })
+        });
+        crate::runner::run(
+            prepared,
+            Arc::clone(&store),
+            "/tmp/attached-fixture.sock".into(),
+            live,
+            Arc::new(crate::host_observation::HostObservationService::new(
+                Default::default(),
+            )),
+            Arc::new(|| {}),
+        );
+        peer.join().unwrap();
+        if let Some(cancel) = cancel {
+            cancel.join().unwrap();
+        }
+        let mut store = store.lock().unwrap();
+        let snapshot = store.status(job_id).unwrap();
+        assert_eq!(
+            snapshot.outcome,
+            Some(match scenario {
+                "cancel" => crate::JobOutcome::Canceled,
+                "timeout" => crate::JobOutcome::TimedOut,
+                _ => crate::JobOutcome::Succeeded,
+            }),
+            "{snapshot:?}"
+        );
+        assert!(
+            std::fs::read_to_string(stdout)
+                .unwrap()
+                .contains("attached-kernel-runtime")
+        );
+        let (consumed, cleanup): (bool, String) = store
+            .connection
+            .query_row(
+                "SELECT consumed,cleanup_json FROM attached_tickets WHERE invocation_id=?1",
+                [invocation.to_string()],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert!(consumed);
+        assert!(
+            serde_json::from_str::<crate::machine::TicketCleanup>(&cleanup)
+                .unwrap()
+                .user_code_released
+        );
+        let retained: u64 = store
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM leases WHERE state='granted'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            retained, 1,
+            "kernel cleanup bypassed coordinator acknowledgement"
+        );
+        let tx = store.connection.transaction().unwrap();
+        assert!(queue::maintain(&tx).unwrap());
+        let request = manager::pending(&tx, &secret).unwrap().unwrap();
+        let Command::Release { release } = request.command else {
+            panic!("sealed runtime did not request Release");
+        };
+        let grant: String = tx
+            .query_row(
+                "SELECT grant_json FROM attached_grants WHERE allocation_key=?1",
+                [serde_json::to_string(&release.key).unwrap()],
+                |r| r.get(0),
+            )
+            .unwrap();
+        reply(
+            &tx,
+            &secret,
+            Outcome::Released {
+                grant_id: serde_json::from_str::<crate::machine::GrantSnapshot>(&grant)
+                    .unwrap()
+                    .grant_id,
+                sealed_sequence: release.sealed_sequence,
+            },
+        );
+        tx.commit().unwrap();
+        assert_eq!(
+            store
+                .connection
+                .query_row(
+                    "SELECT COUNT(*) FROM leases WHERE state='granted'",
+                    [],
+                    |r| r.get::<_, u64>(0)
+                )
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn attached_admission_persists_candidates_and_holds_lease_until_release_ack() {
+        attached_fixture(false, "model");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "requires protected nested cgroup delegation"]
+    fn linux_attached_runtime_consumes_ticket_and_seals_live_descendant() {
+        attached_fixture(true, "root_exit");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "requires protected nested cgroup delegation"]
+    fn linux_attached_runtime_cancel_seals_live_descendant() {
+        attached_fixture(true, "cancel");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "requires protected nested cgroup delegation"]
+    fn linux_attached_runtime_timeout_seals_live_descendant() {
+        attached_fixture(true, "timeout");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "requires protected nested cgroup delegation"]
+    fn linux_attached_runtime_waiting_ticket_does_not_release_user_code() {
+        attached_fixture(true, "ticket_wait");
+    }
+
+    fn attached_fixture(kernel: bool, scenario: &str) {
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        let host = HostId("attached-store-fixture".into());
+        let boot = BootId("attached-store-boot".into());
+        let identity = StartupIdentity {
+            host_id: Some(host.clone()),
+            boot_id: Some(boot.clone()),
+            failures: vec![],
+            daemon_process: Some(ProcessIdentity::Windows {
+                host_id: host,
+                boot_id: boot,
+                pid: 99,
+                creation_filetime_100ns: 99,
+            }),
+        };
+        let paths = StorePaths::new(temp.path().join("store"));
+        let mut config = HostConfig::default();
+        config.resources.cargo_slots = 1;
+        let mut store =
+            Store::open_with_config(paths.clone(), config.clone(), identity.clone()).unwrap();
+        let session = SessionIdentity {
+            machine_id: Uuid::now_v7(),
+            authority_epoch: Uuid::now_v7(),
+            domain_id: crate::ExecutionDomainId(Uuid::now_v7()),
+            manager_store_uuid: store.store_uuid(),
+            executor_incarnation: store.daemon_generation(),
+            connection_epoch: 1,
+        };
+        let secret = PairingSecret::generate().unwrap();
+        let tx = store.connection.transaction().unwrap();
+        manager::initialize(&tx, session.manager_store_uuid).unwrap();
+        let peer = ParticipantSnapshot {
+            installation: InstallationIdentity {
+                installation_nonce: Uuid::now_v7(),
+                domain_id: session.domain_id,
+                owner_uid: 1000,
+                runtime_registration: "fixture-only".into(),
+                role: ParticipantRole::Executor,
+            },
+            manager_store_uuid: session.manager_store_uuid,
+            connection_epoch: 1,
+            executor_incarnation: Some(session.executor_incarnation),
+            reconciliation_required: false,
+            retired_sequence_floor: 0,
+            accepted_sequence: 0,
+        };
+        manager::bind(&tx, &session, &peer).unwrap();
+        #[cfg(target_os = "linux")]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&paths.root, std::fs::Permissions::from_mode(0o700)).unwrap();
+            installation::create(
+                &paths.root,
+                &installation::Configuration {
+                    version: 1,
+                    pairing: crate::machine::PairingRegistration {
+                        installation: peer.installation.clone(),
+                        manager_store_uuid: session.manager_store_uuid,
+                        parent_domain: crate::ExecutionDomainId(Uuid::now_v7()),
+                        budgets: Default::default(),
+                        aliases: Default::default(),
+                        secret: *secret.anchor_bytes(),
+                    },
+                    coordinator_installation: Uuid::now_v7(),
+                    machine_id: session.machine_id,
+                    bridge_executable: "/fixture/stillyard.exe".into(),
+                    bridge_sha256: "b".repeat(64),
+                    coordinator_endpoint: "fixture-pipe".into(),
+                    interop_socket: "/run/WSL/fixture_interop".into(),
+                    executor_cgroup: "/sys/fs/cgroup/fixture".into(),
+                    journal: Uuid::now_v7(),
+                },
+            )
+            .unwrap();
+            let installed = installation::load(&paths.root).unwrap().unwrap();
+            tx.execute(
+                "INSERT INTO attached_meta VALUES ('installation_sha256',?1)",
+                [installation::fingerprint(&installed).unwrap()],
+            )
+            .unwrap();
+        }
+        tx.execute(
+            "INSERT INTO attached_local_mode VALUES (1,?1,?2,?3,1)",
+            params![
+                session.manager_store_uuid.to_string(),
+                serde_json::to_string(&session).unwrap(),
+                "c".repeat(64)
+            ],
+        )
+        .unwrap();
+        tx.commit().unwrap();
+        let mut spec: JobSpec = serde_json::from_value(serde_json::json!({
+            "spec_version": crate::SPEC_VERSION, "executable": temp.path().join("tool.exe"),
+            "working_directory": temp.path(), "resources": {"cargo_slots":1}
+        }))
+        .unwrap();
+        if kernel {
+            spec.executable = "/usr/bin/python3".into();
+            let tail = if matches!(scenario, "root_exit" | "ticket_wait") {
+                ""
+            } else {
+                "; import time; time.sleep(60)"
+            };
+            spec.args = vec![
+                "-c".into(),
+                format!(
+                    "import subprocess; subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(60)']); print('attached-kernel-runtime',flush=True){tail}"
+                ),
+            ];
+            if scenario == "timeout" {
+                spec.timeout_seconds = Some(2);
+            }
+        }
+        let mut jobs = Vec::new();
+        for _ in 0..if kernel { 1 } else { 2 } {
+            let job = store
+                .submit(
+                    Uuid::now_v7(),
+                    &normalized_payload_hash(&spec).unwrap(),
+                    &spec,
+                )
+                .unwrap()
+                .receipt
+                .job_id;
+            if jobs.is_empty() {
+                store
+                    .connection
+                    .execute("UPDATE attached_local_mode SET connected=0", [])
+                    .unwrap();
+                for _ in 0..3 {
+                    assert!(store.prepare_job(job).unwrap().is_none());
+                }
+                assert_eq!(
+                    store
+                        .connection
+                        .query_row("SELECT COUNT(*) FROM attempts", [], |r| r.get::<_, u64>(0))
+                        .unwrap(),
+                    0,
+                    "disconnected scans leaked unbound planned Attempts"
+                );
+                store
+                    .connection
+                    .execute("UPDATE attached_local_mode SET connected=1", [])
+                    .unwrap();
+            }
+            assert!(store.prepare_job(job).unwrap().is_none());
+            jobs.push(job);
+        }
+        assert_eq!(
+            store
+                .connection
+                .query_row("SELECT COUNT(*) FROM attached_local_plans", [], |r| r
+                    .get::<_, u64>(0))
+                .unwrap(),
+            if kernel { 1 } else { 2 },
+            "one domain head hid another ready candidate"
+        );
+        assert_eq!(
+            store
+                .connection
+                .query_row("SELECT COUNT(*) FROM leases", [], |r| r.get::<_, u64>(0))
+                .unwrap(),
+            0,
+            "local Lease committed before remote Arm"
+        );
+        let tx = store.connection.transaction().unwrap();
+        let request = manager::pending(&tx, &secret).unwrap().unwrap();
+        let Command::CandidateUpsert { candidate } = request.command else {
+            panic!("candidate missing")
+        };
+        reply(&tx, &secret, Outcome::Accepted { revision: 1 });
+        if !kernel {
+            reply(&tx, &secret, Outcome::Accepted { revision: 1 });
+        }
+        let grant = crate::machine::GrantSnapshot {
+            queue_accepted_unix_millis: 1,
+            queue_sequence: 1,
+            uncertainty_reason: None,
+            risk_clearance: None,
+            grant_id: crate::GrantId::from_parts(Uuid::now_v7(), Uuid::now_v7()),
+            candidate: candidate.clone(),
+            offer_nonce: session.machine_id,
+            state: GrantState::Armed,
+            offered_unix_millis: 1,
+            offer_deadline_unix_millis: 5000,
+            armed_unix_millis: Some(2),
+            released_unix_millis: None,
+            tickets: vec![],
+            sealed_release: None,
+        };
+        assert!(queue::maintain(&tx).unwrap());
+        assert!(
+            matches!(manager::pending(&tx,&secret).unwrap().unwrap().command,
+            Command::Inspect { key:Some(key) } if key==candidate.key)
+        );
+        let mut offer = grant.clone();
+        offer.state = GrantState::Offered;
+        offer.armed_unix_millis = None;
+        reply(
+            &tx,
+            &secret,
+            Outcome::Inspection {
+                grants: vec![offer],
+                truncated: false,
+            },
+        );
+        assert!(
+            matches!(manager::pending(&tx,&secret).unwrap().unwrap().command,
+            Command::Arm { key,offer_nonce } if key==candidate.key && offer_nonce==grant.offer_nonce)
+        );
+        reply(
+            &tx,
+            &secret,
+            Outcome::Grant {
+                grant: Box::new(grant.clone()),
+            },
+        );
+        tx.commit().unwrap();
+        let prepared = store.prepare_job(jobs[0]).unwrap().unwrap();
+        #[cfg(target_os = "linux")]
+        {
+            let allocations = store.status(jobs[0]).unwrap().allocations;
+            assert_eq!(allocations.len(), 1);
+            assert_eq!(allocations[0].grant_id, grant.grant_id);
+            assert_eq!(allocations[0].lease_id, candidate.key.lease_id);
+            assert_eq!(allocations[0].key.as_ref(), Some(&candidate.key));
+        }
+        #[cfg(target_os = "linux")]
+        if kernel {
+            kernel_runtime(store, prepared, session, secret, &paths, scenario);
+            return;
+        }
+        assert_eq!(
+            prepared.invocation_id.entity_uuid().to_string(),
+            store
+                .connection
+                .query_row(
+                    "SELECT invocation_id FROM attached_local_plans WHERE lease_id=?1",
+                    [candidate.key.lease_id.to_string()],
+                    |r| r.get::<_, String>(0)
+                )
+                .unwrap()
+        );
+        assert!(store.prepare_job(jobs[1]).unwrap().is_none());
+        // These are synthetic protocol replies and typed roots: this control
+        // proves the SQLite boundary, not a Linux kernel release.
+        let root = ProcessIdentity::Linux {
+            host_id: HostId("fixture-linux".into()),
+            boot_id: BootId("fixture-boot".into()),
+            pid: 123,
+            start_ticks: 456,
+            pid_namespace_inode: 789,
+            uid: 1000,
+        };
+        // Probe/deferral Invocations can precede the primary in the same SQL
+        // Attempt. The Grant's primary Ticket still has wire role_index zero.
+        store
+            .connection
+            .execute(
+                "UPDATE invocations SET role_index=7 WHERE id=?1",
+                [prepared.invocation_id.entity_uuid().to_string()],
+            )
+            .unwrap();
+        let intent = crate::machine::InvocationIntent {
+            invocation_id: prepared.invocation_id,
+            containment_id: prepared.containment_id,
+            role: prepared.role,
+            role_index: 0,
+            release_sequence: 1,
+            executable_sha256: "a".repeat(64),
+            boundary_sha256: "b".repeat(64),
+            readiness_challenge: Uuid::now_v7(),
+            previous_cleanup: None,
+        };
+        let ticket = crate::machine::InvocationTicket {
+            grant_id: grant.grant_id,
+            key: candidate.key.clone(),
+            offer_nonce: grant.offer_nonce,
+            intent: intent.clone(),
+            configuration_sha256: "c".repeat(64),
+            issued_unix_millis: 10,
+            host_observation_generation: Uuid::now_v7(),
+            host_sample_unix_millis: 10,
+            session: session.clone(),
+        };
+        let tx = store.connection.transaction().unwrap();
+        manager::enqueue(
+            &tx,
+            Uuid::now_v7(),
+            &Command::AuthorizeInvocation {
+                key: candidate.key.clone(),
+                offer_nonce: grant.offer_nonce,
+                intent,
+            },
+        )
+        .unwrap();
+        reply(
+            &tx,
+            &secret,
+            Outcome::Ticket {
+                ticket: Box::new(ticket.clone()),
+            },
+        );
+        tx.commit().unwrap();
+        let state = |store: &Store| -> (String, bool, u64) {
+            store
+                .connection
+                .query_row(
+                    "SELECT i.state,t.consumed,
+                (SELECT COUNT(*) FROM invocation_process_identities r WHERE r.invocation_id=i.id)
+                FROM invocations i JOIN attached_tickets t ON t.invocation_id=?1 WHERE i.id=?2",
+                    params![
+                        prepared.invocation_id.to_string(),
+                        prepared.invocation_id.entity_uuid().to_string()
+                    ],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .unwrap()
+        };
+        assert!(
+            store
+                .mark_started_with_identity(
+                    &prepared,
+                    123,
+                    &ticket.intent.executable_sha256,
+                    Some(&root)
+                )
+                .is_err()
+        );
+        assert_eq!(state(&store), ("prepared".into(), false, 0));
+        let mut wrong = ticket.clone();
+        wrong.intent.boundary_sha256 = "d".repeat(64);
+        assert!(
+            store
+                .mark_started_with_ticket(
+                    &prepared,
+                    123,
+                    &ticket.intent.executable_sha256,
+                    Some(&root),
+                    Some(&wrong)
+                )
+                .is_err()
+        );
+        assert_eq!(state(&store), ("prepared".into(), false, 0));
+        store
+            .mark_started_with_ticket(
+                &prepared,
+                123,
+                &ticket.intent.executable_sha256,
+                Some(&root),
+                Some(&ticket),
+            )
+            .unwrap();
+        assert_eq!(state(&store), ("started".into(), true, 1));
+        assert!(
+            store
+                .mark_started_with_ticket(
+                    &prepared,
+                    123,
+                    &ticket.intent.executable_sha256,
+                    Some(&root),
+                    Some(&ticket)
+                )
+                .is_err()
+        );
+        assert_eq!(state(&store), ("started".into(), true, 1));
+        let tx = store.connection.transaction().unwrap();
+        manager::record_cleanup(
+            &tx,
+            &crate::machine::TicketCleanup {
+                invocation_id: prepared.invocation_id,
+                release_sequence: 1,
+                boundary_sha256: ticket.intent.boundary_sha256.clone(),
+                proof_sha256: "e".repeat(64),
+                user_code_released: true,
+            },
+        )
+        .unwrap();
+        tx.commit().unwrap();
+        // Ordinary lifecycle cleanup cannot retire the shared debit until the
+        // coordinator acknowledges the manager's sealed Release.
+        store
+            .mark_invocation_resolved(&prepared, Some(0), None)
+            .unwrap();
+        store
+            .settle_attempt(&prepared, AttemptVerdict::Succeeded)
+            .unwrap();
+        assert_eq!(
+            store
+                .connection
+                .query_row(
+                    "SELECT state FROM leases WHERE id=?1",
+                    [candidate.key.lease_id.to_string()],
+                    |r| r.get::<_, String>(0)
+                )
+                .unwrap(),
+            "granted"
+        );
+        assert_eq!(
+            store
+                .connection
+                .query_row(
+                    "SELECT release_pending FROM attached_local_plans WHERE lease_id=?1",
+                    [candidate.key.lease_id.to_string()],
+                    |r| r.get::<_, u64>(0)
+                )
+                .unwrap(),
+            1
+        );
+        let tx = store.connection.transaction().unwrap();
+        assert!(queue::maintain(&tx).unwrap());
+        let request = manager::pending(&tx, &secret).unwrap().unwrap();
+        let Command::Release { release } = request.command else {
+            panic!("Release missing")
+        };
+        tx.commit().unwrap();
+        assert!(
+            store.prepare_job(jobs[1]).unwrap().is_none(),
+            "unanswered Release freed local token"
+        );
+        let tx = store.connection.transaction().unwrap();
+        reply(
+            &tx,
+            &secret,
+            Outcome::Released {
+                grant_id: grant.grant_id,
+                sealed_sequence: release.sealed_sequence,
+            },
+        );
+        tx.commit().unwrap();
+        assert_eq!(
+            store
+                .connection
+                .query_row(
+                    "SELECT state FROM leases WHERE id=?1",
+                    [candidate.key.lease_id.to_string()],
+                    |r| r.get::<_, String>(0)
+                )
+                .unwrap(),
+            "released"
+        );
+        // Ordinary startup must preserve mode but fence the old connection.
+        drop(store);
+        let mut store =
+            Store::open_with_config(paths.clone(), config.clone(), identity.clone()).unwrap();
+        assert_eq!(
+            store
+                .connection
+                .query_row("SELECT connected FROM attached_local_mode", [], |r| r
+                    .get::<_, u64>(0))
+                .unwrap(),
+            0
+        );
+        assert!(
+            store.attach_authority().is_err(),
+            "attached mode fell back to a standalone authority"
+        );
+        #[cfg(target_os = "linux")]
+        {
+            let anchor = paths.root.join("attachment/anchor.json");
+            let bytes = std::fs::read(&anchor).unwrap();
+            std::fs::write(&anchor, b"{}").unwrap();
+            assert!(
+                store.authority_blocker().is_err(),
+                "corrupt anchor allowed admission"
+            );
+            std::fs::write(&anchor, &bytes).unwrap();
+            std::fs::rename(&anchor, anchor.with_extension("saved")).unwrap();
+            assert!(
+                store.authority_blocker().is_err(),
+                "missing anchor allowed admission"
+            );
+            std::fs::rename(anchor.with_extension("saved"), &anchor).unwrap();
+            drop(store);
+            std::fs::remove_file(&paths.database).unwrap();
+            assert!(
+                Store::open_with_config(paths, config, identity).is_err(),
+                "replacement SQLite history silently created a free attached store"
+            );
+        }
+    }
+}
+
+FILE src/runner/linux/runtime.rs
+//! One Invocation on the tracer thread; shared lifecycle owns all settlement.
+use super::launch::{LaunchSpec, PreparedLaunch};
+use crate::machine::manager::release::{Disposition, NeverReleased};
+use crate::runner::lifecycle::{self, RunProgress, RunResult};
+use crate::runner::{LiveContainments, ReconciliationWake};
+use crate::store::{PreparedJob, ReleaseAuthorization, Store, StoreError};
+use crate::{InvocationRole, LogStream, ProcessIdentity};
+use std::cell::{Cell, RefCell};
+use std::fs::File;
+use std::io;
+use std::os::fd::OwnedFd;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+fn lock(store: &Arc<Mutex<Store>>) -> RunResult<std::sync::MutexGuard<'_, Store>> {
+    store
+        .lock()
+        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()).into())
+}
+fn protocol_error(error: impl std::fmt::Display) -> crate::machine::manager::JournalError {
+    crate::machine::manager::JournalError::History(error.to_string())
+}
+
+pub(in crate::runner) fn execute(
+    job: &PreparedJob,
+    store: &Arc<Mutex<Store>>,
+    endpoint: &str,
+    live: &LiveContainments,
+    observation: &crate::host_observation::HostObservationService,
+    progress: &mut RunProgress,
+    wake: &ReconciliationWake,
+) -> RunResult<(u32, bool)> {
+    let (lease, parent, generation) = lock(store)?.attached_launch_identity(job)?;
+    #[cfg(test)]
+    let parent = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT")
+        .map(std::path::PathBuf::from)
+        .unwrap_or(parent);
+    let helper = std::env::current_exe()?;
+    #[cfg(test)]
+    let helper = std::env::var_os("STILLYARD_TEST_EXECUTABLE")
+        .map(std::path::PathBuf::from)
+        .unwrap_or(helper);
+    let context = live.linux_server_context(crate::ManagedParent {
+        job_id: job.job_id,
+        attempt_id: job.attempt_id,
+        invocation_id: job.invocation_id,
+    })?;
+    // Caller variables reach only the final executable, never the trusted stub.
+    let mut environment = job.spec.environment.set.clone();
+    for name in &job.spec.environment.unset {
+        environment.remove(name);
+    }
+    for (name, value) in [
+        ("STILLYARD_JOB_ID", job.job_id.to_string()),
+        ("STILLYARD_ATTEMPT", job.attempt_id.to_string()),
+        ("STILLYARD_INVOCATION_ID", job.invocation_id.to_string()),
+        ("STILLYARD_ENDPOINT", endpoint.into()),
+        ("STILLYARD_DAEMON_ID", job.job_id.store_uuid().to_string()),
+        (
+            "STILLYARD_ROLE",
+            match job.role {
+                InvocationRole::Primary => "primary",
+                InvocationRole::Probe => "probe",
+                InvocationRole::Postcondition => "postcondition",
+            }
+            .into(),
+        ),
+        (
+            crate::identity::attestation::ENVIRONMENT,
+            serde_json::to_string(&context)?,
+        ),
+    ] {
+        environment.insert(name.into(), value);
+    }
+    if let Some(result) = &job.primary_result {
+        environment.insert(
+            "STILLYARD_PRIMARY_RESULT".into(),
+            serde_json::to_string(result)?,
+        );
+    }
+    let spec = LaunchSpec {
+        executable: job.spec.executable.clone(),
+        args: job.spec.args.clone(),
+        working_directory: job.spec.working_directory.clone(),
+        environment,
+    };
+    let stdin = super::input::open(job)?;
+    let creator =
+        crate::identity::linux::Process::open(std::process::id(), unsafe { libc::geteuid() })?;
+    let mut launch = None;
+    let mut drains = Vec::new();
+    let mut never: Option<Box<NeverReleased>> = None;
+    // A failed journal/CG creation is uncertain until its recorded obligation
+    // can be sealed. A failed OS call is never interpreted as no children.
+    progress.cleanup_proven = false;
+    let execution = (|| -> RunResult<(u32, bool)> {
+        let boundary = Arc::new(live.linux.with_journal(|journal| {
+            journal.create(
+                &parent,
+                job.invocation_id,
+                job.containment_id,
+                lease,
+                generation,
+                creator.identity.clone(),
+            )
+        })?);
+        live.linux
+            .register(job.invocation_id, Arc::clone(&boundary))?;
+        launch = Some(PreparedLaunch::prepare(
+            &boundary,
+            &helper,
+            &spec,
+            stdin,
+            Instant::now() + Duration::from_secs(30),
+        )?);
+        let child = launch.as_mut().unwrap();
+        live.linux
+            .with_journal(|journal| journal.ready(job.invocation_id, child))?;
+        let boundary_hash = live
+            .linux
+            .with_journal(|journal| journal.records()?[&job.invocation_id].boundary_sha256())?;
+        let root = child.root.identity.clone();
+        let ProcessIdentity::Linux { pid, .. } = root else {
+            return Err(io::Error::other("non-Linux prepared root").into());
+        };
+        for (input, path, stream) in [
+            (
+                File::from(OwnedFd::from(
+                    child
+                        .wrapper
+                        .stdout
+                        .take()
+                        .ok_or_else(|| io::Error::other("stdout pipe missing"))?,
+                )),
+                job.stdout_path.clone(),
+                LogStream::Stdout,
+            ),
+            (
+                File::from(OwnedFd::from(
+                    child
+                        .wrapper
+                        .stderr
+                        .take()
+                        .ok_or_else(|| io::Error::other("stderr pipe missing"))?,
+                )),
+                job.stderr_path.clone(),
+                LogStream::Stderr,
+            ),
+        ] {
+            drains.push(crate::runner::logs::spawn_drain(
+                input,
+                path,
+                job.job_id,
+                stream,
+                Arc::clone(store),
+                job.role == InvocationRole::Primary,
+            )?);
+        }
+        lock(store)?.request_attached_ticket(
+            job,
+            &root,
+            &child.requested_sha256,
+            &boundary_hash,
+        )?;
+        wake();
+        let until = Instant::now()
+            + Duration::from_secs(
+                job.spec
+                    .quiet
+                    .as_ref()
+                    .map_or(5, |q| q.wait_budget_seconds.saturating_add(5)),
+            );
+        let mut retry_at = Instant::now() + Duration::from_secs(1);
+        let ticket = loop {
+            if let Some(stop) = lifecycle::pending_stop_verdict(job, store, is_guarded(job))? {
+                progress.canceled = stop.verdict == crate::AttemptVerdict::Canceled;
+                progress.timed_out = stop.verdict == crate::AttemptVerdict::TimedOut;
+                if is_guarded(job) {
+                    progress.never_run_reason = Some(stop.reason.clone());
+                }
+                return Err(io::Error::other(stop.reason).into());
+            }
+            if let Some(ticket) = lock(store)?.attached_ticket(job.invocation_id)? {
+                break ticket;
+            }
+            if Instant::now() >= retry_at {
+                let retried = lock(store)?.retry_waiting_attached_ticket(job.invocation_id)?;
+                if retried {
+                    wake();
+                }
+                retry_at = Instant::now() + Duration::from_secs(1);
+            }
+            if Instant::now() >= until {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "Invocation Ticket response deadline",
+                )
+                .into());
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        let barrier = live.linux_releases.barrier(job.invocation_id)?;
+        let executable_hash = child.requested_sha256.clone();
+        live.linux
+            .with_journal(|journal| journal.release_intent(&ticket))?;
+        let runtime_deadline = Cell::new(job.attempt_deadline_unix_millis);
+        let evidence_expiry = Cell::new(u64::MAX);
+        let consumed = Cell::new(false);
+        let deferred = RefCell::new(None::<String>);
+        let mut release =
+            |sample: Option<&crate::host_observation::HostSample>| -> RunResult<Disposition> {
+                let mut guard = lock(store)?;
+                let locked = RefCell::new(&mut *guard);
+                let disposition = barrier.release(
+                    &ticket,
+                    generation,
+                    || {
+                        let mut store = locked.borrow_mut();
+                        store.check_authority_release().map_err(protocol_error)?;
+                        if !store
+                            .attached_observation_ready(job, lease, sample)
+                            .map_err(protocol_error)?
+                        {
+                            return Ok(false);
+                        }
+                        if store
+                            .invocation_stop_requested(job.job_id)
+                            .map_err(protocol_error)?
+                        {
+                            return Ok(false);
+                        }
+                        let (wall, monotonic) = crate::host_observation::observation_clock()?;
+                        if runtime_deadline
+                            .get()
+                            .is_some_and(|deadline| wall >= deadline)
+                            || monotonic >= evidence_expiry.get()
+                        {
+                            return Ok(false);
+                        }
+                        if is_guarded(job)
+                            && store
+                                .pre_resume_defer_reason(job.job_id)
+                                .map_err(protocol_error)?
+                                .is_some()
+                        {
+                            return Ok(false);
+                        }
+                        if let Some(sample) = sample {
+                            let Some(wall_age) = wall
+                                .checked_sub(sample.captured_unix_millis)
+                                .and_then(|n| u64::try_from(n).ok())
+                            else {
+                                return Ok(false);
+                            };
+                            let Some(age) = monotonic.checked_sub(sample.captured_monotonic_millis)
+                            else {
+                                return Ok(false);
+                            };
+                            if wall_age.abs_diff(age)
+                                > observation.release_discontinuity_limit_millis()
+                            {
+                                return Ok(false);
+                            }
+                        }
+                        Ok(true)
+                    },
+                    || {
+                        let mut store = locked.borrow_mut();
+                        let (wall, monotonic) = crate::host_observation::observation_clock()?;
+                        let moment =
+                            sample.map(|sample| crate::host_observation::ObservationMoment {
+                                sample,
+                                now_unix_millis: wall,
+                                now_monotonic_millis: monotonic,
+                                live_clock: true,
+                            });
+                        let authorization = if is_guarded(job) {
+                            if job.spec.quiet.is_some() {
+                                store.authorize_release_with_ticket(
+                                    job,
+                                    moment.ok_or_else(|| {
+                                        protocol_error("quiet sample unavailable")
+                                    })?,
+                                    Some(&ticket),
+                                )
+                            } else {
+                                store.authorize_condition_release_with_ticket(
+                                    job,
+                                    moment,
+                                    Some(&ticket),
+                                )
+                            }
+                        } else {
+                            store
+                                .mark_started_with_ticket(
+                                    job,
+                                    pid,
+                                    &executable_hash,
+                                    Some(&root),
+                                    Some(&ticket),
+                                )
+                                .map(|()| ReleaseAuthorization::Authorized {
+                                    runtime_deadline_unix_millis: job.attempt_deadline_unix_millis,
+                                    evidence_expires_monotonic_millis: u64::MAX,
+                                })
+                        }
+                        .map_err(protocol_error)?;
+                        match authorization {
+                            ReleaseAuthorization::Authorized {
+                                runtime_deadline_unix_millis,
+                                evidence_expires_monotonic_millis,
+                            } => {
+                                runtime_deadline.set(runtime_deadline_unix_millis);
+                                evidence_expiry.set(evidence_expires_monotonic_millis);
+                                consumed.set(true);
+                                Ok(true)
+                            }
+                            ReleaseAuthorization::Deferred { reason } => {
+                                *deferred.borrow_mut() = Some(reason.clone());
+                                Err(protocol_error(reason))
+                            }
+                        }
+                    },
+                    || child.release(),
+                )?;
+                Ok(disposition)
+            };
+        let released = if job.spec.requires_host_observation() {
+            observation
+                .with_release_sample(pid, |sample| release(Some(sample)))
+                .map_err(io::Error::other)
+                .and_then(|result| result.map_err(io::Error::other))
+        } else {
+            release(None).map_err(io::Error::other)
+        };
+        progress.durable_release_authorized = consumed.get();
+        progress.never_run_reason = deferred.into_inner();
+        match released? {
+            Disposition::Released => {
+                progress.user_code_released = true;
+                progress.release_authorized = true;
+            }
+            Disposition::NeverReleased(proof) => {
+                never = Some(proof);
+                if is_guarded(job) {
+                    progress.never_run_reason =
+                        Some("readiness expired after Ticket commit".into());
+                }
+                return Err(io::Error::other("kernel release prevented after commit").into());
+            }
+            Disposition::AlreadyConsumed => {
+                return Err(io::Error::other("Ticket already consumed").into());
+            }
+            Disposition::Uncertain(error) => {
+                progress.user_code_released = true;
+                return Err(error.into());
+            }
+        }
+        loop {
+            if let Some(exit) = child.poll_root()? {
+                progress.exit_code = Some(exit);
+                lock(store)?.mark_root_exited(job, exit)?;
+                return Ok((exit as u32, false));
+            }
+            if lock(store)?.invocation_stop_requested(job.job_id)? {
+                progress.canceled = true;
+                return Ok((22, false));
+            }
+            if runtime_deadline.get().is_some_and(|deadline| {
+                crate::host_observation::observation_clock()
+                    .map_or(true, |(wall, _)| wall >= deadline)
+            }) {
+                progress.timed_out = true;
+                return Ok((21, true));
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    })();
+    let cleanup = (|| -> RunResult<()> {
+        let seal = live
+            .linux
+            .cleanup(job.invocation_id, Instant::now() + Duration::from_secs(30))?;
+        lock(store)?.record_attached_cleanup(
+            job.invocation_id,
+            &seal.boundary_sha256,
+            &seal.sha256()?,
+            never.as_deref(),
+        )?;
+        live.linux_releases.retire(job.invocation_id)?;
+        progress.cleanup_proven = true;
+        if let Some(child) = launch.as_mut() {
+            if let Some(exit) = child.reap_after_cleanup(Instant::now() + Duration::from_secs(5))? {
+                progress.exit_code = Some(exit);
+                if progress.durable_release_authorized {
+                    lock(store)?.mark_root_exited(job, exit)?;
+                }
+            }
+        }
+        for drain in drains.drain(..) {
+            drain
+                .join()
+                .map_err(|_| io::Error::other("log drain panicked"))??;
+        }
+        Ok(())
+    })();
+    wake();
+    if !progress.cleanup_proven {
+        if let Ok(mut locked) = store.lock() {
+            lifecycle::persist_uncertain_cleanup(&mut locked, job, progress)?;
+            progress.uncertainty_persisted = true;
+        }
+    }
+    cleanup?;
+    execution.map(|(code, timed_out)| {
+        (
+            progress.exit_code.map_or(code, |exit| exit as u32),
+            timed_out,
+        )
+    })
+}
+
+fn is_guarded(job: &PreparedJob) -> bool {
+    job.role == InvocationRole::Primary
+        && (job.spec.quiet.is_some() || !job.spec.conditions.is_empty())
+}
+
+FILE src/runner/linux/journal.rs
+//! Reset-independent executor obligations. A missing cgroup is never a seal.
+use super::cgroup::{Boundary, Identity};
+use crate::{ContainmentId, InvocationId, ProcessIdentity};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
+use std::fs::{File, OpenOptions};
+use std::io::{self, Read, Write};
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
+use std::path::{Path, PathBuf};
+use std::time::Instant;
+use uuid::Uuid;
+
+const MAX_BYTES: usize = 16 * 1024 * 1024;
+const MAX_RECORDS: usize = 16_384;
+const MAX_ACTIVE: usize = 1024;
+
+#[cfg(test)]
+thread_local! {
+    static FAIL_BEFORE_SEAL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Anchor {
+    pub(super) journal: Uuid,
+    pub(super) store: Uuid,
+    pub(super) domain: crate::ExecutionDomainId,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct State {
+    version: u32,
+    anchor: Anchor,
+    records: BTreeMap<InvocationId, Record>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Record {
+    pub(super) containment: ContainmentId,
+    pub(super) lease: Uuid,
+    pub(super) daemon_generation: Uuid,
+    pub(super) creator: ProcessIdentity,
+    pub(super) boundary: Option<Identity>,
+    pub(super) root: Option<ProcessIdentity>,
+    pub(super) executable_sha256: Option<String>,
+    pub(super) release_intent: Option<crate::machine::InvocationTicket>,
+    pub(super) seal: Option<Seal>,
+}
+
+impl Record {
+    pub(super) fn boundary_sha256(&self) -> io::Result<String> {
+        let boundary = self
+            .boundary
+            .as_ref()
+            .ok_or_else(|| invalid("missing executor boundary"))?;
+        digest(&(
+            self.containment,
+            self.lease,
+            self.daemon_generation,
+            &self.creator,
+            boundary,
+            &self.root,
+            &self.executable_sha256,
+        ))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Seal {
+    pub(super) invocation: InvocationId,
+    pub(super) boundary_sha256: String,
+    pub(super) seal_id: Uuid,
+    pub(super) possibly_released: bool,
+}
+impl Seal {
+    pub(super) fn sha256(&self) -> io::Result<String> {
+        digest(self)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Envelope {
+    state: State,
+    sha256: String,
+}
+
+pub(super) struct Journal {
+    directory: PathBuf,
+    directory_guard: File,
+    _lock: File,
+    state: State,
+    poisoned: bool,
+}
+
+fn invalid(message: &str) -> io::Error {
+    io::Error::other(message)
+}
+pub(super) fn digest(value: &impl Serialize) -> io::Result<String> {
+    Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(value)?)))
+}
+fn owned(path: &Path, directory: bool) -> io::Result<File> {
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(
+            libc::O_NOFOLLOW | libc::O_CLOEXEC | if directory { libc::O_DIRECTORY } else { 0 },
+        )
+        .open(path)?;
+    let meta = file.metadata()?;
+    // SAFETY: geteuid has no preconditions.
+    if meta.uid() != unsafe { libc::geteuid() }
+        || meta.mode() & 0o077 != 0
+        || (directory && !meta.is_dir())
+        || (!directory && !meta.is_file())
+    {
+        return Err(invalid(
+            "executor history must be an owner-only regular file/directory",
+        ));
+    }
+    Ok(file)
+}
+fn read(path: &Path) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    owned(path, false)?
+        .take(MAX_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > MAX_BYTES {
+        return Err(invalid("executor history exceeds size bound"));
+    }
+    Ok(bytes)
+}
+fn publish(directory: &Path, name: &str, bytes: &[u8], replace: bool) -> io::Result<()> {
+    if bytes.len() > MAX_BYTES {
+        return Err(invalid("executor history exceeds size bound"));
+    }
+    let temporary = directory.join(format!(".publish-{}", Uuid::now_v7()));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&temporary)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    let target = directory.join(name);
+    if replace {
+        std::fs::rename(&temporary, &target)?;
+    } else {
+        std::fs::hard_link(&temporary, &target)?;
+        std::fs::remove_file(&temporary)?;
+    }
+    File::open(directory)?.sync_all()
+}
+
+impl Journal {
+    /// Called only by explicit installation after an empty-work inventory. An
+    /// existing, missing or damaged installation is never initialized on open.
+    pub(super) fn initialize(directory: &Path, anchor: Anchor) -> io::Result<Self> {
+        if anchor.journal.is_nil() || anchor.store.is_nil() || anchor.domain.0.is_nil() {
+            return Err(invalid("nil executor installation identity"));
+        }
+        let parent = directory
+            .parent()
+            .ok_or_else(|| invalid("executor journal has no parent"))?;
+        owned(parent, true)?;
+        crate::filesystem::require_durable_local_filesystem(parent)?;
+        std::fs::DirBuilder::new().mode(0o700).create(directory)?;
+        File::open(parent)?.sync_all()?;
+        let state = State {
+            version: 1,
+            anchor: anchor.clone(),
+            records: BTreeMap::new(),
+        };
+        publish(
+            directory,
+            "anchor.json",
+            &serde_json::to_vec(&anchor)?,
+            false,
+        )?;
+        let envelope = Envelope {
+            sha256: digest(&state)?,
+            state,
+        };
+        publish(
+            directory,
+            "state.json",
+            &serde_json::to_vec(&envelope)?,
+            false,
+        )?;
+        Self::open(directory, &anchor)
+    }
+
+    pub(super) fn open(directory: &Path, expected: &Anchor) -> io::Result<Self> {
+        let directory_guard = owned(directory, true)?;
+        crate::filesystem::require_durable_local_filesystem(directory)?;
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(directory.join("executor.lock"))?;
+        let guard = owned(&directory.join("executor.lock"), false)?;
+        if (guard.metadata()?.dev(), guard.metadata()?.ino())
+            != (lock.metadata()?.dev(), lock.metadata()?.ino())
+        {
+            return Err(invalid("executor lock was replaced"));
+        }
+        fs2::FileExt::try_lock_exclusive(&lock)?;
+        let anchor: Anchor = serde_json::from_slice(&read(&directory.join("anchor.json"))?)?;
+        let envelope: Envelope = serde_json::from_slice(&read(&directory.join("state.json"))?)?;
+        if &anchor != expected
+            || envelope.state.anchor != anchor
+            || envelope.state.version != 1
+            || digest(&envelope.state)? != envelope.sha256
+            || envelope.state.records.len() > MAX_RECORDS
+        {
+            return Err(invalid("executor history/anchor is unknown or mismatched"));
+        }
+        for (invocation, record) in &envelope.state.records {
+            if invocation.store_uuid() != anchor.store
+                || record.containment.store_uuid() != anchor.store
+                || record.lease.is_nil()
+                || record.daemon_generation.is_nil()
+            {
+                return Err(invalid("executor history contains a foreign obligation"));
+            }
+            if let Some(seal) = &record.seal {
+                if seal.invocation != *invocation
+                    || seal.seal_id.is_nil()
+                    || seal.boundary_sha256 != record.boundary_sha256()?
+                    || seal.possibly_released != record.release_intent.is_some()
+                {
+                    return Err(invalid("invalid executor seal"));
+                }
+            }
+        }
+        Ok(Self {
+            directory: directory.to_owned(),
+            directory_guard,
+            _lock: lock,
+            state: envelope.state,
+            poisoned: false,
+        })
+    }
+
+    fn check(&self) -> io::Result<()> {
+        if self.poisoned {
+            return Err(invalid(
+                "executor publication failed; history requires recovery",
+            ));
+        }
+        let meta = owned(&self.directory, true)?.metadata()?;
+        let pin = self.directory_guard.metadata()?;
+        if (meta.dev(), meta.ino()) != (pin.dev(), pin.ino()) || pin.nlink() == 0 {
+            return Err(invalid("executor journal directory was replaced"));
+        }
+        let anchor: Anchor = serde_json::from_slice(&read(&self.directory.join("anchor.json"))?)?;
+        let disk: Envelope = serde_json::from_slice(&read(&self.directory.join("state.json"))?)?;
+        if anchor != self.state.anchor
+            || disk.sha256 != digest(&disk.state)?
+            || digest(&self.state)? != disk.sha256
+        {
+            return Err(invalid("executor history changed outside its writer"));
+        }
+        Ok(())
+    }
+    fn commit(&mut self, state: State) -> io::Result<()> {
+        self.check()?;
+        let envelope = Envelope {
+            sha256: digest(&state)?,
+            state,
+        };
+        // Once publication is attempted, even an fsync error is an uncertain
+        // commit. This process must not continue from its old in-memory state.
+        self.poisoned = true;
+        publish(
+            &self.directory,
+            "state.json",
+            &serde_json::to_vec(&envelope)?,
+            true,
+        )?;
+        self.state = envelope.state;
+        self.poisoned = false;
+        Ok(())
+    }
+    pub(super) fn records(&self) -> io::Result<&BTreeMap<InvocationId, Record>> {
+        self.check()?;
+        Ok(&self.state.records)
+    }
+
+    pub(super) fn create(
+        &mut self,
+        parent: &Path,
+        invocation: InvocationId,
+        containment: ContainmentId,
+        lease: Uuid,
+        generation: Uuid,
+        creator: ProcessIdentity,
+    ) -> io::Result<Boundary> {
+        self.check()?;
+        let active = self
+            .state
+            .records
+            .values()
+            .filter(|r| r.seal.is_none())
+            .count();
+        // Reserve serialized space for every pending ticket and seal as well
+        // as disk space. Exhaustion rejects new obligations, never cleanup.
+        if serde_json::to_vec(&self.state)?
+            .len()
+            .saturating_add((active + 1) * 16_384)
+            > MAX_BYTES - 1024 * 1024
+        {
+            return Err(invalid("executor history cleanup headroom unavailable"));
+        }
+        if invocation.store_uuid() != self.state.anchor.store
+            || containment.store_uuid() != self.state.anchor.store
+            || lease.is_nil()
+            || generation.is_nil()
+            || self.state.records.contains_key(&invocation)
+            || self.state.records.len() >= MAX_RECORDS
+            || active >= MAX_ACTIVE
+            || !matches!(creator, ProcessIdentity::Linux { .. })
+        {
+            return Err(invalid(
+                "duplicate, foreign or over-budget executor creation intent",
+            ));
+        }
+        let mut space = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+        // SAFETY: pinned journal directory and writable statvfs storage.
+        if unsafe { libc::fstatvfs(self.directory_guard.as_raw_fd(), space.as_mut_ptr()) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: successful fstatvfs initialized the structure.
+        let space = unsafe { space.assume_init() };
+        if u128::from(space.f_bavail) * u128::from(space.f_frsize)
+            < (MAX_BYTES as u128 * 3 + (active as u128 + 1) * 65536)
+        {
+            return Err(invalid("executor cleanup publication headroom unavailable"));
+        }
+        let mut next = self.state.clone();
+        next.records.insert(
+            invocation,
+            Record {
+                containment,
+                lease,
+                daemon_generation: generation,
+                creator,
+                boundary: None,
+                root: None,
+                executable_sha256: None,
+                release_intent: None,
+                seal: None,
+            },
+        );
+        self.commit(next)?;
+        let boundary = Boundary::create(parent, invocation.entity_uuid())?;
+        let mut next = self.state.clone();
+        next.records.get_mut(&invocation).unwrap().boundary = Some(boundary.identity.clone());
+        self.commit(next)?;
+        Ok(boundary)
+    }
+
+    pub(super) fn ready(
+        &mut self,
+        invocation: InvocationId,
+        launch: &super::launch::PreparedLaunch,
+    ) -> io::Result<()> {
+        let mut next = self.state.clone();
+        let record = next
+            .records
+            .get_mut(&invocation)
+            .ok_or_else(|| invalid("unknown executor intent"))?;
+        if record.seal.is_some() || record.root.is_some() || record.release_intent.is_some() {
+            return Err(invalid("executor root was already prepared or sealed"));
+        }
+        let boundary = Boundary::reopen(
+            record
+                .boundary
+                .as_ref()
+                .ok_or_else(|| invalid("executor boundary not committed"))?,
+        )?;
+        if !boundary.contains_process(launch.root.proc_handle())? {
+            return Err(invalid("prepared root left the recorded boundary"));
+        }
+        record.root = Some(launch.root.identity.clone());
+        record.executable_sha256 = Some(launch.requested_sha256.clone());
+        self.commit(next)
+    }
+
+    /// Call before SQLite ticket consumption. A crash after this point is
+    /// possibly-released even if the kernel barrier was never actually resumed.
+    pub(super) fn release_intent(
+        &mut self,
+        ticket: &crate::machine::InvocationTicket,
+    ) -> io::Result<()> {
+        if serde_json::to_vec(ticket)?.len() > 8192 {
+            return Err(invalid("executor ticket exceeds reserved history bound"));
+        }
+        let mut next = self.state.clone();
+        let record = next
+            .records
+            .get_mut(&ticket.intent.invocation_id)
+            .ok_or_else(|| invalid("unknown executor ticket"))?;
+        if record.seal.is_some()
+            || record.release_intent.is_some()
+            || record.root.is_none()
+            || ticket.key.manager_store_uuid != next.anchor.store
+            || ticket.key.domain_id != next.anchor.domain
+            || ticket.key.lease_id != record.lease
+            || ticket.intent.containment_id != record.containment
+            || record.executable_sha256.as_deref() != Some(ticket.intent.executable_sha256.as_str())
+            || record.boundary_sha256()? != ticket.intent.boundary_sha256
+        {
+            return Err(invalid(
+                "ticket does not match an unreleased prepared executor intent",
+            ));
+        }
+        record.release_intent = Some(ticket.clone());
+        self.commit(next)
+    }
+
+    pub(super) fn cleanup(
+        &mut self,
+        invocation: InvocationId,
+        deadline: Instant,
+    ) -> io::Result<Seal> {
+        self.check()?;
+        let record = self
+            .state
+            .records
+            .get(&invocation)
+            .ok_or_else(|| invalid("unknown executor cleanup"))?;
+        if let Some(seal) = &record.seal {
+            return Ok(seal.clone());
+        }
+        let identity = record.boundary.as_ref().ok_or_else(|| {
+            invalid("creation interrupted before boundary identity; cleanup unknown")
+        })?;
+        Boundary::reopen(identity)?.kill_and_seal(deadline)?;
+        #[cfg(test)]
+        if FAIL_BEFORE_SEAL.replace(false) {
+            return Err(invalid("injected crash after removal before durable seal"));
+        }
+        let seal = Seal {
+            invocation,
+            boundary_sha256: record.boundary_sha256()?,
+            seal_id: Uuid::now_v7(),
+            possibly_released: record.release_intent.is_some(),
+        };
+        let mut next = self.state.clone();
+        next.records.get_mut(&invocation).unwrap().seal = Some(seal.clone());
+        self.commit(next)?;
+        Ok(seal)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    use std::time::Duration;
+
+    fn anchor() -> Anchor {
+        Anchor {
+            journal: Uuid::now_v7(),
+            store: Uuid::now_v7(),
+            domain: crate::ExecutionDomainId(Uuid::now_v7()),
+        }
+    }
+    fn current() -> ProcessIdentity {
+        // SAFETY: geteuid has no preconditions.
+        crate::identity::linux::Process::open(std::process::id(), unsafe { libc::geteuid() })
+            .unwrap()
+            .identity
+    }
+
+    #[test]
+    fn linux_executor_journal_never_reinitializes_missing_or_corrupt_history() {
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let anchor = anchor();
+        assert!(Journal::open(&path, &anchor).is_err());
+        let journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        assert!(
+            Journal::open(&path, &anchor).is_err(),
+            "duplicate writer acquired executor history"
+        );
+        drop(journal);
+        assert!(Journal::initialize(&path, anchor.clone()).is_err());
+        let mut wrong = anchor.clone();
+        wrong.store = Uuid::now_v7();
+        assert!(Journal::open(&path, &wrong).is_err());
+        let journal = Journal::open(&path, &anchor).unwrap();
+        let original = std::fs::read(path.join("state.json")).unwrap();
+        std::fs::write(path.join("state.json"), b"{}").unwrap();
+        assert!(
+            journal.records().is_err(),
+            "live writer accepted external history loss"
+        );
+        drop(journal);
+        assert!(Journal::open(&path, &anchor).is_err());
+        std::fs::write(path.join("state.json"), original).unwrap();
+        std::fs::remove_file(path.join("anchor.json")).unwrap();
+        assert!(Journal::open(&path, &anchor).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires delegated cgroup under a protected system bootstrap Job"]
+    fn linux_executor_journal_recovers_live_boundary_and_seals_once() {
+        let root = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap();
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let helper = temp.path().join("stillyard");
+        std::fs::copy(
+            std::env::var_os("STILLYARD_TEST_EXECUTABLE").unwrap(),
+            &helper,
+        )
+        .unwrap();
+        let anchor = anchor();
+        let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+        let containment = ContainmentId::from_parts(anchor.store, Uuid::now_v7());
+        let lease = Uuid::now_v7();
+        let generation = Uuid::now_v7();
+        let mut journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        let boundary = journal
+            .create(
+                Path::new(&root),
+                invocation,
+                containment,
+                lease,
+                generation,
+                current(),
+            )
+            .unwrap();
+        let spec=super::super::launch::LaunchSpec {executable:"/usr/bin/python3".into(),args:vec!["-c".into(),"import subprocess,time; subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(60)']); time.sleep(60)".into()],working_directory:temp.path().into(),environment:BTreeMap::new()};
+        let mut launch = super::super::launch::PreparedLaunch::prepare(
+            &boundary,
+            &helper,
+            &spec,
+            File::open("/dev/null").unwrap(),
+            Instant::now() + Duration::from_secs(15),
+        )
+        .unwrap();
+        journal.ready(invocation, &launch).unwrap();
+        let session = crate::machine::SessionIdentity {
+            machine_id: Uuid::now_v7(),
+            authority_epoch: Uuid::now_v7(),
+            domain_id: anchor.domain,
+            manager_store_uuid: anchor.store,
+            executor_incarnation: Uuid::now_v7(),
+            connection_epoch: 1,
+        };
+        let ticket = crate::machine::InvocationTicket {
+            grant_id: crate::GrantId::from_parts(Uuid::now_v7(), Uuid::now_v7()),
+            key: crate::machine::AllocationKey {
+                machine_id: session.machine_id,
+                authority_epoch: session.authority_epoch,
+                domain_id: anchor.domain,
+                manager_store_uuid: anchor.store,
+                lease_id: lease,
+            },
+            offer_nonce: Uuid::now_v7(),
+            intent: crate::machine::InvocationIntent {
+                invocation_id: invocation,
+                containment_id: containment,
+                role: crate::InvocationRole::Primary,
+                role_index: 0,
+                release_sequence: 1,
+                executable_sha256: launch.requested_sha256.clone(),
+                boundary_sha256: journal.records().unwrap()[&invocation]
+                    .boundary_sha256()
+                    .unwrap(),
+                readiness_challenge: Uuid::now_v7(),
+                previous_cleanup: None,
+            },
+            configuration_sha256: "a".repeat(64),
+            issued_unix_millis: 1,
+            host_observation_generation: Uuid::now_v7(),
+            host_sample_unix_millis: 1,
+            session,
+        };
+        journal.release_intent(&ticket).unwrap();
+        assert!(
+            journal.release_intent(&ticket).is_err(),
+            "a release intent was reused"
+        );
+        launch.release().unwrap();
+        assert!(boundary.populated().unwrap(), "live boundary disappeared");
+        drop(journal);
+        let mut journal = Journal::open(&path, &anchor).unwrap();
+        assert!(journal.records().unwrap()[&invocation].seal.is_none());
+        let seal = journal
+            .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+            .unwrap();
+        assert!(seal.possibly_released);
+        drop(journal);
+        let mut journal = Journal::open(&path, &anchor).unwrap();
+        assert_eq!(journal.cleanup(invocation, Instant::now()).unwrap(), seal);
+        assert_eq!(seal.sha256().unwrap().len(), 64);
+        assert!(
+            journal
+                .create(
+                    Path::new(&root),
+                    invocation,
+                    containment,
+                    lease,
+                    generation,
+                    current()
+                )
+                .is_err()
+        );
+        assert!(Boundary::reopen(&boundary.identity).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires delegated cgroup under a protected system bootstrap Job"]
+    fn linux_executor_journal_absence_after_seal_gap_retains_uncertainty() {
+        let root = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap();
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let anchor = anchor();
+        let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+        let mut journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        journal
+            .create(
+                Path::new(&root),
+                invocation,
+                ContainmentId::from_parts(anchor.store, Uuid::now_v7()),
+                Uuid::now_v7(),
+                Uuid::now_v7(),
+                current(),
+            )
+            .unwrap();
+        FAIL_BEFORE_SEAL.set(true);
+        assert!(
+            journal
+                .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+                .is_err()
+        );
+        drop(journal);
+        let mut recovered = Journal::open(&path, &anchor).unwrap();
+        assert!(recovered.records().unwrap()[&invocation].seal.is_none());
+        assert!(
+            recovered
+                .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+                .is_err(),
+            "missing cgroup was accepted as a seal"
+        );
+    }
+}
+
+#[cfg(test)]
+mod cross_os;
+
+FILE src/machine/manager/release.rs
+//! Local cancellation/freshness barrier. Hold it from the last readiness check
+//! through the durable start commit and actual platform release.
+use super::*;
+use std::sync::Mutex;
+
+pub struct ReleaseBarrier {
+    state: Mutex<State>,
+}
+struct State {
+    session: SessionIdentity,
+    generation: Uuid,
+    configuration: String,
+    canceled: bool,
+    challenge: Option<Challenge>,
+    attempted: bool,
+}
+struct Challenge {
+    operation: Uuid,
+    intent: InvocationIntent,
+    key: AllocationKey,
+    nonce: Uuid,
+    clock: (i64, u64),
+}
+/// Produced only when this barrier committed consumption but did not call the
+/// OS release function. Platform whole-boundary cleanup is still required.
+#[derive(Debug)]
+pub struct NeverReleased {
+    ticket: InvocationTicket,
+}
+#[derive(Debug)]
+pub enum Disposition {
+    Released,
+    AlreadyConsumed,
+    NeverReleased(Box<NeverReleased>),
+    Uncertain(std::io::Error),
+}
+
+impl ReleaseBarrier {
+    pub fn new(session: SessionIdentity, generation: Uuid, configuration: String) -> Result<Self> {
+        if generation.is_nil()
+            || configuration.len() != 64
+            || !configuration.bytes().all(|b| b.is_ascii_hexdigit())
+        {
+            return Err(invalid(
+                "release barrier needs current provider and configuration identities",
+            ));
+        }
+        Ok(Self {
+            state: Mutex::new(State {
+                session,
+                generation,
+                configuration,
+                canceled: false,
+                challenge: None,
+                attempted: false,
+            }),
+        })
+    }
+
+    /// Invoke before the first transmission. Retry keeps the ORIGINAL clock;
+    /// reconnect needs a new Invocation challenge, never a rejuvenated ticket.
+    pub fn challenge(&self, request: &Request) -> Result<()> {
+        self.challenge_at(request, crate::host_observation::observation_clock()?)
+    }
+    fn challenge_at(&self, request: &Request, clock: (i64, u64)) -> Result<()> {
+        request.validate()?;
+        let Command::AuthorizeInvocation {
+            key,
+            offer_nonce,
+            intent,
+        } = &request.command
+        else {
+            return Err(invalid("release challenge requires an Invocation request"));
+        };
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| invalid("release barrier poisoned"))?;
+        if request.session != state.session || state.canceled || state.attempted {
+            return Err(invalid("release barrier was fenced"));
+        }
+        if let Some(old) = &state.challenge {
+            if old.operation != request.operation_id
+                || old.intent != *intent
+                || old.key != *key
+                || old.nonce != *offer_nonce
+            {
+                return Err(invalid(
+                    "one release barrier cannot authorize another Invocation",
+                ));
+            }
+            return Ok(());
+        }
+        state.challenge = Some(Challenge {
+            operation: request.operation_id,
+            intent: intent.clone(),
+            key: key.clone(),
+            nonce: *offer_nonce,
+            clock,
+        });
+        Ok(())
+    }
+
+    /// Serialize known disconnect, cancel and provider/session invalidation with
+    /// actual release. A canceled barrier is never reopened by reconnect.
+    pub fn cancel(&self) -> Result<()> {
+        self.state
+            .lock()
+            .map_err(|_| invalid("release barrier poisoned"))?
+            .canceled = true;
+        Ok(())
+    }
+
+    /// `commit` atomically consumes the ticket with Invocation lifecycle and
+    /// commits SQLite. `local_ready` runs twice under this barrier. No callback
+    /// may re-enter the barrier. An OS release error retains uncertainty.
+    pub fn release(
+        &self,
+        ticket: &InvocationTicket,
+        generation: Uuid,
+        local_ready: impl FnMut() -> Result<bool>,
+        commit: impl FnOnce() -> Result<bool>,
+        release: impl FnOnce() -> std::io::Result<()>,
+    ) -> Result<Disposition> {
+        self.release_with_clock(
+            ticket,
+            generation,
+            local_ready,
+            commit,
+            release,
+            crate::host_observation::observation_clock,
+        )
+    }
+    fn release_with_clock(
+        &self,
+        ticket: &InvocationTicket,
+        generation: Uuid,
+        mut local_ready: impl FnMut() -> Result<bool>,
+        commit: impl FnOnce() -> Result<bool>,
+        release: impl FnOnce() -> std::io::Result<()>,
+        mut clock: impl FnMut() -> std::io::Result<(i64, u64)>,
+    ) -> Result<Disposition> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| invalid("release barrier poisoned"))?;
+        let challenge = state
+            .challenge
+            .as_ref()
+            .ok_or_else(|| invalid("ticket has no local send challenge"))?;
+        if state.canceled
+            || state.attempted
+            || state.generation != generation
+            || state.session != ticket.session
+            || state.configuration != ticket.configuration_sha256
+            || challenge.intent != ticket.intent
+            || challenge.key != ticket.key
+            || challenge.nonce != ticket.offer_nonce
+            || !fresh(challenge.clock, clock()?)
+            || !local_ready()?
+        {
+            return Err(invalid(
+                "ticket is stale, canceled, used or locally unready",
+            ));
+        }
+        let sent = challenge.clock;
+        state.attempted = true;
+        if !commit()? {
+            return Ok(Disposition::AlreadyConsumed);
+        }
+        // Once committed, any pre-release failure proves only that THIS barrier
+        // did not resume the child. Persist cleanup before retiring the ticket.
+        if !local_ready().unwrap_or(false) || !clock().is_ok_and(|now| fresh(sent, now)) {
+            return Ok(Disposition::NeverReleased(Box::new(NeverReleased {
+                ticket: ticket.clone(),
+            })));
+        }
+        Ok(match release() {
+            Ok(()) => Disposition::Released,
+            Err(error) => Disposition::Uncertain(error),
+        })
+    }
+}
+
+fn fresh(sent: (i64, u64), now: (i64, u64)) -> bool {
+    let Some(boot) = now.1.checked_sub(sent.1) else {
+        return false;
+    };
+    let Some(wall) = now
+        .0
+        .checked_sub(sent.0)
+        .and_then(|n| u64::try_from(n).ok())
+    else {
+        return false;
+    };
+    boot <= 250 && wall <= 250 && boot.abs_diff(wall) <= 50
+}
+
+/// Pair the barrier's no-release result with a platform whole-boundary proof.
+/// Losing this transient result is conservative: recover consumed as possibly
+/// released. It never gives permission to consume that same ticket again.
+pub fn record_unused_cleanup(
+    tx: &Transaction<'_>,
+    proof: &NeverReleased,
+    cleanup: &TicketCleanup,
+) -> Result<()> {
+    let (json, consumed, prior): (String, bool, Option<String>) = tx.query_row(
+        "SELECT ticket_json,consumed,cleanup_json FROM attached_tickets WHERE invocation_id=?1",
+        [cleanup.invocation_id.to_string()],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    )?;
+    let ticket = &proof.ticket;
+    let encoded = serde_json::to_string(cleanup)?;
+    if json != serde_json::to_string(ticket)?
+        || !consumed
+        || cleanup.user_code_released
+        || cleanup.invocation_id != ticket.intent.invocation_id
+        || cleanup.release_sequence != ticket.intent.release_sequence
+        || cleanup.boundary_sha256 != ticket.intent.boundary_sha256
+        || cleanup.proof_sha256.len() != 64
+        || !cleanup.proof_sha256.bytes().all(|b| b.is_ascii_hexdigit())
+        || prior.is_some_and(|p| p != encoded)
+    {
+        return Err(invalid(
+            "unused cleanup does not match the committed never-released ticket",
+        ));
+    }
+    tx.execute(
+        "UPDATE attached_tickets SET cleanup_json=?2 WHERE invocation_id=?1",
+        params![cleanup.invocation_id.to_string(), encoded],
+    )?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn fixture() -> (ReleaseBarrier, Request, InvocationTicket, Uuid) {
+        let store = Uuid::now_v7();
+        let session = SessionIdentity {
+            machine_id: Uuid::now_v7(),
+            authority_epoch: Uuid::now_v7(),
+            domain_id: crate::ExecutionDomainId(Uuid::now_v7()),
+            manager_store_uuid: store,
+            executor_incarnation: Uuid::now_v7(),
+            connection_epoch: 1,
+        };
+        let key = AllocationKey {
+            machine_id: session.machine_id,
+            authority_epoch: session.authority_epoch,
+            domain_id: session.domain_id,
+            manager_store_uuid: store,
+            lease_id: Uuid::now_v7(),
+        };
+        let intent = InvocationIntent {
+            invocation_id: format!("{store}~{}", Uuid::now_v7()).parse().unwrap(),
+            containment_id: format!("{store}~{}", Uuid::now_v7()).parse().unwrap(),
+            role: crate::InvocationRole::Primary,
+            role_index: 0,
+            release_sequence: 1,
+            executable_sha256: "a".repeat(64),
+            boundary_sha256: "b".repeat(64),
+            readiness_challenge: Uuid::now_v7(),
+            previous_cleanup: None,
+        };
+        let nonce = Uuid::now_v7();
+        let request = Request::new(
+            session.clone(),
+            1,
+            Uuid::now_v7(),
+            Command::AuthorizeInvocation {
+                key: key.clone(),
+                offer_nonce: nonce,
+                intent: intent.clone(),
+            },
+        )
+        .unwrap();
+        let ticket = InvocationTicket {
+            grant_id: format!("{store}~{}", Uuid::now_v7()).parse().unwrap(),
+            key,
+            offer_nonce: nonce,
+            intent,
+            configuration_sha256: "c".repeat(64),
+            issued_unix_millis: 9,
+            host_observation_generation: Uuid::now_v7(),
+            host_sample_unix_millis: 9,
+            session: session.clone(),
+        };
+        let generation = Uuid::now_v7();
+        (
+            ReleaseBarrier::new(session, generation, "c".repeat(64)).unwrap(),
+            request,
+            ticket,
+            generation,
+        )
+    }
+
+    #[test]
+    fn retry_cannot_rejuvenate_a_delayed_ticket_and_cancel_fences_release() {
+        let (barrier, request, ticket, generation) = fixture();
+        barrier.challenge_at(&request, (1000, 1000)).unwrap();
+        barrier.challenge_at(&request, (1200, 1200)).unwrap();
+        assert!(
+            barrier
+                .release_with_clock(
+                    &ticket,
+                    generation,
+                    || Ok(true),
+                    || panic!("stale ticket committed"),
+                    || panic!("stale ticket released"),
+                    || Ok((1251, 1251))
+                )
+                .is_err()
+        );
+        barrier.cancel().unwrap();
+        assert!(
+            barrier
+                .release_with_clock(
+                    &ticket,
+                    generation,
+                    || Ok(true),
+                    || panic!("canceled ticket committed"),
+                    || panic!("canceled ticket released"),
+                    || Ok((1100, 1100))
+                )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn loss_of_readiness_after_commit_proves_no_release_without_replaying_consumption() {
+        let (barrier, request, ticket, generation) = fixture();
+        barrier.challenge_at(&request, (1000, 1000)).unwrap();
+        let mut checks = 0;
+        let result = barrier
+            .release_with_clock(
+                &ticket,
+                generation,
+                || {
+                    checks += 1;
+                    Ok(checks == 1)
+                },
+                || Ok(true),
+                || panic!("unready child released"),
+                || Ok((1100, 1100)),
+            )
+            .unwrap();
+        assert!(matches!(result, Disposition::NeverReleased(_)));
+        assert!(
+            barrier
+                .release_with_clock(
+                    &ticket,
+                    generation,
+                    || Ok(true),
+                    || panic!("consumption replayed"),
+                    || panic!("release replayed"),
+                    || Ok((1100, 1100))
+                )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn delay_in_final_local_check_is_rechecked_before_os_release() {
+        let (barrier, request, ticket, generation) = fixture();
+        barrier.challenge_at(&request, (1000, 1000)).unwrap();
+        let mut clocks = 0;
+        let result = barrier
+            .release_with_clock(
+                &ticket,
+                generation,
+                || Ok(true),
+                || Ok(true),
+                || panic!("expired final barrier released"),
+                || {
+                    clocks += 1;
+                    Ok(if clocks == 1 {
+                        (1100, 1100)
+                    } else {
+                        (1300, 1300)
+                    })
+                },
+            )
+            .unwrap();
+        assert!(matches!(result, Disposition::NeverReleased(_)));
+    }
+    #[test]
+    fn local_send_age_detects_delay_suspend_and_clock_discontinuity() {
+        assert!(fresh((1000, 1000), (1250, 1250)));
+        for now in [
+            (1251, 1251),
+            (999, 1000),
+            (1000, 999),
+            (1250, 1000),
+            (5000, 1001),
+        ] {
+            assert!(!fresh((1000, 1000), now));
+        }
+    }
+
+    #[test]
+    fn unused_after_commit_keeps_consumption_and_requires_exact_cleanup_before_sealing() {
+        let (barrier, request, ticket, generation) = fixture();
+        let mut c = Connection::open_in_memory().unwrap();
+        let tx = c.transaction().unwrap();
+        initialize(&tx, ticket.key.manager_store_uuid).unwrap();
+        tx.execute(
+            "UPDATE attached_peer SET session_json=?1",
+            [serde_json::to_string(&ticket.session).unwrap()],
+        )
+        .unwrap();
+        let store = ticket.key.manager_store_uuid;
+        let grant = GrantSnapshot {
+            risk_clearance: None,
+            queue_accepted_unix_millis: 1,
+            queue_sequence: 1,
+            uncertainty_reason: None,
+            grant_id: ticket.grant_id,
+            candidate: Candidate {
+                key: ticket.key.clone(),
+                owner: AllocationOwner::Work {
+                    job_id: format!("{store}~{}", Uuid::now_v7()).parse().unwrap(),
+                    attempt_id: format!("{store}~{}", Uuid::now_v7()).parse().unwrap(),
+                },
+                revision: 1,
+                priority: 0,
+                claims: Claims::default(),
+                configuration_sha256: ticket.configuration_sha256.clone(),
+                observed: None,
+                quiet: None,
+            },
+            offer_nonce: ticket.offer_nonce,
+            state: GrantState::Armed,
+            offered_unix_millis: 1,
+            offer_deadline_unix_millis: 2,
+            armed_unix_millis: Some(1),
+            released_unix_millis: None,
+            tickets: vec![ticket.intent.clone()],
+            sealed_release: None,
+        };
+        let key = serde_json::to_string(&ticket.key).unwrap();
+        tx.execute(
+            "INSERT INTO attached_grants VALUES (?1,?2,NULL)",
+            params![key, serde_json::to_string(&grant).unwrap()],
+        )
+        .unwrap();
+        tx.execute(
+            "INSERT INTO attached_tickets VALUES (?1,?2,?3,0,NULL)",
+            params![
+                ticket.intent.invocation_id.to_string(),
+                key,
+                serde_json::to_string(&ticket).unwrap()
+            ],
+        )
+        .unwrap();
+        tx.commit().unwrap();
+        barrier.challenge_at(&request, (1000, 1000)).unwrap();
+        let mut checks = 0;
+        let result = barrier
+            .release_with_clock(
+                &ticket,
+                generation,
+                || {
+                    checks += 1;
+                    Ok(checks == 1)
+                },
+                || {
+                    let tx = c.transaction()?;
+                    let consumed = consume_ticket(&tx, &ticket)?;
+                    tx.commit()?;
+                    Ok(consumed)
+                },
+                || panic!("unready child was resumed"),
+                || Ok((1100, 1100)),
+            )
+            .unwrap();
+        let Disposition::NeverReleased(proof) = result else {
+            panic!("expected pre-release failure after commit");
+        };
+        let tx = c.transaction().unwrap();
+        assert!(seal_release(&tx, &ticket.key, Uuid::now_v7()).is_err());
+        tx.rollback().unwrap();
+        let cleanup = TicketCleanup {
+            invocation_id: ticket.intent.invocation_id,
+            release_sequence: ticket.intent.release_sequence,
+            boundary_sha256: ticket.intent.boundary_sha256.clone(),
+            proof_sha256: "d".repeat(64),
+            user_code_released: false,
+        };
+        let tx = c.transaction().unwrap();
+        assert!(
+            record_cleanup(&tx, &cleanup).is_err(),
+            "untyped cleanup erased consumption"
+        );
+        let mut wrong = cleanup.clone();
+        wrong.boundary_sha256 = "e".repeat(64);
+        assert!(record_unused_cleanup(&tx, &proof, &wrong).is_err());
+        record_unused_cleanup(&tx, &proof, &cleanup).unwrap();
+        record_unused_cleanup(&tx, &proof, &cleanup).unwrap();
+        assert!(consume_ticket(&tx, &ticket).is_err());
+        seal_release(&tx, &ticket.key, Uuid::now_v7()).unwrap();
+        tx.commit().unwrap();
+        assert_eq!(
+            c.query_row("SELECT consumed FROM attached_tickets", [], |r| r
+                .get::<_, u64>(0))
+                .unwrap(),
+            1
+        );
+        let pending = pending(&c, &PairingSecret::generate().unwrap())
+            .unwrap()
+            .unwrap();
+        assert!(
+            matches!(pending.command,Command::Release { release } if release.tickets==vec![cleanup])
+        );
+    }
+}
+
+FILE src/runner/linux/journal/cross_os.rs
+//! Real Linux executor subject for the native coordinator reset acceptance.
+//! Runs only inside the default Windows Job's protected bootstrap delegation.
+use super::*;
+use crate::store::{Store, StorePaths};
+use std::os::unix::fs::PermissionsExt;
+use std::time::Duration;
+
+fn receive<T: serde::de::DeserializeOwned>(mailbox: &Path, name: &str) -> T {
+    let until = Instant::now() + Duration::from_secs(120);
+    loop {
+        assert!(
+            !mailbox.join("abort.json").exists(),
+            "native controller aborted before {name}"
+        );
+        match std::fs::read(mailbox.join(name)) {
+            Ok(bytes) => return serde_json::from_slice(&bytes).unwrap(),
+            Err(error) if error.kind() == io::ErrorKind::NotFound && Instant::now() < until => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => panic!("cross-OS mailbox {name}: {error}"),
+        }
+    }
+}
+fn publish(mailbox: &Path, name: &str, value: &impl Serialize) {
+    let temporary = mailbox.join(format!(".{}", Uuid::now_v7()));
+    std::fs::write(&temporary, serde_json::to_vec(value).unwrap()).unwrap();
+    std::fs::rename(temporary, mailbox.join(name)).unwrap();
+}
+
+#[test]
+#[ignore = "native system Job supplies mailbox and protected Linux delegation"]
+fn linux_executor_cross_os_reset_subject() {
+    let mailbox = PathBuf::from(std::env::var_os("MR_WSL_FAULT_MAILBOX").unwrap());
+    let _: bool = receive(&mailbox, "controller-ready.json");
+    let parent = PathBuf::from(std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap());
+    let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+    std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+    let paths = StorePaths::new(temp.path().join("manager"));
+    let mut manager = Store::open(paths.clone()).unwrap();
+    // SAFETY: geteuid has no preconditions.
+    let uid = unsafe { libc::geteuid() };
+    std::fs::set_permissions(&paths.root, std::fs::Permissions::from_mode(0o700)).unwrap();
+    publish(
+        &mailbox,
+        "manager.json",
+        &serde_json::json!({"store_uuid":manager.store_uuid(),"uid":uid}),
+    );
+    let configuration: serde_json::Value = receive(&mailbox, "configuration.json");
+    let configuration_path = temp.path().join("configuration.json");
+    std::fs::write(
+        &configuration_path,
+        serde_json::to_vec(&configuration).unwrap(),
+    )
+    .unwrap();
+    std::fs::set_permissions(&configuration_path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    manager
+        .install_attached_from_file(&configuration_path)
+        .unwrap();
+    let anchor = Anchor {
+        journal: serde_json::from_value(configuration["journal"].clone()).unwrap(),
+        store: manager.store_uuid(),
+        domain: serde_json::from_value(
+            configuration["pairing"]["installation"]["domain_id"].clone(),
+        )
+        .unwrap(),
+    };
+    let journal_path = paths.root.join("attachment/executor");
+    let mut journal = Journal::open(&journal_path, &anchor).unwrap();
+    let allocation: crate::machine::AllocationKey = receive(&mailbox, "allocation.json");
+    assert_eq!(allocation.manager_store_uuid, anchor.store);
+    assert_eq!(allocation.domain_id, anchor.domain);
+    let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+    let containment = ContainmentId::from_parts(anchor.store, Uuid::now_v7());
+    // SAFETY: geteuid has no preconditions.
+    let identity =
+        crate::identity::linux::Process::open(std::process::id(), unsafe { libc::geteuid() })
+            .unwrap();
+    let boundary = journal
+        .create(
+            &parent,
+            invocation,
+            containment,
+            allocation.lease_id,
+            Uuid::now_v7(),
+            identity.identity,
+        )
+        .unwrap();
+    let helper = temp.path().join("stillyard");
+    std::fs::copy(
+        std::env::var_os("STILLYARD_TEST_EXECUTABLE").unwrap(),
+        &helper,
+    )
+    .unwrap();
+    let marker = temp.path().join("user-started");
+    let code = format!(
+        "import pathlib,subprocess,time; subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(120)']); pathlib.Path({}).write_text('live'); time.sleep(120)",
+        serde_json::to_string(&marker.display().to_string()).unwrap()
+    );
+    let spec = super::super::launch::LaunchSpec {
+        executable: "/usr/bin/python3".into(),
+        args: vec!["-c".into(), code],
+        working_directory: temp.path().into(),
+        environment: BTreeMap::new(),
+    };
+    let mut launch = super::super::launch::PreparedLaunch::prepare(
+        &boundary,
+        &helper,
+        &spec,
+        File::open("/dev/null").unwrap(),
+        Instant::now() + Duration::from_secs(15),
+    )
+    .unwrap();
+    journal.ready(invocation, &launch).unwrap();
+    let intent = crate::machine::InvocationIntent {
+        invocation_id: invocation,
+        containment_id: containment,
+        role: crate::InvocationRole::Primary,
+        role_index: 0,
+        release_sequence: 1,
+        executable_sha256: launch.requested_sha256.clone(),
+        boundary_sha256: journal.records().unwrap()[&invocation]
+            .boundary_sha256()
+            .unwrap(),
+        readiness_challenge: Uuid::now_v7(),
+        previous_cleanup: None,
+    };
+    publish(&mailbox, "intent.json", &intent);
+    let ticket: crate::machine::InvocationTicket = receive(&mailbox, "ticket.json");
+    assert_eq!(ticket.intent, intent);
+    assert_eq!(ticket.key, allocation);
+    journal.release_intent(&ticket).unwrap();
+    launch.release().unwrap();
+    let until = Instant::now() + Duration::from_secs(10);
+    while !marker.exists() {
+        assert!(
+            Instant::now() < until,
+            "actual Linux user code did not start"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    publish(
+        &mailbox,
+        "live.json",
+        &serde_json::json!({"record":journal.records().unwrap()[&invocation],"populated":boundary.populated().unwrap(),"user_started":marker.exists()}),
+    );
+    let _: serde_json::Value = receive(&mailbox, "capacity-reduced.json");
+    assert!(boundary.populated().unwrap());
+    assert!(journal.records().unwrap()[&invocation].seal.is_none());
+    publish(
+        &mailbox,
+        "live-after-capacity-reduction.json",
+        &serde_json::json!({
+            "populated":boundary.populated().unwrap(), "unsealed":journal.records().unwrap()[&invocation].seal.is_none(),
+            "record":journal.records().unwrap()[&invocation]
+        }),
+    );
+    let _: bool = receive(&mailbox, "reset-guest.json");
+    assert!(boundary.populated().unwrap());
+    assert!(journal.records().unwrap()[&invocation].seal.is_none());
+    drop(manager);
+    for suffix in ["", "-wal", "-shm"] {
+        let source = paths.root.join(format!("stillyard.sqlite3{suffix}"));
+        if source.exists() {
+            std::fs::rename(&source, source.with_extension(format!("prior{suffix}"))).unwrap();
+        }
+    }
+    let reset_error = Store::open(paths.clone())
+        .err()
+        .expect("empty local Store bypassed retained pairing history");
+    assert!(
+        matches!(&reset_error, crate::store::StoreError::InvalidState(message) if message.contains("admission remains fenced")),
+        "unexpected reset rejection: {reset_error}"
+    );
+    let anchor_path = paths.root.join("attachment/anchor.json");
+    let saved_anchor = std::fs::read(&anchor_path).unwrap();
+    std::fs::remove_file(&anchor_path).unwrap();
+    let missing_error = Store::open(paths.clone())
+        .err()
+        .expect("lost anchor became standalone");
+    assert!(
+        matches!(&missing_error, crate::store::StoreError::Io(error) if error.kind()==io::ErrorKind::NotFound),
+        "unexpected missing-anchor rejection: {missing_error}"
+    );
+    std::fs::write(&anchor_path, b"{corrupt").unwrap();
+    std::fs::set_permissions(&anchor_path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let corrupt_error = Store::open(paths.clone())
+        .err()
+        .expect("corrupt anchor became standalone");
+    assert!(
+        corrupt_error.to_string().contains("key must be a string"),
+        "unexpected corrupt-anchor rejection: {corrupt_error}"
+    );
+    std::fs::write(&anchor_path, &saved_anchor).unwrap();
+    let executor_anchor = journal_path.join("anchor.json");
+    let executor_anchor_backup = journal_path.join("anchor.test-backup");
+    let executor_anchor_bytes = std::fs::read(&executor_anchor).unwrap();
+    std::fs::rename(&executor_anchor, &executor_anchor_backup).unwrap();
+    let missing_executor_error = journal
+        .records()
+        .err()
+        .expect("live executor accepted missing anchor");
+    std::fs::rename(&executor_anchor_backup, &executor_anchor).unwrap();
+    std::fs::write(&executor_anchor, b"{corrupt").unwrap();
+    let corrupt_executor_error = journal
+        .records()
+        .err()
+        .expect("live executor accepted corrupt anchor");
+    std::fs::write(&executor_anchor, executor_anchor_bytes).unwrap();
+    drop(journal);
+    journal = Journal::open(&journal_path, &anchor).unwrap();
+    assert!(journal.records().unwrap()[&invocation].seal.is_none());
+    assert!(boundary.populated().unwrap());
+    publish(
+        &mailbox,
+        "guest-reset-rejected.json",
+        &serde_json::json!({"populated":boundary.populated().unwrap(),"unsealed":journal.records().unwrap()[&invocation].seal.is_none(),"store_reset_rejection":reset_error.to_string(),"missing_anchor_rejection":missing_error.to_string(),"corrupt_anchor_rejection":corrupt_error.to_string(),"missing_executor_anchor_rejection":missing_executor_error.to_string(),"corrupt_executor_anchor_rejection":corrupt_executor_error.to_string(),"record":journal.records().unwrap()[&invocation]}),
+    );
+    let _: serde_json::Value = receive(&mailbox, "peer-fenced.json");
+    assert!(boundary.populated().unwrap());
+    assert!(journal.records().unwrap()[&invocation].seal.is_none());
+    publish(
+        &mailbox,
+        "live-after-peer-fence.json",
+        &serde_json::json!({
+            "populated":boundary.populated().unwrap(), "unsealed":journal.records().unwrap()[&invocation].seal.is_none(),
+            "record":journal.records().unwrap()[&invocation]
+        }),
+    );
+    let _: bool = receive(&mailbox, "coordinator-reset-observed.json");
+    assert!(boundary.populated().unwrap());
+    publish(
+        &mailbox,
+        "live-after-coordinator-reset.json",
+        &serde_json::json!({"populated":boundary.populated().unwrap(),"unsealed":journal.records().unwrap()[&invocation].seal.is_none()}),
+    );
+    let _: bool = receive(&mailbox, "cleanup.json");
+    let seal = journal
+        .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+        .unwrap();
+    assert!(seal.possibly_released);
+    assert!(!Path::new(&boundary.identity.path).exists());
+    publish(
+        &mailbox,
+        "seal.json",
+        &serde_json::json!({"seal":seal,"proof_sha256":seal.sha256().unwrap(),"record":journal.records().unwrap()[&invocation]}),
+    );
+}

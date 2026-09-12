@@ -1,0 +1,177 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08988-0423-7c52-86cd-10c2d958a13c",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08988-0422-7290-a52d-356fbc8ad1b4",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08988-8f2d-78c0-9544-e1f31f88e5b8",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08988-8f2e-7191-ba8a-1f33db8fee4b",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08988-8f2e-7191-ba8a-1f45b6aea1a9",
+  "root_exit_code": 101,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789013787683,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789013823295,
+  "finished_unix_millis": 1789013846192,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr3-linux-observation-linux-evidence-20260910u\\wsl-test-4ae753817235442bb5292b0736aaaf3f\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr3-linux-observation-linux-evidence-20260910u\\wsl-test-4ae753817235442bb5292b0736aaaf3f",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-bootstrap-test"
+      },
+      {
+        "key": "source",
+        "value": "13d366ab35df22183479ea1ff0642d458c01acf0b42f557e2c540dd1081eb4d3"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1830,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08988-8f2d-78c0-9544-e1f31f88e5b8",
+      "attempt_index": 1,
+      "verdict": "process_failed",
+      "reason_code": null,
+      "created_unix_millis": 1789013823277,
+      "started_unix_millis": 1789013823277,
+      "deadline_unix_millis": 1789015653277,
+      "finished_unix_millis": 1789013846192,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08988-0423-7c52-86cd-10c2d958a13c",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08988-8f2d-78c0-9544-e1f31f88e5b8",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08988-8f2e-7191-ba8a-1f33db8fee4b",
+        "verdict": "process_failed",
+        "root_exit_code": 101,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789013823295,
+        "exited_unix_millis": 1789013846183,
+        "resolved_unix_millis": 1789013846187
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08988-8f2e-7191-ba8a-1f33db8fee4b",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 24768,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 24768,
+            "creation_filetime_100ns": 134334874232892917
+          },
+          "root_exit_code": 101,
+          "exit_classification": null,
+          "executable_hash": "42a2cda64b56c30d939c427312505f7812a0ceb6ca4824e572fdd69b2c73cc8b",
+          "daemon_generation": "01a088e2-c443-7f02-887c-2f0ecdb42500",
+          "started_unix_millis": 1789013823295,
+          "finished_unix_millis": 1789013846187,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08988-8f2e-7191-ba8a-1f45b6aea1a9",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "\nrunning 13 tests\ntest host_observation::linux_disk::tests::linux_disk_detects_inflight_pressure_reuse_and_counter_regression ... ok\ntest host_observation::linux_cpu::tests::linux_cpu_avoids_guest_double_count_and_fences_regressions_and_hotplug ... ok\ntest host_observation::linux_memory::tests::linux_memory_does_not_fabricate_windows_commit_headroom ... ok\ntest host_observation::policy::tests::stale_memory_and_blocked_process_fail_closed ... ok\ntest host_observation::policy::tests::debrix_process_patterns_are_case_insensitive_and_wildcard_aware ... ok\ntest host_observation::policy::tests::standalone_observed_thresholds_block_without_creating_quiet_policy ... ok\ntest host_observation::policy::tests::strict_admission_uses_commit_vram_margins_and_ignores_shell_processes ... ok\ntest host_observation::policy::tests::unavailable_quiet_detector_is_not_treated_as_a_clean_sample ... ok\ntest host_observation::policy::tests::unresolved_nvml_compute_process_fails_closed_but_shell_processes_do_not ... ok\ntest host_observation::service::tests::cadence_and_suspend_discontinuities_change_generation ... ok\ntest host_observation::service::tests::doctor_fails_closed_only_when_unavailable_coverage_is_required ... ok\ntest host_observation::service::tests::doctor_gpu_coverage_requires_the_exact_configured_device ... ok\ntest host_observation::service::tests::doctor_coverage_names_every_strict_provider_with_fresh_provenance ... FAILED\n\nfailures:\n\n---- host_observation::service::tests::doctor_coverage_names_every_strict_provider_with_fresh_provenance stdout ----\n\nthread 'host_observation::service::tests::doctor_coverage_names_every_strict_provider_with_fresh_provenance' (1254) panicked at src/host_observation/service.rs:560:36:\nmissing coverage for windows_memory\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n\nfailures:\n    host_observation::service::tests::doctor_coverage_names_every_strict_provider_with_fresh_provenance\n\ntest result: FAILED. 12 passed; 1 failed; 0 ignored; 0 measured; 260 filtered out; finished in 0.00s\n\n",
+          "stderr_tail": "   Compiling stillyard v0.1.0-alpha.19 (/home/pythonic/Development/stillyard-mr3-linux-observation-20260910u)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.52s\n     Running unittests src/lib.rs (target/scheduled-linux/debug/deps/stillyard-e402df6911a3bc0c)\nerror: test failed, to rerun pass `--lib`\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08988-8f2e-7191-ba8a-1f5f2d1cf77c",
+      "lease_id": "01a08988-8f2e-7191-ba8a-1f5f2d1cf77c",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+        "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+        "lease_id": "01a08988-8f2e-7191-ba8a-1f5f2d1cf77c"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08988-0423-7c52-86cd-10c2d958a13c",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08988-8f2d-78c0-9544-e1f31f88e5b8"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a088e2-c443-7f02-887c-2f0ecdb42500"
+}

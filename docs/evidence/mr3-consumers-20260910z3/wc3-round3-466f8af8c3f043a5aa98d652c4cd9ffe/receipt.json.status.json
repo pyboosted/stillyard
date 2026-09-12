@@ -1,0 +1,222 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a094-74f1-9a98-eec636ed45dd",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a08e-7f01-8430-05f1153e38bd",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a09b-7510-8d51-0b7c17c6b283",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a09c-7322-808b-288ec3e1ca74",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a09c-7322-808b-28906a8d2b2e",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789024182420,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789024182843,
+  "finished_unix_millis": 1789024232881,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/home/pythonic/.local/bin/claude2",
+    "args": [
+      "-p",
+      "You are the real W-C3 agent consumer. Use Bash to run exactly the following managed Stillyard adapter command twice sequentially. The second identical call must recover the first child Job, not build twice. Do not run Cargo directly and do not run any other commands. If it fails report the actual error. Return the child Job ID and whether both calls succeeded. The daemon schedules the build while other Windows Jobs may own the shared cargo token.\n/usr/bin/python3 /home/pythonic/Development/stillyard-consumers-20260910z3/wc3-round3-466f8af8c3f043a5aa98d652c4cd9ffe/consumer.py managed-build --cli /home/pythonic/.local/share/stillyard/bin/stillyard --spec /home/pythonic/Development/stillyard-consumers-20260910z3/wc3-round3-466f8af8c3f043a5aa98d652c4cd9ffe/child.json --evidence-directory /home/pythonic/Development/stillyard-consumers-20260910z3/wc3-round3-466f8af8c3f043a5aa98d652c4cd9ffe/child-evidence --operation wc3-round3",
+      "--model",
+      "sonnet",
+      "--effort",
+      "low",
+      "--output-format",
+      "json",
+      "--safe-mode",
+      "--tools",
+      "Bash",
+      "--allowedTools",
+      "Bash(/usr/bin/python3 /home/pythonic/Development/stillyard-consumers-20260910z3/wc3-round3-466f8af8c3f043a5aa98d652c4cd9ffe/consumer.py managed-build --cli /home/pythonic/.local/share/stillyard/bin/stillyard --spec /home/pythonic/Development/stillyard-consumers-20260910z3/wc3-round3-466f8af8c3f043a5aa98d652c4cd9ffe/child.json --evidence-directory /home/pythonic/Development/stillyard-consumers-20260910z3/wc3-round3-466f8af8c3f043a5aa98d652c4cd9ffe/child-evidence --operation wc3-round3)",
+      "--permission-mode",
+      "dontAsk",
+      "--setting-sources",
+      ""
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-consumers-20260910z3/wc3-round3-466f8af8c3f043a5aa98d652c4cd9ffe",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "acceptance",
+        "value": "W-C3"
+      },
+      {
+        "key": "round",
+        "value": "3"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 900,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": {
+      "min_priority": 0,
+      "max_priority": 0,
+      "max_claims": {
+        "cpu_units": null,
+        "ram_mb": null,
+        "cargo_slots": 1,
+        "gpu_slots": null,
+        "custom": {}
+      },
+      "allowed_impacts": [
+        "cpu_heavy"
+      ],
+      "required_labels": [
+        {
+          "key": "project",
+          "value": "stillyard"
+        }
+      ],
+      "fences": {
+        "shared_roots": [],
+        "exclusive_roots": []
+      },
+      "allow_observed": false,
+      "allow_quiet": false,
+      "allow_delegation": false
+    }
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a09b-7510-8d51-0b7c17c6b283",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789024182427,
+      "started_unix_millis": 1789024182651,
+      "deadline_unix_millis": 1789025082651,
+      "finished_unix_millis": 1789024232881,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a094-74f1-9a98-eec636ed45dd",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a09b-7510-8d51-0b7c17c6b283",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a09c-7322-808b-288ec3e1ca74",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789024182843,
+        "exited_unix_millis": 1789024232856,
+        "resolved_unix_millis": 1789024232873
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a09c-7322-808b-288ec3e1ca74",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 138179,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 138179,
+            "start_ticks": 7028942,
+            "pid_namespace_inode": 4026534297,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "dbfd4e5fb529f34573f88467f89d46b4cce55a43611c4ef73443177e75458ed0",
+          "daemon_generation": "01a08a25-c1ff-7e43-8a58-e60aa64cb655",
+          "started_unix_millis": 1789024182843,
+          "finished_unix_millis": 1789024232873,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a09c-7322-808b-28906a8d2b2e",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"duration_api_ms\":11986,\"stop_reason\":\"end_turn\",\"session_id\":\"efb317cf-166f-4df8-b487-9a25ef2d3809\",\"total_cost_usd\":0.06509519999999999,\"usage\":{\"input_tokens\":6,\"cache_creation_input_tokens\":11812,\"cache_read_input_tokens\":33851,\"output_tokens\":978,\"output_tokens_details\":{\"thinking_tokens\":0},\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":11812,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"not_available\",\"iterations\":[{\"input_tokens\":2,\"output_tokens\":244,\"cache_read_input_tokens\":15207,\"cache_creation_input_tokens\":5395,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":5395},\"type\":\"message\"}],\"speed\":\"standard\"},\"modelUsage\":{\"claude-haiku-4-5-20251001\":{\"inputTokens\":1185,\"outputTokens\":20,\"cacheReadInputTokens\":0,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.0012850000000000001,\"contextWindow\":200000,\"maxOutputTokens\":32000,\"thinkingTokens\":0,\"canonicalModel\":\"claude-haiku-4-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"},\"claude-sonnet-5\":{\"inputTokens\":6,\"outputTokens\":978,\"cacheReadInputTokens\":33851,\"cacheCreationInputTokens\":11812,\"webSearchRequests\":0,\"costUSD\":0.0638102,\"contextWindow\":1000000,\"maxOutputTokens\":64000,\"thinkingTokens\":0,\"canonicalModel\":\"claude-sonnet-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"fast_mode_disabled_reason\":\"sdk_opt_in_required\",\"subagent_stats\":{\"spawned\":0,\"requested\":{\"background\":0,\"foreground\":0,\"unset\":0},\"started_in_background\":0,\"max_depth\":0,\"spawned_by_subagents\":0,\"completed\":0,\"failed\":0,\"killed\":{\"parent\":0,\"user\":0,\"system\":0},\"refused\":{\"depth_limit\":0,\"concurrency_limit\":0,\"budget\":0},\"by_type\":{}},\"is_error\":false,\"num_turns\":3,\"subtype\":\"success\",\"api_error_status\":null,\"result\":\"Both calls succeeded.\\n\\n- **Child Job ID:** `01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-b5d3-76a2-8272-bf8a735cc7a5`\\n- **Call 1:** submitted the job (state `pending` \u2192 resolved to `final`/`succeeded`, `cargo check` exited 0), same `attempt_id` (`...b5d8-7010-83ed-099be98b3597`).\\n- **Call 2:** returned the identical job/attempt/invocation IDs with `job_state: final` and the same cached result \u2014 it recovered the existing job rather than re-running the build (the allocation's lease state moved from `armed` to `released`, confirming no second build was executed).\",\"ttft_ms\":1353,\"type\":\"result\",\"duration_ms\":48613,\"uuid\":\"044442bd-5e6c-49dc-8cd2-d13889cabb56\",\"ttft_stream_ms\":999,\"time_to_request_ms\":57,\"first_content_frame_ms\":1000,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a26-a0ba-7282-9cc4-371c03f50a9c",
+      "lease_id": "01a08a26-a09c-7322-808b-28a31d6337ec",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08a26-a09c-7322-808b-28a31d6337ec"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a094-74f1-9a98-eec636ed45dd",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a09b-7510-8d51-0b7c17c6b283"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08a25-c1ff-7e43-8a58-e60aa64cb655"
+}

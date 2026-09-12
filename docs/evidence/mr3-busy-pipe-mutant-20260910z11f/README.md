@@ -1,0 +1,1 @@
+Old native one-second busy-pipe loop compiled and failed the real occupied-pipe regression: observed 2 WaitNamedPipe waits, expected 1. Job W`01a08b56-6172-7e43-b483-85eda6ef3c22`. The external collector initially looked for the assertion in stdout; --nocapture writes the panic to canonical stderr, retained here. Cache was returned to fixed z11f before gates; no target copy.

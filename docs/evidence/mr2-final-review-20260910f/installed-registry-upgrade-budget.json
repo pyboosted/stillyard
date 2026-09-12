@@ -1,0 +1,11 @@
+{
+  "installed_version": "0.1.0-alpha.16",
+  "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+  "registry_bytes": 24646,
+  "live_holds": 0,
+  "participants": 0,
+  "estimated_post_upgrade_reserved_bytes": 0,
+  "estimated_future_bytes": 24646,
+  "limit_bytes": 4194304,
+  "within_budget": true
+}

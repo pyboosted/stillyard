@@ -1,0 +1,35 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+  "args": [
+    "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11i\\controller.py",
+    "--operation",
+    "shutdown",
+    "--evidence-directory",
+    "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11i\\shutdown\\result",
+    "--approval-file",
+    "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11i\\shutdown\\approval.json",
+    "--exchange-directory",
+    "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11i\\shutdown\\exchange"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11i",
+  "environment": {
+    "set": {
+      "SystemRoot": "C:\\Windows",
+      "USERPROFILE": "C:\\Users\\User",
+      "PATH": "C:\\Windows\\System32;C:\\Windows"
+    }
+  },
+  "resources": {},
+  "timeout_seconds": 2300,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr3-lifecycle-shutdown"
+    }
+  ]
+}

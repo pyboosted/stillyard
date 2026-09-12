@@ -6,6 +6,10 @@ use crate::store::{PreparedJob, Store};
 pub(crate) struct LiveContainments {
     #[cfg(windows)]
     inner: Arc<Mutex<std::collections::HashMap<crate::InvocationId, RegisteredContainment>>>,
+    #[cfg(target_os = "linux")]
+    linux: linux::registry::Registry,
+    #[cfg(target_os = "linux")]
+    linux_releases: Arc<crate::store::attached::driver::ReleaseState>,
 }
 
 #[cfg(windows)]
@@ -39,7 +43,57 @@ impl Drop for ContainmentRegistration {
 }
 
 impl LiveContainments {
+    #[cfg(target_os = "linux")]
+    pub(crate) fn persist_linux_cleanup(
+        &self,
+        store: &mut Store,
+        invocation: crate::InvocationId,
+    ) -> crate::store::StoreResult<()> {
+        self.linux.persist_cleanup(store, invocation)
+    }
+    #[cfg(target_os = "linux")]
+    pub(crate) fn wake_attached(&self) {
+        self.linux_releases.wake();
+    }
+    #[cfg(target_os = "linux")]
+    pub(crate) fn attached_linux(
+        registry: linux::registry::Registry,
+        releases: Arc<crate::store::attached::driver::ReleaseState>,
+    ) -> Self {
+        Self {
+            linux: registry,
+            linux_releases: releases,
+        }
+    }
+    #[cfg(target_os = "linux")]
+    pub(crate) fn linux_server_context(
+        &self,
+        parent: crate::ManagedParent,
+    ) -> std::io::Result<crate::identity::attestation::ManagedServer> {
+        self.linux.server_context(parent)
+    }
+    #[cfg(target_os = "linux")]
+    pub(crate) fn linux_sign_response(
+        &self,
+        parent: crate::ManagedParent,
+        nonce: [u8; 32],
+        request_sha256: String,
+        response: crate::protocol::Response,
+    ) -> std::io::Result<crate::identity::attestation::Proof> {
+        self.linux
+            .sign_response(parent, nonce, request_sha256, response)
+    }
+    #[cfg(target_os = "linux")]
+    pub(crate) fn reconcile_linux(
+        &self,
+        candidate: &crate::store::ReconciliationCandidate,
+        deadline: std::time::Instant,
+    ) -> std::io::Result<crate::ReconciliationResult> {
+        self.linux.reconcile(candidate, deadline)
+    }
     pub(crate) fn clear(&self, invocation_id: crate::InvocationId) {
+        #[cfg(target_os = "linux")]
+        self.linux.clear(invocation_id);
         #[cfg(windows)]
         if let Ok(mut registry) = self.inner.lock() {
             if let Some(RegisteredContainment::Reconciler(handle)) = registry.remove(&invocation_id)
@@ -52,7 +106,7 @@ impl LiveContainments {
                 };
             }
         }
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "linux")))]
         let _ = invocation_id;
     }
 
@@ -60,7 +114,11 @@ impl LiveContainments {
         &self,
         invocation_id: crate::InvocationId,
     ) -> std::io::Result<Option<crate::ReconciliationResult>> {
-        #[cfg(not(windows))]
+        #[cfg(target_os = "linux")]
+        {
+            self.linux.inspect(invocation_id)
+        }
+        #[cfg(not(any(windows, target_os = "linux")))]
         {
             let _ = invocation_id;
             Ok(None)
@@ -171,7 +229,11 @@ impl LiveContainments {
         invocation_id: crate::InvocationId,
         process_handle: usize,
     ) -> std::io::Result<Option<bool>> {
-        #[cfg(not(windows))]
+        #[cfg(target_os = "linux")]
+        {
+            self.linux.contains(invocation_id, process_handle)
+        }
+        #[cfg(not(any(windows, target_os = "linux")))]
         {
             let _ = (invocation_id, process_handle);
             Ok(None)
@@ -231,16 +293,47 @@ pub(crate) fn run(
         &reconciliation_wake,
     );
 
-    #[cfg(not(windows))]
-    let _ = (
-        job,
-        store,
-        endpoint,
-        live_containments,
-        host_observation,
-        reconciliation_wake,
+    #[cfg(target_os = "linux")]
+    lifecycle::run_with_wake(
+        &job,
+        &store,
+        &endpoint,
+        &live_containments,
+        &host_observation,
+        &reconciliation_wake,
+        linux::runtime::execute,
     );
+
+    #[cfg(not(any(windows, target_os = "linux")))]
+    lifecycle::run_with_wake(
+        &job,
+        &store,
+        &endpoint,
+        &live_containments,
+        &host_observation,
+        &reconciliation_wake,
+        unsupported_invocation,
+    );
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
+fn unsupported_invocation(
+    _: &PreparedJob,
+    _: &Arc<Mutex<Store>>,
+    _: &str,
+    _: &LiveContainments,
+    _: &crate::host_observation::HostObservationService,
+    _: &mut lifecycle::RunProgress,
+    _: &ReconciliationWake,
+) -> lifecycle::RunResult<(u32, bool)> {
+    Err(crate::Error::UnsupportedPlatform(std::env::consts::OS).into())
 }
 
 #[cfg(windows)]
 mod windows;
+
+#[cfg(target_os = "linux")]
+pub(crate) mod linux;
+
+mod lifecycle;
+mod logs;

@@ -1,0 +1,5 @@
+ActiveState=active
+MainPID=3978991
+ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service
+Delegate=yes
+DelegateSubgroup=manager

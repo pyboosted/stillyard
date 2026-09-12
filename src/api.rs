@@ -19,6 +19,123 @@ pub const MAX_TREE_PAGE_NODES: u32 = 256;
 pub const MAX_TREE_SELECTOR_JOBS: usize = 64;
 pub const MAX_WAIT_STREAM_JOBS: usize = 1_024;
 
+/// A durable whole-authority admission hold. Process exit does not release it.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AuthorityHold {
+    pub id: Uuid,
+    pub reason: String,
+    pub requester: ProcessIdentity,
+    pub released: bool,
+    pub release_reason: Option<String>,
+    pub released_by: Option<ProcessIdentity>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bootstrap: Option<BootstrapBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cleanup_proof: Option<BootstrapProof>,
+}
+
+/// Transitional MR-0 Linux work descriptor, executed only by the installed bridge.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BootstrapWork {
+    #[serde(default)]
+    pub operation_id: Uuid,
+    pub distribution: String,
+    pub user: String,
+    pub executable: String,
+    pub args: Vec<String>,
+    pub working_directory: String,
+    pub environment: std::collections::BTreeMap<String, String>,
+    pub timeout_seconds: u64,
+    /// Test-only nested delegation, contained by the outer bootstrap obligation.
+    /// The supervisor supplies STILLYARD_TEST_CGROUP_ROOT; no host subtree is writable.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub delegate_test_cgroup: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BootstrapBinding {
+    pub parent: ManagedParent,
+    pub work: BootstrapWork,
+    pub request_sha256: String,
+}
+
+/// Sealed Linux leaf evidence; only the trusted bridge may attest this record.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BootstrapProof {
+    pub operation_id: Uuid,
+    pub request_sha256: String,
+    pub boot_id: String,
+    pub uid: u32,
+    pub cgroup_path: String,
+    pub cgroup_inode: u64,
+    pub phase: String,
+    pub root_exit_code: i32,
+    pub termination: String,
+}
+
+/// Bootstrap/maintenance interlock, separate from resettable Job history.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AuthoritySnapshot {
+    pub epoch: Option<Uuid>,
+    #[serde(default)]
+    pub domains: Option<AuthorityDomains>,
+    pub coordinator: Option<crate::machine::CoordinatorHistory>,
+    pub machine_obligations: Vec<crate::machine::GrantSnapshot>,
+    pub native_obligations: Vec<crate::machine::NativeStartPermission>,
+    pub native_coverage_store: Option<Uuid>,
+    pub pending_machine_operation: Option<Uuid>,
+    pub retired_domains: Vec<crate::machine::DomainRetirementReceipt>,
+    pub storage_budget: Option<AuthorityStorageBudget>,
+    pub blocker: Option<String>,
+    pub detail: Option<String>,
+    pub holds: Vec<AuthorityHold>,
+}
+
+/// Durable metadata capacity, separate from machine resource claims.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AuthorityStorageBudget {
+    pub registry_bytes: u64,
+    pub registry_limit_bytes: u64,
+    pub reserved_recovery_bytes: u64,
+    pub new_admission_headroom_bytes: u64,
+}
+
+/// Persistent identities outside resettable job history. The machine resource
+/// scope and its native execution child are different domains.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AuthorityDomains {
+    pub machine_id: Uuid,
+    pub machine_scope: crate::ExecutionDomainId,
+    pub native_domain: crate::ExecutionDomainId,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MachineSchedulingMode {
+    Standalone,
+    Coordinator,
+    Attached,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MachineSchedulingSnapshot {
+    pub authority_epoch: Uuid,
+    pub domains: AuthorityDomains,
+    pub mode: MachineSchedulingMode,
+    pub observed_unix_millis: i64,
+    pub configuration_sha256: String,
+    pub resources: Vec<crate::ScopedResourceSnapshot>,
+    pub blocker: Option<Blocker>,
+}
+
 /// Scalar-only claim vector protected by a Reservation.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
@@ -931,6 +1048,14 @@ pub struct HostId(pub String);
 #[schemars(with = "std::collections::BTreeMap<String, serde_json::Value>")]
 #[non_exhaustive]
 pub enum ProcessIdentity {
+    Linux {
+        host_id: HostId,
+        boot_id: BootId,
+        pid: u32,
+        start_ticks: u64,
+        pid_namespace_inode: u64,
+        uid: u32,
+    },
     Windows {
         host_id: HostId,
         boot_id: BootId,
@@ -951,6 +1076,24 @@ impl Serialize for ProcessIdentity {
         use serde::ser::SerializeMap;
 
         match self {
+            Self::Linux {
+                host_id,
+                boot_id,
+                pid,
+                start_ticks,
+                pid_namespace_inode,
+                uid,
+            } => {
+                let mut map = serializer.serialize_map(Some(7))?;
+                map.serialize_entry("platform", "linux")?;
+                map.serialize_entry("host_id", host_id)?;
+                map.serialize_entry("boot_id", boot_id)?;
+                map.serialize_entry("pid", pid)?;
+                map.serialize_entry("start_ticks", start_ticks)?;
+                map.serialize_entry("pid_namespace_inode", pid_namespace_inode)?;
+                map.serialize_entry("uid", uid)?;
+                map.end()
+            }
             Self::Windows {
                 host_id,
                 boot_id,
@@ -999,6 +1142,17 @@ impl<'de> Deserialize<'de> for ProcessIdentity {
             creation_filetime_100ns: u64,
         }
 
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct LinuxEvidence {
+            host_id: HostId,
+            boot_id: BootId,
+            pid: u32,
+            start_ticks: u64,
+            pid_namespace_inode: u64,
+            uid: u32,
+        }
+
         struct IdentityVisitor;
 
         impl<'de> serde::de::Visitor<'de> for IdentityVisitor {
@@ -1037,7 +1191,23 @@ impl<'de> Deserialize<'de> for ProcessIdentity {
         }
 
         let (platform, object) = deserializer.deserialize_map(IdentityVisitor)?;
-        if platform == "windows" {
+        if platform == "linux" {
+            let evidence: LinuxEvidence = serde_json::from_value(serde_json::Value::Object(object))
+                .map_err(serde::de::Error::custom)?;
+            if evidence.pid == 0 || evidence.start_ticks == 0 || evidence.pid_namespace_inode == 0 {
+                return Err(serde::de::Error::custom(
+                    "Linux process identity has a zero kernel identity",
+                ));
+            }
+            Ok(Self::Linux {
+                host_id: evidence.host_id,
+                boot_id: evidence.boot_id,
+                pid: evidence.pid,
+                start_ticks: evidence.start_ticks,
+                pid_namespace_inode: evidence.pid_namespace_inode,
+                uid: evidence.uid,
+            })
+        } else if platform == "windows" {
             let evidence: WindowsEvidence =
                 serde_json::from_value(serde_json::Value::Object(object))
                     .map_err(serde::de::Error::custom)?;
@@ -1598,6 +1768,8 @@ pub struct JobSnapshot {
     #[serde(default)]
     pub attempts: Vec<AttemptSnapshot>,
     #[serde(default)]
+    pub allocations: Vec<crate::machine::NativeAllocationSnapshot>,
+    #[serde(default)]
     pub gpu_provenance: Option<GpuProvenance>,
     #[serde(default)]
     pub admission: Option<AdmissionDecisionSnapshot>,
@@ -1693,6 +1865,9 @@ pub struct DaemonSnapshot {
     /// `None` only when a protocol-compatible older daemon omitted resource accounting.
     #[serde(default)]
     pub resources: Option<ResourceSnapshot>,
+    /// None means the authority identity/history is not available, never zero usage.
+    #[serde(default)]
+    pub machine_scheduling: Option<MachineSchedulingSnapshot>,
     pub config_sha256: String,
     pub queued_jobs: u64,
     pub running_jobs: u64,
@@ -1799,6 +1974,30 @@ mod tests {
             serde_json::from_str::<InvocationTransition>("\"future_transition\"").unwrap(),
             InvocationTransition::Unknown
         );
+    }
+
+    #[test]
+    fn linux_process_identity_is_typed_and_requires_complete_kernel_evidence() {
+        let value = serde_json::json!({"platform":"linux","host_id":"host","boot_id":"boot",
+            "pid":17,"start_ticks":99,"pid_namespace_inode":2345,"uid":1000});
+        let identity: ProcessIdentity = serde_json::from_value(value.clone()).unwrap();
+        assert!(matches!(
+            identity,
+            ProcessIdentity::Linux {
+                start_ticks: 99,
+                ..
+            }
+        ));
+        assert_eq!(serde_json::to_value(identity).unwrap(), value);
+        let mut incomplete = value.clone();
+        incomplete
+            .as_object_mut()
+            .unwrap()
+            .remove("pid_namespace_inode");
+        assert!(serde_json::from_value::<ProcessIdentity>(incomplete).is_err());
+        let mut zero = value;
+        zero["start_ticks"] = 0.into();
+        assert!(serde_json::from_value::<ProcessIdentity>(zero).is_err());
     }
 
     #[test]

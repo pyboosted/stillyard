@@ -1,0 +1,39 @@
+{
+  "spec_version": 4,
+  "executable": "/home/pythonic/.cargo/bin/cargo",
+  "args": [
+    "test",
+    "--locked",
+    "--workspace",
+    "--all-features"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-mr3-quiet-retry-20260910z3",
+  "environment": {
+    "set": {
+      "HOME": "/home/pythonic",
+      "CARGO_HOME": "/home/pythonic/.cargo",
+      "RUSTUP_HOME": "/home/pythonic/.rustup",
+      "RUSTUP_TOOLCHAIN": "stable-x86_64-unknown-linux-gnu",
+      "PATH": "/home/pythonic/.cargo/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR": "/home/pythonic/Development/stillyard-mr3-quiet-retry-20260910z3/target/scheduled-linux",
+      "CARGO_BUILD_JOBS": "4"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "timeout_seconds": 1800,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "wsl-test"
+    }
+  ]
+}

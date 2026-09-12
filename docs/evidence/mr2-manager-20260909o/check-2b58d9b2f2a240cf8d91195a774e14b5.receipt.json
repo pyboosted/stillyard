@@ -1,0 +1,41 @@
+{
+  "version": 5,
+  "idempotency_key": "01a087aa-cc51-7193-b8b8-b64aaa58857d",
+  "payload_hash": "b59723817574abd5fac4d45ce549ca9f0736009f7a3f23daefbff2e457333e42",
+  "endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+  "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+  "parent": null,
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087aa-cc66-78e1-af2f-f3cb9c6e3b4d",
+      "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087aa-cc67-7d11-bd34-69cfeb000fd5",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1788982512743,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [
+        {
+          "code": "resource_busy",
+          "detail": "cargo_slots: requested 1, available 0, configured 1"
+        }
+      ],
+      "queue_rank": 7,
+      "reservation": null,
+      "conditions": [],
+      "estimate": {
+        "confidence": "unknown",
+        "start_in_millis": null,
+        "assumptions": [
+          "an overlapping finite scalar reservation may convert or expire before this Job; priority aging makes a precise ETA unsafe"
+        ]
+      },
+      "parent": null,
+      "managed_policy_admission": null,
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a08727-6971-79a1-a1b3-fd73badf9036"
+    }
+  }
+}

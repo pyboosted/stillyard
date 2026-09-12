@@ -1,0 +1,23 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import pathlib,subprocess,time,json,os; child=subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(120)']); pathlib.Path('/home/pythonic/Development/stillyard-mr3-daemon-crash-evidence-20260910z3/daemon-crash-bba2714515f04a5eb38f29b3a689b349/started.json').write_text(json.dumps({'pid':os.getpid(),'child':child.pid})); print('primary and live descendant started',flush=True);time.sleep(120)"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-mr3-daemon-crash-evidence-20260910z3/daemon-crash-bba2714515f04a5eb38f29b3a689b349",
+  "resources": {
+    "cargo_slots": 1
+  },
+  "timeout_seconds": 180,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "installed-daemon-crash"
+    }
+  ]
+}

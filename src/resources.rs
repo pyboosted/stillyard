@@ -6,9 +6,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::spec::canonical_custom_resource_name;
-use crate::{
-    Blocker, ChildSubmissionPolicy, ResourceCapacities, ResourceClaims, ScalarResourceClaims,
-};
+use crate::{ChildSubmissionPolicy, ResourceClaims};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -94,18 +92,8 @@ fn ensure_unique_policy_fences(fences: &[ResolvedPolicyFence]) -> io::Result<()>
     Ok(())
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub(crate) struct ResolvedClaims {
-    pub(crate) cpu_units: u64,
-    pub(crate) ram_mb: u64,
-    pub(crate) cargo_slots: u64,
-    pub(crate) gpu_slots: u64,
-    pub(crate) custom: BTreeMap<String, u64>,
-    pub(crate) shared_fences: BTreeSet<String>,
-    pub(crate) exclusive_fences: BTreeSet<String>,
-    pub(crate) impacts: BTreeSet<String>,
-}
+pub(crate) use crate::admission::ResolvedClaims;
+pub(crate) use crate::admission::observed_resource_blocker;
 
 impl ResolvedClaims {
     pub(crate) fn resolve(claims: &ResourceClaims) -> io::Result<Self> {
@@ -142,298 +130,6 @@ impl ResolvedClaims {
         }
         Ok(resolved)
     }
-
-    pub(crate) fn blockers(
-        &self,
-        capacities: &ResourceCapacities,
-        active: &[Self],
-        impact_incompatibilities: &BTreeMap<String, Vec<String>>,
-    ) -> Vec<Blocker> {
-        let mut blockers = self.scalar_blockers(capacities, active);
-        blockers.extend(self.non_scalar_blockers(active, impact_incompatibilities));
-        sort_blockers(&mut blockers);
-        blockers
-    }
-
-    pub(crate) fn scalar_blockers(
-        &self,
-        capacities: &ResourceCapacities,
-        debits: &[Self],
-    ) -> Vec<Blocker> {
-        let mut blockers = Vec::new();
-        scalar_blocker(
-            &mut blockers,
-            "cpu_units",
-            self.cpu_units,
-            u64::from(capacities.cpu_units),
-            checked_total(debits.iter().map(|claim| claim.cpu_units)),
-        );
-        scalar_blocker(
-            &mut blockers,
-            "ram_mb",
-            self.ram_mb,
-            capacities.ram_mb,
-            checked_total(debits.iter().map(|claim| claim.ram_mb)),
-        );
-        scalar_blocker(
-            &mut blockers,
-            "cargo_slots",
-            self.cargo_slots,
-            u64::from(capacities.cargo_slots),
-            checked_total(debits.iter().map(|claim| claim.cargo_slots)),
-        );
-        scalar_blocker(
-            &mut blockers,
-            "gpu_slots",
-            self.gpu_slots,
-            u64::from(capacities.gpu_slots),
-            checked_total(debits.iter().map(|claim| claim.gpu_slots)),
-        );
-        for (name, requested) in &self.custom {
-            scalar_blocker(
-                &mut blockers,
-                name,
-                *requested,
-                custom_capacity(capacities, name),
-                checked_total(
-                    debits
-                        .iter()
-                        .map(|claim| claim.custom.get(name).copied().unwrap_or(0)),
-                ),
-            );
-        }
-        sort_blockers(&mut blockers);
-        blockers
-    }
-
-    pub(crate) fn non_scalar_blockers(
-        &self,
-        active: &[Self],
-        impact_incompatibilities: &BTreeMap<String, Vec<String>>,
-    ) -> Vec<Blocker> {
-        let mut blockers = Vec::new();
-        for claim in active {
-            for fence in self.exclusive_fences.intersection(&claim.exclusive_fences) {
-                fence_blocker(&mut blockers, fence);
-            }
-            for fence in self.exclusive_fences.intersection(&claim.shared_fences) {
-                fence_blocker(&mut blockers, fence);
-            }
-            for fence in self.shared_fences.intersection(&claim.exclusive_fences) {
-                fence_blocker(&mut blockers, fence);
-            }
-            for impact in &self.impacts {
-                for active_impact in &claim.impacts {
-                    if impacts_conflict(impact, active_impact, impact_incompatibilities) {
-                        blockers.push(Blocker {
-                            code: "impact_busy".into(),
-                            detail: format!("{impact} incompatible with active {active_impact}"),
-                        });
-                    }
-                }
-            }
-        }
-        sort_blockers(&mut blockers);
-        blockers
-    }
-
-    pub(crate) fn scalar_only(&self) -> Self {
-        Self {
-            cpu_units: self.cpu_units,
-            ram_mb: self.ram_mb,
-            cargo_slots: self.cargo_slots,
-            gpu_slots: self.gpu_slots,
-            custom: self.custom.clone(),
-            ..Self::default()
-        }
-    }
-
-    pub(crate) fn public_scalars(&self) -> ScalarResourceClaims {
-        ScalarResourceClaims {
-            cpu_units: self.cpu_units,
-            ram_mb: self.ram_mb,
-            cargo_slots: self.cargo_slots,
-            gpu_slots: self.gpu_slots,
-            custom: self.custom.clone(),
-        }
-    }
-
-    pub(crate) fn has_positive_scalars(&self) -> bool {
-        self.cpu_units > 0
-            || self.ram_mb > 0
-            || self.cargo_slots > 0
-            || self.gpu_slots > 0
-            || self.custom.values().any(|value| *value > 0)
-    }
-
-    pub(crate) fn overlaps_scalars(&self, other: &Self) -> bool {
-        (self.cpu_units > 0 && other.cpu_units > 0)
-            || (self.ram_mb > 0 && other.ram_mb > 0)
-            || (self.cargo_slots > 0 && other.cargo_slots > 0)
-            || (self.gpu_slots > 0 && other.gpu_slots > 0)
-            || self
-                .custom
-                .iter()
-                .any(|(name, value)| *value > 0 && other.custom.get(name).is_some_and(|v| *v > 0))
-    }
-
-    /// Reports only conflicts that exist because authenticated ancestors retain Leases.
-    /// Unrelated active Jobs are intentionally excluded: they can finish while the caller waits.
-    pub(crate) fn ancestor_blockers(
-        &self,
-        capacities: &ResourceCapacities,
-        ancestors: &[Self],
-        impact_incompatibilities: &BTreeMap<String, Vec<String>>,
-    ) -> Vec<Blocker> {
-        let mut blockers = Vec::new();
-        ancestor_scalar_blocker(
-            &mut blockers,
-            "cpu_units",
-            self.cpu_units,
-            u64::from(capacities.cpu_units),
-            checked_total(ancestors.iter().map(|claim| claim.cpu_units)),
-        );
-        ancestor_scalar_blocker(
-            &mut blockers,
-            "ram_mb",
-            self.ram_mb,
-            capacities.ram_mb,
-            checked_total(ancestors.iter().map(|claim| claim.ram_mb)),
-        );
-        ancestor_scalar_blocker(
-            &mut blockers,
-            "cargo_slots",
-            self.cargo_slots,
-            u64::from(capacities.cargo_slots),
-            checked_total(ancestors.iter().map(|claim| claim.cargo_slots)),
-        );
-        ancestor_scalar_blocker(
-            &mut blockers,
-            "gpu_slots",
-            self.gpu_slots,
-            u64::from(capacities.gpu_slots),
-            checked_total(ancestors.iter().map(|claim| claim.gpu_slots)),
-        );
-        for (name, requested) in &self.custom {
-            ancestor_scalar_blocker(
-                &mut blockers,
-                name,
-                *requested,
-                custom_capacity(capacities, name),
-                checked_total(
-                    ancestors
-                        .iter()
-                        .map(|claim| claim.custom.get(name).copied().unwrap_or(0)),
-                ),
-            );
-        }
-        for claim in ancestors {
-            for fence in self.exclusive_fences.intersection(&claim.exclusive_fences) {
-                ancestor_fence_blocker(&mut blockers, fence);
-            }
-            for fence in self.exclusive_fences.intersection(&claim.shared_fences) {
-                ancestor_fence_blocker(&mut blockers, fence);
-            }
-            for fence in self.shared_fences.intersection(&claim.exclusive_fences) {
-                ancestor_fence_blocker(&mut blockers, fence);
-            }
-            for impact in &self.impacts {
-                for ancestor_impact in &claim.impacts {
-                    if impacts_conflict(impact, ancestor_impact, impact_incompatibilities) {
-                        blockers.push(Blocker {
-                            code: "blocked_by_ancestor".into(),
-                            detail: format!(
-                                "impact {impact} incompatible with ancestor {ancestor_impact}"
-                            ),
-                        });
-                    }
-                }
-            }
-        }
-        blockers.sort_by(|left, right| {
-            left.code
-                .cmp(&right.code)
-                .then(left.detail.cmp(&right.detail))
-        });
-        blockers.dedup();
-        blockers
-    }
-}
-
-fn sort_blockers(blockers: &mut Vec<Blocker>) {
-    blockers.sort_by(|left, right| {
-        left.code
-            .cmp(&right.code)
-            .then(left.detail.cmp(&right.detail))
-    });
-    blockers.dedup();
-}
-
-fn custom_capacity(capacities: &ResourceCapacities, requested_name: &str) -> u64 {
-    capacities
-        .custom
-        .iter()
-        .find_map(|(name, capacity)| {
-            canonical_custom_resource_name(name)
-                .ok()
-                .filter(|canonical| canonical == requested_name)
-                .map(|_| *capacity)
-        })
-        .unwrap_or(0)
-}
-
-fn impacts_conflict(left: &str, right: &str, rules: &BTreeMap<String, Vec<String>>) -> bool {
-    rules
-        .get(left)
-        .is_some_and(|values| values.iter().any(|value| value == right))
-        || rules
-            .get(right)
-            .is_some_and(|values| values.iter().any(|value| value == left))
-}
-
-fn ancestor_scalar_blocker(
-    blockers: &mut Vec<Blocker>,
-    name: &str,
-    requested: u64,
-    capacity: u64,
-    retained_by_ancestors: Option<u64>,
-) {
-    if requested == 0 {
-        return;
-    }
-    if requested > capacity {
-        blockers.push(Blocker {
-            code: "resource_capacity".into(),
-            detail: format!("{name}: requested {requested}, configured capacity {capacity}"),
-        });
-        return;
-    }
-    let Some(retained_by_ancestors) = retained_by_ancestors else {
-        blockers.push(Blocker {
-            code: "blocked_by_ancestor".into(),
-            detail: format!("{name}: retained ancestor debit sum overflow"),
-        });
-        return;
-    };
-    if retained_by_ancestors == 0 {
-        return;
-    }
-    let available_after_ancestors = capacity.saturating_sub(retained_by_ancestors);
-    if requested > available_after_ancestors {
-        blockers.push(Blocker {
-            code: "blocked_by_ancestor".into(),
-            detail: format!(
-                "{name}: requested {requested}, available while ancestors retain Leases {available_after_ancestors}, configured {capacity}"
-            ),
-        });
-    }
-}
-
-fn ancestor_fence_blocker(blockers: &mut Vec<Blocker>, fence: &str) {
-    blockers.push(Blocker {
-        code: "blocked_by_ancestor".into(),
-        detail: format!("path fence retained by an ancestor: {fence}"),
-    });
 }
 
 fn resolve_fences(paths: &[String]) -> io::Result<BTreeSet<String>> {
@@ -442,80 +138,6 @@ fn resolve_fences(paths: &[String]) -> io::Result<BTreeSet<String>> {
         keys.extend(resolve_fence(Path::new(path))?);
     }
     Ok(keys)
-}
-
-fn scalar_blocker(
-    blockers: &mut Vec<Blocker>,
-    name: &str,
-    requested: u64,
-    capacity: u64,
-    granted: Option<u64>,
-) {
-    if requested == 0 {
-        return;
-    }
-    let Some(granted) = granted else {
-        blockers.push(Blocker {
-            code: "resource_busy".into(),
-            detail: format!("{name}: granted debit sum overflow"),
-        });
-        return;
-    };
-    let available = capacity.saturating_sub(granted);
-    if requested > available {
-        blockers.push(Blocker {
-            code: if requested > capacity {
-                "resource_capacity"
-            } else {
-                "resource_busy"
-            }
-            .into(),
-            detail: format!(
-                "{name}: requested {requested}, available {available}, configured {capacity}"
-            ),
-        });
-    }
-}
-
-fn checked_total(mut values: impl Iterator<Item = u64>) -> Option<u64> {
-    values.try_fold(0_u64, u64::checked_add)
-}
-
-pub(crate) fn observed_resource_blocker(
-    name: &str,
-    requested: u64,
-    observed_headroom: u64,
-    safety_margin: u64,
-    granted_excluding_self: u64,
-) -> Option<Blocker> {
-    if requested == 0 {
-        return None;
-    }
-    let available = observed_headroom
-        .checked_sub(safety_margin)
-        .and_then(|headroom| headroom.checked_sub(granted_excluding_self));
-    match available {
-        Some(available) if requested <= available => None,
-        Some(available) => Some(Blocker {
-            code: "observed_resource_busy".into(),
-            detail: format!(
-                "{name}: requested {requested}, observed {observed_headroom}, margin {safety_margin}, granted {granted_excluding_self}, available {available}"
-            ),
-        }),
-        None => Some(Blocker {
-            code: "observation_unusable".into(),
-            detail: format!(
-                "{name}: checked headroom arithmetic failed for observed {observed_headroom}, margin {safety_margin}, granted {granted_excluding_self}"
-            ),
-        }),
-    }
-}
-
-fn fence_blocker(blockers: &mut Vec<Blocker>, fence: &str) {
-    blockers.push(Blocker {
-        code: "path_fence_busy".into(),
-        detail: fence.to_owned(),
-    });
 }
 
 fn resolve_policy_fence(path: &Path) -> io::Result<ResolvedPolicyFence> {
@@ -538,6 +160,8 @@ fn resolve_policy_fence(path: &Path) -> io::Result<ResolvedPolicyFence> {
 }
 
 fn policy_fences_allow(fences: &[ResolvedPolicyFence], path: &Path) -> io::Result<bool> {
+    #[cfg(target_os = "linux")]
+    validate_linux_fence_path(path)?;
     let mut candidate = path.to_path_buf();
     let mut remainder = PathBuf::new();
     loop {
@@ -561,7 +185,11 @@ fn policy_fences_allow(fences: &[ResolvedPolicyFence], path: &Path) -> io::Resul
         let Some(name) = candidate.file_name() else {
             return Ok(false);
         };
-        remainder = PathBuf::from(name).join(remainder);
+        remainder = if remainder.as_os_str().is_empty() {
+            PathBuf::from(name)
+        } else {
+            PathBuf::from(name).join(remainder)
+        };
         let Some(parent) = candidate.parent() else {
             return Ok(false);
         };
@@ -631,7 +259,51 @@ fn policy_identity_key(path: &Path, leaf: bool) -> io::Result<String> {
     ))
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn policy_identity_key(path: &Path, leaf: bool) -> io::Result<String> {
+    use std::os::fd::AsRawFd;
+    use std::os::unix::fs::OpenOptionsExt;
+    // Pin the object before querying it. Birth time distinguishes inode reuse;
+    // ctime cannot serve that purpose because rename and metadata edits change it.
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_PATH | if leaf { libc::O_NOFOLLOW } else { 0 })
+        .open(path)?;
+    let mut metadata = std::mem::MaybeUninit::<libc::statx>::uninit();
+    // SAFETY: the owned fd remains live, the empty path is NUL terminated, and
+    // statx initializes the output on success with AT_EMPTY_PATH.
+    if unsafe {
+        libc::statx(
+            file.as_raw_fd(),
+            c"".as_ptr(),
+            libc::AT_EMPTY_PATH,
+            libc::STATX_INO | libc::STATX_BTIME,
+            metadata.as_mut_ptr(),
+        )
+    } != 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: statx succeeded above.
+    let metadata = unsafe { metadata.assume_init() };
+    let required = libc::STATX_INO | libc::STATX_BTIME;
+    if metadata.stx_mask & required != required {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Linux fence identity requires inode and birth-time evidence",
+        ));
+    }
+    Ok(format!(
+        "linux-object:{}:{}:{}:{}:{}",
+        metadata.stx_dev_major,
+        metadata.stx_dev_minor,
+        metadata.stx_ino,
+        metadata.stx_btime.tv_sec,
+        metadata.stx_btime.tv_nsec
+    ))
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn policy_identity_key(path: &Path, _leaf: bool) -> io::Result<String> {
     Ok(std::fs::canonicalize(path)?.to_string_lossy().into_owned())
 }
@@ -663,7 +335,23 @@ fn has_intermediate_reparse(ancestor: &Path, remainder: &Path) -> io::Result<boo
     Ok(false)
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn has_intermediate_reparse(ancestor: &Path, remainder: &Path) -> io::Result<bool> {
+    let components = remainder.components().collect::<Vec<_>>();
+    let mut current = ancestor.to_path_buf();
+    for component in components.iter().take(components.len().saturating_sub(1)) {
+        current.push(component.as_os_str());
+        match std::fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.is_symlink() => return Ok(true),
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(false)
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn has_intermediate_reparse(_ancestor: &Path, _remainder: &Path) -> io::Result<bool> {
     Ok(false)
 }
@@ -717,7 +405,17 @@ fn resolve_fence(path: &Path) -> io::Result<Vec<String>> {
     Ok(vec![stable, canonical_path_key(&ancestor, &remainder)?])
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn resolve_fence(path: &Path) -> io::Result<Vec<String>> {
+    let (ancestor, remainder) = existing_ancestor(path)?;
+    let identity = policy_identity_key(&ancestor, remainder.as_os_str().is_empty())?;
+    Ok(vec![
+        format!("identity:{identity}:{}", canonical_remainder(&remainder)),
+        canonical_path_key(&ancestor, &remainder)?,
+    ])
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn resolve_fence(path: &Path) -> io::Result<Vec<String>> {
     let (ancestor, remainder) = existing_ancestor(path)?;
     Ok(vec![canonical_path_key(&ancestor, &remainder)?])
@@ -739,6 +437,8 @@ fn canonical_path_key(ancestor: &Path, remainder: &Path) -> io::Result<String> {
 }
 
 fn existing_ancestor(path: &Path) -> io::Result<(PathBuf, PathBuf)> {
+    #[cfg(target_os = "linux")]
+    validate_linux_fence_path(path)?;
     let mut ancestor = path.to_path_buf();
     let mut remainder = PathBuf::new();
     loop {
@@ -751,7 +451,11 @@ fn existing_ancestor(path: &Path) -> io::Result<(PathBuf, PathBuf)> {
                         "path fence has no existing ancestor",
                     )
                 })?;
-                remainder = PathBuf::from(name).join(remainder);
+                remainder = if remainder.as_os_str().is_empty() {
+                    PathBuf::from(name)
+                } else {
+                    PathBuf::from(name).join(remainder)
+                };
                 ancestor = ancestor
                     .parent()
                     .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "path has no parent"))?
@@ -762,7 +466,21 @@ fn existing_ancestor(path: &Path) -> io::Result<(PathBuf, PathBuf)> {
     }
 }
 
-#[cfg(windows)]
+#[cfg(target_os = "linux")]
+fn validate_linux_fence_path(path: &Path) -> io::Result<()> {
+    if !path.is_absolute()
+        || path.components().any(|part| part == Component::ParentDir)
+        || path.to_str().is_none()
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Linux fences require absolute UTF-8 paths without parent traversal",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(any(windows, target_os = "linux"))]
 fn canonical_remainder(path: &Path) -> String {
     path.components()
         .filter_map(|component| match component {
@@ -776,6 +494,7 @@ fn canonical_remainder(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ResourceCapacities;
 
     #[test]
     fn observed_headroom_is_checked_and_excludes_only_the_supplied_debit() {
@@ -975,6 +694,47 @@ mod tests {
 
         assert!(!resolved.allows_shared(&root.join("child")).unwrap());
         assert!(resolved.allows_shared(&retained.join("child")).unwrap());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_fences_track_objects_and_reject_policy_symlink_escape() {
+        let temp = crate::test_support::durable_tempdir().unwrap();
+        let root = temp.path().join("allowed");
+        let outside = temp.path().join("outside");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(&outside).unwrap();
+        let policy = ResolvedChildSubmissionPolicy::resolve(&ChildSubmissionPolicy {
+            fences: crate::ChildFencePolicy {
+                shared_roots: vec![root.clone()],
+                exclusive_roots: vec![],
+            },
+            ..Default::default()
+        })
+        .unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("escape")).unwrap();
+        assert!(!policy.allows_shared(&root.join("escape/child")).unwrap());
+        assert!(
+            policy
+                .allows_shared(&root.join("../outside/child"))
+                .is_err()
+        );
+        std::fs::write(root.join("original"), b"data").unwrap();
+        std::fs::hard_link(root.join("original"), outside.join("alias")).unwrap();
+        let first = resolve_fence(&root.join("original")).unwrap();
+        let alias = resolve_fence(&outside.join("alias")).unwrap();
+        assert!(first.iter().any(|key| alias.contains(key)));
+        let old = policy_identity_key(&root.join("original"), true).unwrap();
+        std::fs::remove_file(root.join("original")).unwrap();
+        std::fs::write(root.join("original"), b"replacement").unwrap();
+        assert_ne!(
+            old,
+            policy_identity_key(&root.join("original"), true).unwrap()
+        );
+        assert_eq!(
+            old,
+            policy_identity_key(&outside.join("alias"), true).unwrap()
+        );
     }
 
     #[test]

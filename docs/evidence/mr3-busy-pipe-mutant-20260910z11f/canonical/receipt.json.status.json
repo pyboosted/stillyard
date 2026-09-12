@@ -1,0 +1,191 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b56-6172-7e43-b483-85eda6ef3c22",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b56-6171-7a61-bd7a-6d1d70105387",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b56-617a-7481-abf3-18d03eee96b9",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b56-617a-7481-abf3-18ee344e3c5f",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b56-617a-7481-abf3-18fbd50e1b0d",
+  "root_exit_code": 101,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789044089202,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789044089228,
+  "finished_unix_millis": 1789044110093,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\.cargo\\bin\\cargo.exe",
+    "args": [
+      "test",
+      "--locked",
+      "--lib",
+      "busy_native_pipe_waits_once_until_deadline_without_polling",
+      "--",
+      "--nocapture"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr3-busy-pipe-mutant-20260910z11f",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CARGO_HOME": "C:\\Users\\User\\.cargo",
+        "CARGO_TARGET_DIR": "C:\\Development\\stillyard-mr3-busy-pipe-mutant-20260910z11f\\target\\scheduled",
+        "COMSPEC": "C:\\WINDOWS\\System32\\cmd.exe",
+        "INCLUDE": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\include;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\VS\\include;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\ucrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\um;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\shared;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\winrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\cppwinrt",
+        "LIB": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\lib\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\lib\\10.0.26100.0\\ucrt\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\\\lib\\10.0.26100.0\\\\um\\x64",
+        "PATH": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\VCPackages;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\TestWindow;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Current\\bin\\Roslyn;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Team Tools\\DiagnosticsHub\\Collector;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\Extensions\\Microsoft\\CodeCoverage.Console;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\\\MSBuild\\Current\\Bin\\amd64;C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\Tools\\;C:\\WINDOWS\\System32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\Ninja;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\Linux\\bin\\ConnectionManagerExe;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\vcpkg;C:\\Users\\User\\.cargo\\bin;C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Mozilla.sccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\sccache-v0.16.0-x86_64-pc-windows-msvc;C:\\Program Files\\Git\\cmd;C:\\Program Files\\CMake\\bin",
+        "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+        "RUSTUP_HOME": "C:\\Users\\User\\.rustup",
+        "SCCACHE_DIR": "C:\\Development\\.sccache",
+        "SYSTEMDRIVE": "C:",
+        "USERPROFILE": "C:\\Users\\User"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "test"
+      },
+      {
+        "key": "control",
+        "value": "old-native-one-second-polling"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1800,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b56-617a-7481-abf3-18d03eee96b9",
+      "attempt_index": 1,
+      "verdict": "process_failed",
+      "reason_code": null,
+      "created_unix_millis": 1789044089209,
+      "started_unix_millis": 1789044089209,
+      "deadline_unix_millis": 1789045889209,
+      "finished_unix_millis": 1789044110093,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b56-6172-7e43-b483-85eda6ef3c22",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b56-617a-7481-abf3-18d03eee96b9",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b56-617a-7481-abf3-18ee344e3c5f",
+        "verdict": "process_failed",
+        "root_exit_code": 101,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789044089228,
+        "exited_unix_millis": 1789044110076,
+        "resolved_unix_millis": 1789044110085
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b56-617a-7481-abf3-18ee344e3c5f",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 62120,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 62120,
+            "creation_filetime_100ns": 134335176892211533
+          },
+          "root_exit_code": 101,
+          "exit_classification": null,
+          "executable_hash": "6f4bef66261261fcb43131be8720bab817d403a09edec7455c371974b90bdb7e",
+          "daemon_generation": "01a08b4a-cfab-7740-aef2-bcf946f2f918",
+          "started_unix_millis": 1789044089228,
+          "finished_unix_millis": 1789044110085,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b56-617a-7481-abf3-18fbd50e1b0d",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "\nrunning 1 test\ntest client::tests::busy_native_pipe_waits_once_until_deadline_without_polling ... FAILED\n\nfailures:\n\nfailures:\n    client::tests::busy_native_pipe_waits_once_until_deadline_without_polling\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 302 filtered out; finished in 1.26s\n\n",
+          "stderr_tail": "   Compiling stillyard v0.1.0-alpha.20 (C:\\Development\\stillyard-mr3-busy-pipe-mutant-20260910z11f)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.25s\n     Running unittests src\\lib.rs (target\\scheduled\\debug\\deps\\stillyard-0fe77e21aed61e73.exe)\n\nthread 'client::tests::busy_native_pipe_waits_once_until_deadline_without_polling' (12976) panicked at src\\client.rs:3334:9:\nassertion `left == right` failed: native busy-pipe timeout was retried as a polling interval\n  left: 2\n right: 1\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nerror: test failed, to rerun pass `--lib`\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b56-617a-7481-abf3-190f95dcc2b7",
+      "lease_id": "01a08b56-617a-7481-abf3-190f95dcc2b7",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+        "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+        "lease_id": "01a08b56-617a-7481-abf3-190f95dcc2b7"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b56-6172-7e43-b483-85eda6ef3c22",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b56-617a-7481-abf3-18d03eee96b9"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08b4a-cfab-7740-aef2-bcf946f2f918"
+}

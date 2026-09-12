@@ -1,0 +1,121 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae0-8179-79f1-9746-c2db80314782",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae0-8176-7241-9b70-ad358b8d4244",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": "condition_deadline_expired",
+  "attempt_id": null,
+  "invocation_id": null,
+  "containment_id": null,
+  "root_exit_code": null,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789036364153,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [
+    {
+      "condition_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae0-817a-70f2-bb7a-d62dd8c0023c",
+      "condition_index": 0,
+      "state": "failed",
+      "spec": {
+        "predicate": {
+          "kind": "path_exists",
+          "path": "/home/pythonic/Development/stillyard-mr3-timer-controls-evidence-20260910z9/timer-controls-e1548f10603048128399b901f7703bde/never-created"
+        },
+        "deadline": {
+          "kind": "relative",
+          "seconds": 5
+        },
+        "on_deadline": "failed"
+      },
+      "deadline_unix_millis": 1789036369153,
+      "last_observation": {
+        "observation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae0-94fe-70a1-8622-a9dc12104e15",
+        "value": {
+          "kind": "path",
+          "exists": false
+        },
+        "observed_unix_millis": 1789036369150,
+        "observed_monotonic_millis": 82475830,
+        "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+        "daemon_generation": "01a08ade-f588-79e1-b441-a47c40c531b8",
+        "fresh_until_unix_millis": 1789036370150,
+        "source": "filesystem_rescan"
+      },
+      "probe_invocation_id": null
+    }
+  ],
+  "started_unix_millis": null,
+  "finished_unix_millis": 1789036369154,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/true",
+    "args": [],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-timer-controls-evidence-20260910z9/timer-controls-e1548f10603048128399b901f7703bde",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [
+      {
+        "predicate": {
+          "kind": "path_exists",
+          "path": "/home/pythonic/Development/stillyard-mr3-timer-controls-evidence-20260910z9/timer-controls-e1548f10603048128399b901f7703bde/never-created"
+        },
+        "deadline": {
+          "kind": "relative",
+          "seconds": 5
+        },
+        "on_deadline": "failed"
+      }
+    ],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "installed-timer-controls"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 30,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [],
+  "allocations": [],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08ade-f588-79e1-b441-a47c40c531b8"
+}

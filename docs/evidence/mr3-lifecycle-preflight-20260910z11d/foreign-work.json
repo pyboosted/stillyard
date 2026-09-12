@@ -1,0 +1,585 @@
+{
+  "observed_utc": "2026-09-10T11:46:02.251012+00:00",
+  "distribution": "Ubuntu-SSD",
+  "linux_boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+  "scope": "selected workload names only; not a full quiescence proof",
+  "foreign_work_candidates": [
+    {
+      "pid": 258,
+      "start_ticks": 506,
+      "name": "ollama",
+      "cgroup": "0::/system.slice/ollama.service"
+    },
+    {
+      "pid": 316,
+      "start_ticks": 509,
+      "name": "node",
+      "cgroup": "0::/system.slice/actions.runner.boosted-team.wsl-theserver.service"
+    },
+    {
+      "pid": 454,
+      "start_ticks": 525,
+      "name": "Runner.Listener",
+      "cgroup": "0::/system.slice/actions.runner.boosted-team.wsl-theserver.service"
+    },
+    {
+      "pid": 2774,
+      "start_ticks": 1184,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-4fd36baeee4abb82408c04be1f7354fe1482b2edbb05e4714ab4eeddf7c53547.scope"
+    },
+    {
+      "pid": 2825,
+      "start_ticks": 1184,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-16c4905ba09b6cacdb5babceb0face8d7ed3e3922ce961afbca832b859c9fbb8.scope"
+    },
+    {
+      "pid": 2910,
+      "start_ticks": 1185,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-788b3e0c272bfb9d433145d4db6581081f765bd73ebdc02eb03563cb5dc3bbdf.scope"
+    },
+    {
+      "pid": 3010,
+      "start_ticks": 1186,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-b2b509f5ca67d1d2727bec65ce8dd7ef5e4d82b113cbc7b258c8fca8a57bf477.scope"
+    },
+    {
+      "pid": 3077,
+      "start_ticks": 1189,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-3a3912376edc82877d4dcb551a89bb231feb0d13559da30c2c8dfcca9554e037.scope"
+    },
+    {
+      "pid": 3917,
+      "start_ticks": 1266,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-788b3e0c272bfb9d433145d4db6581081f765bd73ebdc02eb03563cb5dc3bbdf.scope"
+    },
+    {
+      "pid": 3918,
+      "start_ticks": 1266,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-788b3e0c272bfb9d433145d4db6581081f765bd73ebdc02eb03563cb5dc3bbdf.scope"
+    },
+    {
+      "pid": 4230,
+      "start_ticks": 1304,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-b2b509f5ca67d1d2727bec65ce8dd7ef5e4d82b113cbc7b258c8fca8a57bf477.scope"
+    },
+    {
+      "pid": 4231,
+      "start_ticks": 1304,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-b2b509f5ca67d1d2727bec65ce8dd7ef5e4d82b113cbc7b258c8fca8a57bf477.scope"
+    },
+    {
+      "pid": 4483,
+      "start_ticks": 1348,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-3a3912376edc82877d4dcb551a89bb231feb0d13559da30c2c8dfcca9554e037.scope"
+    },
+    {
+      "pid": 4484,
+      "start_ticks": 1348,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-3a3912376edc82877d4dcb551a89bb231feb0d13559da30c2c8dfcca9554e037.scope"
+    },
+    {
+      "pid": 4980,
+      "start_ticks": 1506,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-b2b509f5ca67d1d2727bec65ce8dd7ef5e4d82b113cbc7b258c8fca8a57bf477.scope"
+    },
+    {
+      "pid": 4981,
+      "start_ticks": 1506,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-b2b509f5ca67d1d2727bec65ce8dd7ef5e4d82b113cbc7b258c8fca8a57bf477.scope"
+    },
+    {
+      "pid": 4982,
+      "start_ticks": 1506,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-b2b509f5ca67d1d2727bec65ce8dd7ef5e4d82b113cbc7b258c8fca8a57bf477.scope"
+    },
+    {
+      "pid": 5351,
+      "start_ticks": 1569,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-788b3e0c272bfb9d433145d4db6581081f765bd73ebdc02eb03563cb5dc3bbdf.scope"
+    },
+    {
+      "pid": 5352,
+      "start_ticks": 1569,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-788b3e0c272bfb9d433145d4db6581081f765bd73ebdc02eb03563cb5dc3bbdf.scope"
+    },
+    {
+      "pid": 5353,
+      "start_ticks": 1569,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-788b3e0c272bfb9d433145d4db6581081f765bd73ebdc02eb03563cb5dc3bbdf.scope"
+    },
+    {
+      "pid": 5354,
+      "start_ticks": 1582,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-3a3912376edc82877d4dcb551a89bb231feb0d13559da30c2c8dfcca9554e037.scope"
+    },
+    {
+      "pid": 5355,
+      "start_ticks": 1582,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-3a3912376edc82877d4dcb551a89bb231feb0d13559da30c2c8dfcca9554e037.scope"
+    },
+    {
+      "pid": 5356,
+      "start_ticks": 1582,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-3a3912376edc82877d4dcb551a89bb231feb0d13559da30c2c8dfcca9554e037.scope"
+    },
+    {
+      "pid": 5474,
+      "start_ticks": 2078,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-4fd36baeee4abb82408c04be1f7354fe1482b2edbb05e4714ab4eeddf7c53547.scope"
+    },
+    {
+      "pid": 5475,
+      "start_ticks": 2078,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-4fd36baeee4abb82408c04be1f7354fe1482b2edbb05e4714ab4eeddf7c53547.scope"
+    },
+    {
+      "pid": 5563,
+      "start_ticks": 3373,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-16c4905ba09b6cacdb5babceb0face8d7ed3e3922ce961afbca832b859c9fbb8.scope"
+    },
+    {
+      "pid": 5564,
+      "start_ticks": 3373,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-16c4905ba09b6cacdb5babceb0face8d7ed3e3922ce961afbca832b859c9fbb8.scope"
+    },
+    {
+      "pid": 6292,
+      "start_ticks": 17783,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-4fd36baeee4abb82408c04be1f7354fe1482b2edbb05e4714ab4eeddf7c53547.scope"
+    },
+    {
+      "pid": 6293,
+      "start_ticks": 17783,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-4fd36baeee4abb82408c04be1f7354fe1482b2edbb05e4714ab4eeddf7c53547.scope"
+    },
+    {
+      "pid": 6294,
+      "start_ticks": 17783,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-4fd36baeee4abb82408c04be1f7354fe1482b2edbb05e4714ab4eeddf7c53547.scope"
+    },
+    {
+      "pid": 7912,
+      "start_ticks": 42158,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-16c4905ba09b6cacdb5babceb0face8d7ed3e3922ce961afbca832b859c9fbb8.scope"
+    },
+    {
+      "pid": 7913,
+      "start_ticks": 42158,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-16c4905ba09b6cacdb5babceb0face8d7ed3e3922ce961afbca832b859c9fbb8.scope"
+    },
+    {
+      "pid": 7914,
+      "start_ticks": 42158,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-16c4905ba09b6cacdb5babceb0face8d7ed3e3922ce961afbca832b859c9fbb8.scope"
+    },
+    {
+      "pid": 9614,
+      "start_ticks": 6746432,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-a10c853bb1bd3df744aa0274186815430788ff26e9c3dbc14bba5ae78777b5fc.scope"
+    },
+    {
+      "pid": 9833,
+      "start_ticks": 6746528,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-a10c853bb1bd3df744aa0274186815430788ff26e9c3dbc14bba5ae78777b5fc.scope"
+    },
+    {
+      "pid": 9835,
+      "start_ticks": 6746528,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-a10c853bb1bd3df744aa0274186815430788ff26e9c3dbc14bba5ae78777b5fc.scope"
+    },
+    {
+      "pid": 9854,
+      "start_ticks": 6746529,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-a10c853bb1bd3df744aa0274186815430788ff26e9c3dbc14bba5ae78777b5fc.scope"
+    },
+    {
+      "pid": 9855,
+      "start_ticks": 6746529,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-a10c853bb1bd3df744aa0274186815430788ff26e9c3dbc14bba5ae78777b5fc.scope"
+    },
+    {
+      "pid": 9856,
+      "start_ticks": 6746529,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-a10c853bb1bd3df744aa0274186815430788ff26e9c3dbc14bba5ae78777b5fc.scope"
+    },
+    {
+      "pid": 55891,
+      "start_ticks": 395582,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-50ede42b8d3f8097bf210b1e6626920541aa96cc9b0abc56f52e26c06142d63f.scope"
+    },
+    {
+      "pid": 56051,
+      "start_ticks": 395607,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-50ede42b8d3f8097bf210b1e6626920541aa96cc9b0abc56f52e26c06142d63f.scope"
+    },
+    {
+      "pid": 56052,
+      "start_ticks": 395607,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-50ede42b8d3f8097bf210b1e6626920541aa96cc9b0abc56f52e26c06142d63f.scope"
+    },
+    {
+      "pid": 56200,
+      "start_ticks": 395643,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-1d6918c68f3e0021452e2e0500bdfccfd003215c9f23a8f72c5e9385bf45ee33.scope"
+    },
+    {
+      "pid": 56290,
+      "start_ticks": 395663,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-38d0afc9a0dd2a53b47f5cc131d43c806321a0f3a04e68b4b41ddc474e51734e.scope"
+    },
+    {
+      "pid": 56296,
+      "start_ticks": 395665,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-1d6918c68f3e0021452e2e0500bdfccfd003215c9f23a8f72c5e9385bf45ee33.scope"
+    },
+    {
+      "pid": 56297,
+      "start_ticks": 395665,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-1d6918c68f3e0021452e2e0500bdfccfd003215c9f23a8f72c5e9385bf45ee33.scope"
+    },
+    {
+      "pid": 56383,
+      "start_ticks": 395689,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-38d0afc9a0dd2a53b47f5cc131d43c806321a0f3a04e68b4b41ddc474e51734e.scope"
+    },
+    {
+      "pid": 56384,
+      "start_ticks": 395689,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-38d0afc9a0dd2a53b47f5cc131d43c806321a0f3a04e68b4b41ddc474e51734e.scope"
+    },
+    {
+      "pid": 56421,
+      "start_ticks": 395719,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-50ede42b8d3f8097bf210b1e6626920541aa96cc9b0abc56f52e26c06142d63f.scope"
+    },
+    {
+      "pid": 56422,
+      "start_ticks": 395719,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-50ede42b8d3f8097bf210b1e6626920541aa96cc9b0abc56f52e26c06142d63f.scope"
+    },
+    {
+      "pid": 56423,
+      "start_ticks": 395719,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-50ede42b8d3f8097bf210b1e6626920541aa96cc9b0abc56f52e26c06142d63f.scope"
+    },
+    {
+      "pid": 56424,
+      "start_ticks": 395783,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-1d6918c68f3e0021452e2e0500bdfccfd003215c9f23a8f72c5e9385bf45ee33.scope"
+    },
+    {
+      "pid": 56425,
+      "start_ticks": 395783,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-1d6918c68f3e0021452e2e0500bdfccfd003215c9f23a8f72c5e9385bf45ee33.scope"
+    },
+    {
+      "pid": 56426,
+      "start_ticks": 395783,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-1d6918c68f3e0021452e2e0500bdfccfd003215c9f23a8f72c5e9385bf45ee33.scope"
+    },
+    {
+      "pid": 56427,
+      "start_ticks": 395800,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-38d0afc9a0dd2a53b47f5cc131d43c806321a0f3a04e68b4b41ddc474e51734e.scope"
+    },
+    {
+      "pid": 56428,
+      "start_ticks": 395800,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-38d0afc9a0dd2a53b47f5cc131d43c806321a0f3a04e68b4b41ddc474e51734e.scope"
+    },
+    {
+      "pid": 56429,
+      "start_ticks": 395800,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-38d0afc9a0dd2a53b47f5cc131d43c806321a0f3a04e68b4b41ddc474e51734e.scope"
+    },
+    {
+      "pid": 117966,
+      "start_ticks": 444287,
+      "name": "codex",
+      "cgroup": "0::/init.scope"
+    },
+    {
+      "pid": 554464,
+      "start_ticks": 7684007,
+      "name": "codex",
+      "cgroup": "0::/init.scope"
+    },
+    {
+      "pid": 837248,
+      "start_ticks": 1310788,
+      "name": "codex",
+      "cgroup": "0::/init.scope"
+    },
+    {
+      "pid": 1074312,
+      "start_ticks": 8305230,
+      "name": "claude",
+      "cgroup": "0::/init.scope"
+    },
+    {
+      "pid": 1215739,
+      "start_ticks": 8521955,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-b2b509f5ca67d1d2727bec65ce8dd7ef5e4d82b113cbc7b258c8fca8a57bf477.scope"
+    },
+    {
+      "pid": 1219852,
+      "start_ticks": 8528581,
+      "name": "codex",
+      "cgroup": "0::/init.scope"
+    },
+    {
+      "pid": 1261016,
+      "start_ticks": 8581025,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-b2b509f5ca67d1d2727bec65ce8dd7ef5e4d82b113cbc7b258c8fca8a57bf477.scope"
+    },
+    {
+      "pid": 1312239,
+      "start_ticks": 8630771,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-b2b509f5ca67d1d2727bec65ce8dd7ef5e4d82b113cbc7b258c8fca8a57bf477.scope"
+    },
+    {
+      "pid": 1319551,
+      "start_ticks": 8636050,
+      "name": "codex",
+      "cgroup": "0::/init.scope"
+    },
+    {
+      "pid": 1325123,
+      "start_ticks": 8638376,
+      "name": "cargo",
+      "cgroup": "0::/init.scope"
+    },
+    {
+      "pid": 1334859,
+      "start_ticks": 8643992,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-b2b509f5ca67d1d2727bec65ce8dd7ef5e4d82b113cbc7b258c8fca8a57bf477.scope"
+    },
+    {
+      "pid": 1338453,
+      "start_ticks": 8647327,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-b2b509f5ca67d1d2727bec65ce8dd7ef5e4d82b113cbc7b258c8fca8a57bf477.scope"
+    },
+    {
+      "pid": 1360194,
+      "start_ticks": 8664981,
+      "name": "codex",
+      "cgroup": "0::/init.scope"
+    },
+    {
+      "pid": 1377502,
+      "start_ticks": 8681106,
+      "name": "codex",
+      "cgroup": "0::/init.scope"
+    },
+    {
+      "pid": 3275607,
+      "start_ticks": 5016803,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-96f1f6ffe0a37e557c0037fb0943d19a04cccf4deada78bbb3aaa0927914ff6a.scope"
+    },
+    {
+      "pid": 3275804,
+      "start_ticks": 5016916,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-96f1f6ffe0a37e557c0037fb0943d19a04cccf4deada78bbb3aaa0927914ff6a.scope"
+    },
+    {
+      "pid": 3275805,
+      "start_ticks": 5016916,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-96f1f6ffe0a37e557c0037fb0943d19a04cccf4deada78bbb3aaa0927914ff6a.scope"
+    },
+    {
+      "pid": 3275807,
+      "start_ticks": 5016917,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-96f1f6ffe0a37e557c0037fb0943d19a04cccf4deada78bbb3aaa0927914ff6a.scope"
+    },
+    {
+      "pid": 3275808,
+      "start_ticks": 5016917,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-96f1f6ffe0a37e557c0037fb0943d19a04cccf4deada78bbb3aaa0927914ff6a.scope"
+    },
+    {
+      "pid": 3275809,
+      "start_ticks": 5016917,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-96f1f6ffe0a37e557c0037fb0943d19a04cccf4deada78bbb3aaa0927914ff6a.scope"
+    },
+    {
+      "pid": 3821959,
+      "start_ticks": 5963731,
+      "name": "codex",
+      "cgroup": "0::/init.scope"
+    },
+    {
+      "pid": 3905612,
+      "start_ticks": 6128321,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-60d54329a052a15bf5747e4360c822d9791e4b999d82f957a17bac5ba3ca93c9.scope"
+    },
+    {
+      "pid": 3906008,
+      "start_ticks": 6128908,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-60d54329a052a15bf5747e4360c822d9791e4b999d82f957a17bac5ba3ca93c9.scope"
+    },
+    {
+      "pid": 3906009,
+      "start_ticks": 6128908,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-60d54329a052a15bf5747e4360c822d9791e4b999d82f957a17bac5ba3ca93c9.scope"
+    },
+    {
+      "pid": 3906012,
+      "start_ticks": 6128910,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-60d54329a052a15bf5747e4360c822d9791e4b999d82f957a17bac5ba3ca93c9.scope"
+    },
+    {
+      "pid": 3906013,
+      "start_ticks": 6128910,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-60d54329a052a15bf5747e4360c822d9791e4b999d82f957a17bac5ba3ca93c9.scope"
+    },
+    {
+      "pid": 3906014,
+      "start_ticks": 6128910,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-60d54329a052a15bf5747e4360c822d9791e4b999d82f957a17bac5ba3ca93c9.scope"
+    },
+    {
+      "pid": 4046430,
+      "start_ticks": 6455145,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-903f7bf657cf24c1203c1b28da5d6b226e320e248d0ffa16d97c9ac8dd6cbc7f.scope"
+    },
+    {
+      "pid": 4046628,
+      "start_ticks": 6455301,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-903f7bf657cf24c1203c1b28da5d6b226e320e248d0ffa16d97c9ac8dd6cbc7f.scope"
+    },
+    {
+      "pid": 4046629,
+      "start_ticks": 6455301,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-903f7bf657cf24c1203c1b28da5d6b226e320e248d0ffa16d97c9ac8dd6cbc7f.scope"
+    },
+    {
+      "pid": 4046631,
+      "start_ticks": 6455301,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-903f7bf657cf24c1203c1b28da5d6b226e320e248d0ffa16d97c9ac8dd6cbc7f.scope"
+    },
+    {
+      "pid": 4046632,
+      "start_ticks": 6455301,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-903f7bf657cf24c1203c1b28da5d6b226e320e248d0ffa16d97c9ac8dd6cbc7f.scope"
+    },
+    {
+      "pid": 4046633,
+      "start_ticks": 6455301,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-903f7bf657cf24c1203c1b28da5d6b226e320e248d0ffa16d97c9ac8dd6cbc7f.scope"
+    },
+    {
+      "pid": 4155902,
+      "start_ticks": 6633359,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-a00b79fc7710c4f63acc1fccee4291d3a2fecf02719af590eb7abfef0c66dd90.scope"
+    },
+    {
+      "pid": 4156203,
+      "start_ticks": 6633673,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-a00b79fc7710c4f63acc1fccee4291d3a2fecf02719af590eb7abfef0c66dd90.scope"
+    },
+    {
+      "pid": 4156204,
+      "start_ticks": 6633673,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-a00b79fc7710c4f63acc1fccee4291d3a2fecf02719af590eb7abfef0c66dd90.scope"
+    },
+    {
+      "pid": 4156206,
+      "start_ticks": 6633673,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-a00b79fc7710c4f63acc1fccee4291d3a2fecf02719af590eb7abfef0c66dd90.scope"
+    },
+    {
+      "pid": 4156207,
+      "start_ticks": 6633673,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-a00b79fc7710c4f63acc1fccee4291d3a2fecf02719af590eb7abfef0c66dd90.scope"
+    },
+    {
+      "pid": 4156208,
+      "start_ticks": 6633673,
+      "name": "postgres",
+      "cgroup": "0::/system.slice/docker-a00b79fc7710c4f63acc1fccee4291d3a2fecf02719af590eb7abfef0c66dd90.scope"
+    }
+  ],
+  "disruptive_action_executed": false
+}

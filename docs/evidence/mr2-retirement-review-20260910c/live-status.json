@@ -1,0 +1,131 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0881a-682a-7893-977d-71f151da06dc",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0881a-6829-7a71-86e3-9aaf038956b4",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "active",
+  "outcome": null,
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0881a-6830-7fe3-998b-604634dac608",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0881a-682f-7c92-8472-29f9d76d1fce",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0881a-682f-7c92-8472-2a050b0c7ff7",
+  "root_exit_code": null,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788989827114,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788989827133,
+  "finished_unix_millis": null,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr2-retirement-review-20260910c\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr2-retirement-review-20260910c",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 2
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr2-retirement-focused-review"
+      }
+    ],
+    "expected_duration_seconds": 480,
+    "timeout_seconds": 1530,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0881a-6830-7fe3-998b-604634dac608",
+      "attempt_index": 1,
+      "verdict": null,
+      "reason_code": null,
+      "created_unix_millis": 1788989827119,
+      "started_unix_millis": 1788989827119,
+      "deadline_unix_millis": 1788991357119,
+      "finished_unix_millis": null,
+      "primary_result": null,
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0881a-682f-7c92-8472-29f9d76d1fce",
+          "role": "primary",
+          "role_index": 0,
+          "state": "started",
+          "root_pid": 54912,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 54912,
+            "creation_filetime_100ns": 134334634271299005
+          },
+          "root_exit_code": null,
+          "exit_classification": null,
+          "executable_hash": "38246f2e6c04b3983d98b30e9da4434f26ed27afd63f25e9a504f7b2c5f0d732",
+          "daemon_generation": "01a08727-6971-79a1-a1b3-fd73badf9036",
+          "started_unix_millis": 1788989827133,
+          "finished_unix_millis": null,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0881a-682f-7c92-8472-2a050b0c7ff7",
+            "state": "live",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08727-6971-79a1-a1b3-fd73badf9036"
+}

@@ -1,0 +1,322 @@
+{
+  "child": {
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-34f2-7f20-b245-be8c295ab33d",
+    "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-34ee-7e21-a723-23672986aacf",
+    "batch_id": null,
+    "batch_member": null,
+    "state": "pending",
+    "outcome": null,
+    "reason_code": null,
+    "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-34fb-7a73-a116-4a9eb16918c0",
+    "invocation_id": null,
+    "containment_id": null,
+    "root_exit_code": null,
+    "cancel_requested": false,
+    "accepted_unix_millis": 1789041652978,
+    "priority": 0,
+    "effective_priority": 0,
+    "queue_rank": 2,
+    "reservation": null,
+    "conditions": [],
+    "started_unix_millis": null,
+    "finished_unix_millis": null,
+    "spec": {
+      "spec_version": 4,
+      "priority": 0,
+      "executable": "/home/pythonic/.cargo/bin/cargo",
+      "args": [
+        "check",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--all-targets"
+      ],
+      "working_directory": "/home/pythonic/Development/stillyard-wc3-scratch-20260910z11d",
+      "stdin": {
+        "kind": "eof"
+      },
+      "environment": {
+        "set": {
+          "CARGO_BUILD_JOBS": "4",
+          "CARGO_HOME": "/home/pythonic/.cargo",
+          "CARGO_TARGET_DIR": "/home/pythonic/Development/stillyard-wc3-scratch-20260910z11d/target/scheduled-linux",
+          "HOME": "/home/pythonic",
+          "PATH": "/home/pythonic/.cargo/bin:/usr/bin:/bin",
+          "RUSTUP_HOME": "/home/pythonic/.rustup",
+          "RUSTUP_TOOLCHAIN": "stable-x86_64-unknown-linux-gnu"
+        },
+        "unset": []
+      },
+      "resources": {
+        "cpu_units": null,
+        "ram_mb": null,
+        "cargo_slots": 1,
+        "gpu_slots": null,
+        "custom": {},
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      },
+      "observed": null,
+      "conditions": [],
+      "retry": {
+        "max_attempts": 1,
+        "backoff_seconds": 0,
+        "retryable": []
+      },
+      "postconditions": [],
+      "labels": [
+        {
+          "key": "project",
+          "value": "stillyard"
+        },
+        {
+          "key": "acceptance",
+          "value": "W-C3-child"
+        }
+      ],
+      "expected_duration_seconds": null,
+      "timeout_seconds": 600,
+      "quiet": null,
+      "artifacts": [],
+      "child_submission_policy": null
+    },
+    "parent": {
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2016-7af3-94f6-dad66aa471ac",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-201e-7fe3-99ea-cf6d259b7b4e",
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-201e-7fe3-99ea-cf7ee2f03141"
+    },
+    "managed_policy_admission": {
+      "parent": {
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2016-7af3-94f6-dad66aa471ac",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-201e-7fe3-99ea-cf6d259b7b4e",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-201e-7fe3-99ea-cf7ee2f03141"
+      },
+      "evaluated_unix_millis": 1789041652978,
+      "effective_policy": {
+        "min_priority": 0,
+        "max_priority": 0,
+        "max_claims": {
+          "cpu_units": null,
+          "ram_mb": null,
+          "cargo_slots": 1,
+          "gpu_slots": null,
+          "custom": {}
+        },
+        "allowed_impacts": [
+          "cpu_heavy"
+        ],
+        "required_labels": [
+          {
+            "key": "project",
+            "value": "stillyard"
+          }
+        ],
+        "fences": {
+          "shared_roots": [],
+          "exclusive_roots": []
+        },
+        "allow_observed": false,
+        "allow_quiet": false,
+        "allow_delegation": false
+      },
+      "policy_ancestors": [
+        "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-2016-7af3-94f6-dad66aa471ac"
+      ]
+    },
+    "blockers": [],
+    "attempts": [
+      {
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b31-34fb-7a73-a116-4a9eb16918c0",
+        "attempt_index": 1,
+        "verdict": null,
+        "reason_code": null,
+        "created_unix_millis": 1789041652986,
+        "started_unix_millis": null,
+        "deadline_unix_millis": null,
+        "finished_unix_millis": null,
+        "primary_result": null,
+        "admission": null,
+        "invocations": []
+      }
+    ],
+    "allocations": [],
+    "gpu_provenance": null,
+    "admission": null,
+    "daemon_generation": "01a08b2f-b3e1-7b93-9dce-92828505ee47"
+  },
+  "windows": {
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b31-26fe-7301-a71c-c1a1debb7d39",
+    "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b31-26fd-74e0-a423-c5ee7b010e68",
+    "batch_id": null,
+    "batch_member": null,
+    "state": "active",
+    "outcome": null,
+    "reason_code": null,
+    "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b31-b4f6-7a80-b54f-602a58549c08",
+    "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b31-b4f6-7a80-b54f-603193b7cca5",
+    "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b31-b4f6-7a80-b54f-604db7f05162",
+    "root_exit_code": null,
+    "cancel_requested": false,
+    "accepted_unix_millis": 1789041649406,
+    "priority": 0,
+    "effective_priority": null,
+    "queue_rank": null,
+    "reservation": null,
+    "conditions": [],
+    "started_unix_millis": 1789041685769,
+    "finished_unix_millis": null,
+    "spec": {
+      "spec_version": 4,
+      "priority": 0,
+      "executable": "C:\\Users\\User\\.cargo\\bin\\cargo.exe",
+      "args": [
+        "test",
+        "--workspace",
+        "--all-features"
+      ],
+      "working_directory": "C:\\Development\\stillyard-mr3-membership-20260910z11d",
+      "stdin": {
+        "kind": "eof"
+      },
+      "environment": {
+        "set": {
+          "CARGO_HOME": "C:\\Users\\User\\.cargo",
+          "CARGO_TARGET_DIR": "C:\\Development\\stillyard-mr3-membership-20260910z11d\\target\\scheduled",
+          "COMSPEC": "C:\\WINDOWS\\System32\\cmd.exe",
+          "INCLUDE": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\include;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\VS\\include;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\ucrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\um;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\shared;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\winrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\cppwinrt",
+          "LIB": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\lib\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\lib\\10.0.26100.0\\ucrt\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\\\lib\\10.0.26100.0\\\\um\\x64",
+          "PATH": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\VCPackages;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\TestWindow;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Current\\bin\\Roslyn;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Team Tools\\DiagnosticsHub\\Collector;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\Extensions\\Microsoft\\CodeCoverage.Console;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\\\MSBuild\\Current\\Bin\\amd64;C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\Tools\\;C:\\WINDOWS\\System32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\Ninja;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\Linux\\bin\\ConnectionManagerExe;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\vcpkg;C:\\Users\\User\\.cargo\\bin;C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Mozilla.sccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\sccache-v0.16.0-x86_64-pc-windows-msvc;C:\\Program Files\\Git\\cmd;C:\\Program Files\\CMake\\bin",
+          "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+          "RUSTUP_HOME": "C:\\Users\\User\\.rustup",
+          "SCCACHE_DIR": "C:\\Development\\.sccache",
+          "SYSTEMDRIVE": "C:",
+          "USERPROFILE": "C:\\Users\\User"
+        },
+        "unset": []
+      },
+      "resources": {
+        "cpu_units": null,
+        "ram_mb": null,
+        "cargo_slots": 1,
+        "gpu_slots": null,
+        "custom": {},
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      },
+      "observed": null,
+      "conditions": [],
+      "retry": {
+        "max_attempts": 1,
+        "backoff_seconds": 0,
+        "retryable": []
+      },
+      "postconditions": [],
+      "labels": [
+        {
+          "key": "project",
+          "value": "stillyard"
+        },
+        {
+          "key": "gate",
+          "value": "test"
+        }
+      ],
+      "expected_duration_seconds": 180,
+      "timeout_seconds": 1800,
+      "quiet": null,
+      "artifacts": [],
+      "child_submission_policy": null
+    },
+    "parent": null,
+    "managed_policy_admission": null,
+    "blockers": [],
+    "attempts": [
+      {
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b31-b4f6-7a80-b54f-602a58549c08",
+        "attempt_index": 1,
+        "verdict": null,
+        "reason_code": null,
+        "created_unix_millis": 1789041685750,
+        "started_unix_millis": 1789041685750,
+        "deadline_unix_millis": 1789043485750,
+        "finished_unix_millis": null,
+        "primary_result": null,
+        "admission": null,
+        "invocations": [
+          {
+            "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b31-b4f6-7a80-b54f-603193b7cca5",
+            "role": "primary",
+            "role_index": 0,
+            "state": "started",
+            "root_pid": 46400,
+            "root_identity": {
+              "platform": "windows",
+              "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+              "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+              "pid": 46400,
+              "creation_filetime_100ns": 134335152857615930
+            },
+            "root_exit_code": null,
+            "exit_classification": null,
+            "executable_hash": "6f4bef66261261fcb43131be8720bab817d403a09edec7455c371974b90bdb7e",
+            "daemon_generation": "01a08b2f-ae10-7451-943c-2d1137c525cd",
+            "started_unix_millis": 1789041685769,
+            "finished_unix_millis": null,
+            "containment": {
+              "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b31-b4f6-7a80-b54f-604db7f05162",
+              "state": "live",
+              "strength": "windows_job_object",
+              "incident_id": null,
+              "incident": null,
+              "resolution": null,
+              "resolution_audit": null
+            },
+            "stdout_tail": "",
+            "stderr_tail": ""
+          }
+        ]
+      }
+    ],
+    "allocations": [
+      {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b31-b4f6-7a80-b54f-6059d2dce9f8",
+        "lease_id": "01a08b31-b4f6-7a80-b54f-6059d2dce9f8",
+        "key": {
+          "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+          "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+          "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+          "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+          "lease_id": "01a08b31-b4f6-7a80-b54f-6059d2dce9f8"
+        },
+        "owner": {
+          "kind": "work",
+          "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b31-26fe-7301-a71c-c1a1debb7d39",
+          "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b31-b4f6-7a80-b54f-602a58549c08"
+        },
+        "state": "armed",
+        "claims": {
+          "scalars": {
+            "cargo_slots": 1,
+            "cpu_units": 0,
+            "gpu_slots": 0,
+            "ram_mb": 0
+          },
+          "shared_fences": [],
+          "exclusive_fences": [],
+          "impacts": [
+            "cpu_heavy"
+          ]
+        }
+      }
+    ],
+    "gpu_provenance": null,
+    "admission": null,
+    "daemon_generation": "01a08b2f-ae10-7451-943c-2d1137c525cd"
+  }
+}

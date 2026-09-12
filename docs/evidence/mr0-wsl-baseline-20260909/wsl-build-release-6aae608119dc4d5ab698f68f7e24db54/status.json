@@ -1,0 +1,145 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086ea-76a6-7e41-9397-750083d54543",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086ea-76a5-7033-90bc-076bc0521d83",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086ea-76aa-7cf2-b104-16d04b8499df",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086ea-76aa-7cf2-b104-16aa8f1a943b",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086ea-76aa-7cf2-b104-16b65300ff6d",
+  "root_exit_code": 101,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788969907878,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788969907898,
+  "finished_unix_millis": 1788969960256,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr0-wsl-baseline-evidence-20260909\\wsl-build-release-6aae608119dc4d5ab698f68f7e24db54\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr0-wsl-baseline-evidence-20260909\\wsl-build-release-6aae608119dc4d5ab698f68f7e24db54",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-bootstrap-build-release"
+      },
+      {
+        "key": "source",
+        "value": "657c21539fcabdb43285a6729a3357e3c4e916da04ac607fed9491fd187c8861"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1830,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086ea-76aa-7cf2-b104-16d04b8499df",
+      "attempt_index": 1,
+      "verdict": "process_failed",
+      "reason_code": null,
+      "created_unix_millis": 1788969907882,
+      "started_unix_millis": 1788969907882,
+      "deadline_unix_millis": 1788971737882,
+      "finished_unix_millis": 1788969960256,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086ea-76a6-7e41-9397-750083d54543",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086ea-76aa-7cf2-b104-16d04b8499df",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086ea-76aa-7cf2-b104-16aa8f1a943b",
+        "verdict": "process_failed",
+        "root_exit_code": 101,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1788969907898,
+        "exited_unix_millis": 1788969960247,
+        "resolved_unix_millis": 1788969960253
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086ea-76aa-7cf2-b104-16aa8f1a943b",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 51548,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 51548,
+            "creation_filetime_100ns": 134334435078942416
+          },
+          "root_exit_code": 101,
+          "exit_classification": null,
+          "executable_hash": "868d089a7ae94445457b32b43e91a5d3c54e845535ec639fc9a8e4065c89c8e4",
+          "daemon_generation": "01a086e8-b524-70b1-b563-4b2eb76ce274",
+          "started_unix_millis": 1788969907898,
+          "finished_unix_millis": 1788969960253,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a086ea-76aa-7cf2-b104-16b65300ff6d",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": "   Compiling proc-macro2 v1.0.107\n   Compiling unicode-ident v1.0.24\n   Compiling quote v1.0.47\n   Compiling libc v0.2.189\n   Compiling cfg-if v1.0.4\n   Compiling version_check v0.9.5\n   Compiling rustversion v1.0.23\n   Compiling generic-array v0.14.7\n   Compiling serde_core v1.0.229\n   Compiling foldhash v0.1.5\n   Compiling ident_case v1.0.1\n   Compiling equivalent v1.0.2\n   Compiling heck v0.5.0\n   Compiling smallvec v1.15.2\n   Compiling syn v3.0.4\n   Compiling syn v2.0.119\n   Compiling shlex v2.0.1\n   Compiling errno v0.3.14\n   Compiling typenum v1.20.1\n   Compiling signal-hook v0.3.18\n   Compiling allocator-api2 v0.2.21\n   Compiling strsim v0.11.1\n   Compiling find-msvc-tools v0.1.11\n   Compiling parking_lot_core v0.9.12\n   Compiling fnv v1.0.7\n   Compiling cc v1.4.4\n   Compiling hashbrown v0.15.5\n   Compiling signal-hook-registry v1.4.8\n   Compiling zmij v1.0.23\n   Compiling darling_core v0.20.11\n   Compiling getrandom v0.4.3\n   Compiling bitflags v2.13.1\n   Compiling vcpkg v0.2.15\n   Compiling pkg-config v0.3.34\n   Compiling scopeguard v1.2.0\n   Compiling itoa v1.0.18\n   Compiling utf8parse v0.2.2\n   Compiling log v0.4.34\n   Compiling rustix v0.38.44\n   Compiling libsqlite3-sys v0.35.0\n   Compiling mio v1.2.2\n   Compiling anstyle-parse v1.0.0\n   Compiling lock_api v0.4.14\n   Compiling darling_macro v0.20.11\n   Compiling anstyle v1.0.14\n   Compiling linux-raw-sys v0.4.15\n   Compiling ref-cast v1.0.27\n   Compiling paste v1.0.15\n   Compiling is_terminal_polyfill v1.70.2\n   Compiling either v1.18.0\n   Compiling colorchoice v1.0.5\n   Compiling instability v0.3.10\n   Compiling serde v1.0.229\n   Compiling anstyle-query v1.1.5\n   Compiling serde_json v1.0.151\n   Compiling anstream v1.0.0\n   Compiling itertools v0.13.0\n   Compiling darling v0.20.11\n   Compiling signal-hook-mio v0.2.5\n   Compiling parking_lot v0.12.5\n   Compiling strum_macros v0.26.4\n   Compiling serde_derive v1.0.229\n   Compiling ref-cast-impl v1.0.27\n   Compiling serde_derive_internals v0.30.0\n   Compiling crypto-common v0.1.7\n   Compiling block-buffer v0.10.4\n   Compiling castaway v0.2.4\n   Compiling unicode-segmentation v1.13.3\n   Compiling option-ext v0.2.0\n   Compiling thiserror v2.0.20\n   Compiling indoc v2.0.7\n   Compiling clap_lex v1.1.0\n   Compiling unicode-width v0.1.14\n   Compiling static_assertions v1.1.0\n   Compiling memchr v2.8.3\n   Compiling ryu v1.0.23\n   Compiling unicode-truncate v1.1.0\n   Compiling compact_str v0.8.2\n   Compiling clap_builder v4.6.6\n   Compiling dirs-sys v0.5.0\n   Compiling schemars_derive v1.2.2\n   Compiling digest v0.10.7\n   Compiling strum v0.26.3\n   Compiling uuid v1.26.0\n   Compiling crossterm v0.28.1\n   Compiling clap_derive v4.6.4\n   Compiling thiserror-impl v2.0.20\n   Compiling hashlink v0.10.0\n   Compiling lru v0.12.5\n   Compiling fallible-streaming-iterator v0.1.9\n   Compiling dyn-clone v1.0.20\n   Compiling cpufeatures v0.2.17\n   Compiling unicode-width v0.2.0\n   Compiling fallible-iterator v0.3.0\n   Compiling cassowary v0.3.0\n   Compiling ratatui v0.29.0\n   Compiling sha2 v0.10.9\n   Compiling schemars v1.2.2\n   Compiling clap v4.6.6\n   Compiling directories v6.0.0\n   Compiling fs2 v0.4.3\n   Compiling rusqlite v0.37.0\n   Compiling stillyard v0.1.0-alpha.15 (/home/pythonic/Development/stillyard-mr0-baseline-alpha15-20260909)\nerror[E0432]: unresolved imports `super::CpuUtilizationSampler`, `super::DiskUtilizationSampler`, `super::NvmlProvider`, `super::observation_clock`, `super::probe_memory`, `super::probe_processes`\n  --> src/host_observation/service.rs:7:40\n   |\n 7 |     ComponentEvidence, ComponentValue, CpuUtilizationSampler, DiskUtilizationSampler, GpuEvidence,\n   |                                        ^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^ no `DiskUtilizationSampler` in `host_observation`\n   |                                        |\n   |                                        no `CpuUtilizationSampler` in `host_observation`\n 8 |     HostSample, NvmlProvider, ProcessEvidence, observation_clock, probe_memory, probe_processes,\n   |                 ^^^^^^^^^^^^                   ^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^ no `probe_processes` in `host_observation`\n   |                 |                              |                  |\n   |                 |                              |                  no `probe_memory` in `host_observation`\n   |                 |                              no `observation_clock` in `host_observation`\n   |                 no `NvmlProvider` in `host_observation`\n   |\nnote: found an item that was configured out\n  --> src/host_observation/mod.rs:29:38\n   |\n28 | #[cfg(windows)]\n   |       ------- the item is gated here\n29 | pub(crate) use windows_utilization::{CpuUtilizationSampler, observation_clock};\n   |                                      ^^^^^^^^^^^^^^^^^^^^^\nnote: found an item that was configured out\n  --> src/host_observation/mod.rs:21:30\n   |\n20 | #[cfg(windows)]\n   |       ------- the item is gated here\n21 | pub(crate) use windows_disk::DiskUtilizationSampler;\n   |                              ^^^^^^^^^^^^^^^^^^^^^^\nnote: found an item that was configured out\n  --> src/host_observation/mod.rs:25:30\n   |\n24 | #[cfg(windows)]\n   |       ------- the item is gated here\n25 | pub(crate) use windows_nvml::NvmlProvider;\n   |                              ^^^^^^^^^^^^\nnote: found an item that was configured out\n  --> src/host_observation/mod.rs:29:61\n   |\n28 | #[cfg(windows)]\n   |       ------- the item is gated here\n29 | pub(crate) use windows_utilization::{CpuUtilizationSampler, observation_clock};\n   |                                                             ^^^^^^^^^^^^^^^^^\nnote: found an item that was configured out\n  --> src/host_observation/mod.rs:23:32\n   |\n22 | #[cfg(windows)]\n   |       ------- the item is gated here\n23 | pub(crate) use windows_memory::probe_memory;\n   |                                ^^^^^^^^^^^^\nnote: found an item that was configured out\n  --> src/host_observation/mod.rs:27:33\n   |\n26 | #[cfg(windows)]\n   |       ------- the item is gated here\n27 | pub(crate) use windows_process::probe_processes;\n   |                                 ^^^^^^^^^^^^^^^\n\nerror[E0425]: cannot find function `observation_clock` in module `crate::host_observation`\n  --> src/store/condition.rs:26:38\n   |\n26 |             crate::host_observation::observation_clock().unwrap_or_else(|_| (now_millis(), 0));\n   |                                      ^^^^^^^^^^^^^^^^^ not found in `crate::host_observation`\n   |\nnote: found an item that was configured out\n  --> src/host_observation/mod.rs:29:61\n   |\n28 | #[cfg(windows)]\n   |       ------- the item is gated here\n29 | pub(crate) use windows_utilization::{CpuUtilizationSampler, observation_clock};\n   |                                                             ^^^^^^^^^^^^^^^^^\n\nerror[E0425]: cannot find function `observation_clock` in module `crate::host_observation`\n   --> src/store/condition.rs:636:30\n    |\n636 |     crate::host_observation::observation_clock()\n    |                              ^^^^^^^^^^^^^^^^^ not found in `crate::host_observation`\n    |\nnote: found an item that was configured out\n   --> src/host_observation/mod.rs:29:61\n    |\n 28 | #[cfg(windows)]\n    |       ------- the item is gated here\n 29 | pub(crate) use windows_utilization::{CpuUtilizationSampler, observation_clock};\n    |                                                             ^^^^^^^^^^^^^^^^^\n\nerror[E0425]: cannot find function `observation_clock` in module `crate::host_observation`\n    --> src/store/condition.rs:1364:55\n     |\n1364 |         let (_, monotonic) = crate::host_observation::observation_clock().unwrap_or((now, 0));\n     |                                                       ^^^^^^^^^^^^^^^^^ not found in `crate::host_observation`\n     |\nnote: found an item that was configured out\n    --> src/host_observation/mod.rs:29:61\n     |\n  28 | #[cfg(windows)]\n     |       ------- the item is gated here\n  29 | pub(crate) use windows_utilization::{CpuUtilizationSampler, observation_clock};\n     |                                                             ^^^^^^^^^^^^^^^^^\n\nerror[E0425]: cannot find function `observation_clock` in module `crate::host_observation`\n   --> src/store/release.rs:187:66\n    |\n187 |             let release_monotonic_now = crate::host_observation::observation_clock()\n    |                                                                  ^^^^^^^^^^^^^^^^^ not found in `crate::host_observation`\n    |\nnote: found an item that was configured out\n   --> src/host_observation/mod.rs:29:61\n    |\n 28 | #[cfg(windows)]\n    |       ------- the item is gated here\n 29 | pub(crate) use windows_utilization::{CpuUtilizationSampler, observation_clock};\n    |                                                             ^^^^^^^^^^^^^^^^^\n\nerror[E0425]: cannot find function `observation_clock` in module `crate::host_observation`\n   --> src/store/release.rs:397:54\n    |\n397 |         let monotonic_now = crate::host_observation::observation_clock()\n    |                                                      ^^^^^^^^^^^^^^^^^ not found in `crate::host_observation`\n    |\nnote: found an item that was configured out\n   --> src/host_observation/mod.rs:29:61\n    |\n 28 | #[cfg(windows)]\n    |       ------- the item is gated here\n 29 | pub(crate) use windows_utilization::{CpuUtilizationSampler, observation_clock};\n    |                                                             ^^^^^^^^^^^^^^^^^\n\nerror[E0425]: cannot find function `observation_clock` in module `crate::host_observation`\n   --> src/store/schedule.rs:527:42\n    |\n527 |                 crate::host_observation::observation_clock()?;\n    |                                          ^^^^^^^^^^^^^^^^^ not found in `crate::host_observation`\n    |\nnote: found an item that was configured out\n   --> src/host_observation/mod.rs:29:61\n    |\n 28 | #[cfg(windows)]\n    |       ------- the item is gated here\n 29 | pub(crate) use windows_utilization::{CpuUtilizationSampler, observation_clock};\n    |                                                             ^^^^^^^^^^^^^^^^^\n\nerror[E0425]: cannot find function `observation_clock` in module `crate::host_observation`\n    --> src/store/schedule.rs:1232:54\n     |\n1232 |         let monotonic_now = crate::host_observation::observation_clock()\n     |                                                      ^^^^^^^^^^^^^^^^^ not found in `crate::host_observation`\n     |\nnote: found an item that was configured out\n    --> src/host_observation/mod.rs:29:61\n     |\n  28 | #[cfg(windows)]\n     |       ------- the item is gated here\n  29 | pub(crate) use windows_utilization::{CpuUtilizationSampler, observation_clock};\n     |                                                             ^^^^^^^^^^^^^^^^^\n\nwarning: unused import: `MemoryEvidence`\n  --> src/host_observation/mod.rs:16:65\n   |\n16 |     ComponentEvidence, ComponentValue, GpuEvidence, HostSample, MemoryEvidence, ProcessEvidence,\n   |                                                                 ^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nerror[E0425]: cannot find function `observation_clock` in this scope\n  --> src/host_observation/mod.rs:42:59\n   |\n42 |             let (now_unix_millis, now_monotonic_millis) = observation_clock()?;\n   |                                                           ^^^^^^^^^^^^^^^^^ not found in this scope\n\nSome errors have detailed explanations: E0425, E0432.\nFor more information about an error, try `rustc --explain E0425`.\nwarning: `stillyard` (lib) generated 1 warning\nerror: could not compile `stillyard` (lib) due to 9 previous errors; 1 warning emitted\n"
+        }
+      ]
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a086e8-b524-70b1-b563-4b2eb76ce274"
+}

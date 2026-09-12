@@ -1,0 +1,33 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+  "args": [
+    "bootstrap",
+    "run",
+    "--spec",
+    "C:\\Development\\stillyard-msrv-provision-evidence-20260909\\wsl-msrv-install-dc4dc2b2dd604edc8d1868e1f8bf5f30\\work.json"
+  ],
+  "working_directory": "C:\\Development\\stillyard-msrv-provision-evidence-20260909\\wsl-msrv-install-dc4dc2b2dd604edc8d1868e1f8bf5f30",
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "wsl-bootstrap-msrv-install"
+    },
+    {
+      "key": "source",
+      "value": "df6d59d649eb802401d57a34e5de4f17e0434668a2bc82956fe61d3ba4c0586a"
+    }
+  ],
+  "expected_duration_seconds": 180,
+  "timeout_seconds": 1830
+}

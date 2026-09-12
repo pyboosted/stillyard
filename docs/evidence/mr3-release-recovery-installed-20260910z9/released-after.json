@@ -1,0 +1,464 @@
+[
+  {
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f876-7b20-ae01-572fb95e7f95",
+    "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f873-7de2-97df-21f0d30e9926",
+    "batch_id": null,
+    "batch_member": null,
+    "state": "final",
+    "outcome": "succeeded",
+    "reason_code": null,
+    "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-933bb2182c9d",
+    "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abe-c251-7cf2-b907-2fc75a0c88f9",
+    "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abe-c251-7cf2-b907-2fd5a41a2b01",
+    "root_exit_code": 0,
+    "cancel_requested": false,
+    "accepted_unix_millis": 1789033904246,
+    "priority": 0,
+    "effective_priority": null,
+    "queue_rank": null,
+    "reservation": null,
+    "conditions": [],
+    "started_unix_millis": 1789033904572,
+    "finished_unix_millis": 1789034152956,
+    "spec": {
+      "spec_version": 4,
+      "priority": 0,
+      "executable": "/usr/bin/python3",
+      "args": [
+        "/home/pythonic/Development/stillyard-mr3-opus-crash-matrix-20260910z8/6e15c52c197c4816841a79ce7f2ecf06/reviewer.py",
+        "review",
+        "--cli",
+        "/home/pythonic/.local/bin/claude-current",
+        "--brief",
+        "/home/pythonic/Development/stillyard-mr3-opus-crash-matrix-20260910z8/6e15c52c197c4816841a79ce7f2ecf06/brief.txt",
+        "--output",
+        "/home/pythonic/Development/stillyard-mr3-opus-crash-matrix-20260910z8/6e15c52c197c4816841a79ce7f2ecf06/review.json",
+        "--model",
+        "opus",
+        "--effort",
+        "high"
+      ],
+      "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-crash-matrix-20260910z8/6e15c52c197c4816841a79ce7f2ecf06",
+      "stdin": {
+        "kind": "eof"
+      },
+      "environment": {
+        "set": {
+          "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+          "HOME": "/home/pythonic",
+          "LANG": "C.UTF-8",
+          "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+        },
+        "unset": []
+      },
+      "resources": {
+        "cpu_units": null,
+        "ram_mb": null,
+        "cargo_slots": null,
+        "gpu_slots": null,
+        "custom": {
+          "claude2_slots": 1
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      },
+      "observed": null,
+      "conditions": [],
+      "retry": {
+        "max_attempts": 1,
+        "backoff_seconds": 0,
+        "retryable": []
+      },
+      "postconditions": [
+        {
+          "executable": "/usr/bin/python3",
+          "args": [
+            "/home/pythonic/Development/stillyard-mr3-opus-crash-matrix-20260910z8/6e15c52c197c4816841a79ce7f2ecf06/reviewer.py",
+            "validate-review",
+            "--input",
+            "/home/pythonic/Development/stillyard-mr3-opus-crash-matrix-20260910z8/6e15c52c197c4816841a79ce7f2ecf06/review.json",
+            "--expected-model-prefix",
+            "claude-opus-"
+          ],
+          "working_directory": null,
+          "accepted_exit_codes": [
+            0
+          ],
+          "retryable_exit_codes": []
+        }
+      ],
+      "labels": [
+        {
+          "key": "project",
+          "value": "stillyard"
+        },
+        {
+          "key": "gate",
+          "value": "mr3-opus-crash-matrix"
+        }
+      ],
+      "expected_duration_seconds": null,
+      "timeout_seconds": 1200,
+      "quiet": null,
+      "artifacts": [],
+      "child_submission_policy": null
+    },
+    "parent": null,
+    "managed_policy_admission": null,
+    "blockers": [],
+    "attempts": [
+      {
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-933bb2182c9d",
+        "attempt_index": 1,
+        "verdict": "succeeded",
+        "reason_code": null,
+        "created_unix_millis": 1789033904253,
+        "started_unix_millis": 1789033904316,
+        "deadline_unix_millis": 1789035104316,
+        "finished_unix_millis": 1789034152956,
+        "primary_result": {
+          "schema_version": 1,
+          "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f876-7b20-ae01-572fb95e7f95",
+          "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-933bb2182c9d",
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-9342c1376ca0",
+          "verdict": "succeeded",
+          "root_exit_code": 0,
+          "termination": "exited",
+          "containment": "empty",
+          "started_unix_millis": 1789033904572,
+          "exited_unix_millis": 1789034152431,
+          "resolved_unix_millis": 1789034152509
+        },
+        "admission": null,
+        "invocations": [
+          {
+            "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-9342c1376ca0",
+            "role": "primary",
+            "role_index": 0,
+            "state": "resolved",
+            "root_pid": 795776,
+            "root_identity": {
+              "platform": "linux",
+              "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+              "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+              "pid": 795776,
+              "start_ticks": 8001111,
+              "pid_namespace_inode": 4026534452,
+              "uid": 1000
+            },
+            "root_exit_code": 0,
+            "exit_classification": null,
+            "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+            "daemon_generation": "01a08ab5-ad34-7873-80b6-30c34391ab7e",
+            "started_unix_millis": 1789033904572,
+            "finished_unix_millis": 1789034152509,
+            "containment": {
+              "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-935676bb9182",
+              "state": "empty",
+              "strength": "linux_cgroup_v2",
+              "incident_id": null,
+              "incident": null,
+              "resolution": null,
+              "resolution_audit": null
+            },
+            "stdout_tail": "rize/Ticket ack (reuse the existing `cross_os.rs` mailbox harness \u2014 it already obtains a real `ticket.json`); (3) same for the Released ack (expect idempotent, single `leases.state='released'` transition); (4) the TTL test in the next finding. Everything else \u2014 journal ordering, ticket consumption, trigger enforcement, duplicate-launch refusal \u2014 is manager-local authority and composes soundly under synthetic replies once the reply path is authenticated (see the reply-codec finding).\",\"[P0] Irreducible pair test #4: premature TTL release against live user code. Kill the isolated daemon at the post-`consume_ticket`/post-`child.release()` stage and *do not restart it*, leaving a real populated cgroup with live descendants, then let the real coordinator run past `offer_deadline_unix_millis` and the lease TTL. Expected irreversible state: the coordinator must not re-Arm or issue a second Ticket for the same claims, capacity must remain debited, and the only admissible transition to released is a sealed Release after the daemon returns and seals. This property spans two independent clocks and two real implementations and cannot be composed from a manager-side test with a synthetic reply or from MR2's model-manager matrix. This is the single test that most directly discharges the 'must detect premature TTL release' half of the contract.\",\"[P0] `accept()` applies a coordinator-initiated release to a plan whose Invocation is still live and unsealed, and this silently *frees local admission capacity*. In `store/attached.rs::accept`, the `Released`/`Reconciled` arms run `UPDATE attached_local_plans SET released=1 WHERE allocation_key=?1` unconditionally; only the subsequent `leases` update is guarded by `release_pending=1 AND released=1`. So a premature/TTL-driven release arriving while `release_pending=0` leaves `leases.state='granted'` forever (a permanently stale local debit) while `prepare()`'s capacity probe (`SELECT COUNT(*) FROM attached_local_plans WHERE released=0`) stops counting the slot \u2014 i.e. the manager can admit a new candidate against `MAX_DOMAIN_CANDIDATES` while the old lease row is still granted and the old cgroup is still populated. Whether `recovery::synchronize` compensates is not determinable from the supplied code, and I will not assume it does. Bounded implementation (composition-adequate, synthetic reply is fine because the assertion is entirely about manager behaviour): with a real live boundary from the kernel fixture, deliver `Outcome::Released` (and separately `Outcome::Reconciled{released:[key]}`) for an allocation whose journal record has `seal.is_none()`, and assert the manager raises an explicit divergence/fence rather than marking the plan released; pin the resulting observable state in the test so any future silent-accept regression fails.\",\"[P0 \u2014 pending unrecoverable gap A: remove-before-Seal] `journal::cleanup` performs `Boundary::reopen(identity)?.kill_and_seal(deadline)?` and only then commits the Seal. A crash in that window destroys the boundary while the record stays unsealed, and every later `cleanup` call fails at `Boundary::reopen` \u2014 permanently. `linux_executor_journal_absence_after_seal_gap_retains_uncertainty` already pins exactly this and is correct to do so: the cgroup path can be recreated or processes migrated, so absence is not proof of no-children, and `daemon_generation`/`executor_incarnation` change is not proof either. Consequence to record explicitly: the Grant/lease can never be sealed (`record_attached_cleanup` needs `seal.boundary_sha256`), the record counts forever toward `active` in `create`, and the `active >= MAX_ACTIVE` plus the `(active+1)*16_384` headroom test convert a single fault into an installation-wide refusal of *all* new obligations. That escalation from one stuck lease to whole-installation denial is the reason this needs a named recovery path, not just a comment.\",\"[P0 \u2014 pending unrecoverable gap B: create-before-boundary-commit] `journal::create` commits the record with `boundary: None`, then calls `Boundary::create`, then commits the identity. A crash between the two commits yields a record that `cleanup` rejects forever with 'creation interrupted before boundary identity; cleanup unknown', and two physically different sub-states \u2014 cgroup never created vs. cgroup created but unnamed \u2014 are indistinguishable in the durable record. Note the safety asymmetry the test must assert rather than assume: such a record necessarily has `root: None` and `release_intent: None` (ordering guarantees `PreparedLaunch::prepare` had not run), so no user code can have been launched and no duplicate-launch hazard exists; the damage is purely liveness. Bounded implementation: a checkpoint pair L1 (after first commit, before `Boundary::create`) and L2 (after `Boundary::create` returns, before the identity commit), each SIGKILLed externally, each asserting on restart that `records()[inv].boundary.is_none()`, that `cleanup` errors, that the recovery does NOT adopt any cgroup found at `parent/<invocation entity uuid>` by name, and that no user-code marker file exists. If the gap is to be closed later, the only sound direction is committing the intended boundary Identity before creating it (create must then be exclusive) \u2014 that is a product change, out of scope for this test matrix, and should be raised as its own item rather than smuggled into MR3.\",\"[P0] Highest-value new checkpoint: crash after `consume_ticket` commits but before `child.release()`. `ReleaseBarrier::release` only reaches `release()` after `commit()` returned true, and every existing test of that window (`loss_of_readiness_after_commit_proves_no_release_without_replaying_consumption`, `delay_in_final_local_check_is_rechecked_before_os_release`, `unused_after_commit_keeps_consumption_and_requires_exact_cleanup_before_sealing`) uses in-process closures and a live process. Under a real SIGKILL the daemon dies holding the frozen stub, and the stub's release channel is closed by process death; whether the trusted stub treats that as 'do not run' or as 'proceed' is the difference between a clean uncertain-seal and an unauthorized second user launch, and no supplied test covers it. Bounded implementation: checkpoint immediately after the SQL consumption commit; controller SIGKILLs only the exact isolated daemon pid; assert (a) the user-code marker file never appears for at least the stub's timeout, (b) the cgroup remains populated only by the stub or becomes empty, (c) on restart the record has `release_intent.is_some()` so the seal is `possibly_released=true`, (d) the transient `NeverReleased` proof is gone and `record_unused_cleanup` can no longer downgrade the recovered state to `user_code_released:false` \u2014 i.e. losing the proof recovers conservatively, exactly as the comment in `release.rs` claims but nothing currently proves across a process boundary.\",\"[P1] The existing fault/override hooks cannot drive an out-of-process daemon, so the proposed checkpoints are a genuinely new mechanism and must be scoped as such. `FAIL_BEFORE_SEAL` in `journal.rs` is `#[cfg(test)]` *and* `thread_local!`, so it is unreachable from a controller thread and from a non-test binary; the `STILLYARD_TEST_CGROUP_ROOT` and `STILLYARD_TEST_EXECUTABLE` overrides in `runner/linux/runtime.rs` are likewise `#[cfg(test)]`, so a prebuilt debug daemon compiled without `cfg(test)` will not honour them. Either the isolated daemon must be built as a test binary (preferred \u2014 keeps the whole fault surface out of any non-test build) or those overrides must move to `debug_assertions`, which widens the product surface and should be an explicit, separately-approved decision. Whichever is chosen, gate every checkpoint on the conjunction of: `cfg(debug_assertions)` (or `cfg(test)`), an explicitly-passed isolated Store root that string-equals the value the controller supplied and is not the installed root, and a binary path that is not the installed release image; a bare env var is not a sufficient gate because it is process-wide and inherited.\",\"[P1] Concrete minimal checkpoint set and expected irreversible states (all externally SIGKILLed at the exact isolated daemon pid, all with real Store/Journal/cgroup, synthetic authenticated replies unless marked pair). ARM: A1 after CandidateUpsert commit, before Arm ack \u2014 restart re-`prepare()`s the same slot, must reuse plan ids, must not insert a second candidate, `leases` count stays 0 (the `attached_lease_insert` trigger is the backstop). A2 after the Arm ack commit \u2014 restart must find `armed=1`, must not double-arm, and a second `prepare_job` for another job must still be capacity-blocked. LAUNCH: L1/L2 as in the create-gap finding; L3 after `journal.ready`, before `release_intent` \u2014 restart seals with `possibly_released=false`, ticket never consumed, marker file absent; L4 after `release_intent` commit, before SQL consumption \u2014 restart seals `possibly_released=true`, and relaunch of the same slot must be refused by `create`'s duplicate-invocation check (not by path inspection); L5 as in the post-commit finding; L6 after `child.release()` with live descendants \u2014 restart's `kill_and_seal` must be verified by direct /proc checks on the recorded descendant pids, never by path absence. RELEASE: R1 after seal commit, before `record_attached_cleanup` \u2014 restart's `cleanup` returns the identical Seal (idempotence already holds in `cleanup`'s early return) and the Release is enqueued exactly once; R2 after Release enqueued, before ack \u2014 lease stays `granted` across a full daemon restart and admission stays blocked; R3 replayed Released ack (pair test).\",\"[P1] Duplicate-incarnation takeover after SIGKILL is untested and is the direct 'second user launch' surface. `Journal::open` takes an `fs2` exclusive lock, and `linux_executor_journal_never_reinitializes_missing_or_corrupt_history` proves a duplicate writer is refused \u2014 but only while the first writer is alive. A SIGKILL releases the flock at the kernel level, so the realistic case is: incarnation N is killed mid-launch, incarnation N+1 acquires the lock, and the live cgroup from N is still populated. Bounded implementation: start a second isolated daemon against the same Store root after the kill and assert it (a) acquires the journal, (b) refuses `create` for the same InvocationId (record still present and unsealed), (c) cannot consume the still-unconsumed ticket, (d) creates no second cgroup under the parent (assert the parent's child count is unchanged \u2014 an equality check on siblings is a legitimate duplicate detector even though child *absence* is not a seal proof), and (e) reaches release only through a seal of N's record.\",\"[P1] The fixture's reply path bypasses reply authentication and freshness, which is the main thing weakening the compositional argument, and it is cheap to fix without a live Windows peer. `tests::reply` builds a `Reply` struct directly and hands it to `accept`, so `coordinator_revision`, session binding and any wire-level MAC/decode over the reply are never exercised, while requests do go through `manager::pending(tx, secret)`. Bounded implementation: route fixture replies through the same encode/verify functions the Driver uses, with a private in-process pairing pair, so the synthetic coordinator is model-only in *policy* and real in *envelope*. That change alone converts several of the pair tests I listed from 'necessary' to 'confirmatory', and it is a test-side change that touches no product authority or freshness rule.\",\"[P2] Two fixture-hygiene items that will actively break the proposed matrix. `kernel_runtime` hardcodes `\\\"/tmp/attached-fixture.sock\\\"` for both `installed_registry` and `runner::run`, and `STILLYARD_TEST_CGROUP_ROOT`/`STILLYARD_TEST_EXECUTABLE` are process-wide; with several isolated daemons under one Windows Job protected bootstrap these collide across instances and can cross-connect a surviving daemon to a killed daemon's endpoint, producing false 'duplicate' or false 'clean' results. Bounded implementation: derive the socket path from the per-test tempdir, and pass the cgroup parent and helper path to the isolated daemon as explicit arguments alongside the isolated Store root rather than relying on inherited environment.\",\"[P2] Keep post-seal path observations from being promoted into recovery predicates. `cross_os.rs` asserts `!Path::new(&boundary.identity.path).exists()` after a successful `cleanup`, and `linux_executor_journal_recovers_live_boundary_and_seals_once` asserts `Boundary::reopen(&boundary.identity).is_err()`; both are fine as consequences of a committed Seal, but neither may become the input to a decision. State this explicitly in the new tests' comments so the next reader does not mine them for a cheap resolution of the two unrecoverable gaps. The only admissible resolutions remain: a positive `kill_and_seal` on a reopened, identity-verified boundary, or an authenticated coordinator-side clearance recorded through the existing `uncertainty_reason`/`risk_clearance` fields on `GrantSnapshot` \u2014 an authority decision, never an automatic one, and never inferred from a changed `daemon_generation`/`executor_incarnation`.\",\"[P1 \u2014 blocking assessment] The two gaps are liveness-only and should not block MR3's M-A04 acceptance on safety grounds: refusing forever is the conservative outcome, and the contract asks for detection of a second launch and of premature release, both of which the refusal preserves. They should, however, gate acceptance on three cheap deliverables: (1) both gaps pinned by the L1/L2 and remove-before-Seal tests as *permanently uncertain* states with the assertions named above; (2) an explicit, written statement that an unsealable record consumes `active` budget forever and that `MAX_ACTIVE` / the `create` headroom check turn repeated occurrences into installation-wide refusal of new obligations; (3) a named owner and separate item for the authenticated-clearance recovery path. Recommendation: accept MR3 with those three, and do not attempt the `create` reordering or any clearance mechanism inside this MR \u2014 mixing a product-authority change into the crash-matrix MR is exactly what would make the resulting evidence hard to trust.\"],\"summary\":\"Read-only design review of the remaining M-A04 crash/duplicate matrix. Answer to the central question: composition of the existing real-Store/kernel fixture (synthetic replies) with MR2's real native coordinator matrix is sound for nearly the whole boundary set, but not for everything \u2014 four full Driver+coordinator tests remain irreducible (replayed Arm ack, replayed Authorize ack, replayed Released ack, and the two-clock premature-TTL-with-live-cgroup case), because today both sides' ack-duplication rules are only ever validated against a model peer. I list a minimal externally-SIGKILLed checkpoint set (A1\u2013A2, L1\u2013L6, R1\u2013R3, plus a duplicate-incarnation takeover) with the expected irreversible state at each. Three P0 issues beyond the matrix itself: the post-consumption/pre-`child.release()` window is untested across a real process death and is the sharpest second-user-launch hazard; `accept()`'s unconditional `released=1` lets a coordinator-initiated release free local admission capacity while the lease row stays `granted` and the cgroup stays populated; and the two named gaps (remove-before-Seal, create-before-boundary-commit) are correctly permanently-uncertain but escalate through `MAX_ACTIVE`/headroom into installation-wide refusal of new obligations. Those gaps are liveness-only and should not block MR3, provided they are pinned by tests, documented as permanent, and given a separately-owned authenticated-clearance recovery path; neither path absence nor a generation change is admissible as resolution. Also flagged: the fixture's `reply()` bypasses reply authentication (cheap fix that strengthens the whole compositional argument), the existing fault hooks are `cfg(test)`/thread-local and cannot drive an out-of-process daemon, and the hardcoded socket plus process-wide env overrides will collide across isolated daemons.\",\"verdict\":\"findings\"},\"ttft_ms\":165097,\"type\":\"result\",\"duration_ms\":246030,\"uuid\":\"3aa1d61f-db48-4f8c-96f7-f57e787e3e69\",\"ttft_stream_ms\":1714,\"time_to_request_ms\":46,\"first_content_frame_ms\":2147,\"queued_turn_count\":0}\n",
+            "stderr_tail": ""
+          },
+          {
+            "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abe-c251-7cf2-b907-2fc75a0c88f9",
+            "role": "postcondition",
+            "role_index": 1,
+            "state": "resolved",
+            "root_pid": 818685,
+            "root_identity": {
+              "platform": "linux",
+              "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+              "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+              "pid": 818685,
+              "start_ticks": 8025934,
+              "pid_namespace_inode": 4026534426,
+              "uid": 1000
+            },
+            "root_exit_code": 0,
+            "exit_classification": "accepted",
+            "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+            "daemon_generation": "01a08ab5-ad34-7873-80b6-30c34391ab7e",
+            "started_unix_millis": 1789034152804,
+            "finished_unix_millis": 1789034152945,
+            "containment": {
+              "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abe-c251-7cf2-b907-2fd5a41a2b01",
+              "state": "empty",
+              "strength": "linux_cgroup_v2",
+              "incident_id": null,
+              "incident": null,
+              "resolution": null,
+              "resolution_audit": null
+            },
+            "stdout_tail": "ager::accept` (expect `changed=false`, `armed` unchanged, no second lease); (2) same for the Authorize/Ticket ack (reuse the existing `cross_os.rs` mailbox harness \\u2014 it already obtains a real `ticket.json`); (3) same for the Released ack (expect idempotent, single `leases.state='released'` transition); (4) the TTL test in the next finding. Everything else \\u2014 journal ordering, ticket consumption, trigger enforcement, duplicate-launch refusal \\u2014 is manager-local authority and composes soundly under synthetic replies once the reply path is authenticated (see the reply-codec finding).\", \"[P0] Irreducible pair test #4: premature TTL release against live user code. Kill the isolated daemon at the post-`consume_ticket`/post-`child.release()` stage and *do not restart it*, leaving a real populated cgroup with live descendants, then let the real coordinator run past `offer_deadline_unix_millis` and the lease TTL. Expected irreversible state: the coordinator must not re-Arm or issue a second Ticket for the same claims, capacity must remain debited, and the only admissible transition to released is a sealed Release after the daemon returns and seals. This property spans two independent clocks and two real implementations and cannot be composed from a manager-side test with a synthetic reply or from MR2's model-manager matrix. This is the single test that most directly discharges the 'must detect premature TTL release' half of the contract.\", \"[P0] `accept()` applies a coordinator-initiated release to a plan whose Invocation is still live and unsealed, and this silently *frees local admission capacity*. In `store/attached.rs::accept`, the `Released`/`Reconciled` arms run `UPDATE attached_local_plans SET released=1 WHERE allocation_key=?1` unconditionally; only the subsequent `leases` update is guarded by `release_pending=1 AND released=1`. So a premature/TTL-driven release arriving while `release_pending=0` leaves `leases.state='granted'` forever (a permanently stale local debit) while `prepare()`'s capacity probe (`SELECT COUNT(*) FROM attached_local_plans WHERE released=0`) stops counting the slot \\u2014 i.e. the manager can admit a new candidate against `MAX_DOMAIN_CANDIDATES` while the old lease row is still granted and the old cgroup is still populated. Whether `recovery::synchronize` compensates is not determinable from the supplied code, and I will not assume it does. Bounded implementation (composition-adequate, synthetic reply is fine because the assertion is entirely about manager behaviour): with a real live boundary from the kernel fixture, deliver `Outcome::Released` (and separately `Outcome::Reconciled{released:[key]}`) for an allocation whose journal record has `seal.is_none()`, and assert the manager raises an explicit divergence/fence rather than marking the plan released; pin the resulting observable state in the test so any future silent-accept regression fails.\", \"[P0 \\u2014 pending unrecoverable gap A: remove-before-Seal] `journal::cleanup` performs `Boundary::reopen(identity)?.kill_and_seal(deadline)?` and only then commits the Seal. A crash in that window destroys the boundary while the record stays unsealed, and every later `cleanup` call fails at `Boundary::reopen` \\u2014 permanently. `linux_executor_journal_absence_after_seal_gap_retains_uncertainty` already pins exactly this and is correct to do so: the cgroup path can be recreated or processes migrated, so absence is not proof of no-children, and `daemon_generation`/`executor_incarnation` change is not proof either. Consequence to record explicitly: the Grant/lease can never be sealed (`record_attached_cleanup` needs `seal.boundary_sha256`), the record counts forever toward `active` in `create`, and the `active >= MAX_ACTIVE` plus the `(active+1)*16_384` headroom test convert a single fault into an installation-wide refusal of *all* new obligations. That escalation from one stuck lease to whole-installation denial is the reason this needs a named recovery path, not just a comment.\", \"[P0 \\u2014 pending unrecoverable gap B: create-before-boundary-commit] `journal::create` commits the record with `boundary: None`, then calls `Boundary::create`, then commits the identity. A crash between the two commits yields a record that `cleanup` rejects forever with 'creation interrupted before boundary identity; cleanup unknown', and two physically different sub-states \\u2014 cgroup never created vs. cgroup created but unnamed \\u2014 are indistinguishable in the durable record. Note the safety asymmetry the test must assert rather than assume: such a record necessarily has `root: None` and `release_intent: None` (ordering guarantees `PreparedLaunch::prepare` had not run), so no user code can have been launched and no duplicate-launch hazard exists; the damage is purely liveness. Bounded implementation: a checkpoint pair L1 (after first commit, before `Boundary::create`) and L2 (after `Boundary::create` returns, before the identity commit), each SIGKILLed externally, each asserting on restart that `records()[inv].boundary.is_none()`, that `cleanup` errors, that the recovery does NOT adopt any cgroup found at `parent/<invocation entity uuid>` by name, and that no user-code marker file exists. If the gap is to be closed later, the only sound direction is committing the intended boundary Identity before creating it (create must then be exclusive) \\u2014 that is a product change, out of scope for this test matrix, and should be raised as its own item rather than smuggled into MR3.\", \"[P0] Highest-value new checkpoint: crash after `consume_ticket` commits but before `child.release()`. `ReleaseBarrier::release` only reaches `release()` after `commit()` returned true, and every existing test of that window (`loss_of_readiness_after_commit_proves_no_release_without_replaying_consumption`, `delay_in_final_local_check_is_rechecked_before_os_release`, `unused_after_commit_keeps_consumption_and_requires_exact_cleanup_before_sealing`) uses in-process closures and a live process. Under a real SIGKILL the daemon dies holding the frozen stub, and the stub's release channel is closed by process death; whether the trusted stub treats that as 'do not run' or as 'proceed' is the difference between a clean uncertain-seal and an unauthorized second user launch, and no supplied test covers it. Bounded implementation: checkpoint immediately after the SQL consumption commit; controller SIGKILLs only the exact isolated daemon pid; assert (a) the user-code marker file never appears for at least the stub's timeout, (b) the cgroup remains populated only by the stub or becomes empty, (c) on restart the record has `release_intent.is_some()` so the seal is `possibly_released=true`, (d) the transient `NeverReleased` proof is gone and `record_unused_cleanup` can no longer downgrade the recovered state to `user_code_released:false` \\u2014 i.e. losing the proof recovers conservatively, exactly as the comment in `release.rs` claims but nothing currently proves across a process boundary.\", \"[P1] The existing fault/override hooks cannot drive an out-of-process daemon, so the proposed checkpoints are a genuinely new mechanism and must be scoped as such. `FAIL_BEFORE_SEAL` in `journal.rs` is `#[cfg(test)]` *and* `thread_local!`, so it is unreachable from a controller thread and from a non-test binary; the `STILLYARD_TEST_CGROUP_ROOT` and `STILLYARD_TEST_EXECUTABLE` overrides in `runner/linux/runtime.rs` are likewise `#[cfg(test)]`, so a prebuilt debug daemon compiled without `cfg(test)` will not honour them. Either the isolated daemon must be built as a test binary (preferred \\u2014 keeps the whole fault surface out of any non-test build) or those overrides must move to `debug_assertions`, which widens the product surface and should be an explicit, separately-approved decision. Whichever is chosen, gate every checkpoint on the conjunction of: `cfg(debug_assertions)` (or `cfg(test)`), an explicitly-passed isolated Store root that string-equals the value the controller supplied and is not the installed root, and a binary path that is not the installed release image; a bare env var is not a sufficient gate because it is process-wide and inherited.\", \"[P1] Concrete minimal checkpoint set and expected irreversible states (all externally SIGKILLed at the exact isolated daemon pid, all with real Store/Journal/cgroup, synthetic authenticated replies unless marked pair). ARM: A1 after CandidateUpsert commit, before Arm ack \\u2014 restart re-`prepare()`s the same slot, must reuse plan ids, must not insert a second candidate, `leases` count stays 0 (the `attached_lease_insert` trigger is the backstop). A2 after the Arm ack commit \\u2014 restart must find `armed=1`, must not double-arm, and a second `prepare_job` for another job must still be capacity-blocked. LAUNCH: L1/L2 as in the create-gap finding; L3 after `journal.ready`, before `release_intent` \\u2014 restart seals with `possibly_released=false`, ticket never consumed, marker file absent; L4 after `release_intent` commit, before SQL consumption \\u2014 restart seals `possibly_released=true`, and relaunch of the same slot must be refused by `create`'s duplicate-invocation check (not by path inspection); L5 as in the post-commit finding; L6 after `child.release()` with live descendants \\u2014 restart's `kill_and_seal` must be verified by direct /proc checks on the recorded descendant pids, never by path absence. RELEASE: R1 after seal commit, before `record_attached_cleanup` \\u2014 restart's `cleanup` returns the identical Seal (idempotence already holds in `cleanup`'s early return) and the Release is enqueued exactly once; R2 after Release enqueued, before ack \\u2014 lease stays `granted` across a full daemon restart and admission stays blocked; R3 replayed Released ack (pair test).\", \"[P1] Duplicate-incarnation takeover after SIGKILL is untested and is the direct 'second user launch' surface. `Journal::open` takes an `fs2` exclusive lock, and `linux_executor_journal_never_reinitializes_missing_or_corrupt_history` proves a duplicate writer is refused \\u2014 but only while the first writer is alive. A SIGKILL releases the flock at the kernel level, so the realistic case is: incarnation N is killed mid-launch, incarnation N+1 acquires the lock, and the live cgroup from N is still populated. Bounded implementation: start a second isolated daemon against the same Store root after the kill and assert it (a) acquires the journal, (b) refuses `create` for the same InvocationId (record still present and unsealed), (c) cannot consume the still-unconsumed ticket, (d) creates no second cgroup under the parent (assert the parent's child count is unchanged \\u2014 an equality check on siblings is a legitimate duplicate detector even though child *absence* is not a seal proof), and (e) reaches release only through a seal of N's record.\", \"[P1] The fixture's reply path bypasses reply authentication and freshness, which is the main thing weakening the compositional argument, and it is cheap to fix without a live Windows peer. `tests::reply` builds a `Reply` struct directly and hands it to `accept`, so `coordinator_revision`, session binding and any wire-level MAC/decode over the reply are never exercised, while requests do go through `manager::pending(tx, secret)`. Bounded implementation: route fixture replies through the same encode/verify functions the Driver uses, with a private in-process pairing pair, so the synthetic coordinator is model-only in *policy* and real in *envelope*. That change alone converts several of the pair tests I listed from 'necessary' to 'confirmatory', and it is a test-side change that touches no product authority or freshness rule.\", \"[P2] Two fixture-hygiene items that will actively break the proposed matrix. `kernel_runtime` hardcodes `\\\"/tmp/attached-fixture.sock\\\"` for both `installed_registry` and `runner::run`, and `STILLYARD_TEST_CGROUP_ROOT`/`STILLYARD_TEST_EXECUTABLE` are process-wide; with several isolated daemons under one Windows Job protected bootstrap these collide across instances and can cross-connect a surviving daemon to a killed daemon's endpoint, producing false 'duplicate' or false 'clean' results. Bounded implementation: derive the socket path from the per-test tempdir, and pass the cgroup parent and helper path to the isolated daemon as explicit arguments alongside the isolated Store root rather than relying on inherited environment.\", \"[P2] Keep post-seal path observations from being promoted into recovery predicates. `cross_os.rs` asserts `!Path::new(&boundary.identity.path).exists()` after a successful `cleanup`, and `linux_executor_journal_recovers_live_boundary_and_seals_once` asserts `Boundary::reopen(&boundary.identity).is_err()`; both are fine as consequences of a committed Seal, but neither may become the input to a decision. State this explicitly in the new tests' comments so the next reader does not mine them for a cheap resolution of the two unrecoverable gaps. The only admissible resolutions remain: a positive `kill_and_seal` on a reopened, identity-verified boundary, or an authenticated coordinator-side clearance recorded through the existing `uncertainty_reason`/`risk_clearance` fields on `GrantSnapshot` \\u2014 an authority decision, never an automatic one, and never inferred from a changed `daemon_generation`/`executor_incarnation`.\", \"[P1 \\u2014 blocking assessment] The two gaps are liveness-only and should not block MR3's M-A04 acceptance on safety grounds: refusing forever is the conservative outcome, and the contract asks for detection of a second launch and of premature release, both of which the refusal preserves. They should, however, gate acceptance on three cheap deliverables: (1) both gaps pinned by the L1/L2 and remove-before-Seal tests as *permanently uncertain* states with the assertions named above; (2) an explicit, written statement that an unsealable record consumes `active` budget forever and that `MAX_ACTIVE` / the `create` headroom check turn repeated occurrences into installation-wide refusal of new obligations; (3) a named owner and separate item for the authenticated-clearance recovery path. Recommendation: accept MR3 with those three, and do not attempt the `create` reordering or any clearance mechanism inside this MR \\u2014 mixing a product-authority change into the crash-matrix MR is exactly what would make the resulting evidence hard to trust.\"], \"summary\": \"Read-only design review of the remaining M-A04 crash/duplicate matrix. Answer to the central question: composition of the existing real-Store/kernel fixture (synthetic replies) with MR2's real native coordinator matrix is sound for nearly the whole boundary set, but not for everything \\u2014 four full Driver+coordinator tests remain irreducible (replayed Arm ack, replayed Authorize ack, replayed Released ack, and the two-clock premature-TTL-with-live-cgroup case), because today both sides' ack-duplication rules are only ever validated against a model peer. I list a minimal externally-SIGKILLed checkpoint set (A1\\u2013A2, L1\\u2013L6, R1\\u2013R3, plus a duplicate-incarnation takeover) with the expected irreversible state at each. Three P0 issues beyond the matrix itself: the post-consumption/pre-`child.release()` window is untested across a real process death and is the sharpest second-user-launch hazard; `accept()`'s unconditional `released=1` lets a coordinator-initiated release free local admission capacity while the lease row stays `granted` and the cgroup stays populated; and the two named gaps (remove-before-Seal, create-before-boundary-commit) are correctly permanently-uncertain but escalate through `MAX_ACTIVE`/headroom into installation-wide refusal of new obligations. Those gaps are liveness-only and should not block MR3, provided they are pinned by tests, documented as permanent, and given a separately-owned authenticated-clearance recovery path; neither path absence nor a generation change is admissible as resolution. Also flagged: the fixture's `reply()` bypasses reply authentication (cheap fix that strengthens the whole compositional argument), the existing fault hooks are `cfg(test)`/thread-local and cannot drive an out-of-process daemon, and the hardcoded socket plus process-wide env overrides will collide across isolated daemons.\", \"verdict\": \"findings\"}}\n",
+            "stderr_tail": ""
+          }
+        ]
+      }
+    ],
+    "allocations": [
+      {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aba-f893-7751-9947-2c2df8cf441f",
+        "lease_id": "01a08aba-f87e-7a52-952f-9365fb533a99",
+        "key": {
+          "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+          "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+          "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+          "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+          "lease_id": "01a08aba-f87e-7a52-952f-9365fb533a99"
+        },
+        "owner": {
+          "kind": "work",
+          "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f876-7b20-ae01-572fb95e7f95",
+          "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f87e-7a52-952f-933bb2182c9d"
+        },
+        "state": "released",
+        "claims": {
+          "scalars": {
+            "cargo_slots": 0,
+            "claude2_slots": 1,
+            "cpu_units": 0,
+            "gpu_slots": 0,
+            "ram_mb": 0
+          },
+          "shared_fences": [],
+          "exclusive_fences": [],
+          "impacts": []
+        }
+      }
+    ],
+    "gpu_provenance": null,
+    "admission": null,
+    "daemon_generation": "01a08ad5-7601-7410-a51f-54dda4aed237"
+  },
+  {
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a17-73f2-9fbb-b4b8aa1d7cc7",
+    "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a15-7273-80be-94f588f75412",
+    "batch_id": null,
+    "batch_member": null,
+    "state": "final",
+    "outcome": "succeeded",
+    "reason_code": null,
+    "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1d-7802-9867-53e746ef956c",
+    "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1e-7a83-b7c5-c518364a4a23",
+    "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1e-7a83-b7c5-c52ac57115a0",
+    "root_exit_code": 0,
+    "cancel_requested": false,
+    "accepted_unix_millis": 1789033908759,
+    "priority": 0,
+    "effective_priority": null,
+    "queue_rank": null,
+    "reservation": null,
+    "conditions": [],
+    "started_unix_millis": 1789034046486,
+    "finished_unix_millis": 1789034055724,
+    "spec": {
+      "spec_version": 4,
+      "priority": 0,
+      "executable": "/home/pythonic/.cargo/bin/cargo",
+      "args": [
+        "check",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--all-targets"
+      ],
+      "working_directory": "/home/pythonic/Development/stillyard-wc3-scratch-20260910z8",
+      "stdin": {
+        "kind": "eof"
+      },
+      "environment": {
+        "set": {
+          "CARGO_BUILD_JOBS": "4",
+          "CARGO_HOME": "/home/pythonic/.cargo",
+          "CARGO_TARGET_DIR": "/home/pythonic/Development/stillyard-wc3-scratch-20260910z8/target/scheduled-linux",
+          "HOME": "/home/pythonic",
+          "PATH": "/home/pythonic/.cargo/bin:/usr/bin:/bin",
+          "RUSTUP_HOME": "/home/pythonic/.rustup",
+          "RUSTUP_TOOLCHAIN": "stable-x86_64-unknown-linux-gnu"
+        },
+        "unset": []
+      },
+      "resources": {
+        "cpu_units": null,
+        "ram_mb": null,
+        "cargo_slots": 1,
+        "gpu_slots": null,
+        "custom": {},
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      },
+      "observed": null,
+      "conditions": [],
+      "retry": {
+        "max_attempts": 1,
+        "backoff_seconds": 0,
+        "retryable": []
+      },
+      "postconditions": [],
+      "labels": [
+        {
+          "key": "project",
+          "value": "stillyard"
+        },
+        {
+          "key": "acceptance",
+          "value": "W-C3-child"
+        }
+      ],
+      "expected_duration_seconds": null,
+      "timeout_seconds": 600,
+      "quiet": null,
+      "artifacts": [],
+      "child_submission_policy": null
+    },
+    "parent": {
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f5f2-7d40-adba-877947e79052",
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f5fb-7443-9c0f-a8bf1b716665",
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f5fc-7e03-8e1d-4c2597cc6139"
+    },
+    "managed_policy_admission": {
+      "parent": {
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f5f2-7d40-adba-877947e79052",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f5fb-7443-9c0f-a8bf1b716665",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f5fc-7e03-8e1d-4c2597cc6139"
+      },
+      "evaluated_unix_millis": 1789033908759,
+      "effective_policy": {
+        "min_priority": 0,
+        "max_priority": 0,
+        "max_claims": {
+          "cpu_units": null,
+          "ram_mb": null,
+          "cargo_slots": 1,
+          "gpu_slots": null,
+          "custom": {}
+        },
+        "allowed_impacts": [
+          "cpu_heavy"
+        ],
+        "required_labels": [
+          {
+            "key": "project",
+            "value": "stillyard"
+          }
+        ],
+        "fences": {
+          "shared_roots": [],
+          "exclusive_roots": []
+        },
+        "allow_observed": false,
+        "allow_quiet": false,
+        "allow_delegation": false
+      },
+      "policy_ancestors": [
+        "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f5f2-7d40-adba-877947e79052"
+      ]
+    },
+    "blockers": [],
+    "attempts": [
+      {
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1d-7802-9867-53e746ef956c",
+        "attempt_index": 1,
+        "verdict": "succeeded",
+        "reason_code": null,
+        "created_unix_millis": 1789033908765,
+        "started_unix_millis": 1789034046218,
+        "deadline_unix_millis": 1789034646218,
+        "finished_unix_millis": 1789034055724,
+        "primary_result": {
+          "schema_version": 1,
+          "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a17-73f2-9fbb-b4b8aa1d7cc7",
+          "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1d-7802-9867-53e746ef956c",
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1e-7a83-b7c5-c518364a4a23",
+          "verdict": "succeeded",
+          "root_exit_code": 0,
+          "termination": "exited",
+          "containment": "empty",
+          "started_unix_millis": 1789034046486,
+          "exited_unix_millis": 1789034055495,
+          "resolved_unix_millis": 1789034055677
+        },
+        "admission": null,
+        "invocations": [
+          {
+            "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1e-7a83-b7c5-c518364a4a23",
+            "role": "primary",
+            "role_index": 0,
+            "state": "resolved",
+            "root_pid": 805088,
+            "root_identity": {
+              "platform": "linux",
+              "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+              "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+              "pid": 805088,
+              "start_ticks": 8015302,
+              "pid_namespace_inode": 4026534296,
+              "uid": 1000
+            },
+            "root_exit_code": 0,
+            "exit_classification": null,
+            "executable_hash": "dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71",
+            "daemon_generation": "01a08ab5-ad34-7873-80b6-30c34391ab7e",
+            "started_unix_millis": 1789034046486,
+            "finished_unix_millis": 1789034055677,
+            "containment": {
+              "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1e-7a83-b7c5-c52ac57115a0",
+              "state": "empty",
+              "strength": "linux_cgroup_v2",
+              "incident_id": null,
+              "incident": null,
+              "resolution": null,
+              "resolution_audit": null
+            },
+            "stdout_tail": "",
+            "stderr_tail": "    Checking stillyard v0.1.0-alpha.20 (/home/pythonic/Development/stillyard-wc3-scratch-20260910z8)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.91s\n"
+          }
+        ]
+      }
+    ],
+    "allocations": [
+      {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08abd-229e-71a0-96b6-7d85e2497ee2",
+        "lease_id": "01a08abb-0a1e-7a83-b7c5-c5347eb0dea8",
+        "key": {
+          "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+          "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+          "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+          "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+          "lease_id": "01a08abb-0a1e-7a83-b7c5-c5347eb0dea8"
+        },
+        "owner": {
+          "kind": "work",
+          "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a17-73f2-9fbb-b4b8aa1d7cc7",
+          "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08abb-0a1d-7802-9867-53e746ef956c"
+        },
+        "state": "released",
+        "claims": {
+          "scalars": {
+            "cargo_slots": 1,
+            "cpu_units": 0,
+            "gpu_slots": 0,
+            "ram_mb": 0
+          },
+          "shared_fences": [],
+          "exclusive_fences": [],
+          "impacts": [
+            "cpu_heavy"
+          ]
+        }
+      }
+    ],
+    "gpu_provenance": null,
+    "admission": null,
+    "daemon_generation": "01a08ad5-7601-7410-a51f-54dda4aed237"
+  }
+]

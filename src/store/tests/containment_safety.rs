@@ -1,9 +1,105 @@
 use super::*;
 
 #[test]
+fn typed_linux_root_roundtrips_all_containment_views_without_filetime_aliasing() {
+    let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+    let startup = StartupIdentity {
+        host_id: Some(HostId("store-fixture-host".into())),
+        boot_id: Some(BootId("store-fixture-boot".into())),
+        daemon_process: Some(ProcessIdentity::Windows {
+            host_id: HostId("store-fixture-host".into()),
+            boot_id: BootId("store-fixture-boot".into()),
+            pid: 1,
+            creation_filetime_100ns: 1,
+        }),
+        failures: vec![],
+    };
+    // Pure Store codec/lifecycle control. This fixture does not claim a real OS backend.
+    let mut store = Store::open_with_config(
+        StorePaths::new(temp.path().into()),
+        HostConfig::default(),
+        startup,
+    )
+    .unwrap();
+    let job_spec = spec(temp.path());
+    let receipt = store
+        .submit(
+            Uuid::now_v7(),
+            &normalized_payload_hash(&job_spec).unwrap(),
+            &job_spec,
+        )
+        .unwrap()
+        .receipt;
+    let prepared = store.prepare_job(receipt.job_id).unwrap().unwrap();
+    let identity = ProcessIdentity::Linux {
+        host_id: HostId("linux-test-host".into()),
+        boot_id: BootId("linux-test-boot".into()),
+        pid: 4242,
+        start_ticks: 17,
+        pid_namespace_inode: 19,
+        uid: 1000,
+    };
+    store
+        .mark_started_with_identity(&prepared, 4242, "typed-test-image", Some(&identity))
+        .unwrap();
+    assert_eq!(
+        store.status(receipt.job_id).unwrap().attempts[0].invocations[0].root_identity,
+        Some(identity.clone())
+    );
+    let legacy: Option<i64> = store
+        .connection
+        .query_row(
+            "SELECT root_creation_filetime_100ns FROM invocations WHERE id=?1",
+            [prepared.invocation_id.entity_uuid().to_string()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(legacy.is_none());
+    store
+        .mark_uncertain(&prepared, None, "interrupted")
+        .unwrap();
+    assert_eq!(
+        store
+            .reconciliation_candidate(prepared.containment_id)
+            .unwrap()
+            .root_identity,
+        Some(identity.clone())
+    );
+    assert_eq!(
+        store.reconciliation_candidates(0, 32).unwrap()[0].root_identity,
+        Some(identity.clone())
+    );
+    assert_eq!(
+        store.clearance_authorization_evidence().unwrap().1,
+        vec![identity.clone()]
+    );
+    let mut cache = DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation());
+    assert_eq!(
+        store
+            .doctor("test", None, None, &mut cache)
+            .unwrap()
+            .incidents
+            .incidents[0]
+            .root_identity,
+        Some(identity)
+    );
+    store
+        .connection
+        .execute(
+            "UPDATE invocation_process_identities SET identity_json='{}'",
+            [],
+        )
+        .unwrap();
+    assert!(
+        store.status(receipt.job_id).is_err(),
+        "corrupt typed identity silently fell back to legacy columns"
+    );
+}
+
+#[test]
 fn creating_and_started_records_capture_exact_identity() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let job_spec = spec(temp.path());
     let hash = normalized_payload_hash(&job_spec).unwrap();
     let receipt = store
@@ -29,7 +125,10 @@ fn creating_and_started_records_capture_exact_identity() {
         store.startup_identity.boot_id.as_ref().unwrap().0
     );
     assert_eq!(creating.2, store.daemon_generation.to_string());
+    #[cfg(windows)]
     assert_eq!(creating.3, "windows_job_object");
+    #[cfg(target_os = "linux")]
+    assert_eq!(creating.3, "linux_cgroup_v2");
 
     let root = ProcessIdentity::Windows {
         host_id: store.startup_identity.host_id.clone().unwrap(),
@@ -53,8 +152,8 @@ fn creating_and_started_records_capture_exact_identity() {
 
 #[test]
 fn clearance_is_idempotent_and_audited_through_status() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let mut doctor_cache = DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation());
     let job_spec = spec(temp.path());
     let hash = normalized_payload_hash(&job_spec).unwrap();
@@ -123,8 +222,8 @@ fn clearance_is_idempotent_and_audited_through_status() {
 
 #[test]
 fn attempt_wide_predicate_waits_for_every_containment() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let job_spec = spec(temp.path());
     let hash = normalized_payload_hash(&job_spec).unwrap();
     let receipt = store
@@ -201,8 +300,8 @@ fn attempt_wide_predicate_waits_for_every_containment() {
 
 #[test]
 fn force_commit_rejects_a_changed_authorization_set() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let job_spec = spec(temp.path());
     let hash = normalized_payload_hash(&job_spec).unwrap();
     let first_receipt = store
@@ -249,7 +348,7 @@ fn force_commit_rejects_a_changed_authorization_set() {
 
 #[test]
 fn missing_host_capability_blocks_before_lease_grant() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let config = HostConfig {
         resources: capacities(),
         impact_incompatibilities: Default::default(),
@@ -289,7 +388,7 @@ fn missing_host_capability_blocks_before_lease_grant() {
 
 #[test]
 fn doctor_reports_loaded_config_evidence() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let config = HostConfig {
         resources: capacities(),
         impact_incompatibilities: [("measurement".into(), vec!["cpu_heavy".into()])].into(),
@@ -299,7 +398,7 @@ fn doctor_reports_loaded_config_evidence() {
     let store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut doctor_cache = DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation());
@@ -310,10 +409,10 @@ fn doctor_reports_loaded_config_evidence() {
 
 #[test]
 fn unbound_pending_store_binds_without_reset() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     let (store_uuid, job_id) = {
-        let mut store = Store::open(paths).unwrap();
+        let mut store = open_model_store(paths).unwrap();
         let job_spec = spec(temp.path());
         let hash = normalized_payload_hash(&job_spec).unwrap();
         let job_id = store
@@ -327,7 +426,7 @@ fn unbound_pending_store_binds_without_reset() {
             .unwrap();
         (store.store_uuid, job_id)
     };
-    let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     assert_eq!(store.store_uuid, store_uuid);
     assert_eq!(store.status(job_id).unwrap().state, JobState::Pending);
     assert_eq!(store.bound_host_id, store.startup_identity.host_id);
@@ -335,10 +434,10 @@ fn unbound_pending_store_binds_without_reset() {
 
 #[test]
 fn unbound_store_with_containment_is_replaced() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     let original_uuid = {
-        let mut store = Store::open(paths).unwrap();
+        let mut store = open_model_store(paths).unwrap();
         let job_spec = spec(temp.path());
         let hash = normalized_payload_hash(&job_spec).unwrap();
         let receipt = store
@@ -352,7 +451,7 @@ fn unbound_store_with_containment_is_replaced() {
             .unwrap();
         store.store_uuid
     };
-    let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     assert_ne!(store.store_uuid, original_uuid);
     let containments: u64 = store
         .connection
@@ -364,10 +463,10 @@ fn unbound_store_with_containment_is_replaced() {
 #[cfg(windows)]
 #[test]
 fn foreign_host_binding_resets_the_whole_store() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let original_uuid = Store::open(paths.clone()).unwrap().store_uuid;
-    let observed = probe_startup_identity();
+    let original_uuid = open_model_store(paths.clone()).unwrap().store_uuid;
+    let observed = model_identity();
     let boot_id = observed.boot_id.unwrap();
     let (pid, creation_filetime_100ns) = match observed.daemon_process.unwrap() {
         ProcessIdentity::Windows {
@@ -375,7 +474,7 @@ fn foreign_host_binding_resets_the_whole_store() {
             creation_filetime_100ns,
             ..
         } => (pid, creation_filetime_100ns),
-        ProcessIdentity::Unknown { .. } => panic!("Windows test requires Windows identity"),
+        _ => panic!("Windows test requires Windows identity"),
     };
     let foreign_host = HostId("sha256:fixture-foreign-host".into());
     let startup = StartupIdentity {
@@ -405,9 +504,9 @@ fn foreign_host_binding_resets_the_whole_store() {
 
 #[test]
 fn doctor_incidents_are_frozen_across_pages() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open(paths.clone()).unwrap();
+    let mut store = open_model_store(paths.clone()).unwrap();
     let mut doctor_cache = DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation());
     let mut original = Vec::new();
     for _ in 0..3 {
@@ -486,8 +585,8 @@ fn doctor_incidents_are_frozen_across_pages() {
 
 #[test]
 fn doctor_rejects_foreign_unknown_tampered_and_expired_cursors() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let mut doctor_cache = DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation());
     for _ in 0..2 {
         let job_spec = spec(temp.path());
@@ -539,9 +638,9 @@ fn doctor_rejects_foreign_unknown_tampered_and_expired_cursors() {
 
 #[test]
 fn doctor_rejects_cursor_from_previous_daemon_generation() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open(paths.clone()).unwrap();
+    let mut store = open_model_store(paths.clone()).unwrap();
     let mut cache = DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation());
     for _ in 0..2 {
         let job_spec = spec(temp.path());
@@ -561,7 +660,7 @@ fn doctor_rejects_cursor_from_previous_daemon_generation() {
         .unwrap();
     drop(store);
 
-    let reopened = Store::open(paths).unwrap();
+    let reopened = open_model_store(paths).unwrap();
     let mut restarted_cache =
         DoctorSnapshotCache::new(reopened.store_uuid(), reopened.daemon_generation());
     assert!(matches!(
@@ -572,9 +671,9 @@ fn doctor_rejects_cursor_from_previous_daemon_generation() {
 
 #[test]
 fn doctor_snapshot_stress_resists_parallel_incident_turnover() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open(paths.clone()).unwrap();
+    let mut store = open_model_store(paths.clone()).unwrap();
     let mut doctor_cache = DoctorSnapshotCache::new(store.store_uuid(), store.daemon_generation());
     for _ in 0..40 {
         let job_spec = spec(temp.path());
@@ -654,8 +753,8 @@ fn doctor_snapshot_stress_resists_parallel_incident_turnover() {
 
 #[test]
 fn doctor_default_page_is_bounded_below_protocol_limit() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let job_spec = spec(temp.path());
     let hash = normalized_payload_hash(&job_spec).unwrap();
     let receipt = store

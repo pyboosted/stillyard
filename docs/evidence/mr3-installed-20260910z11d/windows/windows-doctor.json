@@ -1,0 +1,551 @@
+{
+  "schema_version": 1,
+  "observed_unix_millis": 1789041555193,
+  "overall": "attention_required",
+  "daemon": {
+    "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+    "daemon_generation": "01a08b2f-ae10-7451-943c-2d1137c525cd",
+    "version": "0.1.0-alpha.20",
+    "pid": 50036,
+    "process_identity": {
+      "platform": "windows",
+      "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+      "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+      "pid": 50036,
+      "creation_filetime_100ns": 134335151527667390
+    },
+    "endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+    "store_path": "\\\\?\\C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\data",
+    "config_path": "\\\\?\\C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\data\\config.json",
+    "capacities": {
+      "cpu_units": 0,
+      "ram_mb": 32768,
+      "cargo_slots": 1,
+      "gpu_slots": 1,
+      "custom": {
+        "claude1_slots": 4,
+        "claude2_slots": 4,
+        "codex1_slots": 4,
+        "codex2_slots": 4,
+        "grok_slots": 4,
+        "opencode_slots": 4,
+        "vram_mb:GPU-a1144c26-a15c-cba1-3b7a-870c755ef08a": 30000
+      }
+    },
+    "resources": {
+      "cpu_units": {
+        "capacity": 0,
+        "granted": 0,
+        "reserved": 0
+      },
+      "ram_mb": {
+        "capacity": 32768,
+        "granted": 0,
+        "reserved": 0
+      },
+      "cargo_slots": {
+        "capacity": 1,
+        "granted": 0,
+        "reserved": 0
+      },
+      "gpu_slots": {
+        "capacity": 1,
+        "granted": 0,
+        "reserved": 0
+      },
+      "custom": {
+        "claude1_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "claude2_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "codex1_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "codex2_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "grok_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "opencode_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "vram_mb:gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a": {
+          "capacity": 30000,
+          "granted": 0,
+          "reserved": 0
+        }
+      }
+    },
+    "machine_scheduling": {
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domains": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "machine_scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+        "native_domain": "01a08727-697d-7002-b4e5-c9c5feed5486"
+      },
+      "mode": "coordinator",
+      "observed_unix_millis": 1789041555195,
+      "configuration_sha256": "7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978",
+      "resources": [
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "cargo_slots"
+          },
+          "capacity": 1,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "claude1_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "claude2_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "codex1_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "codex2_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "cpu_units"
+          },
+          "capacity": 0,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "gpu_slots"
+          },
+          "capacity": 1,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "grok_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "opencode_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "ram_mb"
+          },
+          "capacity": 32768,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "vram_mb:gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a"
+          },
+          "capacity": 30000,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "05d9f444-6a6f-4027-9a2e-3f2803924245",
+            "kind": "scalar",
+            "resource_id": "ram_mb"
+          },
+          "capacity": 32768,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+            "kind": "scalar",
+            "resource_id": "cargo_slots"
+          },
+          "capacity": 2,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+            "kind": "scalar",
+            "resource_id": "ram_mb"
+          },
+          "capacity": 16384,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        }
+      ],
+      "blocker": null
+    },
+    "config_sha256": "7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978",
+    "queued_jobs": 0,
+    "running_jobs": 0
+  },
+  "host": {
+    "platform": "windows",
+    "host_name": "THESERVER",
+    "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+    "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+    "containment_strength": "windows_job_object",
+    "session_survival": "pass"
+  },
+  "store": {
+    "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+    "schema_epoch": "stillyard-conditions-r3-2026-09-02",
+    "bound_host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+    "filesystem": "local_fixed_ntfs",
+    "sqlite_journal_mode": "wal",
+    "sqlite_synchronous": "full",
+    "foreign_keys_enabled": true
+  },
+  "checks": [
+    {
+      "code": "authority.admission",
+      "status": "pass",
+      "summary": "authority_ready",
+      "remediation": null
+    },
+    {
+      "code": "configuration.loaded",
+      "status": "pass",
+      "summary": "loaded configuration evidence is available",
+      "remediation": null
+    },
+    {
+      "code": "containment.unresolved",
+      "status": "pass",
+      "summary": "0 unresolved containment incident(s)",
+      "remediation": null
+    },
+    {
+      "code": "containment.windows_job_object",
+      "status": "pass",
+      "summary": "born-contained Windows Job Object capability",
+      "remediation": null
+    },
+    {
+      "code": "detector.commit_headroom",
+      "status": "pass",
+      "summary": "commit-limit headroom evidence is available",
+      "remediation": null
+    },
+    {
+      "code": "detector.cpu",
+      "status": "warning",
+      "summary": "total CPU utilization is temporarily unavailable",
+      "remediation": "warming_up"
+    },
+    {
+      "code": "detector.disk",
+      "status": "warning",
+      "summary": "aggregate disk utilization is temporarily unavailable",
+      "remediation": "warming_up"
+    },
+    {
+      "code": "detector.gpu_compute_processes:gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a",
+      "status": "pass",
+      "summary": "GPU gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a reports 37 compute process(es)",
+      "remediation": null
+    },
+    {
+      "code": "detector.gpu_memory:gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a",
+      "status": "pass",
+      "summary": "GPU gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a driver 616.86 reports 27371 MiB free VRAM",
+      "remediation": null
+    },
+    {
+      "code": "detector.gpu_placement",
+      "status": "pass",
+      "summary": "configured GPU gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a is present in current NVML topology",
+      "remediation": null
+    },
+    {
+      "code": "detector.gpu_utilization:gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a",
+      "status": "pass",
+      "summary": "GPU gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a utilization is 2%",
+      "remediation": null
+    },
+    {
+      "code": "detector.nvml",
+      "status": "pass",
+      "summary": "NVML covers 1 GPU(s): gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a driver 616.86",
+      "remediation": null
+    },
+    {
+      "code": "detector.physical_memory",
+      "status": "pass",
+      "summary": "available physical memory evidence is available",
+      "remediation": null
+    },
+    {
+      "code": "detector.process_rules",
+      "status": "pass",
+      "summary": "process policy has 7 block and 2 ignore pattern(s)",
+      "remediation": null
+    },
+    {
+      "code": "detector.processes",
+      "status": "pass",
+      "summary": "bounded process inventory evidence is available",
+      "remediation": null
+    },
+    {
+      "code": "detector.sampler_freshness",
+      "status": "pass",
+      "summary": "synchronous observation sample is fresh",
+      "remediation": null
+    },
+    {
+      "code": "host.boot_identity",
+      "status": "pass",
+      "summary": "startup-latched boot identity",
+      "remediation": null
+    },
+    {
+      "code": "host.machine_identity",
+      "status": "pass",
+      "summary": "current host matches the durable store binding",
+      "remediation": null
+    },
+    {
+      "code": "host.session_survival",
+      "status": "pass",
+      "summary": "detached per-user daemon session is active",
+      "remediation": null
+    },
+    {
+      "code": "ipc.owner_only",
+      "status": "pass",
+      "summary": "named pipe is owner-only and rejects remote clients",
+      "remediation": null
+    },
+    {
+      "code": "runtime_timer_expirations",
+      "status": "pass",
+      "summary": "{\"attached\":0,\"backoff\":0,\"reactor\":0,\"subscriber\":0,\"transport\":0}",
+      "remediation": null
+    },
+    {
+      "code": "store.filesystem",
+      "status": "pass",
+      "summary": "store path was validated as local fixed NTFS",
+      "remediation": null
+    },
+    {
+      "code": "store.schema",
+      "status": "pass",
+      "summary": "validated schema epoch stillyard-conditions-r3-2026-09-02",
+      "remediation": null
+    },
+    {
+      "code": "store.sqlite_durability",
+      "status": "pass",
+      "summary": "journal=wal, synchronous=2, foreign_keys=true",
+      "remediation": null
+    }
+  ],
+  "coverage": [
+    {
+      "provider": "windows_memory",
+      "detector": "physical_memory",
+      "status": "pass",
+      "observed_unix_millis": 1789041555195,
+      "observation_generation": "01a08b2f-ae29-7a62-8f56-9a9bd7e0d4a7",
+      "remediation": null
+    },
+    {
+      "provider": "windows_memory",
+      "detector": "commit_headroom",
+      "status": "pass",
+      "observed_unix_millis": 1789041555195,
+      "observation_generation": "01a08b2f-ae29-7a62-8f56-9a9bd7e0d4a7",
+      "remediation": null
+    },
+    {
+      "provider": "windows_system_times",
+      "detector": "cpu",
+      "status": "warning",
+      "observed_unix_millis": 1789041555195,
+      "observation_generation": "01a08b2f-ae29-7a62-8f56-9a9bd7e0d4a7",
+      "remediation": "warming_up"
+    },
+    {
+      "provider": "windows_disk_performance",
+      "detector": "disk",
+      "status": "warning",
+      "observed_unix_millis": 1789041555195,
+      "observation_generation": "01a08b2f-ae29-7a62-8f56-9a9bd7e0d4a7",
+      "remediation": "warming_up"
+    },
+    {
+      "provider": "windows_toolhelp",
+      "detector": "processes",
+      "status": "pass",
+      "observed_unix_millis": 1789041555195,
+      "observation_generation": "01a08b2f-ae29-7a62-8f56-9a9bd7e0d4a7",
+      "remediation": null
+    },
+    {
+      "provider": "windows_toolhelp",
+      "detector": "process_rules",
+      "status": "pass",
+      "observed_unix_millis": 1789041555195,
+      "observation_generation": "01a08b2f-ae29-7a62-8f56-9a9bd7e0d4a7",
+      "remediation": null
+    },
+    {
+      "provider": "host_sampler",
+      "detector": "sampler_freshness",
+      "status": "pass",
+      "observed_unix_millis": 1789041555195,
+      "observation_generation": "01a08b2f-ae29-7a62-8f56-9a9bd7e0d4a7",
+      "remediation": null
+    },
+    {
+      "provider": "nvml",
+      "detector": "nvml",
+      "status": "pass",
+      "observed_unix_millis": 1789041555195,
+      "observation_generation": "01a08b2f-ae29-7a62-8f56-9a9bd7e0d4a7",
+      "remediation": null
+    },
+    {
+      "provider": "nvml",
+      "detector": "gpu_placement",
+      "status": "pass",
+      "observed_unix_millis": 1789041555195,
+      "observation_generation": "01a08b2f-ae29-7a62-8f56-9a9bd7e0d4a7",
+      "remediation": null
+    },
+    {
+      "provider": "nvml",
+      "detector": "gpu_memory:gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a",
+      "status": "pass",
+      "observed_unix_millis": 1789041555195,
+      "observation_generation": "01a08b2f-ae29-7a62-8f56-9a9bd7e0d4a7",
+      "remediation": null
+    },
+    {
+      "provider": "nvml",
+      "detector": "gpu_utilization:gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a",
+      "status": "pass",
+      "observed_unix_millis": 1789041555195,
+      "observation_generation": "01a08b2f-ae29-7a62-8f56-9a9bd7e0d4a7",
+      "remediation": null
+    },
+    {
+      "provider": "nvml",
+      "detector": "gpu_compute_processes:gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a",
+      "status": "pass",
+      "observed_unix_millis": 1789041555195,
+      "observation_generation": "01a08b2f-ae29-7a62-8f56-9a9bd7e0d4a7",
+      "remediation": null
+    }
+  ],
+  "incidents": {
+    "total_unresolved": 0,
+    "incidents": [],
+    "truncated": false,
+    "next_cursor": null
+  },
+  "boundaries": [
+    {
+      "code": "cloned_host_identity",
+      "statement": "simultaneous machine clones with the same MachineGuid cannot be distinguished"
+    },
+    {
+      "code": "no_hard_resource_partition",
+      "statement": "resource admission is not CPU, GPU, or RAM hard enforcement"
+    },
+    {
+      "code": "physical_power_loss_after_ack",
+      "statement": "physical power loss may exceed the acknowledged storage boundary"
+    },
+    {
+      "code": "same_owner_out_of_boundary_process",
+      "statement": "deliberate same-owner out-of-boundary process creation is outside the cooperative guarantee"
+    }
+  ]
+}

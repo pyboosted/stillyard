@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b3d-7337-7541-ad45-c5cbd0f7bf3c",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b3d-7332-71c0-9c44-79c666d2c79e",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b3d-7345-7730-9a4a-5a42097f963e",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b42-e703-7310-94c3-54ff8d495780",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b42-e703-7310-94c3-550cfbb5e493",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789042455351,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789042455835,
+  "finished_unix_millis": 1789042813160,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-mr3-opus-attestation-20260910z11e/1f6a6382289845c9b6eee597a5fb5555/reviewer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-mr3-opus-attestation-20260910z11e/1f6a6382289845c9b6eee597a5fb5555/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-mr3-opus-attestation-20260910z11e/1f6a6382289845c9b6eee597a5fb5555/review.json",
+      "--model",
+      "opus",
+      "--effort",
+      "high"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-attestation-20260910z11e/1f6a6382289845c9b6eee597a5fb5555",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-mr3-opus-attestation-20260910z11e/1f6a6382289845c9b6eee597a5fb5555/reviewer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-mr3-opus-attestation-20260910z11e/1f6a6382289845c9b6eee597a5fb5555/review.json",
+          "--expected-model-prefix",
+          "claude-opus-"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr3-opus-attestation-z11e"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b3d-7345-7730-9a4a-5a42097f963e",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789042455363,
+      "started_unix_millis": 1789042455626,
+      "deadline_unix_millis": 1789043655626,
+      "finished_unix_millis": 1789042813160,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b3d-7337-7541-ad45-c5cbd0f7bf3c",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b3d-7345-7730-9a4a-5a42097f963e",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b3d-7345-7730-9a4a-5a5978b4b6bf",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789042455835,
+        "exited_unix_millis": 1789042812553,
+        "resolved_unix_millis": 1789042812645
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b3d-7345-7730-9a4a-5a5978b4b6bf",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 1583845,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1583845,
+            "start_ticks": 8856241,
+            "pid_namespace_inode": 4026534486,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b2f-b3e1-7b93-9dce-92828505ee47",
+          "started_unix_millis": 1789042455835,
+          "finished_unix_millis": 1789042812645,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b3d-7345-7730-9a4a-5a6bc8c02bde",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "ls closed on `None`; nonce zero, nested `Request::Attested` and nested `Response::Attested` are all refused on both signer and verifier; the signature binds server identity, parent, nonce, request hash and response, and `Trusted::new` re-pins image dev/ino/hash, endpoint and parent. Primary-only submission authority is still enforced independently of transport identity, both by `current` in `managed_containment_candidates` + `!immediate.current` in `resolve_managed_membership`, and by `validate_current_parent_identity`'s `role='primary'` predicate re-run inside the acceptance transaction, so a postcondition/probe can neither submit nor present as unmanaged. I found no forgery or downgrade hole. The material issue is blast radius/availability: broadening the candidate set to every live containment of the current generation now feeds `resolve_managed_membership` invocations for which the daemon may hold no boundary handle, and a single such candidate hard-fails peer authentication for all callers. Remaining items are lower severity or optional.\\\",\\\"verdict\\\":\\\"findings\\\",\\\"findings\\\":[\\\"MATERIAL \u2014 one unresolvable containment now denies peer authentication for every client. `managed_containment_candidates` (src/store/admission.rs) filters only on `invocations.daemon_generation = ?1 AND containments.state = 'live'`; the started/root-pid/job-active predicates moved out of the WHERE clause into the `current` flag. `resolve_managed_membership` (src/daemon/reactor.rs) must ask the kernel about every returned candidate and converts the first `Ok(None)` into `StoreError::InvalidState(\\\\\\\"a possibly live managed Containment has no daemon-held handle\\\\\\\")`, aborting before it even knows whether the peer matched some other candidate. `Registry::contains` (src/runner/linux/registry.rs) returns `None` for `Entry::Uninspectable` and for any invocation with no active entry and no durable seal. A concrete permanent case: if `journal.create` fails (or the runtime dies) after the Store rows exist but before `Registry::register`, there is no journal record, so `cleanup` cannot seal, `persist_uncertain_cleanup` keeps the containment live, and `Registry::reconcile` rejects it with \\\\\\\"unknown Linux reconciliation obligation\\\\\\\" \u2014 the row stays live for the whole generation, `contains` returns `None` forever, and from then on every request routed through `submission_context` (Submit, SubmitBatch, Recover, Wait, managed-wait Observe, SubmissionContext, BootstrapArm/Seal, authority_admin) fails for managed and unmanaged callers alike, on Linux and Windows. The same shape applies transiently to prepared-but-unregistered invocations if containment rows are `live` from preparation, which `ReconciliationCandidate { root_pid_recorded, root_identity: None }` and `validate_attested_invocation`'s separate `root_pid IS NOT NULL` predicate both suggest. Note the fatal `None` is the right security choice (skipping an uninspectable candidate would let a contained peer be classified unmanaged), so the fix belongs in the candidate query or in scoping the failure: keep all roles but restrict the WHERE clause to invocations whose boundary is registered/sealed, and/or fail only the request whose lineage actually depends on the uninspectable candidate.\\\",\\\"MATERIAL (diagnosability, and the exact symptom reported in W-C3) \u2014 attested failures are opaque to the caller. `attested_request` (src/daemon/rpc.rs) returns a bare `Response::Error { code: \\\\\\\"server_attestation_unavailable\\\\\\\", message: error.to_string() }` for every pre-signature failure, and the client (`client/linux.rs::attested_request`) discards that code and message entirely, replacing them with the fixed string \\\\\\\"namespace-hidden server returned no authenticated response\\\\\\\". Every distinct cause \u2014 stale generation, dead invocation, peer not in the claimed containment, signer unavailable, and the `InvalidState` from the item above \u2014 collapses to one message with no server detail, which is why the failing postcondition status was hard to attribute. Since the attested path deliberately skips `peer.verify_executable`, the response is also genuinely untrusted, so surface it as such rather than dropping it: propagate the unsigned `code`/`message` clearly labelled as unauthenticated daemon output.\\\",\\\"LOWER SEVERITY (Windows, fail-closed) \u2014 `resolve_managed_membership`'s lineage bookkeeping is keyed per Job while the candidate set is now per Invocation. `lineage` is a `HashSet<JobId>`, the ancestor walk resolves via `matched.iter().find(|parent| parent.parent.job_id == parent_job_id)` (arbitrary pick among invocations of the same Job), and the final invariant compares `lineage.len() != matched.len()` (job count vs. invocation count). While candidates were primary-and-current only, at most one candidate per Job could appear; now a Job can contribute a primary plus a postcondition/probe, or a stuck prior attempt. If a Windows peer is ever a member of two live containments belonging to the same Job (only possible where the platform nests them; impossible on Linux, where cgroup v2 membership is single-leaf), it produces either two `leaves` (\\\\\\\"ambiguous Stillyard containments\\\\\\\") or a length mismatch (\\\\\\\"unrelated Stillyard containments\\\\\\\") and a legitimate managed peer is rejected. I could not construct a reachable nesting from the supplied source, so this is a latent invariant break rather than a demonstrated regression; keying lineage and the parent lookup by `invocation_id` would restore the invariant. No Windows-path test in the supplied set exercises multi-candidate matching at all.\\\",\\\"TEST COVERAGE \u2014 the only probe evidence is a model role mutation. `non_primary_transport_identity_does_not_confer_child_authority` sets `role='probe'` with raw SQL on a postcondition invocation row, so it proves the SQL classification but not that a real probe Invocation produces a `containments` row that this join reaches. Since the whole anti-downgrade property depends on a probe appearing in `managed_containment_candidates` with `current=false`, the planned live tests should assert candidate membership for an actually prepared+started probe Invocation (and for an Invocation still in the prepared state, which is what the broadened WHERE clause now admits).\\\",\\\"OPTIONAL \u2014 `request_sha256` is computed over a re-serialization rather than over the received bytes. The client hashes its own `&Request` before framing; the server hashes the value it obtained by deserializing the inner `Box<Request>` (`crate::identity::attestation::request_hash(&request)`). Equality therefore depends on `Request` round-tripping byte-identically through serde_json (map ordering, `#[serde(default)]` fields, unknown-field tolerance, numeric formatting). Any non-canonical field silently breaks attested calls for that request shape with the opaque error above. Hashing the exact received frame body would remove the dependency. The client's own check (`proof.request_sha256 != request_sha256`) means a mismatch is fail-closed, not forgeable.\\\",\\\"OPTIONAL / CONFIRM OUTSIDE THIS DIFF \u2014 `bootstrap_bridge` gates `MachineExchange`, `MachineConnectBegin` and `MachineConnectFinish` purely on the peer image canonicalizing to the installed daemon executable, with no containment consultation, so the new \\\\\\\"a non-primary role cannot present as unmanaged\\\\\\\" property does not extend to them. Managed user code has that image available (the Linux runtime already launches via `std::env::current_exe()`), so an Invocation of any role can execute it and reach those handlers. `BootstrapArm`/`BootstrapSeal` and `authority_admin` do consult `submission_context` and are covered. Worth confirming that `machine_exchange`/`machine_connect_*` carry their own authorization, since that source was not supplied.\\\"]}\",\"structured_output\":{\"summary\":\"Reviewed the attestation repair for forgery, nested containment, TOCTOU, Windows impact, probe handling and missing controls, using only the supplied files. The core attestation path looks sound: `validate_attested_invocation` pins the exact store/job/attempt/invocation tuple plus daemon generation, `invocations.state='started'`, live root pid, no root exit code and a live containment; the Store lock is released before the kernel membership check; `contains_process` uses the kernel-pinned peer handle rather than a caller-supplied pid and fails closed on `None`; nonce zero, nested `Request::Attested` and nested `Response::Attested` are all refused on both signer and verifier; the signature binds server identity, parent, nonce, request hash and response, and `Trusted::new` re-pins image dev/ino/hash, endpoint and parent. Primary-only submission authority is still enforced independently of transport identity, both by `current` in `managed_containment_candidates` + `!immediate.current` in `resolve_managed_membership`, and by `validate_current_parent_identity`'s `role='primary'` predicate re-run inside the acceptance transaction, so a postcondition/probe can neither submit nor present as unmanaged. I found no forgery or downgrade hole. The material issue is blast radius/availability: broadening the candidate set to every live containment of the current generation now feeds `resolve_managed_membership` invocations for which the daemon may hold no boundary handle, and a single such candidate hard-fails peer authentication for all callers. Remaining items are lower severity or optional.\",\"verdict\":\"findings\",\"findings\":[\"MATERIAL \u2014 one unresolvable containment now denies peer authentication for every client. `managed_containment_candidates` (src/store/admission.rs) filters only on `invocations.daemon_generation = ?1 AND containments.state = 'live'`; the started/root-pid/job-active predicates moved out of the WHERE clause into the `current` flag. `resolve_managed_membership` (src/daemon/reactor.rs) must ask the kernel about every returned candidate and converts the first `Ok(None)` into `StoreError::InvalidState(\\\"a possibly live managed Containment has no daemon-held handle\\\")`, aborting before it even knows whether the peer matched some other candidate. `Registry::contains` (src/runner/linux/registry.rs) returns `None` for `Entry::Uninspectable` and for any invocation with no active entry and no durable seal. A concrete permanent case: if `journal.create` fails (or the runtime dies) after the Store rows exist but before `Registry::register`, there is no journal record, so `cleanup` cannot seal, `persist_uncertain_cleanup` keeps the containment live, and `Registry::reconcile` rejects it with \\\"unknown Linux reconciliation obligation\\\" \u2014 the row stays live for the whole generation, `contains` returns `None` forever, and from then on every request routed through `submission_context` (Submit, SubmitBatch, Recover, Wait, managed-wait Observe, SubmissionContext, BootstrapArm/Seal, authority_admin) fails for managed and unmanaged callers alike, on Linux and Windows. The same shape applies transiently to prepared-but-unregistered invocations if containment rows are `live` from preparation, which `ReconciliationCandidate { root_pid_recorded, root_identity: None }` and `validate_attested_invocation`'s separate `root_pid IS NOT NULL` predicate both suggest. Note the fatal `None` is the right security choice (skipping an uninspectable candidate would let a contained peer be classified unmanaged), so the fix belongs in the candidate query or in scoping the failure: keep all roles but restrict the WHERE clause to invocations whose boundary is registered/sealed, and/or fail only the request whose lineage actually depends on the uninspectable candidate.\",\"MATERIAL (diagnosability, and the exact symptom reported in W-C3) \u2014 attested failures are opaque to the caller. `attested_request` (src/daemon/rpc.rs) returns a bare `Response::Error { code: \\\"server_attestation_unavailable\\\", message: error.to_string() }` for every pre-signature failure, and the client (`client/linux.rs::attested_request`) discards that code and message entirely, replacing them with the fixed string \\\"namespace-hidden server returned no authenticated response\\\". Every distinct cause \u2014 stale generation, dead invocation, peer not in the claimed containment, signer unavailable, and the `InvalidState` from the item above \u2014 collapses to one message with no server detail, which is why the failing postcondition status was hard to attribute. Since the attested path deliberately skips `peer.verify_executable`, the response is also genuinely untrusted, so surface it as such rather than dropping it: propagate the unsigned `code`/`message` clearly labelled as unauthenticated daemon output.\",\"LOWER SEVERITY (Windows, fail-closed) \u2014 `resolve_managed_membership`'s lineage bookkeeping is keyed per Job while the candidate set is now per Invocation. `lineage` is a `HashSet<JobId>`, the ancestor walk resolves via `matched.iter().find(|parent| parent.parent.job_id == parent_job_id)` (arbitrary pick among invocations of the same Job), and the final invariant compares `lineage.len() != matched.len()` (job count vs. invocation count). While candidates were primary-and-current only, at most one candidate per Job could appear; now a Job can contribute a primary plus a postcondition/probe, or a stuck prior attempt. If a Windows peer is ever a member of two live containments belonging to the same Job (only possible where the platform nests them; impossible on Linux, where cgroup v2 membership is single-leaf), it produces either two `leaves` (\\\"ambiguous Stillyard containments\\\") or a length mismatch (\\\"unrelated Stillyard containments\\\") and a legitimate managed peer is rejected. I could not construct a reachable nesting from the supplied source, so this is a latent invariant break rather than a demonstrated regression; keying lineage and the parent lookup by `invocation_id` would restore the invariant. No Windows-path test in the supplied set exercises multi-candidate matching at all.\",\"TEST COVERAGE \u2014 the only probe evidence is a model role mutation. `non_primary_transport_identity_does_not_confer_child_authority` sets `role='probe'` with raw SQL on a postcondition invocation row, so it proves the SQL classification but not that a real probe Invocation produces a `containments` row that this join reaches. Since the whole anti-downgrade property depends on a probe appearing in `managed_containment_candidates` with `current=false`, the planned live tests should assert candidate membership for an actually prepared+started probe Invocation (and for an Invocation still in the prepared state, which is what the broadened WHERE clause now admits).\",\"OPTIONAL \u2014 `request_sha256` is computed over a re-serialization rather than over the received bytes. The client hashes its own `&Request` before framing; the server hashes the value it obtained by deserializing the inner `Box<Request>` (`crate::identity::attestation::request_hash(&request)`). Equality therefore depends on `Request` round-tripping byte-identically through serde_json (map ordering, `#[serde(default)]` fields, unknown-field tolerance, numeric formatting). Any non-canonical field silently breaks attested calls for that request shape with the opaque error above. Hashing the exact received frame body would remove the dependency. The client's own check (`proof.request_sha256 != request_sha256`) means a mismatch is fail-closed, not forgeable.\",\"OPTIONAL / CONFIRM OUTSIDE THIS DIFF \u2014 `bootstrap_bridge` gates `MachineExchange`, `MachineConnectBegin` and `MachineConnectFinish` purely on the peer image canonicalizing to the installed daemon executable, with no containment consultation, so the new \\\"a non-primary role cannot present as unmanaged\\\" property does not extend to them. Managed user code has that image available (the Linux runtime already launches via `std::env::current_exe()`), so an Invocation of any role can execute it and reach those handlers. `BootstrapArm`/`BootstrapSeal` and `authority_admin` do consult `submission_context` and are covered. Worth confirming that `machine_exchange`/`machine_connect_*` carry their own authorization, since that source was not supplied.\"]},\"ttft_ms\":317437,\"type\":\"result\",\"duration_ms\":354952,\"uuid\":\"1aec0088-0ae3-4d3c-b3e5-d258f31d449d\",\"ttft_stream_ms\":2321,\"time_to_request_ms\":34,\"first_content_frame_ms\":2564,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b42-e703-7310-94c3-54ff8d495780",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 1627136,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1627136,
+            "start_ticks": 8891949,
+            "pid_namespace_inode": 4026534429,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b2f-b3e1-7b93-9dce-92828505ee47",
+          "started_unix_millis": 1789042813008,
+          "finished_unix_millis": 1789042813142,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b42-e703-7310-94c3-550cfbb5e493",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-opus-5\"], \"selected_family_models\": [\"claude-opus-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"summary\": \"Reviewed the attestation repair for forgery, nested containment, TOCTOU, Windows impact, probe handling and missing controls, using only the supplied files. The core attestation path looks sound: `validate_attested_invocation` pins the exact store/job/attempt/invocation tuple plus daemon generation, `invocations.state='started'`, live root pid, no root exit code and a live containment; the Store lock is released before the kernel membership check; `contains_process` uses the kernel-pinned peer handle rather than a caller-supplied pid and fails closed on `None`; nonce zero, nested `Request::Attested` and nested `Response::Attested` are all refused on both signer and verifier; the signature binds server identity, parent, nonce, request hash and response, and `Trusted::new` re-pins image dev/ino/hash, endpoint and parent. Primary-only submission authority is still enforced independently of transport identity, both by `current` in `managed_containment_candidates` + `!immediate.current` in `resolve_managed_membership`, and by `validate_current_parent_identity`'s `role='primary'` predicate re-run inside the acceptance transaction, so a postcondition/probe can neither submit nor present as unmanaged. I found no forgery or downgrade hole. The material issue is blast radius/availability: broadening the candidate set to every live containment of the current generation now feeds `resolve_managed_membership` invocations for which the daemon may hold no boundary handle, and a single such candidate hard-fails peer authentication for all callers. Remaining items are lower severity or optional.\", \"verdict\": \"findings\", \"findings\": [\"MATERIAL \\u2014 one unresolvable containment now denies peer authentication for every client. `managed_containment_candidates` (src/store/admission.rs) filters only on `invocations.daemon_generation = ?1 AND containments.state = 'live'`; the started/root-pid/job-active predicates moved out of the WHERE clause into the `current` flag. `resolve_managed_membership` (src/daemon/reactor.rs) must ask the kernel about every returned candidate and converts the first `Ok(None)` into `StoreError::InvalidState(\\\"a possibly live managed Containment has no daemon-held handle\\\")`, aborting before it even knows whether the peer matched some other candidate. `Registry::contains` (src/runner/linux/registry.rs) returns `None` for `Entry::Uninspectable` and for any invocation with no active entry and no durable seal. A concrete permanent case: if `journal.create` fails (or the runtime dies) after the Store rows exist but before `Registry::register`, there is no journal record, so `cleanup` cannot seal, `persist_uncertain_cleanup` keeps the containment live, and `Registry::reconcile` rejects it with \\\"unknown Linux reconciliation obligation\\\" \\u2014 the row stays live for the whole generation, `contains` returns `None` forever, and from then on every request routed through `submission_context` (Submit, SubmitBatch, Recover, Wait, managed-wait Observe, SubmissionContext, BootstrapArm/Seal, authority_admin) fails for managed and unmanaged callers alike, on Linux and Windows. The same shape applies transiently to prepared-but-unregistered invocations if containment rows are `live` from preparation, which `ReconciliationCandidate { root_pid_recorded, root_identity: None }` and `validate_attested_invocation`'s separate `root_pid IS NOT NULL` predicate both suggest. Note the fatal `None` is the right security choice (skipping an uninspectable candidate would let a contained peer be classified unmanaged), so the fix belongs in the candidate query or in scoping the failure: keep all roles but restrict the WHERE clause to invocations whose boundary is registered/sealed, and/or fail only the request whose lineage actually depends on the uninspectable candidate.\", \"MATERIAL (diagnosability, and the exact symptom reported in W-C3) \\u2014 attested failures are opaque to the caller. `attested_request` (src/daemon/rpc.rs) returns a bare `Response::Error { code: \\\"server_attestation_unavailable\\\", message: error.to_string() }` for every pre-signature failure, and the client (`client/linux.rs::attested_request`) discards that code and message entirely, replacing them with the fixed string \\\"namespace-hidden server returned no authenticated response\\\". Every distinct cause \\u2014 stale generation, dead invocation, peer not in the claimed containment, signer unavailable, and the `InvalidState` from the item above \\u2014 collapses to one message with no server detail, which is why the failing postcondition status was hard to attribute. Since the attested path deliberately skips `peer.verify_executable`, the response is also genuinely untrusted, so surface it as such rather than dropping it: propagate the unsigned `code`/`message` clearly labelled as unauthenticated daemon output.\", \"LOWER SEVERITY (Windows, fail-closed) \\u2014 `resolve_managed_membership`'s lineage bookkeeping is keyed per Job while the candidate set is now per Invocation. `lineage` is a `HashSet<JobId>`, the ancestor walk resolves via `matched.iter().find(|parent| parent.parent.job_id == parent_job_id)` (arbitrary pick among invocations of the same Job), and the final invariant compares `lineage.len() != matched.len()` (job count vs. invocation count). While candidates were primary-and-current only, at most one candidate per Job could appear; now a Job can contribute a primary plus a postcondition/probe, or a stuck prior attempt. If a Windows peer is ever a member of two live containments belonging to the same Job (only possible where the platform nests them; impossible on Linux, where cgroup v2 membership is single-leaf), it produces either two `leaves` (\\\"ambiguous Stillyard containments\\\") or a length mismatch (\\\"unrelated Stillyard containments\\\") and a legitimate managed peer is rejected. I could not construct a reachable nesting from the supplied source, so this is a latent invariant break rather than a demonstrated regression; keying lineage and the parent lookup by `invocation_id` would restore the invariant. No Windows-path test in the supplied set exercises multi-candidate matching at all.\", \"TEST COVERAGE \\u2014 the only probe evidence is a model role mutation. `non_primary_transport_identity_does_not_confer_child_authority` sets `role='probe'` with raw SQL on a postcondition invocation row, so it proves the SQL classification but not that a real probe Invocation produces a `containments` row that this join reaches. Since the whole anti-downgrade property depends on a probe appearing in `managed_containment_candidates` with `current=false`, the planned live tests should assert candidate membership for an actually prepared+started probe Invocation (and for an Invocation still in the prepared state, which is what the broadened WHERE clause now admits).\", \"OPTIONAL \\u2014 `request_sha256` is computed over a re-serialization rather than over the received bytes. The client hashes its own `&Request` before framing; the server hashes the value it obtained by deserializing the inner `Box<Request>` (`crate::identity::attestation::request_hash(&request)`). Equality therefore depends on `Request` round-tripping byte-identically through serde_json (map ordering, `#[serde(default)]` fields, unknown-field tolerance, numeric formatting). Any non-canonical field silently breaks attested calls for that request shape with the opaque error above. Hashing the exact received frame body would remove the dependency. The client's own check (`proof.request_sha256 != request_sha256`) means a mismatch is fail-closed, not forgeable.\", \"OPTIONAL / CONFIRM OUTSIDE THIS DIFF \\u2014 `bootstrap_bridge` gates `MachineExchange`, `MachineConnectBegin` and `MachineConnectFinish` purely on the peer image canonicalizing to the installed daemon executable, with no containment consultation, so the new \\\"a non-primary role cannot present as unmanaged\\\" property does not extend to them. Managed user code has that image available (the Linux runtime already launches via `std::env::current_exe()`), so an Invocation of any role can execute it and reach those handlers. `BootstrapArm`/`BootstrapSeal` and `authority_admin` do consult `submission_context` and are covered. Worth confirming that `machine_exchange`/`machine_connect_*` carry their own authorization, since that source was not supplied.\"]}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b3d-736f-7ba1-8990-b94429521848",
+      "lease_id": "01a08b3d-7345-7730-9a4a-5a7a01c9c134",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08b3d-7345-7730-9a4a-5a7a01c9c134"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b3d-7337-7541-ad45-c5cbd0f7bf3c",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b3d-7345-7730-9a4a-5a42097f963e"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08b2f-b3e1-7b93-9dce-92828505ee47"
+}

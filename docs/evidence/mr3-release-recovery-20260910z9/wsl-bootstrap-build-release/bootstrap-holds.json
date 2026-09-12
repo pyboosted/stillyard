@@ -1,0 +1,62 @@
+[
+  {
+    "id": "01a08ad3-da1e-7291-9161-d766f2d0ab59",
+    "reason": "WSL bootstrap obligation",
+    "requester": {
+      "platform": "windows",
+      "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+      "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+      "pid": 39480,
+      "creation_filetime_100ns": 134335091348898876
+    },
+    "released": true,
+    "release_reason": "trusted Linux supervisor sealed its empty cgroup",
+    "released_by": {
+      "platform": "windows",
+      "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+      "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+      "pid": 39480,
+      "creation_filetime_100ns": 134335091348898876
+    },
+    "bootstrap": {
+      "parent": {
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-da12-7372-bc5c-9597a9c9b1cd",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-da1d-7263-b8ea-9f1398df7a8a",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ad3-da1e-7291-9161-d766f2d0ab59"
+      },
+      "work": {
+        "operation_id": "01a08ad3-da1e-7291-9161-d766f2d0ab59",
+        "distribution": "Ubuntu-SSD",
+        "user": "pythonic",
+        "executable": "/home/pythonic/.cargo/bin/cargo",
+        "args": [
+          "build",
+          "--locked",
+          "--release"
+        ],
+        "working_directory": "/home/pythonic/Development/stillyard-mr3-release-recovery-20260910z9",
+        "environment": {
+          "CARGO_BUILD_JOBS": "4",
+          "CARGO_HOME": "/home/pythonic/.cargo",
+          "CARGO_TARGET_DIR": "/home/pythonic/Development/stillyard-mr3-release-recovery-20260910z9/target/scheduled-linux",
+          "HOME": "/home/pythonic",
+          "PATH": "/home/pythonic/.cargo/bin:/usr/bin:/bin",
+          "RUSTUP_HOME": "/home/pythonic/.rustup"
+        },
+        "timeout_seconds": 1800
+      },
+      "request_sha256": "d25027222914dc6cc5a1982f60e76a083f7f0e0b39a0678e8f6981154f0b8dde"
+    },
+    "cleanup_proof": {
+      "operation_id": "01a08ad3-da1e-7291-9161-d766f2d0ab59",
+      "request_sha256": "d25027222914dc6cc5a1982f60e76a083f7f0e0b39a0678e8f6981154f0b8dde",
+      "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+      "uid": 1000,
+      "cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard-bootstrap-01a08ad3-da1e-7291-9161-d766f2d0ab59.service/work",
+      "cgroup_inode": 65924,
+      "phase": "sealed_empty",
+      "root_exit_code": 0,
+      "termination": "exited"
+    }
+  }
+]

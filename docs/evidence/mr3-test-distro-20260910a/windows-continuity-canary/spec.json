@@ -1,0 +1,30 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+  "args": [
+    "-c",
+    "import os,json,time;print(json.dumps({'platform':os.name,'pid':os.getpid(),'job':os.environ['STILLYARD_JOB_ID'],'invocation':os.environ['STILLYARD_INVOCATION_ID']}),flush=True);time.sleep(3)"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr3-test-distro-20260910a",
+  "environment": {
+    "set": {
+      "SystemRoot": "C:\\Windows",
+      "USERPROFILE": "C:\\Users\\User",
+      "PATH": "C:\\Windows\\System32;C:\\Windows"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1
+  },
+  "timeout_seconds": 30,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "windows-continuity-after-import-timeout"
+    }
+  ]
+}

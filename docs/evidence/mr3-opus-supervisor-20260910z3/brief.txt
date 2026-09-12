@@ -1,0 +1,787 @@
+Read-only independent review of WSL service supervisor change. Focus on concrete correctness/signal/fd/cgroup lifetime bugs. Unit DelegateSubgroup=manager, Delegate=cpu memory pids, KillMode=process, Type=simple. systemd 259 has an upstream clone3 EBUSY bug on reuse of non-leaf cgroups; daemon crashes must also not allow systemd to remove unsealed empty executor cgroups. New persistent Python unit main moves itself to supervisor, spawns trusted daemon in manager, waits with pidfd+signal wakeup pipe, cleans only manager on daemon exit, and restarts daemon without stopping unit/delegation. Every user Invocation is born into a unique child of executors, in private PID namespace, interop masked, cgroup filesystem read-only; those boundaries are exclusively reconciled by daemon journal. Core daemon stays installed at fixed path; default SIGTERM terminates it, ptrace EXITKILL kills stopped/released tracees, but absence of cgroup is not proof and is never auto-sealed. No active Jobs during helper replacement; later real crash test checks child descendants and retained grants. Keepalive code unchanged in this slice; known lack of logout/S4U guarantee is separate. Ask no tools, no code changes, give concrete findings and mark uncertainty.
+
+
+FILE scripts/wsl-service.py
+#!/usr/bin/env python3
+"""Installed WSL lifetime/delegation helper, outside user Invocation namespaces.
+
+A Windows lifetime owner runs keepalive in a foreground wsl.exe session. It
+publishes only a transport alias, never resource or cleanup authority. The user
+service owns delegation and supervises the pinned daemon in a separate subgroup,
+so daemon crashes cannot make systemd remove unsealed executor boundaries.
+Neither operation invokes Cargo.
+"""
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import signal
+import selectors
+import stat
+import subprocess
+import time
+import uuid
+
+
+def private_directory(path):
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    metadata = path.lstat()
+    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077:
+        raise RuntimeError("service state directory must be owner-only")
+
+
+def keepalive(root):
+    private_directory(root)
+    descriptor = os.open(root / "keepalive.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    metadata = os.fstat(descriptor)
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077:
+        raise RuntimeError("unsafe keepalive singleton file")
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    socket = Path(os.environ["WSL_INTEROP"])
+    metadata = socket.lstat()
+    if not socket.is_absolute() or socket.parent != Path("/run/WSL") or not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != 0:
+        raise RuntimeError("keepalive must inherit a real WSL interop server")
+    alias = root / "interop.sock"
+    if alias.exists() and not alias.is_symlink():
+        raise RuntimeError("refusing to replace a non-alias interop path")
+    staging = root / (".interop-" + uuid.uuid4().hex)
+    staging.symlink_to(socket)
+    staging.replace(alias)
+    print(json.dumps({"pid": os.getpid(), "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
+                      "interop_alias": str(alias), "interop_server": str(socket), "kind": "wsl_keepalive"}), flush=True)
+    environment = {"XDG_RUNTIME_DIR": f"/run/user/{os.geteuid()}",
+                   "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{os.geteuid()}/bus"}
+    subprocess.run(["/usr/bin/systemctl", "--user", "start", "--no-block", "stillyard.service"],
+                   env=environment, check=True, timeout=15)
+    termination = {signal.SIGTERM, signal.SIGINT}
+    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, termination)
+    try:
+        signal.sigwait(termination)
+    finally:
+        if alias.is_symlink() and alias.readlink() == socket:
+            alias.unlink()
+        os.close(descriptor)
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+
+
+def delegate(executors, ram_mb):
+    # DelegateSubgroup=manager keeps service processes out of the delegated
+    # parent, which must be empty before enabling domain controllers.
+    entry = Path("/proc/self/cgroup").read_text().strip()
+    if not entry.startswith("0::/") or "\n" in entry:
+        raise RuntimeError("unified cgroup identity is unavailable")
+    current = Path("/sys/fs/cgroup") / entry[4:]
+    parent = current.parent
+    if current.name not in ("manager", ".control") or parent.name != "stillyard.service" or executors != parent / "executors":
+        raise RuntimeError(f"service cgroup differs from installed delegation: current={current}, expected={executors}")
+    controllers = (parent / "cgroup.controllers").read_text().split()
+    if not {"memory", "pids", "cpu"}.issubset(controllers):
+        raise RuntimeError("required cgroup controllers were not delegated")
+    (parent / "cgroup.subtree_control").write_text("+memory +pids +cpu")
+    executors.mkdir(exist_ok=True)
+    (executors / "cgroup.subtree_control").write_text("+memory +pids +cpu")
+    if not 512 <= ram_mb <= 1048576:
+        raise RuntimeError("invalid executor RAM hard limit")
+    (executors / "memory.max").write_text(str(ram_mb * 1024 * 1024))
+    (executors / "pids.max").write_text("4096")
+    print(json.dumps({"kind": "wsl_delegation", "executors": str(executors),
+                      "memory_max": (executors / "memory.max").read_text().strip(),
+                      "controllers": (executors / "cgroup.subtree_control").read_text().strip()}), flush=True)
+
+
+def supervise(executors, daemon):
+    """Keep delegation alive across daemon crashes; never clean user cgroups.
+
+    systemd 259 may spawn a restarted unit into a non-leaf cgroup (EBUSY).
+    More importantly, stopping that unit can remove empty but unsealed cgroups.
+    Its persistent main process therefore owns delegation; the daemon alone is
+    restarted here and must reconcile its unchanged journal/boundary identities.
+    """
+    parent = executors.parent
+    control = parent / "manager"
+    keeper = parent / "supervisor"
+    keeper.mkdir(exist_ok=True)
+    (keeper / "cgroup.procs").write_text(str(os.getpid()))
+    closing = False
+    def stop(_number, _frame):
+        nonlocal closing
+        closing = True
+    read_fd, write_fd = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+    previous_wakeup = signal.set_wakeup_fd(write_fd)
+    previous_term = signal.signal(signal.SIGTERM, stop)
+    previous_int = signal.signal(signal.SIGINT, stop)
+    selector = selectors.DefaultSelector()
+    selector.register(read_fd, selectors.EVENT_READ)
+    def drain_signal():
+        try:
+            while os.read(read_fd, 4096):
+                pass
+        except BlockingIOError:
+            pass
+    def clear_control():
+        # Only trusted daemon/bridge processes inherit manager. Invocations are
+        # born separately under executors and are cleaned ONLY by their journal.
+        (control / "cgroup.kill").write_text("1")
+        until = time.monotonic() + 10
+        while dict(line.split() for line in (control / "cgroup.events").read_text().splitlines())["populated"] != "0":
+            if time.monotonic() >= until:
+                raise RuntimeError("control-plane cgroup did not empty; executor history retained")
+            time.sleep(.01)
+    def place_child():
+        (control / "cgroup.procs").write_text(str(os.getpid()))
+        signal.set_wakeup_fd(-1)
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+    delay = 1
+    child = None
+    try:
+        while not closing:
+            clear_control()
+            started = time.monotonic()
+            child = subprocess.Popen([str(daemon), "daemon"], preexec_fn=place_child)
+            # This is our unreaped child: its PID cannot have been reused.
+            pidfd = os.pidfd_open(child.pid)
+            selector.register(pidfd, selectors.EVENT_READ)
+            print(json.dumps({"kind": "wsl_daemon_started", "supervisor_pid": os.getpid(),
+                              "daemon_pid": child.pid, "executable": str(daemon)}), flush=True)
+            try:
+                while child.poll() is None and not closing:
+                    for key, _ in selector.select():
+                        if key.fd == read_fd:
+                            drain_signal()
+                if closing and child.poll() is None:
+                    try:
+                        signal.pidfd_send_signal(pidfd, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        child.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        clear_control()
+                code = child.wait(timeout=10)
+            finally:
+                selector.unregister(pidfd)
+                os.close(pidfd)
+            clear_control()
+            print(json.dumps({"kind": "wsl_daemon_exited", "daemon_pid": child.pid,
+                              "exit_code": code, "service_stopping": closing}), flush=True)
+            if not closing:
+                delay = 1 if time.monotonic() - started >= 10 else min(delay * 2, 30)
+                # No idle polling. Only crash backoff has a timer; stop wakes it.
+                for key, _ in selector.select(timeout=delay):
+                    if key.fd == read_fd:
+                        drain_signal()
+    finally:
+        if child is not None and child.poll() is None:
+            # Exception recovery also preserves every executor boundary.
+            clear_control()
+            child.wait(timeout=10)
+        selector.close()
+        signal.set_wakeup_fd(previous_wakeup)
+        signal.signal(signal.SIGTERM, previous_term)
+        signal.signal(signal.SIGINT, previous_int)
+        os.close(read_fd)
+        os.close(write_fd)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+    p = sub.add_parser("keepalive")
+    p.add_argument("--root", type=Path, required=True)
+    p = sub.add_parser("delegate")
+    p.add_argument("--executors", type=Path, required=True)
+    p.add_argument("--ram-mb", type=int, required=True)
+    p = sub.add_parser("run")
+    p.add_argument("--executors", type=Path, required=True)
+    p.add_argument("--ram-mb", type=int, required=True)
+    p.add_argument("--daemon", type=Path, required=True)
+    args = parser.parse_args()
+    if args.command == "keepalive":
+        keepalive(args.root)
+    else:
+        delegate(args.executors, args.ram_mb)
+        if args.command == "run":
+            if not args.daemon.is_absolute():
+                raise RuntimeError("installed daemon path must be absolute")
+            supervise(args.executors, args.daemon)
+
+
+if __name__ == "__main__":
+    main()
+
+FILE scripts/install-wsl-daemon.py
+#!/usr/bin/env python3
+"""Stage a validated first WSL installation and its stopped Store.
+
+No Cargo and no queue reset. This initial-install tool refuses an existing binary
+or service. Explicit pairing and Windows keepalive registration follow the saved
+setup receipt; staging alone is not installed-runtime acceptance.
+"""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import uuid
+
+
+def digest(path):
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def save(path, value):
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, "w") as stream:
+        stream.write(json.dumps(value, indent=2) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def quote(value):
+    return '"' + str(value).replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%').replace('$', '$$') + '"'
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--candidate", type=Path, required=True)
+    parser.add_argument("--candidate-sha256", required=True)
+    parser.add_argument("--source-root", type=Path, required=True)
+    parser.add_argument("--build-job-id", required=True)
+    parser.add_argument("--evidence-directory", type=Path, required=True)
+    parser.add_argument("--windows-cli", type=Path, default=Path("/mnt/c/Users/User/AppData/Local/stillyard/Stillyard/bin/stillyard.exe"))
+    parser.add_argument("--apply", action="store_true")
+    args = parser.parse_args()
+    if os.environ.get("STILLYARD_JOB_ID"):
+        parser.error("installation must run outside a managed Invocation")
+    if digest(args.candidate) != args.candidate_sha256:
+        parser.error("candidate digest differs from selected build")
+    status = json.loads(subprocess.check_output([str(args.windows_cli), "status", args.build_job_id,
+                                               "--deadline-seconds", "5"], timeout=15))
+    if status["state"] != "final" or status["outcome"] != "succeeded":
+        parser.error("the Linux release build Job has not succeeded")
+    if {"key": "gate", "value": "wsl-bootstrap-build-release"} not in status["spec"]["labels"]:
+        parser.error("selected Job is not the protected Linux release gate")
+    root = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))) / "stillyard"
+    root = root.absolute()
+    installed = root / "bin/stillyard"
+    helper = root / "libexec/wsl-service.py"
+    unit = Path.home() / ".config/systemd/user/stillyard.service"
+    if installed.exists() or unit.exists():
+        parser.error("initial installation refuses an existing executable or service; use an audited upgrade")
+    source_helper = args.source_root / "scripts/wsl-service.py"
+    if not source_helper.is_file():
+        parser.error("selected source snapshot does not include the lifetime/delegation helper")
+    executors = Path(f"/sys/fs/cgroup/user.slice/user-{os.geteuid()}.slice/user@{os.geteuid()}.service/app.slice/stillyard.service/executors")
+    configuration = {"resources": {"ram_mb": 16384, "cargo_slots": 2,
+                                  "custom": {name: 4 for name in ("claude1_slots", "claude2_slots", "codex1_slots", "codex2_slots", "grok_slots", "opencode_slots")}},
+                     "impact_incompatibilities": {"cpu_heavy": [], "measurement": ["cpu_heavy", "gpu_heavy"]},
+                     "observation": {"ram_safety_margin_mb": 1024,
+                                     "process_rules": {"block": ["cargo", "rustc", "rust-analyzer"], "ignore": []}}}
+    unit_text = f'''[Unit]
+Description=Stillyard attached Windows/WSL scheduler
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 {quote(helper)} run --executors {quote(executors)} --ram-mb 16384 --daemon {quote(installed)}
+WorkingDirectory={str(root).replace("%", "%%")}
+Delegate=cpu memory pids
+DelegateSubgroup=manager
+Slice=app.slice
+KillMode=process
+OOMPolicy=continue
+TimeoutStopSec=25
+Restart=on-failure
+RestartSec=2
+UMask=0077
+UnsetEnvironment=STILLYARD_STORE STILLYARD_ENDPOINT STILLYARD_JOB_ID STILLYARD_ATTEMPT STILLYARD_INVOCATION_ID STILLYARD_ROLE
+
+[Install]
+WantedBy=default.target
+'''
+    evidence = args.evidence_directory / ("install-" + uuid.uuid4().hex)
+    evidence.mkdir(mode=0o700, parents=True)
+    plan = {"build_job_id": args.build_job_id, "candidate": str(args.candidate.resolve()),
+            "candidate_sha256": args.candidate_sha256, "installed": str(installed),
+            "helper_sha256": digest(source_helper), "unit": str(unit), "unit_text": unit_text,
+            "host_configuration": configuration, "executor_cgroup": str(executors),
+            "interop_alias": str(root / "interop.sock"), "applied": args.apply}
+    save(evidence / "plan.json", plan)
+    if args.apply:
+        root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if root.stat().st_uid != os.geteuid() or root.stat().st_mode & 0o077:
+            raise RuntimeError("existing Store root is not owner-only")
+        if (root / "config.json").exists() or (root / "stillyard.sqlite3").exists():
+            raise RuntimeError("initial installation refuses existing Store/configuration history")
+        installed.parent.mkdir(mode=0o700)
+        helper.parent.mkdir(mode=0o700)
+        shutil.copyfile(args.candidate, installed)
+        installed.chmod(0o700)
+        shutil.copyfile(source_helper, helper)
+        helper.chmod(0o600)
+        for path in (installed, helper):
+            with path.open("rb") as stream:
+                os.fsync(stream.fileno())
+        save(root / "config.json", configuration)
+        receipt = json.loads(subprocess.check_output([str(installed), "wsl-install"], timeout=15))
+        if Path(receipt["store_path"]) != root:
+            raise RuntimeError("installed binary selected different default coordinates")
+        save(evidence / "prepared-store.json", receipt)
+        unit.parent.mkdir(parents=True, exist_ok=True)
+        with unit.open("x") as stream:
+            stream.write(unit_text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        subprocess.run(["/usr/bin/systemctl", "--user", "daemon-reload"], check=True, timeout=15)
+        save(evidence / "staged.json", {"installed_sha256": digest(installed), "helper_sha256": digest(helper),
+                                     "state": "staged_stopped_unpaired"})
+    print(evidence)
+
+
+if __name__ == "__main__":
+    main()
+
+FILE src/daemon/reconciliation.rs
+#[cfg(target_os = "linux")]
+pub(super) fn probe_reconciliation_candidate(
+    live: &crate::runner::LiveContainments,
+    candidate: &crate::store::ReconciliationCandidate,
+    _context: &(crate::HostId, crate::BootId, uuid::Uuid),
+) -> (
+    Option<crate::ContainmentResolution>,
+    crate::ReconciliationResult,
+) {
+    // Linux requires the executor's durable exact-boundary seal. A different
+    // boot, absent PID/path or unavailable installation cannot substitute it.
+    match live.reconcile_linux(candidate, Instant::now() + Duration::from_millis(100)) {
+        Ok(crate::ReconciliationResult::ProvenEmpty) => (
+            Some(crate::ContainmentResolution::ProvenEmpty),
+            crate::ReconciliationResult::ProvenEmpty,
+        ),
+        _ => (None, crate::ReconciliationResult::BoundaryUninspectable),
+    }
+}
+
+use super::*;
+
+#[cfg(windows)]
+pub(super) fn probe_reconciliation_candidate(
+    live_containments: &crate::runner::LiveContainments,
+    candidate: &crate::store::ReconciliationCandidate,
+    context: &(crate::HostId, crate::BootId, uuid::Uuid),
+) -> (
+    Option<crate::ContainmentResolution>,
+    crate::ReconciliationResult,
+) {
+    let (current_host, current_boot, current_generation) = context;
+    if candidate.host_id.as_ref() != Some(current_host) {
+        return (None, crate::ReconciliationResult::IdentityUnavailable);
+    }
+    let Some(recorded_boot) = candidate.boot_id.as_ref() else {
+        return (None, crate::ReconciliationResult::IdentityUnavailable);
+    };
+    if recorded_boot != current_boot {
+        return if candidate.daemon_generation != Some(*current_generation) {
+            (
+                Some(crate::ContainmentResolution::Reboot),
+                crate::ReconciliationResult::PriorBoot,
+            )
+        } else {
+            (None, crate::ReconciliationResult::IdentityUnavailable)
+        };
+    }
+    if candidate.daemon_generation == Some(*current_generation) {
+        return match live_containments.inspect(candidate.invocation_id) {
+            Ok(Some(crate::ReconciliationResult::ProvenEmpty)) => (
+                Some(crate::ContainmentResolution::ProvenEmpty),
+                crate::ReconciliationResult::ProvenEmpty,
+            ),
+            Ok(Some(evidence)) => (None, evidence),
+            Ok(None) => (None, crate::ReconciliationResult::BoundaryUninspectable),
+            Err(_) => (None, crate::ReconciliationResult::BoundaryUninspectable),
+        };
+    }
+    let Some(prior_daemon) = candidate.prior_daemon_identity.as_ref() else {
+        return (None, crate::ReconciliationResult::IdentityUnavailable);
+    };
+    let prior_daemon =
+        crate::identity::probe_recorded_process(prior_daemon, current_host, current_boot);
+    if !matches!(
+        prior_daemon,
+        crate::ReconciliationResult::IdentityAbsent | crate::ReconciliationResult::PidReused
+    ) {
+        return (None, prior_daemon);
+    }
+    let Some(root_identity) = candidate.root_identity.as_ref() else {
+        if candidate.root_pid_recorded {
+            return (None, crate::ReconciliationResult::IdentityUnavailable);
+        }
+        return (
+            Some(crate::ContainmentResolution::ProvenEmpty),
+            crate::ReconciliationResult::IdentityAbsent,
+        );
+    };
+    let root = crate::identity::probe_recorded_process(root_identity, current_host, current_boot);
+    if matches!(
+        root,
+        crate::ReconciliationResult::IdentityAbsent | crate::ReconciliationResult::PidReused
+    ) {
+        (Some(crate::ContainmentResolution::ProvenEmpty), root)
+    } else {
+        (None, root)
+    }
+}
+
+pub(super) fn authorize_force_peer(
+    live_containments: &crate::runner::LiveContainments,
+    peer: &PeerProcess,
+    requester: &crate::ProcessIdentity,
+    authorization_invocations: &[crate::InvocationId],
+    unresolved_roots: &[crate::ProcessIdentity],
+) -> std::result::Result<(), StoreError> {
+    for &invocation_id in authorization_invocations {
+        match live_containments.contains_process(invocation_id, peer.handle) {
+            Ok(Some(true)) => {
+                return Err(StoreError::OperationRejected {
+                    code: "containment_caller_managed".into(),
+                    detail: "a managed process cannot accept containment risk".into(),
+                });
+            }
+            Ok(Some(false)) => {}
+            Ok(None) | Err(_) => {
+                return Err(StoreError::OperationRejected {
+                    code: "containment_authorization_unavailable".into(),
+                    detail: "a current-generation containment boundary cannot be inspected".into(),
+                });
+            }
+        }
+    }
+    if unresolved_roots
+        .iter()
+        .any(|identity| identity == requester)
+    {
+        return Err(StoreError::OperationRejected {
+            code: "containment_caller_managed".into(),
+            detail: "the requester is an unresolved recorded containment root".into(),
+        });
+    }
+    Ok(())
+}
+
+pub(super) fn force_clear_containment(
+    store: &SharedStore,
+    scheduler: &DaemonReactor,
+    peer: Option<&PeerProcess>,
+    containment_id: crate::ContainmentId,
+) -> std::result::Result<crate::ClearContainmentResult, StoreError> {
+    let peer = peer.ok_or_else(|| StoreError::OperationRejected {
+        code: "containment_requester_unidentifiable".into(),
+        detail: "force-clear requires a connected peer process".into(),
+    })?;
+    let requester = peer
+        .identity
+        .clone()
+        .ok_or_else(|| StoreError::OperationRejected {
+            code: "containment_requester_unidentifiable".into(),
+            detail: "the connection-time requester identity is unavailable".into(),
+        })?;
+    let (context, mut authorization_invocations, mut unresolved_roots) = {
+        let guard = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+        let context =
+            guard
+                .reconciliation_context()
+                .ok_or_else(|| StoreError::OperationRejected {
+                    code: "containment_requester_unidentifiable".into(),
+                    detail: "the daemon host/boot identity is unavailable".into(),
+                })?;
+        let (authorization_invocations, unresolved_roots) =
+            guard.clearance_authorization_evidence()?;
+        (context, authorization_invocations, unresolved_roots)
+    };
+
+    authorize_force_peer(
+        &scheduler.live_containments,
+        peer,
+        &requester,
+        &authorization_invocations,
+        &unresolved_roots,
+    )?;
+    let mut candidate = {
+        let guard = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+        if let Some(result) = guard.persisted_clearance(containment_id)? {
+            return Ok(result);
+        }
+        guard.reconciliation_candidate(containment_id)?
+    };
+
+    let (automatic_resolution, automatic_evidence) =
+        probe_reconciliation_candidate(&scheduler.live_containments, &candidate, &context);
+    if let Ok(mut observations) = scheduler.reconciliation_observations.lock() {
+        observations.record(candidate.containment_id, automatic_evidence.clone());
+    }
+    if let Some(resolution) = automatic_resolution {
+        #[cfg(target_os = "linux")]
+        {
+            let mut guard = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+            scheduler
+                .live_containments
+                .persist_linux_cleanup(&mut guard, candidate.invocation_id)?;
+        }
+        if let Some(result) = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+            .commit_containment_resolution(
+                &candidate,
+                resolution,
+                automatic_evidence.clone(),
+                crate::ClearanceOrigin::Automatic,
+                None,
+                None,
+            )?
+        {
+            scheduler.live_containments.clear(candidate.invocation_id);
+            if result.audit.lease_released {
+                scheduler.wake();
+            }
+            return Ok(result);
+        }
+    }
+    match automatic_evidence {
+        crate::ReconciliationResult::BoundaryNotEmpty => {
+            return Err(StoreError::OperationRejected {
+                code: "containment_boundary_not_empty".into(),
+                detail: "the daemon-owned containment boundary is known nonempty".into(),
+            });
+        }
+        crate::ReconciliationResult::BoundaryUninspectable
+            if candidate.daemon_generation == Some(context.2) =>
+        {
+            return Err(StoreError::OperationRejected {
+                code: "containment_owned_boundary_uninspectable".into(),
+                detail: "restart the daemon to close the owned boundary before risk acceptance"
+                    .into(),
+            });
+        }
+        _ => {}
+    }
+    if candidate.host_id.as_ref() != Some(&context.0) {
+        return Err(StoreError::OperationRejected {
+            code: "containment_host_mismatch".into(),
+            detail: "containment host identity does not match the daemon".into(),
+        });
+    }
+    let mut target_evidence = match candidate.root_identity.as_ref() {
+        Some(identity) => crate::identity::probe_recorded_process(identity, &context.0, &context.1),
+        None if !candidate.root_pid_recorded => crate::ReconciliationResult::IdentityAbsent,
+        None => crate::ReconciliationResult::IdentityUnavailable,
+    };
+    match target_evidence {
+        crate::ReconciliationResult::StillResolves => {
+            return Err(StoreError::OperationRejected {
+                code: "containment_identity_still_resolves".into(),
+                detail: "the exact recorded root process is still running".into(),
+            });
+        }
+        crate::ReconciliationResult::IdentityUnavailable => {
+            return Err(StoreError::OperationRejected {
+                code: "containment_identity_unavailable".into(),
+                detail: "the exact recorded root identity cannot be inspected".into(),
+            });
+        }
+        crate::ReconciliationResult::IdentityAbsent | crate::ReconciliationResult::PidReused => {}
+        _ => {
+            return Err(StoreError::OperationRejected {
+                code: "containment_identity_unavailable".into(),
+                detail: "the target identity has no affirmative absence evidence".into(),
+            });
+        }
+    }
+    let requested_unix_millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(i64::MAX);
+    let forced = crate::ForcedClearanceAudit {
+        requested_unix_millis,
+        requester,
+    };
+    for attempt in 0..2 {
+        if let Some(result) = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+            .commit_containment_resolution(
+                &candidate,
+                crate::ContainmentResolution::ForcedRiskAcceptance,
+                target_evidence.clone(),
+                crate::ClearanceOrigin::Forced,
+                Some(forced.clone()),
+                Some(&authorization_invocations),
+            )?
+        {
+            if result.audit.lease_released {
+                scheduler.wake();
+            }
+            return Ok(result);
+        }
+        if let Some(result) = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+            .persisted_clearance(containment_id)?
+        {
+            return Ok(result);
+        }
+        if attempt == 0 {
+            let guard = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+            if let Some(result) = guard.persisted_clearance(containment_id)? {
+                return Ok(result);
+            }
+            candidate = guard.reconciliation_candidate(containment_id)?;
+            drop(guard);
+            if candidate.host_id.as_ref() != Some(&context.0) {
+                return Err(StoreError::OperationRejected {
+                    code: "containment_host_mismatch".into(),
+                    detail: "containment host identity changed during force-clear".into(),
+                });
+            }
+            target_evidence = match candidate.root_identity.as_ref() {
+                Some(identity) => {
+                    crate::identity::probe_recorded_process(identity, &context.0, &context.1)
+                }
+                None if !candidate.root_pid_recorded => crate::ReconciliationResult::IdentityAbsent,
+                None => crate::ReconciliationResult::IdentityUnavailable,
+            };
+            if !matches!(
+                target_evidence,
+                crate::ReconciliationResult::IdentityAbsent
+                    | crate::ReconciliationResult::PidReused
+            ) {
+                return Err(StoreError::OperationRejected {
+                    code: "containment_identity_unavailable".into(),
+                    detail: "containment evidence changed during force-clear".into(),
+                });
+            }
+            (authorization_invocations, unresolved_roots) = store
+                .lock()
+                .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+                .clearance_authorization_evidence()?;
+            authorize_force_peer(
+                &scheduler.live_containments,
+                peer,
+                &forced.requester,
+                &authorization_invocations,
+                &unresolved_roots,
+            )?;
+            continue;
+        }
+    }
+    Err(StoreError::OperationRejected {
+        code: "containment_authorization_unavailable".into(),
+        detail: "containment evidence changed during force-clear".into(),
+    })
+}
+
+/// The external native journal is enrolled only for the Windows Job Object
+/// backend. Exact creator death closes its noninheritable kill-on-close handle;
+/// exact root disappearance (or positive host reboot evidence) completes proof.
+/// Linux generations and arbitrary process absence never enter this branch.
+pub(super) fn recover_machine_authority(
+    store: &SharedStore,
+) -> std::result::Result<crate::AuthoritySnapshot, StoreError> {
+    let (snapshot, context) = {
+        let mut locked = store
+            .lock()
+            .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?;
+        let snapshot = locked.prepare_machine_reset_recovery()?;
+        (snapshot, locked.reconciliation_context())
+    };
+    let native_empty = context.is_some_and(|(host, boot, generation)| {
+        let dead = |identity: &crate::ProcessIdentity| {
+            matches!(
+                crate::identity::probe_recorded_process(identity, &host, &boot),
+                crate::ReconciliationResult::IdentityAbsent
+                    | crate::ReconciliationResult::PidReused
+                    | crate::ReconciliationResult::PriorBoot
+            )
+        };
+        snapshot.coordinator.as_ref().is_some_and(|history| {
+            history.pending_reset.is_some()
+                && history.daemon_generation != generation
+                && dead(&history.process_identity)
+        }) && snapshot.native_obligations.iter().all(|p| {
+            p.boundary_kind == "windows_job_object"
+                && p.daemon_generation != generation
+                && dead(&p.creator_identity)
+                && dead(&p.root_identity)
+        })
+    });
+    store
+        .lock()
+        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))?
+        .finish_machine_reset_recovery(&snapshot, native_empty)
+}
+
+FILE src/runner/linux.rs
+//! Linux executor components are enabled separately after their live gates.
+mod cgroup;
+mod input;
+mod journal;
+mod launch;
+pub(crate) mod registry;
+pub(super) mod runtime;
+
+pub(crate) use launch::run_stub;
+
+pub(crate) fn initialize_history(
+    path: &std::path::Path,
+    journal: uuid::Uuid,
+    store: uuid::Uuid,
+    domain: crate::ExecutionDomainId,
+) -> std::io::Result<()> {
+    journal::Journal::initialize(
+        path,
+        journal::Anchor {
+            journal,
+            store,
+            domain,
+        },
+    )?;
+    Ok(())
+}
+
+pub(crate) fn installed_registry(
+    path: &std::path::Path,
+    journal: uuid::Uuid,
+    store: uuid::Uuid,
+    domain: crate::ExecutionDomainId,
+    generation: uuid::Uuid,
+    endpoint: String,
+) -> std::io::Result<registry::Registry> {
+    let history = journal::Journal::open(
+        path,
+        &journal::Anchor {
+            journal,
+            store,
+            domain,
+        },
+    )?;
+    let registry = registry::Registry::default();
+    registry.install(
+        history,
+        crate::identity::attestation::Signer::new(store, generation, endpoint)?,
+    )?;
+    Ok(registry)
+}

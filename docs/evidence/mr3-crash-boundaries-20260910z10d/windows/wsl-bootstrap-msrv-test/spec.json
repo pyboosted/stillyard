@@ -1,0 +1,33 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+  "args": [
+    "bootstrap",
+    "run",
+    "--spec",
+    "C:\\Development\\stillyard-mr3-crash-boundaries-evidence-20260910z10d\\msrv-crash-matrix\\wsl-msrv-test-9e0291fecfba440bbc1d2f554898054b\\work.json"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr3-crash-boundaries-evidence-20260910z10d\\msrv-crash-matrix\\wsl-msrv-test-9e0291fecfba440bbc1d2f554898054b",
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "wsl-bootstrap-msrv-test"
+    },
+    {
+      "key": "source",
+      "value": "9e636ec3e8802e4d6ff2c4611d65c4fcdb35eb6bd1dc4c7c28bae86af000329b"
+    }
+  ],
+  "expected_duration_seconds": 180,
+  "timeout_seconds": 1830
+}

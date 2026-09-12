@@ -1,0 +1,13 @@
+{
+  "sources_tag": "2.6.3",
+  "files": {
+    "/init": {
+      "sha256": "f84f9ae9116b972fce6723f920fb8fb1dedff2aeb0baa40ed7c5d2b9f4b73311",
+      "bytes": 2781568
+    },
+    "/mnt/c/Program Files/WSL/tools/init": {
+      "sha256": "f84f9ae9116b972fce6723f920fb8fb1dedff2aeb0baa40ed7c5d2b9f4b73311",
+      "bytes": 2781568
+    }
+  }
+}

@@ -1,0 +1,177 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a9-99fc-7f02-8787-a759f12d515b",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a9-99fb-7143-a801-055eae81dd6a",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089ae-96cd-70c0-ab63-ce3f0c2aafc2",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089ae-96cd-70c0-ab63-ce4c9f140f62",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089ae-96cd-70c0-ab63-ce543f0953f0",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789015988732,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789016315613,
+  "finished_unix_millis": 1789016381691,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr3-installed-observation-linux-evidence-20260910x2\\wsl-msrv-test-cc6e7f923a6041e69724f75da1c0c79d\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr3-installed-observation-linux-evidence-20260910x2\\wsl-msrv-test-cc6e7f923a6041e69724f75da1c0c79d",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-bootstrap-msrv-test"
+      },
+      {
+        "key": "source",
+        "value": "4dbfc18c91bbede4df1f6714e442448797df7b064a0ee58a58159c49afba4c99"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1830,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089ae-96cd-70c0-ab63-ce3f0c2aafc2",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789016315596,
+      "started_unix_millis": 1789016315596,
+      "deadline_unix_millis": 1789018145596,
+      "finished_unix_millis": 1789016381691,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a9-99fc-7f02-8787-a759f12d515b",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089ae-96cd-70c0-ab63-ce3f0c2aafc2",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089ae-96cd-70c0-ab63-ce4c9f140f62",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789016315613,
+        "exited_unix_millis": 1789016381682,
+        "resolved_unix_millis": 1789016381685
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089ae-96cd-70c0-ab63-ce4c9f140f62",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 50692,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 50692,
+            "creation_filetime_100ns": 134334899156086453
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "42a2cda64b56c30d939c427312505f7812a0ceb6ca4824e572fdd69b2c73cc8b",
+          "daemon_generation": "01a088e2-c443-7f02-887c-2f0ecdb42500",
+          "started_unix_millis": 1789016315613,
+          "finished_unix_millis": 1789016381685,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089ae-96cd-70c0-ab63-ce543f0953f0",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "itions::condition_release_is_publicly_released_while_running_and_after_success ... ok\ntest store::tests::admission_safety::uncertain_pre_release_cleanup_preserves_condition_deadline_outcome ... ok\ntest store::tests::conditions::deadline_that_wins_during_a_probe_remains_terminal_after_probe_cleanup ... ok\ntest store::tests::conditions::path_absent_waits_for_authoritative_absence ... ok\ntest store::tests::conditions::deadline_is_enforced_before_retry_backoff_and_dependency_filters ... ok\ntest store::tests::conditions::failed_deadline_latch_survives_refresh_until_probe_cleanup ... ok\ntest store::tests::admission_safety::condition_scan_time_ages_host_evidence_before_observed_grant ... ok\ntest store::tests::conditions::first_pre_release_deferral_replans_the_same_attempt_and_preserves_budget ... ok\ntest store::tests::conditions::path_transition_is_anchored_at_acceptance_and_rescanned_before_lease ... ok\ntest store::tests::conditions::post_commit_freshness_expiry_replans_the_never_resumed_attempt ... ok\ntest store::tests::conditions::monotonic_expiry_forces_rescan_despite_a_future_wall_freshness_and_history_is_bounded ... ok\ntest store::tests::conditions::pre_release_path_change_replans_same_attempt_then_exhausts_as_readiness_unstable ... ok\ntest store::tests::conditions::postcondition_start_failure_preserves_primary_start_and_ignores_condition_deadline ... ok\ntest store::tests::conditions::postcondition_does_not_inherit_primary_conditions_after_release ... ok\ntest store::tests::conditions::prepared_probe_start_failure_atomically_releases_its_lease_and_requeues ... ok\ntest store::tests::conditions::already_stale_refresh_blocks_once_then_yields_instead_of_replanning ... ok\ntest store::tests::conditions::deadline_crossing_during_scan_wins_over_impossible_dependency ... ok\ntest store::tests::conditions::probe_uses_its_own_lease_and_releases_it_before_primary_work ... ok\ntest store::tests::conditions::due_deadline_wins_over_cancel_before_and_during_probe_cleanup ... ok\ntest store::tests::containment_safety::creating_and_started_records_capture_exact_identity ... ok\ntest store::tests::conditions::worker_start_failure_keeps_condition_deadline_precedence ... ok\ntest store::tests::containment_safety::attempt_wide_predicate_waits_for_every_containment ... ok\ntest store::tests::conditions::relative_deadline_is_durable_and_does_not_create_an_attempt ... ok\ntest store::tests::conditions::restart_invalidates_generation_local_path_evidence_and_rescans ... ok\ntest store::tests::containment_safety::clearance_is_idempotent_and_audited_through_status ... ok\ntest store::tests::conditions::terminal_intent_waits_for_every_live_probe_and_cancel_never_starts_another ... ok\ntest store::tests::containment_safety::doctor_reports_loaded_config_evidence ... ok\ntest store::tests::conditions::restart_retains_only_the_unresolved_probe_claims_and_blocks_reprobe_until_clearance ... ok\ntest store::tests::containment_safety::missing_host_capability_blocks_before_lease_grant ... ok\ntest store::tests::containment_safety::doctor_rejects_foreign_unknown_tampered_and_expired_cursors ... ok\ntest store::tests::conditions::pre_release_cancellation_is_never_projected_as_released ... ok\ntest store::tests::containment_safety::doctor_incidents_are_frozen_across_pages ... ok\ntest store::tests::conditions::restart_repairs_the_legacy_split_probe_settlement_window ... ok\ntest store::tests::containment_safety::doctor_rejects_cursor_from_previous_daemon_generation ... ok\ntest store::tests::containment_safety::force_commit_rejects_a_changed_authorization_set ... ok\ntest store::tests::containment_safety::typed_linux_root_roundtrips_all_containment_views_without_filetime_aliasing ... ok\ntest store::tests::input_submission::child_policy_resolution_failure_is_a_durable_typed_rejection ... ok\ntest store::tests::containment_safety::unbound_pending_store_binds_without_reset ... ok\ntest store::tests::input_submission::corrupt_staged_input_rejects_before_received ... ok\ntest store::tests::input_submission::batch_is_atomic_and_dependencies_use_final_outcomes ... ok\ntest store::tests::input_submission::explicit_environment_is_preserved_at_acceptance ... ok\ntest store::tests::input_submission::dependency_outside_fifo_prefix_is_unknown ... ok\ntest store::tests::input_submission::daemon_status_reports_exact_durable_reservations ... ok\ntest store::tests::input_submission::missing_path_fence_identity_survives_later_creation ... ok\ntest store::tests::input_submission::partial_batch_input_map_is_atomic ... ok\ntest store::tests::containment_safety::doctor_default_page_is_bounded_below_protocol_limit ... ok\ntest store::tests::admission_safety::observed_condition_runtime_timeout_starts_at_release ... ok\ntest store::tests::input_submission::complete_leases_serialize_conflicts_but_allow_orthogonal_work ... ok\ntest store::tests::input_submission::received_batch_revalidates_staged_inputs_before_acceptance ... ok\ntest store::tests::input_submission::receipt_reports_rank_blocker_and_honest_estimate ... ok\ntest store::tests::input_submission::restart_collects_partial_upload_without_submission ... ok\ntest store::tests::conditions::post_commit_cancel_and_deadline_are_ordered_before_primary_resume ... ok\ntest store::tests::input_submission::sqlite_failure_rolls_back_every_batch_member ... ok\ntest store::tests::input_submission::reverse_order_skip_closure_reaches_terminal_state ... ok\ntest store::tests::input_submission::staged_stdin_is_pre_received_immutable_and_idempotent ... ok\ntest store::tests::managed_submission::managed_batch_wait_rejects_atomically_when_one_member_conflicts ... ok\ntest store::tests::containment_safety::unbound_store_with_containment_is_replaced ... ok\ntest store::tests::managed_submission::managed_batch_with_one_forbidden_priority_is_atomically_rejected ... ok\ntest store::tests::managed_submission::delegated_policy_is_intersected_across_the_full_ancestor_chain ... ok\ntest store::tests::managed_submission::managed_acceptance_rechecks_parent_and_disabled_primary_proves_only_absence ... ok\ntest store::tests::managed_submission::managed_combined_wait_rejects_ancestor_scalar_but_detached_submit_survives ... ok\ntest store::tests::managed_submission::managed_exact_replay_is_idempotent_and_commits_parentage ... ok\ntest store::tests::managed_submission::managed_not_received_is_provable_only_for_the_live_current_parent ... ok\ntest store::tests::managed_submission::managed_policy_applies_claim_impact_and_fence_limits_to_probes ... ok\ntest store::tests::managed_submission::child_policy_negative_axes_are_durable_contextual_and_create_no_work ... ok\ntest store::tests::managed_submission::managed_wait_rejects_a_claim_that_exceeds_host_capacity ... ok\ntest store::tests::managed_submission::managed_wait_allows_orthogonal_child_and_checks_the_full_ancestor_chain ... ok\ntest store::tests::managed_submission::policy_invalid_batch_names_the_member_and_is_atomic ... ok\ntest store::tests::managed_submission::received_wait_intent_survives_resume_and_cannot_accept_an_unsafe_child ... ok\ntest store::tests::managed_submission::managed_wait_walks_unfinished_predecessors_and_rejects_self_or_foreign_targets ... ok\ntest store::tests::managed_submission::neutral_only_parent_does_not_inherit_priority_and_rejects_escalation_durably ... ok\ntest store::tests::store_recovery::only_corruption_errors_authorize_destructive_reset ... ok\ntest store::tests::managed_submission::vram_policy_claims_compare_and_persist_in_canonical_form ... ok\ntest store::tests::observation::lifecycle_and_cancellation_transitions_emit_named_events ... ok\ntest store::tests::observation::invocation_event_identity_is_atomic_and_required ... ok\ntest store::tests::managed_submission::restart_rejects_managed_received_work_from_the_previous_daemon_generation ... ok\ntest store::tests::observation::list_cursor_is_stable_and_store_scoped ... ok\ntest store::tests::observation::list_events_and_cursor_are_one_public_observation_path ... ok\ntest store::tests::priority_reservations::priority_is_bounded_neutral_immutable_and_hashed_per_batch_member ... ok\ntest store::tests::priority_reservations::reservations_are_full_vector_bounded_observable_and_protect_only_claimed_scalars ... ok\ntest store::tests::conditions::restart_finalizes_cancel_and_deadline_after_probe_becomes_uncertain ... ok\ntest store::tests::store_recovery::duplicate_key_returns_one_job ... ok\ntest store::tests::store_recovery::current_schema_reopens_without_changing_store_identity ... ok\ntest store::tests::store_recovery::diagnostic_tail_io_failure_cannot_block_invocation_resolution ... ok\ntest store::tests::store_recovery::rejected_idempotency_decision_replays_as_rejected ... ok\ntest store::tests::store_recovery::recovery_never_creates_work_and_distinguishes_conflict ... ok\ntest store::tests::store_recovery::logs_publish_only_flushed_committed_prefix ... ok\ntest store::tests::priority_reservations::retry_and_restart_preserve_acceptance_and_aging_history ... ok\ntest store::tests::store_recovery::same_key_different_payload_conflicts ... ok\ntest store::tests::priority_reservations::reservation_deadline_survives_restart_expiry_yields_and_cancellation_cleans_up ... ok\ntest store::tests::store_recovery::corrupt_or_empty_database_is_replaced_with_current_schema ... ok\ntest store::tests::store_recovery::restart_after_empty_proof_before_primary_result_is_fail_closed ... ok\ntest store::tests::priority_reservations::blocked_and_impossible_high_priority_jobs_do_not_head_of_line_block ... ok\ntest store::tests::store_recovery::restart_before_root_retains_boundary_until_reconciled ... ok\ntest store::tests::store_recovery::restart_after_resolved_postcondition_releases_empty_attempt_lease ... ok\ntest store::tests::store_recovery::foreign_store_id_rejects_even_if_entity_uuid_collides ... ok\ntest store::tests::store_recovery::restart_interrupts_active_job_without_requeueing_it ... ok\ntest store::tests::store_recovery::restart_during_prepared_postcondition_retains_attempt_lease ... ok\ntest store::tests::store_recovery::corruption_discovered_during_recovery_resets_once ... ok\ntest store::tests::store_recovery::startup_resumes_durable_received_submission ... ok\ntest store::tests::store_recovery::uncertain_settlement_retains_lease_and_is_terminal ... ok\ntest store::tests::tree::filtered_tree_retains_only_connecting_ancestors_and_selector_bound_expansion ... ok\ntest store::tests::tree::root_cursor_survives_logs_but_fails_closed_when_attention_order_changes ... ok\ntest store::tests::tree::schema_rejects_a_noncanonical_tree_order_trigger ... ok\ntest store::tests::tree::depth_cut_before_a_connector_keeps_an_inclusive_child_continuation ... ok\ntest store::tests::priority_reservations::restart_capacity_shrink_keeps_only_the_scheduler_ordered_reservation_prefix ... ok\ntest store::tests::tree::tree_observation_includes_future_descendants_and_wrong_store_gap_snapshot ... ok\ntest store::tests::store_recovery::damaged_schema_and_identity_each_reset_the_whole_database ... ok\ntest store::tests::tree::tree_depth_cursor_and_for_job_preserve_the_complete_ancestor_path ... ok\ntest store::tests::store_recovery::schema_epoch_mismatch_resets_database_and_preserves_other_files ... ok\ntest store::tests::priority_reservations::effective_priority_ages_monotonically_and_orders_by_original_acceptance ... ok\ntest store::tests::tree::orphan_is_explicit_and_a_parent_cycle_fails_closed ... ok\ntest store::tests::priority_reservations::reservations_sum_to_capacity_and_non_scalar_changes_release_them ... ok\ntest store::tests::tree::schema_requires_tree_query_indexes ... ok\ntest store::tests::conditions::restart_preserves_the_durable_pre_resume_terminal_latch ... ok\ntest store::tests::tree::row_sixteen_thousand_three_hundred_eighty_five_fails_before_classification ... ok\ntest store::tests::tree::encoded_budget_truncates_with_a_root_continuation_and_makes_progress ... ok\ntest store::tests::containment_safety::doctor_snapshot_stress_resists_parallel_incident_turnover ... ok\ntest store::tests::observation::event_ring_reports_gap_and_resynchronizes ... ok\ntest store::tests::tree::managed_ancestry_accepts_sixty_four_jobs_and_rejects_the_sixty_fifth ... ok\ntest store::tests::conditions::probe_history_is_pruned_after_its_pinning_events_leave_the_ring ... ok\ntest identity::attestation::tests::linux_attestation_rejects_forgery_replay_changed_image_and_generation ... ok\ntest store::machine_events::tests::event_retention_bounds_rows_and_bytes_without_touching_grant_history ... ok\ntest authority::retirement::tests::pairing_budget_reserves_every_admitted_retirement_after_hold_and_session_growth ... ok\ntest authority::tests::saturated_registry_still_journals_large_release_and_detects_missing_blob ... ok\n\ntest result: ok. 265 passed; 0 failed; 13 ignored; 0 measured; 0 filtered out; finished in 42.06s\n\n\nrunning 35 tests\ntest tests::managed_execution_exit_namespace_keeps_success_scheduler_owned ... ok\ntest tests::structured_rejections_have_the_rejection_exit_code ... ok\ntest tui::tests::civil_day_conversion_round_trips ... ok\ntest tui::tests::claims_render_as_chips ... ok\ntest tests::context_cli_is_an_explicit_json_query ... ok\ntest tui::tests::clock_renders_local_time_and_elides_todays_date ... ok\ntest tui::tests::commands_split_into_executable_and_arguments ... ok\ntest tests::isolated_instance_coordinates_are_global_and_daemon_store_is_explicit ... ok\ntest tui::tests::durations_and_sizes_use_operator_units ... ok\ntest tests::recover_wait_and_wait_passthrough_have_agent_sized_defaults ... ok\ntest tui::tests::completed_family_scroll_keeps_children_beside_selected_parent ... ok\ntest tui::tests::edges_join_on_one_line_and_the_right_edge_yields_when_cramped ... ok\ntest tests::doctor_cli_exposes_json_paging_and_explicit_force ... ok\ntest tests::ensure_requires_an_explicit_endpoint ... ok\ntest tui::tests::queue_columns_shed_detail_on_narrow_terminals ... ok\ntest tui::tests::project_filter_cycles_through_known_projects_and_keeps_a_visible_selection ... ok\ntest tui::tests::retry_gap_reseats_the_log_window_behind_new_committed_output ... ok\ntest tui::tests::queue_groups_running_then_queued_then_finished_newest_first ... ok\ntest tests::observation_cli_keeps_the_public_spellings ... ok\ntest tui::tests::scrolling_clamps_to_content_and_follow_pins_logs_to_the_tail ... ok\ntest tui::tests::states_map_to_glyphs_and_semantic_colours ... ok\ntest tui::tests::terminal_rendering_drops_ansi_and_marks_other_controls ... ok\ntest tui::tests::text_fits_columns_with_an_ellipsis ... ok\ntest tui::tests::selection_walks_the_display_order_and_skips_group_rows ... ok\ntest tui::tests::wrapping_counts_lines_exactly_and_indents_continuations ... ok\ntest tui::tests::tree_guides_close_last_siblings_and_carry_ancestor_rails ... ok\ntest tui::tree::tests::user_expansion_overrides_survive_refresh ... ok\ntest tui::tree::tests::stale_root_cursor_discards_partial_tree_and_restarts_at_page_one ... ok\ntest tui::tree::tests::continuation_pages_are_linearized_depth_first ... ok\ntest tui::tree::tests::sibling_branch_continuations_keep_left_to_right_depth_first_priority ... ok\ntest tui::tree::tests::all_branches_stay_expanded_and_explicit_collapse_has_outcome_summary ... ok\ntest tests::cli_and_tui_have_no_private_store_read_path ... ok\ntest tui::tests::mouse_targets_panes_rows_gutter_and_log_tabs ... ok\ntest tui::tests::expanded_finished_family_is_visibly_a_tree ... ok\ntest tui::tests::screen_renders_groups_selection_detail_and_scrollbars_at_every_size ... ok\n\ntest result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 2 tests\ntest linux_daemon_rejects_unsafe_paths_and_never_autostarts_explicit_endpoint ... ok\ntest linux_daemon_singletons_and_crash_recovery_preserve_store_and_queue ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s\n\n\nrunning 3 tests\ntest default_instance_ambient_helper ... ignored, launched as an ambient-coordinate helper\ntest default_instance_ignores_ambient_coordinates ... ok\ntest public_methods_are_callable_from_an_external_crate ... ok\n\ntest result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n",
+          "stderr_tail": "   Compiling stillyard v0.1.0-alpha.20 (/home/pythonic/Development/stillyard-mr3-installed-observation-20260910x2)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 22.20s\n     Running unittests src/lib.rs (target/scheduled-linux/debug/deps/stillyard-ef1a60204084c61a)\n     Running unittests src/main.rs (target/scheduled-linux/debug/deps/stillyard-10ad84632547b5e6)\n     Running tests/isolated_daemon.rs (target/scheduled-linux/debug/deps/isolated_daemon-4775657eb692cc51)\n     Running tests/linux_daemon.rs (target/scheduled-linux/debug/deps/linux_daemon-c0058586f5285ef6)\nstillyard: the local daemon is unavailable: refusing to replace an unsafe Unix endpoint\nstillyard: the local daemon is unavailable: daemon endpoint is already owned: Resource temporarily unavailable (os error 11)\nstillyard: the local daemon is unavailable: Unix endpoint parent must be an owner-only directory\nstillyard: the local daemon is unavailable: daemon already running: Resource temporarily unavailable (os error 11)\nstillyard: the local daemon is unavailable: Unix endpoint still has a listener or cannot be inspected\n     Running tests/public_api.rs (target/scheduled-linux/debug/deps/public_api-125648cbd9bb923c)\n   Doc-tests stillyard\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089ae-96cd-70c0-ab63-ce698c313b05",
+      "lease_id": "01a089ae-96cd-70c0-ab63-ce698c313b05",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+        "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+        "lease_id": "01a089ae-96cd-70c0-ab63-ce698c313b05"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a9-99fc-7f02-8787-a759f12d515b",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089ae-96cd-70c0-ab63-ce3f0c2aafc2"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a088e2-c443-7f02-887c-2f0ecdb42500"
+}

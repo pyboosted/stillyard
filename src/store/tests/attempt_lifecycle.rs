@@ -2,9 +2,9 @@ use super::*;
 
 #[test]
 fn postcondition_retry_keeps_one_job_and_exposes_ordered_attempts() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let mut job = spec(temp.path());
     job.resources.cargo_slots = Some(1);
@@ -124,9 +124,9 @@ fn postcondition_retry_keeps_one_job_and_exposes_ordered_attempts() {
 
 #[test]
 fn plain_cancel_covers_queued_active_and_backoff_without_successors() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let batch = BatchSpec {
         spec_version: SPEC_VERSION,
@@ -194,9 +194,9 @@ fn plain_cancel_covers_queued_active_and_backoff_without_successors() {
 
 #[test]
 fn worker_start_failure_preserves_an_active_cancel_and_suppresses_retry() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let mut job = spec(temp.path());
     job.retry = RetryPolicy {
@@ -222,9 +222,9 @@ fn worker_start_failure_preserves_an_active_cancel_and_suppresses_retry() {
 
 #[test]
 fn expired_blocked_retry_does_not_spin_and_backoff_cancel_is_terminal() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let mut retry_spec = spec(temp.path());
     retry_spec.resources.cargo_slots = Some(1);
@@ -293,7 +293,7 @@ fn expired_blocked_retry_does_not_spin_and_backoff_cancel_is_terminal() {
 
 #[test]
 fn impact_rules_block_admission_and_ancestor_waits_symmetrically() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let config = HostConfig {
         resources: capacities(),
         impact_incompatibilities: [(
@@ -306,7 +306,7 @@ fn impact_rules_block_admission_and_ancestor_waits_symmetrically() {
     let mut store = Store::open_with_config(
         StorePaths::new(temp.path().to_path_buf()),
         config,
-        probe_startup_identity(),
+        model_identity(),
     )
     .unwrap();
     let mut cpu = spec(temp.path());
@@ -337,20 +337,20 @@ fn impact_rules_block_admission_and_ancestor_waits_symmetrically() {
 
 #[test]
 fn receipt_preserves_accepting_generation_across_daemon_restart() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
     let key = Uuid::now_v7();
     let job = spec(temp.path());
     let hash = normalized_payload_hash(&job).unwrap();
     let accepted_generation = {
-        let mut store = Store::open(paths.clone()).unwrap();
+        let mut store = open_model_store(paths.clone()).unwrap();
         store
             .submit(key, &hash, &job)
             .unwrap()
             .receipt
             .daemon_generation
     };
-    let mut reopened = Store::open(paths).unwrap();
+    let mut reopened = open_model_store(paths).unwrap();
     assert_ne!(reopened.daemon_generation, accepted_generation);
     let replay = reopened.submit(key, &hash, &job).unwrap();
     assert!(!replay.should_schedule);
@@ -359,9 +359,9 @@ fn receipt_preserves_accepting_generation_across_daemon_restart() {
 
 #[test]
 fn root_exit_is_visible_before_containment_resolution() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let job = spec(temp.path());
     let hash = normalized_payload_hash(&job).unwrap();
@@ -379,9 +379,9 @@ fn root_exit_is_visible_before_containment_resolution() {
 
 #[test]
 fn postcondition_release_requires_immutable_empty_primary_result_and_granted_lease() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let mut job = spec(temp.path());
     job.resources.cargo_slots = Some(1);

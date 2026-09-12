@@ -1,0 +1,177 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08994-153a-76f0-a5a4-03b1fe8bf03b",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08994-1539-74d0-a28e-a63b938e3443",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08995-4cc0-7500-a23f-5eac1d38d491",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08995-4cc0-7500-a23f-5ebe4a59be87",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08995-4cc0-7500-a23f-5ec1a7ea1892",
+  "root_exit_code": 101,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789014578490,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789014658257,
+  "finished_unix_millis": 1789014713311,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr3-linux-regression-linux-evidence-20260910v2\\wsl-test-3171f474769842bca5202b6fb7de5088\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr3-linux-regression-linux-evidence-20260910v2\\wsl-test-3171f474769842bca5202b6fb7de5088",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-bootstrap-test"
+      },
+      {
+        "key": "source",
+        "value": "1dd658235e283686188a94796412156df7baefc34c3ad76f24473332356bc3b5"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1830,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08995-4cc0-7500-a23f-5eac1d38d491",
+      "attempt_index": 1,
+      "verdict": "process_failed",
+      "reason_code": null,
+      "created_unix_millis": 1789014658239,
+      "started_unix_millis": 1789014658239,
+      "deadline_unix_millis": 1789016488239,
+      "finished_unix_millis": 1789014713311,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08994-153a-76f0-a5a4-03b1fe8bf03b",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08995-4cc0-7500-a23f-5eac1d38d491",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08995-4cc0-7500-a23f-5ebe4a59be87",
+        "verdict": "process_failed",
+        "root_exit_code": 101,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789014658257,
+        "exited_unix_millis": 1789014713302,
+        "resolved_unix_millis": 1789014713305
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08995-4cc0-7500-a23f-5ebe4a59be87",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 25984,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 25984,
+            "creation_filetime_100ns": 134334882582513510
+          },
+          "root_exit_code": 101,
+          "exit_classification": null,
+          "executable_hash": "42a2cda64b56c30d939c427312505f7812a0ceb6ca4824e572fdd69b2c73cc8b",
+          "daemon_generation": "01a088e2-c443-7f02-887c-2f0ecdb42500",
+          "started_unix_millis": 1789014658257,
+          "finished_unix_millis": 1789014713305,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08995-4cc0-7500-a23f-5ec1a7ea1892",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "losure_reaches_terminal_state ... ok\ntest store::tests::input_submission::restart_collects_partial_upload_without_submission ... ok\ntest store::tests::conditions::post_commit_cancel_and_deadline_are_ordered_before_primary_resume ... ok\ntest store::tests::input_submission::staged_stdin_is_pre_received_immutable_and_idempotent ... ok\ntest store::tests::managed_submission::managed_batch_with_one_forbidden_priority_is_atomically_rejected ... ok\ntest store::tests::managed_submission::managed_batch_wait_rejects_atomically_when_one_member_conflicts ... ok\ntest store::tests::containment_safety::unbound_store_with_containment_is_replaced ... ok\ntest store::tests::managed_submission::delegated_policy_is_intersected_across_the_full_ancestor_chain ... ok\ntest store::tests::managed_submission::managed_exact_replay_is_idempotent_and_commits_parentage ... ok\ntest store::tests::managed_submission::managed_acceptance_rechecks_parent_and_disabled_primary_proves_only_absence ... ok\ntest store::tests::managed_submission::managed_not_received_is_provable_only_for_the_live_current_parent ... ok\ntest store::tests::managed_submission::managed_combined_wait_rejects_ancestor_scalar_but_detached_submit_survives ... ok\ntest store::tests::managed_submission::managed_policy_applies_claim_impact_and_fence_limits_to_probes ... FAILED\ntest store::tests::managed_submission::child_policy_negative_axes_are_durable_contextual_and_create_no_work ... ok\ntest store::tests::containment_safety::doctor_default_page_is_bounded_below_protocol_limit ... ok\ntest store::tests::managed_submission::managed_wait_rejects_a_claim_that_exceeds_host_capacity ... ok\ntest store::tests::managed_submission::neutral_only_parent_does_not_inherit_priority_and_rejects_escalation_durably ... ok\ntest store::tests::managed_submission::managed_wait_allows_orthogonal_child_and_checks_the_full_ancestor_chain ... ok\ntest store::tests::managed_submission::managed_wait_walks_unfinished_predecessors_and_rejects_self_or_foreign_targets ... ok\ntest store::tests::store_recovery::only_corruption_errors_authorize_destructive_reset ... ok\ntest store::tests::managed_submission::policy_invalid_batch_names_the_member_and_is_atomic ... ok\ntest store::tests::managed_submission::vram_policy_claims_compare_and_persist_in_canonical_form ... ok\ntest store::tests::managed_submission::received_wait_intent_survives_resume_and_cannot_accept_an_unsafe_child ... ok\ntest store::tests::observation::invocation_event_identity_is_atomic_and_required ... ok\ntest store::tests::observation::list_events_and_cursor_are_one_public_observation_path ... ok\ntest store::tests::observation::lifecycle_and_cancellation_transitions_emit_named_events ... ok\ntest store::tests::observation::list_cursor_is_stable_and_store_scoped ... ok\ntest store::tests::managed_submission::restart_rejects_managed_received_work_from_the_previous_daemon_generation ... ok\ntest store::tests::priority_reservations::priority_is_bounded_neutral_immutable_and_hashed_per_batch_member ... ok\ntest store::tests::store_recovery::diagnostic_tail_io_failure_cannot_block_invocation_resolution ... ok\ntest store::tests::store_recovery::duplicate_key_returns_one_job ... ok\ntest store::tests::store_recovery::rejected_idempotency_decision_replays_as_rejected ... ok\ntest store::tests::store_recovery::current_schema_reopens_without_changing_store_identity ... ok\ntest store::tests::store_recovery::recovery_never_creates_work_and_distinguishes_conflict ... ok\ntest store::tests::priority_reservations::reservations_are_full_vector_bounded_observable_and_protect_only_claimed_scalars ... ok\ntest store::tests::store_recovery::logs_publish_only_flushed_committed_prefix ... ok\ntest store::tests::priority_reservations::retry_and_restart_preserve_acceptance_and_aging_history ... ok\ntest store::tests::store_recovery::same_key_different_payload_conflicts ... ok\ntest store::tests::store_recovery::corrupt_or_empty_database_is_replaced_with_current_schema ... ok\ntest store::tests::store_recovery::restart_before_root_retains_boundary_until_reconciled ... ok\ntest store::tests::store_recovery::restart_after_empty_proof_before_primary_result_is_fail_closed ... ok\ntest store::tests::priority_reservations::reservation_deadline_survives_restart_expiry_yields_and_cancellation_cleans_up ... ok\ntest store::tests::priority_reservations::blocked_and_impossible_high_priority_jobs_do_not_head_of_line_block ... ok\ntest store::tests::store_recovery::restart_after_resolved_postcondition_releases_empty_attempt_lease ... ok\ntest store::tests::store_recovery::restart_interrupts_active_job_without_requeueing_it ... ok\ntest store::tests::store_recovery::startup_resumes_durable_received_submission ... ok\ntest store::tests::store_recovery::restart_during_prepared_postcondition_retains_attempt_lease ... ok\ntest store::tests::store_recovery::corruption_discovered_during_recovery_resets_once ... ok\ntest store::tests::store_recovery::foreign_store_id_rejects_even_if_entity_uuid_collides ... ok\ntest store::tests::store_recovery::uncertain_settlement_retains_lease_and_is_terminal ... ok\ntest store::tests::tree::filtered_tree_retains_only_connecting_ancestors_and_selector_bound_expansion ... ok\ntest store::tests::tree::root_cursor_survives_logs_but_fails_closed_when_attention_order_changes ... ok\ntest store::tests::tree::schema_rejects_a_noncanonical_tree_order_trigger ... ok\ntest store::tests::tree::depth_cut_before_a_connector_keeps_an_inclusive_child_continuation ... ok\ntest store::tests::store_recovery::schema_epoch_mismatch_resets_database_and_preserves_other_files ... ok\ntest store::tests::store_recovery::damaged_schema_and_identity_each_reset_the_whole_database ... ok\ntest store::tests::tree::tree_observation_includes_future_descendants_and_wrong_store_gap_snapshot ... ok\ntest store::tests::tree::tree_depth_cursor_and_for_job_preserve_the_complete_ancestor_path ... ok\ntest store::tests::priority_reservations::restart_capacity_shrink_keeps_only_the_scheduler_ordered_reservation_prefix ... ok\ntest store::tests::priority_reservations::effective_priority_ages_monotonically_and_orders_by_original_acceptance ... ok\ntest store::tests::tree::orphan_is_explicit_and_a_parent_cycle_fails_closed ... ok\ntest store::tests::priority_reservations::reservations_sum_to_capacity_and_non_scalar_changes_release_them ... ok\ntest store::tests::tree::schema_requires_tree_query_indexes ... ok\ntest store::tests::conditions::restart_preserves_the_durable_pre_resume_terminal_latch ... ok\ntest store::tests::containment_safety::doctor_snapshot_stress_resists_parallel_incident_turnover ... ok\ntest store::tests::tree::row_sixteen_thousand_three_hundred_eighty_five_fails_before_classification ... ok\ntest store::tests::tree::encoded_budget_truncates_with_a_root_continuation_and_makes_progress ... ok\ntest store::tests::observation::event_ring_reports_gap_and_resynchronizes ... ok\ntest store::tests::tree::managed_ancestry_accepts_sixty_four_jobs_and_rejects_the_sixty_fifth ... ok\ntest identity::attestation::tests::linux_attestation_rejects_forgery_replay_changed_image_and_generation ... ok\ntest store::machine_events::tests::event_retention_bounds_rows_and_bytes_without_touching_grant_history ... ok\ntest authority::retirement::tests::pairing_budget_reserves_every_admitted_retirement_after_hold_and_session_growth ... ok\ntest authority::tests::saturated_registry_still_journals_large_release_and_detects_missing_blob ... ok\n\nfailures:\n\n---- store::tests::admission_safety::clean_deferral_exhaustion_uses_the_job_retry_policy stdout ----\n\nthread 'store::tests::admission_safety::clean_deferral_exhaustion_uses_the_job_retry_policy' (1389) panicked at src/store/tests/admission_safety.rs:1472:61:\ncalled `Result::unwrap()` on an `Err` value: InvalidSpec(\"invalid specification: probe executable and working_directory must be absolute and contain no NUL\")\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n---- store::tests::admission_safety::condition_scan_time_ages_host_evidence_before_probe_grant stdout ----\n\nthread 'store::tests::admission_safety::condition_scan_time_ages_host_evidence_before_probe_grant' (1392) panicked at src/store/tests/admission_safety.rs:466:61:\ncalled `Result::unwrap()` on an `Err` value: InvalidSpec(\"invalid specification: probe executable and working_directory must be absolute and contain no NUL\")\n\n---- store::tests::conditions::cancel_waits_for_live_probe_boundary_before_publishing_final stdout ----\n\nthread 'store::tests::conditions::cancel_waits_for_live_probe_boundary_before_publishing_final' (1429) panicked at src/store/tests/conditions.rs:29:47:\ncalled `Result::unwrap()` on an `Err` value: InvalidSpec(\"invalid specification: probe executable and working_directory must be absolute and contain no NUL\")\n\n---- store::tests::conditions::deadline_that_wins_during_a_probe_remains_terminal_after_probe_cleanup stdout ----\n\nthread 'store::tests::conditions::deadline_that_wins_during_a_probe_remains_terminal_after_probe_cleanup' (1433) panicked at src/store/tests/conditions.rs:29:47:\ncalled `Result::unwrap()` on an `Err` value: InvalidSpec(\"invalid specification: probe executable and working_directory must be absolute and contain no NUL\")\n\n---- store::tests::conditions::failed_deadline_latch_survives_refresh_until_probe_cleanup stdout ----\n\nthread 'store::tests::conditions::failed_deadline_latch_survives_refresh_until_probe_cleanup' (1437) panicked at src/store/tests/conditions.rs:29:47:\ncalled `Result::unwrap()` on an `Err` value: InvalidSpec(\"invalid specification: probe executable and working_directory must be absolute and contain no NUL\")\n\n---- store::tests::conditions::prepared_probe_start_failure_atomically_releases_its_lease_and_requeues stdout ----\n\nthread 'store::tests::conditions::prepared_probe_start_failure_atomically_releases_its_lease_and_requeues' (1450) panicked at src/store/tests/conditions.rs:29:47:\ncalled `Result::unwrap()` on an `Err` value: InvalidSpec(\"invalid specification: probe executable and working_directory must be absolute and contain no NUL\")\n\n---- store::tests::conditions::due_deadline_wins_over_cancel_before_and_during_probe_cleanup stdout ----\n\nthread 'store::tests::conditions::due_deadline_wins_over_cancel_before_and_during_probe_cleanup' (1434) panicked at src/store/tests/conditions.rs:29:47:\ncalled `Result::unwrap()` on an `Err` value: InvalidSpec(\"invalid specification: probe executable and working_directory must be absolute and contain no NUL\")\n\n---- store::tests::conditions::probe_history_is_pruned_after_its_pinning_events_leave_the_ring stdout ----\n\nthread 'store::tests::conditions::probe_history_is_pruned_after_its_pinning_events_leave_the_ring' (1451) panicked at src/store/tests/conditions.rs:29:47:\ncalled `Result::unwrap()` on an `Err` value: InvalidSpec(\"invalid specification: probe executable and working_directory must be absolute and contain no NUL\")\n\n---- store::tests::conditions::probe_uses_its_own_lease_and_releases_it_before_primary_work stdout ----\n\nthread 'store::tests::conditions::probe_uses_its_own_lease_and_releases_it_before_primary_work' (1452) panicked at src/store/tests/conditions.rs:29:47:\ncalled `Result::unwrap()` on an `Err` value: InvalidSpec(\"invalid specification: probe executable and working_directory must be absolute and contain no NUL\")\n\n---- store::tests::conditions::restart_finalizes_cancel_and_deadline_after_probe_becomes_uncertain stdout ----\n\nthread 'store::tests::conditions::restart_finalizes_cancel_and_deadline_after_probe_becomes_uncertain' (1454) panicked at src/store/tests/conditions.rs:29:47:\ncalled `Result::unwrap()` on an `Err` value: InvalidSpec(\"invalid specification: probe executable and working_directory must be absolute and contain no NUL\")\n\n---- store::tests::conditions::restart_repairs_the_legacy_split_probe_settlement_window stdout ----\n\nthread 'store::tests::conditions::restart_repairs_the_legacy_split_probe_settlement_window' (1457) panicked at src/store/tests/conditions.rs:29:47:\ncalled `Result::unwrap()` on an `Err` value: InvalidSpec(\"invalid specification: probe executable and working_directory must be absolute and contain no NUL\")\n\n---- store::tests::conditions::restart_retains_only_the_unresolved_probe_claims_and_blocks_reprobe_until_clearance stdout ----\n\nthread 'store::tests::conditions::restart_retains_only_the_unresolved_probe_claims_and_blocks_reprobe_until_clearance' (1458) panicked at src/store/tests/conditions.rs:29:47:\ncalled `Result::unwrap()` on an `Err` value: InvalidSpec(\"invalid specification: probe executable and working_directory must be absolute and contain no NUL\")\n\n---- store::tests::conditions::terminal_intent_waits_for_every_live_probe_and_cancel_never_starts_another stdout ----\n\nthread 'store::tests::conditions::terminal_intent_waits_for_every_live_probe_and_cancel_never_starts_another' (1459) panicked at src/store/tests/conditions.rs:29:47:\ncalled `Result::unwrap()` on an `Err` value: InvalidSpec(\"invalid specification: probe executable and working_directory must be absolute and contain no NUL\")\n\n---- store::tests::containment_safety::creating_and_started_records_capture_exact_identity stdout ----\n\nthread 'store::tests::containment_safety::creating_and_started_records_capture_exact_identity' (1463) panicked at src/store/tests/containment_safety.rs:128:5:\nassertion `left == right` failed\n  left: \"unsupported\"\n right: \"windows_job_object\"\n\n---- store::tests::input_submission::child_policy_resolution_failure_is_a_durable_typed_rejection stdout ----\n\nthread 'store::tests::input_submission::child_policy_resolution_failure_is_a_durable_typed_rejection' (1476) panicked at src/store/tests/input_submission.rs:22:5:\nassertion failed: matches!(store.submit(key, &hash, &job), Err(StoreError::Rejected(_)))\n\n---- store::tests::input_submission::missing_path_fence_identity_survives_later_creation stdout ----\n\nthread 'store::tests::input_submission::missing_path_fence_identity_survives_later_creation' (1482) panicked at src/store/tests/input_submission.rs:654:5:\ncreating the leaf between acceptances must not evade the incumbent fence\n\n---- store::tests::managed_submission::managed_policy_applies_claim_impact_and_fence_limits_to_probes stdout ----\n\nthread 'store::tests::managed_submission::managed_policy_applies_claim_impact_and_fence_limits_to_probes' (1498) panicked at src/store/tests/managed_submission.rs:889:5:\nassertion failed: matches!(store.submit_with_stdin_scoped(scope, Uuid::now_v7(), &hash, &child,\n    None), Err(StoreError::OperationRejected { code, detail }) if code ==\n    \"child_fence_not_permitted\" && detail.contains(\"probe shared fence\"))\n\n\nfailures:\n    store::tests::admission_safety::clean_deferral_exhaustion_uses_the_job_retry_policy\n    store::tests::admission_safety::condition_scan_time_ages_host_evidence_before_probe_grant\n    store::tests::conditions::cancel_waits_for_live_probe_boundary_before_publishing_final\n    store::tests::conditions::deadline_that_wins_during_a_probe_remains_terminal_after_probe_cleanup\n    store::tests::conditions::due_deadline_wins_over_cancel_before_and_during_probe_cleanup\n    store::tests::conditions::failed_deadline_latch_survives_refresh_until_probe_cleanup\n    store::tests::conditions::prepared_probe_start_failure_atomically_releases_its_lease_and_requeues\n    store::tests::conditions::probe_history_is_pruned_after_its_pinning_events_leave_the_ring\n    store::tests::conditions::probe_uses_its_own_lease_and_releases_it_before_primary_work\n    store::tests::conditions::restart_finalizes_cancel_and_deadline_after_probe_becomes_uncertain\n    store::tests::conditions::restart_repairs_the_legacy_split_probe_settlement_window\n    store::tests::conditions::restart_retains_only_the_unresolved_probe_claims_and_blocks_reprobe_until_clearance\n    store::tests::conditions::terminal_intent_waits_for_every_live_probe_and_cancel_never_starts_another\n    store::tests::containment_safety::creating_and_started_records_capture_exact_identity\n    store::tests::input_submission::child_policy_resolution_failure_is_a_durable_typed_rejection\n    store::tests::input_submission::missing_path_fence_identity_survives_later_creation\n    store::tests::managed_submission::managed_policy_applies_claim_impact_and_fence_limits_to_probes\n\ntest result: FAILED. 246 passed; 17 failed; 11 ignored; 0 measured; 0 filtered out; finished in 34.76s\n\n",
+          "stderr_tail": "   Compiling stillyard v0.1.0-alpha.19 (/home/pythonic/Development/stillyard-mr3-linux-regression-20260910v2)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.85s\n     Running unittests src/lib.rs (target/scheduled-linux/debug/deps/stillyard-e402df6911a3bc0c)\nerror: test failed, to rerun pass `--lib`\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08995-4cc0-7500-a23f-5edbbf31d848",
+      "lease_id": "01a08995-4cc0-7500-a23f-5edbbf31d848",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+        "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+        "lease_id": "01a08995-4cc0-7500-a23f-5edbbf31d848"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08994-153a-76f0-a5a4-03b1fe8bf03b",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08995-4cc0-7500-a23f-5eac1d38d491"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a088e2-c443-7f02-887c-2f0ecdb42500"
+}

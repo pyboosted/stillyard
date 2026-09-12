@@ -1,0 +1,162 @@
+{
+  "executor_records": {
+    "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d61d-77e0-a981-8ec0e8abafed": {
+      "containment": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d61d-77e0-a981-8ed6fa711e03",
+      "lease": "01a08a2a-d61d-77e0-a981-8ee5413278ad",
+      "daemon_generation": "01a08a25-c1ff-7e43-8a58-e60aa64cb655",
+      "creator": {
+        "platform": "linux",
+        "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+        "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+        "pid": 128628,
+        "start_ticks": 7023196,
+        "pid_namespace_inode": 4026532221,
+        "uid": 1000
+      },
+      "boundary": {
+        "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service/executors/invocation-01a08a2a-d61d-77e0-a981-8ec0e8abafed",
+        "device": 23,
+        "inode": 58019
+      },
+      "root": {
+        "platform": "linux",
+        "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+        "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+        "pid": 174947,
+        "start_ticks": 7056521,
+        "pid_namespace_inode": 4026534426,
+        "uid": 1000
+      },
+      "executable_sha256": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+      "release_intent": {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a2a-d656-75c2-bfea-6d85d6959c50",
+        "key": {
+          "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+          "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+          "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+          "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+          "lease_id": "01a08a2a-d61d-77e0-a981-8ee5413278ad"
+        },
+        "offer_nonce": "01a08a2a-d656-75c2-bfea-6d9df5862f22",
+        "intent": {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d61d-77e0-a981-8ec0e8abafed",
+          "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d61d-77e0-a981-8ed6fa711e03",
+          "role": "primary",
+          "role_index": 0,
+          "release_sequence": 1,
+          "executable_sha256": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "boundary_sha256": "26b62018c3e7c9625346d0c9bf2a095652fc443f9081dfa5da293b6a1e820fbf",
+          "readiness_challenge": "01a08a2a-d757-7e80-9aa1-eff664944123",
+          "previous_cleanup": null
+        },
+        "configuration_sha256": "7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978",
+        "issued_unix_millis": 1789024458609,
+        "host_observation_generation": "01a08a29-e59c-7510-8aa5-4d71a400ba30",
+        "host_sample_unix_millis": 1789024458590,
+        "session": {
+          "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+          "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+          "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+          "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+          "executor_incarnation": "01a08a25-c1ff-7e43-8a58-e60aa64cb655",
+          "connection_epoch": 8
+        }
+      },
+      "seal": {
+        "invocation": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d61d-77e0-a981-8ec0e8abafed",
+        "boundary_sha256": "26b62018c3e7c9625346d0c9bf2a095652fc443f9081dfa5da293b6a1e820fbf",
+        "seal_id": "01a08a2c-3558-7dc1-b3cc-e43b674489fb",
+        "possibly_released": true
+      }
+    },
+    "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2c-3568-7ef0-a99a-1a0404a6ddd9": {
+      "containment": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2c-3568-7ef0-a99a-1a1a3432ffaf",
+      "lease": "01a08a2a-d61d-77e0-a981-8ee5413278ad",
+      "daemon_generation": "01a08a25-c1ff-7e43-8a58-e60aa64cb655",
+      "creator": {
+        "platform": "linux",
+        "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+        "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+        "pid": 128628,
+        "start_ticks": 7023196,
+        "pid_namespace_inode": 4026532221,
+        "uid": 1000
+      },
+      "boundary": {
+        "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service/executors/invocation-01a08a2c-3568-7ef0-a99a-1a0404a6ddd9",
+        "device": 23,
+        "inode": 58131
+      },
+      "root": {
+        "platform": "linux",
+        "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+        "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+        "pid": 181317,
+        "start_ticks": 7065494,
+        "pid_namespace_inode": 4026534152,
+        "uid": 1000
+      },
+      "executable_sha256": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+      "release_intent": {
+        "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a2a-d656-75c2-bfea-6d85d6959c50",
+        "key": {
+          "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+          "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+          "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+          "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+          "lease_id": "01a08a2a-d61d-77e0-a981-8ee5413278ad"
+        },
+        "offer_nonce": "01a08a2a-d656-75c2-bfea-6d9df5862f22",
+        "intent": {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2c-3568-7ef0-a99a-1a0404a6ddd9",
+          "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2c-3568-7ef0-a99a-1a1a3432ffaf",
+          "role": "postcondition",
+          "role_index": 0,
+          "release_sequence": 2,
+          "executable_sha256": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "boundary_sha256": "cd288ffc381a353d54108291f5450ddb3c92bedde2b82bafad742d2925aa5ada",
+          "readiness_challenge": "01a08a2c-35c1-7783-966c-8510ab6f1d04",
+          "previous_cleanup": {
+            "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d61d-77e0-a981-8ec0e8abafed",
+            "release_sequence": 1,
+            "boundary_sha256": "26b62018c3e7c9625346d0c9bf2a095652fc443f9081dfa5da293b6a1e820fbf",
+            "proof_sha256": "2363f5f0487a1905f4648f3ac6120199cc64fd53db1ab279b1113b103c2dc15f",
+            "user_code_released": true
+          }
+        },
+        "configuration_sha256": "7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978",
+        "issued_unix_millis": 1789024548308,
+        "host_observation_generation": "01a08a2c-35d3-7bf2-b1a1-774f27595a57",
+        "host_sample_unix_millis": 1789024548292,
+        "session": {
+          "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+          "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+          "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+          "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+          "executor_incarnation": "01a08a25-c1ff-7e43-8a58-e60aa64cb655",
+          "connection_epoch": 8
+        }
+      },
+      "seal": {
+        "invocation": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2c-3568-7ef0-a99a-1a0404a6ddd9",
+        "boundary_sha256": "cd288ffc381a353d54108291f5450ddb3c92bedde2b82bafad742d2925aa5ada",
+        "seal_id": "01a08a2c-3620-7ec3-87c9-8aeef97adcef",
+        "possibly_released": true
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d61d-77e0-a981-8ec0e8abafed",
+      "boundary_sha256": "26b62018c3e7c9625346d0c9bf2a095652fc443f9081dfa5da293b6a1e820fbf",
+      "proof_sha256": "2363f5f0487a1905f4648f3ac6120199cc64fd53db1ab279b1113b103c2dc15f"
+    },
+    {
+      "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2c-3568-7ef0-a99a-1a0404a6ddd9",
+      "boundary_sha256": "cd288ffc381a353d54108291f5450ddb3c92bedde2b82bafad742d2925aa5ada",
+      "proof_sha256": "561eec713370429fcb463eae6257c7a6c7b855108c6d76afb4806d46361930fb"
+    }
+  ]
+}

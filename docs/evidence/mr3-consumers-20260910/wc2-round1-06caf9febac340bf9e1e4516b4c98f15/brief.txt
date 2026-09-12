@@ -1,0 +1,467 @@
+Review this concrete Stillyard change for protocol correctness. The durable SQL invocation role_index orders ALL roles (probe, primary, deferrals, postconditions) within an Attempt. The Windows protocol instead indexes primary/probe as zero and postconditions by specification index. A Work Grant is retained across primary/postconditions; probes have separate Grants. Assess the attached Ticket request/consume code below and the coordinator role validation, identify specific defects if supported. This is a read-only consumer acceptance round.
+
+//! The platform's prepared-root identity, durable Ticket intent and lifecycle
+//! authorization share the Store transaction boundary. No function releases OS code.
+use super::*;
+#[cfg(target_os = "linux")]
+use crate::machine::{InvocationIntent, TicketCleanup};
+use crate::machine::{InvocationTicket, manager};
+
+pub(super) fn initialize(c: &Connection) -> StoreResult<()> {
+    c.execute_batch(
+        "CREATE TABLE IF NOT EXISTS attached_local_invocations(
+        invocation_id TEXT PRIMARY KEY, operation_id TEXT UNIQUE NOT NULL,
+        allocation_key TEXT NOT NULL, intent_json TEXT NOT NULL);",
+    )?;
+    Ok(())
+}
+
+/// Called immediately before the SAME transaction commits the started state.
+/// Native callers pass None; an attached store can never use that native path.
+pub(in crate::store) fn consume(
+    tx: &Transaction<'_>,
+    job: &PreparedJob,
+    generation: Uuid,
+    ticket: Option<&InvocationTicket>,
+) -> StoreResult<()> {
+    let connected: Option<bool> = tx
+        .query_row(
+            "SELECT connected FROM attached_local_mode WHERE singleton=1",
+            [],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if connected.is_none() && ticket.is_none() {
+        return Ok(());
+    }
+    let ticket = ticket.ok_or_else(|| {
+        StoreError::InvalidState(
+            "attached Invocation requires its one-use coordinator Ticket".into(),
+        )
+    })?;
+    if connected != Some(true)
+        || ticket.intent.invocation_id != job.invocation_id
+        || ticket.intent.containment_id != job.containment_id
+        || ticket.intent.role != job.role
+        || ticket.session.executor_incarnation != generation
+    {
+        return Err(StoreError::InvalidState(
+            "Ticket belongs to a disconnected or different Invocation generation".into(),
+        ));
+    }
+    let matches:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM attached_local_plans p
+        JOIN leases l ON l.id=p.lease_id JOIN invocations i ON i.attempt_id=p.attempt_id
+        JOIN invocation_process_identities r ON r.invocation_id=i.id
+        WHERE p.allocation_key=?1 AND p.committed=1 AND p.armed=1 AND p.released=0 AND p.release_pending=0
+          AND l.state='granted' AND i.id=?2 AND i.executable_hash=?4
+          AND (CASE WHEN i.role='postcondition' THEN i.postcondition_index ELSE 0 END)=?3
+          AND i.state='started' AND json_extract(r.identity_json,'$.platform')='linux'
+          AND json_extract(r.identity_json,'$.pid')=i.root_pid
+          AND (l.invocation_id IS NULL OR l.invocation_id=i.id))",
+        params![serde_json::to_string(&ticket.key)?,job.invocation_id.entity_uuid().to_string(),ticket.intent.role_index,ticket.intent.executable_sha256],|r|r.get(0))?;
+    if !matches || !manager::consume_ticket(tx, ticket).map_err(protocol_error)? {
+        return Err(StoreError::InvalidState(
+            "Ticket has no matching start transaction or was already consumed".into(),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+impl Store {
+    pub(crate) fn attached_observation_ready(
+        &self,
+        job: &PreparedJob,
+        lease: Uuid,
+        sample: Option<&crate::host_observation::HostSample>,
+    ) -> StoreResult<bool> {
+        if !job.spec.requires_host_observation() {
+            return Ok(true);
+        }
+        let Some(sample) = sample else {
+            return Ok(false);
+        };
+        let mut statement = self
+            .connection
+            .prepare("SELECT claims_json FROM leases WHERE state='granted' AND id!=?1")?;
+        let active = statement
+            .query_map([lease.to_string()], |r| r.get::<_, String>(0))?
+            .map(|row| Ok(serde_json::from_str::<ResolvedClaims>(&row?)?))
+            .collect::<StoreResult<Vec<_>>>()?;
+        let (wall, monotonic) = crate::host_observation::observation_clock()?;
+        Ok(crate::host_observation::evaluate_admission(
+            &job.spec,
+            &self.host_config(),
+            sample,
+            &active,
+            wall,
+            monotonic,
+        )
+        .blockers
+        .is_empty())
+    }
+    pub(crate) fn attached_launch_identity(
+        &self,
+        job: &PreparedJob,
+    ) -> StoreResult<(Uuid, PathBuf, Uuid)> {
+        self.check_authority_release()?;
+        let config = super::installation::load(&self.paths.root)?.ok_or_else(|| {
+            StoreError::InvalidState("installed executor configuration missing".into())
+        })?;
+        let lease:String=self.connection.query_row("SELECT p.lease_id FROM attached_local_plans p
+            JOIN leases l ON l.id=p.lease_id WHERE p.job_id=?1 AND p.attempt_id=?2
+            AND p.armed=1 AND p.committed=1 AND p.released=0 AND p.release_pending=0 AND l.state='granted'
+            AND ((?3='probe' AND l.invocation_id=?4) OR (?3!='probe' AND l.invocation_id IS NULL))",
+            params![job.job_id.entity_uuid().to_string(),job.attempt_id.entity_uuid().to_string(),role_text(job.role),job.invocation_id.entity_uuid().to_string()],|r|r.get(0))?;
+        Ok((
+            Uuid::parse_str(&lease)?,
+            config.executor_cgroup,
+            self.daemon_generation,
+        ))
+    }
+    pub(crate) fn request_attached_ticket(
+        &mut self,
+        job: &PreparedJob,
+        root: &ProcessIdentity,
+        executable_sha256: &str,
+        boundary_sha256: &str,
+    ) -> StoreResult<Uuid> {
+        self.check_authority_release()?;
+        let ProcessIdentity::Linux { pid, .. } = root else {
+            return Err(StoreError::InvalidState(
+                "attached executor requires a pinned Linux root".into(),
+            ));
+        };
+        let store_uuid = self.store_uuid;
+        let generation = self.daemon_generation;
+        let tx = self.connection.transaction()?;
+        let key_json:String=tx.query_row("SELECT p.allocation_key FROM attached_local_plans p JOIN leases l ON l.id=p.lease_id
+            WHERE p.job_id=?1 AND p.attempt_id=?2 AND p.committed=1 AND p.armed=1 AND p.released=0 AND p.release_pending=0
+              AND l.state='granted' AND ((?3='probe' AND l.invocation_id=?4) OR (?3!='probe' AND l.invocation_id IS NULL))",
+            params![job.job_id.entity_uuid().to_string(),job.attempt_id.entity_uuid().to_string(),role_text(job.role),job.invocation_id.entity_uuid().to_string()],|r|r.get(0))?;
+        let key: AllocationKey = serde_json::from_str(&key_json)?;
+        let prior:Option<(String,String)> = tx.query_row("SELECT operation_id,intent_json FROM attached_local_invocations WHERE invocation_id=?1",[job.invocation_id.to_string()],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+        if let Some((operation, json)) = prior {
+            let recorded: String = tx.query_row(
+                "SELECT identity_json FROM invocation_process_identities WHERE invocation_id=?1",
+                [job.invocation_id.entity_uuid().to_string()],
+                |r| r.get(0),
+            )?;
+            if serde_json::from_str::<ProcessIdentity>(&recorded)? != *root {
+                return Err(StoreError::InvalidState(
+                    "prepared root identity changed".into(),
+                ));
+            }
+            let prior: InvocationIntent = serde_json::from_str(&json)?;
+            if prior.containment_id != job.containment_id
+                || prior.executable_sha256 != executable_sha256
+                || prior.boundary_sha256 != boundary_sha256
+            {
+                return Err(StoreError::InvalidState(
+                    "prepared Invocation intent changed".into(),
+                ));
+            }
+            return Ok(Uuid::parse_str(&operation)?);
+        }
+        let (json, seal): (String, Option<String>) = tx.query_row(
+            "SELECT grant_json,seal_json FROM attached_grants WHERE allocation_key=?1",
+            [&key_json],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        let grant: crate::machine::GrantSnapshot = serde_json::from_str(&json)?;
+        if seal.is_some()
+            || grant.state != GrantState::Armed
+            || key.manager_store_uuid != store_uuid
+        {
+            return Err(StoreError::InvalidState(
+                "prepared Invocation has no unsealed Armed Grant".into(),
+            ));
+        }
+        let previous_cleanup = grant
+            .tickets
+            .last()
+            .map(|intent| -> StoreResult<TicketCleanup> {
+                let json: Option<String> = tx
+                    .query_row(
+                        "SELECT cleanup_json FROM attached_tickets WHERE invocation_id=?1",
+                        [intent.invocation_id.to_string()],
+                        |r| r.get(0),
+                    )
+                    .optional()?
+                    .flatten();
+                serde_json::from_str(&json.ok_or_else(|| {
+                    StoreError::InvalidState("previous Invocation has no committed cleanup".into())
+                })?)
+                .map_err(Into::into)
+            })
+            .transpose()?;
+        // SQL role_index orders every Invocation in an Attempt (including
+        // probes and host deferrals). The wire index identifies a role within
+        // its allocation: primary/probe are zero; postconditions use their
+        // specification index, preserved across pre-release deferrals.
+        let (role, index, state): (String, Option<u32>, String) = tx.query_row(
+            "SELECT role,postcondition_index,state FROM invocations WHERE id=?1 AND attempt_id=?2",
+            params![
+                job.invocation_id.entity_uuid().to_string(),
+                job.attempt_id.entity_uuid().to_string()
+            ],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )?;
+        if role != role_text(job.role) || state != "prepared" {
+            return Err(StoreError::InvalidState(
+                "Invocation root is not awaiting its first release".into(),
+            ));
+        }
+        let index = match job.role {
+            InvocationRole::Postcondition => index.ok_or_else(|| {
+                StoreError::InvalidState("postcondition has no specification index".into())
+            })?,
+            InvocationRole::Primary | InvocationRole::Probe => 0,
+        };
+        let intent = InvocationIntent {
+            invocation_id: job.invocation_id,
+            containment_id: job.containment_id,
+            role: job.role,
+            role_index: index,
+            release_sequence: grant
+                .tickets
+                .last()
+                .map_or(1, |i| i.release_sequence.saturating_add(1)),
+            executable_sha256: executable_sha256.into(),
+            boundary_sha256: boundary_sha256.into(),
+            readiness_challenge: Uuid::now_v7(),
+            previous_cleanup,
+        };
+        let (host, boot, creation) = process_records::legacy_columns(root, *pid)?;
+        process_records::record(&tx, job.invocation_id, root, *pid)?;
+        tx.execute("UPDATE invocations SET root_pid=?2,executable_hash=?3,daemon_generation=?4,root_host_id=?5,root_boot_id=?6,root_creation_filetime_100ns=?7 WHERE id=?1 AND state='prepared'",
+            params![job.invocation_id.entity_uuid().to_string(),pid,executable_sha256,generation.to_string(),host,boot,creation])?;
+        tx.execute(
+            "UPDATE containments SET state='live' WHERE id=?1 AND state='creating'",
+            [job.containment_id.entity_uuid().to_string()],
+        )?;
+        let operation = Uuid::now_v7();
+        tx.execute(
+            "INSERT INTO attached_local_invocations VALUES (?1,?2,?3,?4)",
+            params![
+                job.invocation_id.to_string(),
+                operation.to_string(),
+                key_json,
+                serde_json::to_string(&intent)?
+            ],
+        )?;
+        manager::enqueue(
+            &tx,
+            operation,
+            &Command::AuthorizeInvocation {
+                key,
+                offer_nonce: grant.offer_nonce,
+                intent,
+            },
+        )
+        .map_err(protocol_error)?;
+        tx.commit()?;
+        Ok(operation)
+    }
+
+    pub(crate) fn attached_ticket(
+        &self,
+        invocation: InvocationId,
+    ) -> StoreResult<Option<InvocationTicket>> {
+        let ticket: Option<String> = self
+            .connection
+            .query_row(
+                "SELECT ticket_json FROM attached_tickets WHERE invocation_id=?1",
+                [invocation.to_string()],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if let Some(json) = ticket {
+            return Ok(Some(serde_json::from_str(&json)?));
+        }
+        let outcome:Option<String>=self.connection.query_row("SELECT o.outcome_json FROM attached_local_invocations i JOIN attached_outbox o ON o.operation_id=i.operation_id WHERE i.invocation_id=?1",[invocation.to_string()],|r|r.get(0)).optional()?.flatten();
+        if let Some(json) = outcome {
+            return Err(StoreError::InvalidState(format!(
+                "Invocation Ticket request did not grant release: {json}"
+            )));
+        }
+        Ok(None)
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn role_text(role: InvocationRole) -> &'static str {
+    match role {
+        InvocationRole::Primary => "primary",
+        InvocationRole::Probe => "probe",
+        InvocationRole::Postcondition => "postcondition",
+    }
+}
+
+
+use super::machine::rejected;
+use super::machine_allocation::{is_digest, key_string};
+use super::*;
+use crate::machine::{
+    AllocationOwner, GrantSnapshot, InvocationIntent, InvocationTicket, Outcome, Request,
+    TicketCleanup,
+};
+
+pub(super) struct Readiness<'a> {
+    pub(super) config: &'a HostConfig,
+    pub(super) sample: Option<&'a crate::host_observation::HostSample>,
+}
+
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct QuietProgress {
+    consumed: u64,
+    generation: Option<String>,
+    evaluated: Option<u64>,
+    first: Option<u64>,
+    last: Option<u64>,
+}
+
+pub(super) fn cleanup_matches(intent: &InvocationIntent, proof: &TicketCleanup) -> bool {
+    proof.invocation_id == intent.invocation_id
+        && proof.release_sequence == intent.release_sequence
+        && proof.boundary_sha256 == intent.boundary_sha256
+        && is_digest(&proof.proof_sha256)
+}
+
+fn validate_next(grant: &GrantSnapshot, intent: &InvocationIntent) -> StoreResult<()> {
+    let store = grant.candidate.key.manager_store_uuid;
+    if intent.invocation_id.store_uuid() != store
+        || intent.containment_id.store_uuid() != store
+        || intent.invocation_id.entity_uuid().is_nil()
+        || intent.containment_id.entity_uuid().is_nil()
+        || intent.readiness_challenge.is_nil()
+        || !is_digest(&intent.executable_sha256)
+        || !is_digest(&intent.boundary_sha256)
+        || intent.release_sequence == 0
+        || intent.release_sequence > i64::MAX as u64
+    {
+        return Err(rejected(
+            "invalid_spec",
+            "Invocation identity, challenge or boundary is invalid",
+        ));
+    }
+    if grant.tickets.len() >= 256 {
+        return Err(rejected(
+            "limit_exceeded",
+            "allocation ticket history exhausted",
+        ));
+    }
+    if grant.tickets.iter().any(|t| {
+        t.invocation_id == intent.invocation_id
+            || t.containment_id == intent.containment_id
+            || t.readiness_challenge == intent.readiness_challenge
+    }) {
+        return Err(rejected(
+            "conflict",
+            "ticket identity is single-use; replay the original operation",
+        ));
+    }
+    let previous = grant.tickets.last();
+    match (previous, &intent.previous_cleanup) {
+        (None, None) if intent.release_sequence == 1 => {}
+        (Some(last), Some(proof))
+            if cleanup_matches(last, proof)
+                && last.release_sequence.checked_add(1) == Some(intent.release_sequence) => {}
+        _ => {
+            return Err(rejected(
+                "cleanup_incomplete",
+                "next Invocation requires the exact predecessor cleanup and release sequence",
+            ));
+        }
+    }
+    let valid_role = match &grant.candidate.owner {
+        AllocationOwner::Probe { invocation_id, .. } => {
+            previous.is_none()
+                && intent.role == InvocationRole::Probe
+                && intent.role_index == 0
+                && intent.invocation_id == *invocation_id
+        }
+        AllocationOwner::Work { .. } => match previous {
+            None => intent.role == InvocationRole::Primary && intent.role_index == 0,
+            Some(last) => {
+                let released = intent
+                    .previous_cleanup
+                    .as_ref()
+                    .is_some_and(|p| p.user_code_released);
+                match (last.role, intent.role, released) {
+                    (InvocationRole::Primary, InvocationRole::Primary, false) => {
+                        intent.role_index == 0
+                    }
+                    (InvocationRole::Primary, InvocationRole::Postcondition, true) => {
+                        intent.role_index == 0
+                    }
+                    (InvocationRole::Postcondition, InvocationRole::Postcondition, false) => {
+                        intent.role_index == last.role_index
+                    }
+                    (InvocationRole::Postcondition, InvocationRole::Postcondition, true) => {
+                        last.role_index.checked_add(1) == Some(intent.role_index)
+                    }
+                    _ => false,
+                }
+            }
+        },
+    };
+    if !valid_role {
+        return Err(rejected(
+            "conflict",
+            "Invocation role/order is incompatible with its allocation owner",
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn authorize(
+    tx: &Transaction<'_>,
+    request: &Request,
+    mut grant: GrantSnapshot,
+    intent: &InvocationIntent,
+    readiness: &Readiness<'_>,
+) -> StoreResult<Outcome> {
+    validate_next(&grant, intent)?;
+    let key = key_string(&grant.candidate.key)?;
+    let state: String = tx.query_row(
+        "SELECT state FROM machine_candidates WHERE allocation_key=?1",
+        [&key],
+        |r| r.get(0),
+    )?;
+    if state != "ready" {
+        return Err(rejected(
+            "stale",
+            "withdrawn or canceled allocation cannot issue new start rights",
+        ));
+    }
+    let sample = readiness.sample.ok_or_else(|| {
+        rejected(
+            "unavailable",
+            "Invocation needs a fresh host observation barrier",
+        )
+    })?;
+    let (unix, monotonic) = crate::host_observation::observation_clock()?;
+    if monotonic
+        .checked_sub(sample.captured_monotonic_millis)
+        .is_none_or(|age| age > 250)
+    {
+        return Err(rejected(
+            "unavailable",
+            "host sample expired before ticket commit",
+        ));
+    }
+    let physical: String = tx.query_row(
+        "SELECT physical_claims_json FROM machine_grants WHERE allocation_key=?1",
+        [&key],
+        |r| r.get(0),
+    )?;
+    let physical: ResolvedClaims = serde_json::from_str(&physical)?;
+    let mut active = super::machine_queue::native_debits(tx)?;
+    let mut statement = tx.prepare("SELECT physical_claims_json FROM machine_grants WHERE allocation_key!=?1 AND state IN ('offered','armed','uncertain')")?;
+    for row in statement.query_map([&key], |r| r.get::<_, String>(0))? {
+        active.push(serde_json::from_str(&row?)?);
+    }
+    let resources = crate::ResourceClaims {
+        cpu_units: u32::try_from(physical.cpu_units).ok().filter(|v| 

@@ -3,9 +3,11 @@ use std::sync::{Mutex, MutexGuard};
 
 use uuid::Uuid;
 
+use super::platform::{
+    CpuUtilizationSampler, DiskUtilizationSampler, NvmlProvider, probe_memory, probe_processes,
+};
 use super::{
-    ComponentEvidence, ComponentValue, CpuUtilizationSampler, DiskUtilizationSampler, GpuEvidence,
-    HostSample, NvmlProvider, ProcessEvidence, observation_clock, probe_memory, probe_processes,
+    ComponentEvidence, ComponentValue, GpuEvidence, HostSample, ProcessEvidence, observation_clock,
 };
 use crate::{
     DoctorCheck, DoctorCheckStatus, DoctorCoverage, GpuProviderConfig, HostObservationConfig,
@@ -95,6 +97,12 @@ impl HostObservationService {
                 return (vec![check], vec![coverage]);
             }
         };
+        let commit=match &sample.memory.value {
+            ComponentValue::Available(memory)=>memory.commit_headroom_mb.map(ComponentValue::Available)
+                .unwrap_or_else(||ComponentValue::Unavailable("Windows commit headroom is checked by the paired coordinator; guest availability is separate".into())),
+            ComponentValue::Unavailable(detail)=>ComponentValue::Unavailable(detail.clone()),
+            ComponentValue::Error(detail)=>ComponentValue::Error(detail.clone()),
+        };
         let mut checks = vec![
             component_check(
                 "detector.physical_memory",
@@ -105,8 +113,8 @@ impl HostObservationService {
             component_check(
                 "detector.commit_headroom",
                 "commit-limit headroom",
-                &sample.memory.value,
-                required.memory,
+                &commit,
+                required.memory && cfg!(windows),
             ),
             component_check(
                 "detector.cpu",
@@ -223,17 +231,7 @@ impl HostObservationService {
         let coverage = checks
             .iter()
             .map(|check| DoctorCoverage {
-                provider: match check.code.as_str() {
-                    "detector.physical_memory" | "detector.commit_headroom" => "windows_memory",
-                    "detector.cpu" => "windows_system_times",
-                    "detector.disk" => "windows_disk_performance",
-                    "detector.processes" | "detector.process_rules" => "windows_toolhelp",
-                    "detector.nvml" => "nvml",
-                    code if code.starts_with("detector.gpu_") => "nvml",
-                    "detector.sampler_freshness" => "host_sampler",
-                    _ => "host_observation",
-                }
-                .into(),
+                provider: super::platform::provider_name(&check.code).into(),
                 detector: check
                     .code
                     .strip_prefix("detector.")
@@ -548,14 +546,34 @@ mod tests {
         let service = HostObservationService::new(HostObservationConfig::default());
         let (checks, coverage) = service.doctor_diagnostics(HostObservationRequirements::default());
         assert_eq!(checks.len(), coverage.len());
-        for provider in [
+        #[cfg(windows)]
+        let providers = [
             "windows_memory",
             "windows_system_times",
             "windows_disk_performance",
             "windows_toolhelp",
             "nvml",
             "host_sampler",
-        ] {
+        ];
+        #[cfg(target_os = "linux")]
+        let providers = [
+            "linux_memavailable",
+            "linux_proc_stat",
+            "linux_diskstats_pressure",
+            "linux_visible_pid_namespace",
+            "nvml",
+            "host_sampler",
+        ];
+        #[cfg(not(any(windows, target_os = "linux")))]
+        let providers = [
+            "unsupported_memory",
+            "unsupported_cpu",
+            "unsupported_disk",
+            "unsupported_processes",
+            "nvml",
+            "host_sampler",
+        ];
+        for provider in providers {
             let item = coverage
                 .iter()
                 .find(|item| item.provider == provider)

@@ -1,0 +1,12 @@
+[
+  "/mnt/c/Users/User/AppData/Local/Programs/Python/Python313/python.exe",
+  "C:\\Development\\stillyard-mr2-accepted-20260910h\\scripts\\install-windows-daemon.py",
+  "--candidate",
+  "C:\\Development\\stillyard-mr2-accepted-20260910h\\target\\scheduled\\release\\stillyard.exe",
+  "--candidate-sha256",
+  "823f9db65db24fa18dbd3e0d75fb2bf631048371e174d6a37ce28ffa6a297af3",
+  "--build-job-id",
+  "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08853-d31b-7d73-9c54-5dcac8879b52",
+  "--evidence-directory",
+  "C:\\Development\\stillyard-mr2-install-evidence-20260910h"
+]

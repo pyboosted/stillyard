@@ -1,0 +1,177 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0888c-e18f-71c3-b8fe-2a08f7e0d6b1",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0888c-e18e-7d60-8294-25090f5a5238",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0888c-e3a8-7721-9b0a-0d9eeeeea4ee",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0888c-e3a7-7b62-97ce-8e41ffccbea1",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0888c-e3a7-7b62-97ce-8e5745ca3647",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788997329295,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788997329845,
+  "finished_unix_millis": 1788997358891,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr3-cgroup-live-evidence-20260910e\\wsl-msrv-test-79924b3a69f440d08d7838141f86184d\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr3-cgroup-live-evidence-20260910e\\wsl-msrv-test-79924b3a69f440d08d7838141f86184d",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-bootstrap-msrv-test"
+      },
+      {
+        "key": "source",
+        "value": "057a0dd0d44fd3dcf1871d0e39a0dc425fe3a8a79d067314bdd013c793f8b4f9"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1830,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0888c-e3a8-7721-9b0a-0d9eeeeea4ee",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1788997329831,
+      "started_unix_millis": 1788997329831,
+      "deadline_unix_millis": 1788999159831,
+      "finished_unix_millis": 1788997358891,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0888c-e18f-71c3-b8fe-2a08f7e0d6b1",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0888c-e3a8-7721-9b0a-0d9eeeeea4ee",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0888c-e3a7-7b62-97ce-8e41ffccbea1",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1788997329845,
+        "exited_unix_millis": 1788997358883,
+        "resolved_unix_millis": 1788997358886
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0888c-e3a7-7b62-97ce-8e41ffccbea1",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 54300,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 54300,
+            "creation_filetime_100ns": 134334709298421875
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "60b595c07732199f891f8fe76f1f684e4c13c5e599bff7fff06be3bb0aa246f4",
+          "daemon_generation": "01a0888c-4082-7550-96a3-f1288b6210d0",
+          "started_unix_millis": 1788997329845,
+          "finished_unix_millis": 1788997358886,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0888c-e3a7-7b62-97ce-8e5745ca3647",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "\nrunning 2 tests\ntest runner::linux::cgroup::tests::linux_cgroup_real_identity_empty_seal_and_missing_path_negative ... ok\ntest runner::linux::cgroup::tests::linux_cgroup_root_exit_keeps_descendant_debit_until_recursive_kill ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 251 filtered out; finished in 0.06s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 35 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s\n\n",
+          "stderr_tail": "   Compiling proc-macro2 v1.0.107\n   Compiling quote v1.0.47\n   Compiling unicode-ident v1.0.24\n   Compiling libc v0.2.189\n   Compiling cfg-if v1.0.4\n   Compiling version_check v0.9.5\n   Compiling rustversion v1.0.23\n   Compiling generic-array v0.14.7\n   Compiling strsim v0.11.1\n   Compiling typenum v1.20.1\n   Compiling serde_core v1.0.229\n   Compiling syn v3.0.4\n   Compiling syn v2.0.119\n   Compiling bitflags v2.13.1\n   Compiling errno v0.3.14\n   Compiling heck v0.5.0\n   Compiling parking_lot_core v0.9.12\n   Compiling foldhash v0.1.5\n   Compiling signal-hook v0.3.18\n   Compiling allocator-api2 v0.2.21\n   Compiling shlex v2.0.1\n   Compiling find-msvc-tools v0.1.11\n   Compiling smallvec v1.15.2\n   Compiling equivalent v1.0.2\n   Compiling getrandom v0.4.3\n   Compiling ident_case v1.0.1\n   Compiling fnv v1.0.7\n   Compiling hashbrown v0.15.5\n   Compiling cc v1.4.4\n   Compiling signal-hook-registry v1.4.8\n   Compiling darling_core v0.20.11\n   Compiling itoa v1.0.18\n   Compiling rustix v0.38.44\n   Compiling log v0.4.34\n   Compiling zmij v1.0.23\n   Compiling vcpkg v0.2.15\n   Compiling scopeguard v1.2.0\n   Compiling pkg-config v0.3.34\n   Compiling utf8parse v0.2.2\n   Compiling anstyle-parse v1.0.0\n   Compiling lock_api v0.4.14\n   Compiling mio v1.2.2\n   Compiling libsqlite3-sys v0.35.0\n   Compiling block-buffer v0.10.4\n   Compiling crypto-common v0.1.7\n   Compiling linux-raw-sys v0.4.15\n   Compiling instability v0.3.10\n   Compiling colorchoice v1.0.5\n   Compiling either v1.18.0\n   Compiling serde_json v1.0.151\n   Compiling darling_macro v0.20.11\n   Compiling subtle v2.6.1\n   Compiling ref-cast v1.0.27\n   Compiling anstyle v1.0.14\n   Compiling paste v1.0.15\n   Compiling anstyle-query v1.1.5\n   Compiling is_terminal_polyfill v1.70.2\n   Compiling serde v1.0.229\n   Compiling anstream v1.0.0\n   Compiling digest v0.10.7\n   Compiling darling v0.20.11\n   Compiling itertools v0.13.0\n   Compiling parking_lot v0.12.5\n   Compiling signal-hook-mio v0.2.5\n   Compiling strum_macros v0.26.4\n   Compiling serde_derive v1.0.229\n   Compiling ref-cast-impl v1.0.27\n   Compiling serde_derive_internals v0.30.0\n   Compiling castaway v0.2.4\n   Compiling clap_lex v1.1.0\n   Compiling memchr v2.8.3\n   Compiling option-ext v0.2.0\n   Compiling unicode-segmentation v1.13.3\n   Compiling thiserror v2.0.20\n   Compiling static_assertions v1.1.0\n   Compiling indoc v2.0.7\n   Compiling unicode-width v0.1.14\n   Compiling ryu v1.0.23\n   Compiling compact_str v0.8.2\n   Compiling unicode-truncate v1.1.0\n   Compiling dirs-sys v0.5.0\n   Compiling schemars_derive v1.2.2\n   Compiling clap_builder v4.6.6\n   Compiling strum v0.26.3\n   Compiling crossterm v0.28.1\n   Compiling uuid v1.26.0\n   Compiling clap_derive v4.6.4\n   Compiling thiserror-impl v2.0.20\n   Compiling hashlink v0.10.0\n   Compiling lru v0.12.5\n   Compiling dyn-clone v1.0.20\n   Compiling cassowary v0.3.0\n   Compiling fallible-iterator v0.3.0\n   Compiling cpufeatures v0.2.17\n   Compiling fallible-streaming-iterator v0.1.9\n   Compiling rustix v1.1.4\n   Compiling unicode-width v0.2.0\n   Compiling clap v4.6.6\n   Compiling rusqlite v0.37.0\n   Compiling sha2 v0.10.9\n   Compiling ratatui v0.29.0\n   Compiling schemars v1.2.2\n   Compiling directories v6.0.0\n   Compiling hmac v0.12.1\n   Compiling fs2 v0.4.3\n   Compiling linux-raw-sys v0.12.1\n   Compiling once_cell v1.21.4\n   Compiling fastrand v2.5.0\n   Compiling stillyard v0.1.0-alpha.18 (/home/pythonic/Development/stillyard-mr3-cgroup-20260910e)\n   Compiling tempfile v3.27.0\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 28.55s\n     Running unittests src/lib.rs (target/scheduled-linux/debug/deps/stillyard-ab069fd7d7e304fb)\n     Running unittests src/main.rs (target/scheduled-linux/debug/deps/stillyard-e7b96b4decef72b3)\n     Running tests/isolated_daemon.rs (target/scheduled-linux/debug/deps/isolated_daemon-f20b802f9fe95c9b)\n     Running tests/linux_daemon.rs (target/scheduled-linux/debug/deps/linux_daemon-096365308a4c0976)\n     Running tests/public_api.rs (target/scheduled-linux/debug/deps/public_api-24c1e916005b4123)\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0888c-e3a7-7b62-97ce-8e6e4aab6a7b",
+      "lease_id": "01a0888c-e3a7-7b62-97ce-8e6e4aab6a7b",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+        "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+        "lease_id": "01a0888c-e3a7-7b62-97ce-8e6e4aab6a7b"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0888c-e18f-71c3-b8fe-2a08f7e0d6b1",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0888c-e3a8-7721-9b0a-0d9eeeeea4ee"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a0888c-4082-7550-96a3-f1288b6210d0"
+}

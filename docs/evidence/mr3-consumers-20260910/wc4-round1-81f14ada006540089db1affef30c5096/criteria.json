@@ -1,0 +1,7 @@
+{
+  "metric": "256-round SHA-256 source verification wall and CPU seconds",
+  "source_files_sha256": "514179d1b28d1bcb1e09dc8719f86a22b7d194c6240376ba72879e4b2d55b153",
+  "criteria": "all source hashes match, positive finite durations, nonempty payload, exactly 256 rounds; no overlap with managed cpu_heavy in either OS",
+  "quiet_cpu_max_percent": 40,
+  "quiet_stable_seconds": 3
+}

@@ -1,0 +1,33 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+  "args": [
+    "bootstrap",
+    "run",
+    "--spec",
+    "C:\\Development\\stillyard-mr3-linux-ipc-bootstrap-evidence-20260910a\\wsl-msrv-test-fb23e54296514dc6bd56b79ab13f3ea5\\work.json"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr3-linux-ipc-bootstrap-evidence-20260910a\\wsl-msrv-test-fb23e54296514dc6bd56b79ab13f3ea5",
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "wsl-bootstrap-msrv-test"
+    },
+    {
+      "key": "source",
+      "value": "31270ebae21fd10d2e6b451549f7494c4c77d65a663bce31839b0e9485a61056"
+    }
+  ],
+  "expected_duration_seconds": 180,
+  "timeout_seconds": 1830
+}

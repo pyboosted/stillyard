@@ -1,0 +1,7 @@
+{
+  "phase": "initial baseline snapshot",
+  "error": "Windows PowerShell WMI query exceeded its 30-second subprocess deadline",
+  "interval_started": false,
+  "acceptance": "not measured",
+  "retry": "z11f2 uses 60-second collection deadline and conservative denominator excluding collection windows"
+}

@@ -1,0 +1,177 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b0-7bf0-a5ca-a39e2420781d",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8af-7341-9df8-6dd273a0d589",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b7-7283-9622-b909c4ea70bc",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b7-7283-9622-b9127b2d52d4",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b7-7283-9622-b9217291bb6e",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789037897904,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789037897928,
+  "finished_unix_millis": 1789037936081,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr3-crash-boundaries-evidence-20260910z10e\\crash-matrix\\wsl-test-28c7e21f836d4b27a0d31d2bf4aea142\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr3-crash-boundaries-evidence-20260910z10e\\crash-matrix\\wsl-test-28c7e21f836d4b27a0d31d2bf4aea142",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-bootstrap-test"
+      },
+      {
+        "key": "source",
+        "value": "838f56a3083cc41c4b1349eb8a08f367a65a2cb1474536932a9934932f829ecc"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1830,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b7-7283-9622-b909c4ea70bc",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789037897911,
+      "started_unix_millis": 1789037897911,
+      "deadline_unix_millis": 1789039727911,
+      "finished_unix_millis": 1789037936081,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b0-7bf0-a5ca-a39e2420781d",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b7-7283-9622-b909c4ea70bc",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b7-7283-9622-b9127b2d52d4",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789037897928,
+        "exited_unix_millis": 1789037936070,
+        "resolved_unix_millis": 1789037936074
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b7-7283-9622-b9127b2d52d4",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 54920,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 54920,
+            "creation_filetime_100ns": 134335114979234148
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "6d189eb9951fcf93ccf62c1ce6d3a3a3ad4b539e69bab0e7424fe4c0200d4cd4",
+          "daemon_generation": "01a08adf-dd42-7950-a5d7-a47479db0ac7",
+          "started_unix_millis": 1789037897928,
+          "finished_unix_millis": 1789037936074,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b7-7283-9622-b9217291bb6e",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "\nrunning 1 test\n{\"actual_process_killed\":true,\"consumed\":null,\"released_after_ack\":true,\"seal\":{\"boundary_sha256\":\"b82414fba0b0dde0e6d3ce1b60e83b78838a2b669ba54fb060fcbb0e7375271b\",\"invocation\":\"01a08af8-37a8-77c1-8b40-c46d16006b45~01a08af8-37fd-7f51-ba08-4a918c1253d5\",\"possibly_released\":false,\"seal_id\":\"01a08af8-4522-70a1-a164-0d9bf82a9efe\"},\"stage\":\"ready\",\"user_starts\":0}\n{\"actual_process_killed\":true,\"consumed\":false,\"released_after_ack\":true,\"seal\":{\"boundary_sha256\":\"03abe72a0fe4fca639003872b1749abd1272b81922c50edcb60dc216a7da5332\",\"invocation\":\"01a08af8-4546-7673-b9a9-91fca71a39e9~01a08af8-45a2-7260-8780-dd06dd03124a\",\"possibly_released\":true,\"seal_id\":\"01a08af8-52ae-7b23-b5ba-4aa832e1871d\"},\"stage\":\"release-intent\",\"user_starts\":0}\n{\"actual_process_killed\":true,\"consumed\":true,\"released_after_ack\":true,\"seal\":{\"boundary_sha256\":\"f129ff63db4bd975e8086c0a32129c9eb1fa44902a10d065c0c04c158f10fef4\",\"invocation\":\"01a08af8-52d2-72f3-92d5-f05e13b10fc1~01a08af8-5332-7a62-9522-591bd3d4232a\",\"possibly_released\":true,\"seal_id\":\"01a08af8-6061-70c1-b65a-f71f440808ff\"},\"stage\":\"consumed\",\"user_starts\":0}\n{\"actual_process_killed\":true,\"consumed\":true,\"released_after_ack\":true,\"seal\":{\"boundary_sha256\":\"3e07ec5f250aeff8b02056e17ea9d1410a50e7a782c8aeecbf4ae58952e838dd\",\"invocation\":\"01a08af8-6084-7f83-b0a1-b3f1e1acc9b5~01a08af8-60dd-7e10-828d-9cdbf171432f\",\"possibly_released\":true,\"seal_id\":\"01a08af8-6e63-7b32-bc72-2a8757335f89\"},\"stage\":\"released\",\"user_starts\":1}\n{\"actual_process_killed\":true,\"consumed\":true,\"released_after_ack\":true,\"seal\":{\"boundary_sha256\":\"c6d65ebc096fc8181f29fc284e9f31569303faea233eda930252b05b8b8c204a\",\"invocation\":\"01a08af8-6e88-7241-b650-006289487ca2~01a08af8-6ee0-75f1-bcb4-dd8832b4d385\",\"possibly_released\":true,\"seal_id\":\"01a08af8-7734-79f2-ae31-2b2c4f9679d1\"},\"stage\":\"sealed\",\"user_starts\":1}\ntest store::attached::tests::crash::linux_attached_runtime_crash_commit_boundaries ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 284 filtered out; finished in 17.88s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 35 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s\n\n",
+          "stderr_tail": "   Compiling stillyard v0.1.0-alpha.20 (/home/pythonic/Development/stillyard-mr3-crash-boundaries-20260910z10e)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.87s\n     Running unittests src/lib.rs (target/scheduled-linux/debug/deps/stillyard-8d19002362520820)\n     Running unittests src/main.rs (target/scheduled-linux/debug/deps/stillyard-151fb199ef6961b3)\n     Running tests/isolated_daemon.rs (target/scheduled-linux/debug/deps/isolated_daemon-99e3c9e0236d82ab)\n     Running tests/linux_daemon.rs (target/scheduled-linux/debug/deps/linux_daemon-5b44b5396d342aba)\n     Running tests/public_api.rs (target/scheduled-linux/debug/deps/public_api-1d80906a2b1f8f31)\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b7-7283-9622-b937d59a733e",
+      "lease_id": "01a08af7-e8b7-7283-9622-b937d59a733e",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+        "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+        "lease_id": "01a08af7-e8b7-7283-9622-b937d59a733e"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b0-7bf0-a5ca-a39e2420781d",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08af7-e8b7-7283-9622-b909c4ea70bc"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08b05-a498-7fe0-97f2-c7b87168ee14"
+}

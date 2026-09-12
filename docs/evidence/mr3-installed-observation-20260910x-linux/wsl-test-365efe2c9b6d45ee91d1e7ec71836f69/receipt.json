@@ -1,0 +1,45 @@
+{
+  "version": 5,
+  "idempotency_key": "01a089a3-2ff7-75c0-95bd-e7d80a9802cc",
+  "payload_hash": "3be0efa385d289a8825ae0666764ab02d2692c37016ee3dce9ce01c233fd8805",
+  "endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+  "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+  "parent": null,
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2ffd-7fa1-8e9c-4e657aa75182",
+      "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2ffe-7cb3-819d-89de5da34f26",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1789015568382,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [
+        {
+          "code": "authority_held",
+          "detail": "Durable admission hold; process exit and store reset do not release it"
+        },
+        {
+          "code": "resource_busy",
+          "detail": "cargo_slots: requested 1, available 0, configured 1"
+        }
+      ],
+      "queue_rank": 1,
+      "reservation": null,
+      "conditions": [],
+      "estimate": {
+        "confidence": "estimated",
+        "start_in_millis": 178830,
+        "assumptions": [
+          "conservative snapshot estimate from declared durations of running Jobs and the current effective-priority order; aging or new reservations may reorder queued work, and orthogonal work may start sooner"
+        ]
+      },
+      "parent": null,
+      "managed_policy_admission": null,
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a088e2-c443-7f02-887c-2f0ecdb42500"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "requested_model": "sonnet",
+  "effort": "low",
+  "profile": "/home/pythonic/.claude2",
+  "route": "claude.ai/firstParty",
+  "invocation": {
+    "STILLYARD_JOB_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3830-7a80-b3cb-973cfef7acdd",
+    "STILLYARD_ATTEMPT": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3837-7722-916d-71109b61ce09",
+    "STILLYARD_INVOCATION_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3837-7722-916d-712b0e502f78",
+    "STILLYARD_ENDPOINT": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock"
+  },
+  "brief_sha256": "c92b3f906aa5959ceaa3b62064f27a17417312ad798d2932bcaf2bfdbd266577",
+  "executable_sha256": "dbfd4e5fb529f34573f88467f89d46b4cce55a43611c4ef73443177e75458ed0"
+}

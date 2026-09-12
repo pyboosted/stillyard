@@ -1,0 +1,72 @@
+{
+  "spec_version": 4,
+  "executable": "/home/pythonic/.local/bin/claude-current",
+  "args": [
+    "-p",
+    "You are the real W-C3 agent consumer. Use Bash to run exactly the following managed Stillyard adapter command twice sequentially. The second identical call must recover the first child Job, not build twice. Do not run Cargo directly and do not run any other commands. If it fails report the actual error. Return the child Job ID and whether both calls succeeded. The daemon schedules the build while other Windows Jobs may own the shared cargo token.\n/usr/bin/python3 /home/pythonic/Development/stillyard-consumers-20260910/wc3-round1-7c746475b4544826bcdee8d205cdb000/consumer.py managed-build --cli /home/pythonic/.local/share/stillyard/bin/stillyard --spec /home/pythonic/Development/stillyard-consumers-20260910/wc3-round1-7c746475b4544826bcdee8d205cdb000/child.json --evidence-directory /home/pythonic/Development/stillyard-consumers-20260910/wc3-round1-7c746475b4544826bcdee8d205cdb000/child-evidence --operation wc3-round1",
+    "--model",
+    "sonnet",
+    "--effort",
+    "low",
+    "--output-format",
+    "json",
+    "--safe-mode",
+    "--tools",
+    "Bash",
+    "--allowedTools",
+    "Bash(/usr/bin/python3 /home/pythonic/Development/stillyard-consumers-20260910/wc3-round1-7c746475b4544826bcdee8d205cdb000/consumer.py managed-build --cli /home/pythonic/.local/share/stillyard/bin/stillyard --spec /home/pythonic/Development/stillyard-consumers-20260910/wc3-round1-7c746475b4544826bcdee8d205cdb000/child.json --evidence-directory /home/pythonic/Development/stillyard-consumers-20260910/wc3-round1-7c746475b4544826bcdee8d205cdb000/child-evidence --operation wc3-round1)",
+    "--permission-mode",
+    "dontAsk",
+    "--setting-sources",
+    ""
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-consumers-20260910/wc3-round1-7c746475b4544826bcdee8d205cdb000",
+  "environment": {
+    "set": {
+      "HOME": "/home/pythonic",
+      "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+      "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin",
+      "LANG": "C.UTF-8"
+    }
+  },
+  "resources": {
+    "custom": {
+      "claude2_slots": 1
+    }
+  },
+  "child_submission_policy": {
+    "min_priority": 0,
+    "max_priority": 0,
+    "max_claims": {
+      "cargo_slots": 1
+    },
+    "allowed_impacts": [
+      "cpu_heavy"
+    ],
+    "required_labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      }
+    ],
+    "fences": {},
+    "allow_observed": false,
+    "allow_quiet": false,
+    "allow_delegation": false
+  },
+  "timeout_seconds": 900,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "acceptance",
+      "value": "W-C3"
+    },
+    {
+      "key": "round",
+      "value": "1"
+    }
+  ]
+}

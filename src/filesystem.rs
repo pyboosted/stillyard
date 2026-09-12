@@ -3,7 +3,7 @@ use std::path::Path;
 
 /// Enforces the v0.1 durability boundary before durable files are opened.
 #[cfg(windows)]
-pub(crate) fn require_fixed_local_ntfs(path: &Path) -> io::Result<()> {
+pub(crate) fn require_durable_local_filesystem(path: &Path) -> io::Result<()> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::{
         FILE_ATTRIBUTE_REPARSE_POINT, GetDriveTypeW, GetFileAttributesW, GetVolumeInformationW,
@@ -80,9 +80,66 @@ pub(crate) fn require_fixed_local_ntfs(path: &Path) -> io::Result<()> {
     validate_volume(drive_type == DRIVE_FIXED, &filesystem)
 }
 
-#[cfg(not(windows))]
-pub(crate) fn require_fixed_local_ntfs(_path: &Path) -> io::Result<()> {
+#[cfg(target_os = "linux")]
+pub(crate) fn require_durable_local_filesystem(path: &Path) -> io::Result<()> {
+    use std::os::fd::AsRawFd;
+    let file = std::fs::File::open(path)?;
+    let mut filesystem = std::mem::MaybeUninit::<libc::statfs>::uninit();
+    // SAFETY: the File owns its live fd and fstatfs initializes the entire output
+    // on success. The fd keeps the observed object alive through the query.
+    if unsafe { libc::fstatfs(file.as_raw_fd(), filesystem.as_mut_ptr()) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: fstatfs returned success above.
+    let filesystem = unsafe { filesystem.assume_init() };
+    if filesystem.f_type != libc::EXT4_SUPER_MAGIC {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Linux durable paths require local ext4; DrvFS, network and overlay stores are unsupported",
+        ));
+    }
+    // The statfs magic is shared with ext2/3. Mount type closes that ambiguity.
+    let canonical = std::fs::canonicalize(path)?;
+    let mounts = std::fs::read_to_string("/proc/self/mountinfo")?;
+    let mut matched = None;
+    for line in mounts.lines() {
+        let Some((fields, backend)) = line.split_once(" - ") else {
+            continue;
+        };
+        let Some(mount) = fields.split_whitespace().nth(4) else {
+            continue;
+        };
+        let mount = mount
+            .replace("\\040", " ")
+            .replace("\\011", "\t")
+            .replace("\\012", "\n")
+            .replace("\\134", "\\");
+        let mount = Path::new(&mount);
+        if canonical.starts_with(mount) {
+            let depth = mount.components().count();
+            if matched
+                .as_ref()
+                .is_none_or(|(previous, _)| depth > *previous)
+            {
+                matched = Some((depth, backend.split_whitespace().next().unwrap_or("")));
+            }
+        }
+    }
+    if !matches!(matched, Some((_, "ext4"))) {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "durable path mount type is not verified ext4",
+        ));
+    }
     Ok(())
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
+pub(crate) fn require_durable_local_filesystem(_path: &Path) -> io::Result<()> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "durable filesystem support is unavailable on this platform",
+    ))
 }
 
 #[cfg_attr(not(windows), allow(dead_code))]

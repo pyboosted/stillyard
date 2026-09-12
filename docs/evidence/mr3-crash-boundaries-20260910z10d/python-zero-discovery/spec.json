@@ -1,0 +1,32 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "/home/pythonic/Development/stillyard-mr3-crash-boundaries-20260910z10d/scripts",
+    "-p",
+    "test-wsl-*.py"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-mr3-crash-boundaries-20260910z10d",
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin",
+      "PYTHONDONTWRITEBYTECODE": "1"
+    }
+  },
+  "resources": {},
+  "timeout_seconds": 90,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "wsl-maintenance-controls"
+    }
+  ]
+}

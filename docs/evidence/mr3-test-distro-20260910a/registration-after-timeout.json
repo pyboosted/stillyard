@@ -1,0 +1,54 @@
+[
+  {
+    "guid": "{1cf1e672-7ffd-4a75-a2b5-c6dc6b127450}",
+    "default": false,
+    "values": {
+      "State": 3,
+      "DistributionName": "Stillyard-MR3-Test",
+      "Version": 2,
+      "BasePath": "C:\\Development\\stillyard-mr3-test-distro-20260910a\\distro",
+      "Flags": 15,
+      "DefaultUid": 0,
+      "RunOOBE": 0,
+      "VhdFileName": "ext4.vhdx"
+    }
+  },
+  {
+    "guid": "{390247b7-48b6-4712-bab7-ab81822b9e4d}",
+    "default": false,
+    "values": {
+      "State": 1,
+      "DistributionName": "Ubuntu-22.04",
+      "Version": 2,
+      "BasePath": "C:\\Users\\User\\AppData\\Local\\wsl\\{390247b7-48b6-4712-bab7-ab81822b9e4d}",
+      "Flags": 15,
+      "DefaultUid": 1000,
+      "RunOOBE": 0,
+      "VhdFileName": "ext4.vhdx",
+      "Flavor": "ubuntu",
+      "OsVersion": "22.04",
+      "Modern": 1,
+      "ShortcutPath": "C:\\Users\\User\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Ubuntu-22.04.lnk",
+      "TerminalProfilePath": "C:\\Users\\User\\AppData\\Local\\Microsoft\\Windows Terminal\\Fragments\\Microsoft.WSL\\{30715e7a-3017-58f2-925c-2bf0122cb7bc}.json"
+    }
+  },
+  {
+    "guid": "{4a62a312-631a-4038-b191-6fd3a0f57860}",
+    "default": true,
+    "values": {
+      "State": 1,
+      "DistributionName": "Ubuntu-SSD",
+      "Version": 2,
+      "BasePath": "D:\\WSL\\Ubuntu",
+      "Flags": 15,
+      "DefaultUid": 0,
+      "RunOOBE": 0,
+      "VhdFileName": "ext4.vhdx",
+      "Flavor": "ubuntu",
+      "OsVersion": "26.04",
+      "Modern": 1,
+      "ShortcutPath": "C:\\Users\\User\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Ubuntu-SSD.lnk",
+      "TerminalProfilePath": "C:\\Users\\User\\AppData\\Local\\Microsoft\\Windows Terminal\\Fragments\\Microsoft.WSL\\{a0608d7e-af3c-5541-9c78-f1a629c77714}.json"
+    }
+  }
+]

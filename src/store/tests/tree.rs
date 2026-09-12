@@ -60,8 +60,8 @@ fn submit_child(
 
 #[test]
 fn tree_depth_cursor_and_for_job_preserve_the_complete_ancestor_path() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let (root, parent) = submit_root(&mut store, spec(temp.path()), true);
     let parent = parent.unwrap();
     let (child, child_parent) = submit_child(&mut store, &parent, spec(temp.path()), true);
@@ -121,8 +121,8 @@ fn tree_depth_cursor_and_for_job_preserve_the_complete_ancestor_path() {
 
 #[test]
 fn filtered_tree_retains_only_connecting_ancestors_and_selector_bound_expansion() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let (root, parent) = submit_root(&mut store, spec(temp.path()), true);
     let parent = parent.unwrap();
     let mut matching = spec(temp.path());
@@ -158,8 +158,8 @@ fn filtered_tree_retains_only_connecting_ancestors_and_selector_bound_expansion(
 
 #[test]
 fn depth_cut_before_a_connector_keeps_an_inclusive_child_continuation() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let mut root_spec = spec(temp.path());
     root_spec.labels.push(crate::Label {
         key: "project".into(),
@@ -228,8 +228,8 @@ fn depth_cut_before_a_connector_keeps_an_inclusive_child_continuation() {
 
 #[test]
 fn root_cursor_survives_logs_but_fails_closed_when_attention_order_changes() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let (running, _) = submit_root(&mut store, spec(temp.path()), true);
     let (_queued, _) = submit_root(&mut store, spec(temp.path()), false);
     let first = store.tree(&JobSelector::All, None, 1, 1, None).unwrap();
@@ -267,8 +267,8 @@ fn root_cursor_survives_logs_but_fails_closed_when_attention_order_changes() {
 
 #[test]
 fn tree_observation_includes_future_descendants_and_wrong_store_gap_snapshot() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let (root, parent) = submit_root(&mut store, spec(temp.path()), true);
     let head = store.event_head().unwrap();
     let (child, _) = submit_child(&mut store, &parent.unwrap(), spec(temp.path()), false);
@@ -301,8 +301,8 @@ fn tree_observation_includes_future_descendants_and_wrong_store_gap_snapshot() {
 
 #[test]
 fn schema_rejects_a_noncanonical_tree_order_trigger() {
-    let temp = tempfile::tempdir().unwrap();
-    let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     store
         .connection
         .execute_batch(
@@ -325,8 +325,8 @@ fn schema_requires_tree_query_indexes() {
         "jobs_state_accepted",
         "jobs_accepted_order",
     ] {
-        let temp = tempfile::tempdir().unwrap();
-        let store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+        let temp = model_tempdir().unwrap();
+        let store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
         store
             .connection
             .execute_batch(&format!("DROP INDEX {index}"))
@@ -340,9 +340,9 @@ fn schema_requires_tree_query_indexes() {
 
 #[test]
 fn orphan_is_explicit_and_a_parent_cycle_fails_closed() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open(paths).unwrap();
+    let mut store = open_model_store(paths).unwrap();
     let (root, parent) = submit_root(&mut store, spec(temp.path()), true);
     let (child, _) = submit_child(&mut store, &parent.unwrap(), spec(temp.path()), false);
 
@@ -365,8 +365,8 @@ fn orphan_is_explicit_and_a_parent_cycle_fails_closed() {
     assert_eq!(focused_orphan.nodes[0].parent_retained, Some(false));
     drop(store);
 
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let (root, parent) = submit_root(&mut store, spec(temp.path()), true);
     let (child, _) = submit_child(&mut store, &parent.unwrap(), spec(temp.path()), false);
     store
@@ -387,8 +387,8 @@ fn orphan_is_explicit_and_a_parent_cycle_fails_closed() {
 
 #[test]
 fn managed_ancestry_accepts_sixty_four_jobs_and_rejects_the_sixty_fifth() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let (_, parent) = submit_root(&mut store, spec(temp.path()), true);
     let mut parent = parent.unwrap();
     for _ in 1..64 {
@@ -441,8 +441,8 @@ fn insert_fixture_roots(store: &mut Store, count: usize, spec_json: &str) {
 
 #[test]
 fn row_sixteen_thousand_three_hundred_eighty_five_fails_before_classification() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let spec_json = serde_json::to_string(&spec(temp.path())).unwrap();
     insert_fixture_roots(&mut store, 16_385, &spec_json);
     assert!(matches!(
@@ -453,8 +453,8 @@ fn row_sixteen_thousand_three_hundred_eighty_five_fails_before_classification() 
 
 #[test]
 fn encoded_budget_truncates_with_a_root_continuation_and_makes_progress() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let mut oversized_fixture = spec(temp.path());
     oversized_fixture.labels.push(crate::Label {
         key: "budget-fixture".into(),

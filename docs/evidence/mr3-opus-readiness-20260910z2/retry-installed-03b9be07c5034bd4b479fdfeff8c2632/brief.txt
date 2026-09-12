@@ -1,0 +1,1666 @@
+Independent MR-3 readiness review, NOT final acceptance. Windows is the single machine coordinator, Linux is an attached manager. SQLite owns Jobs/Attempts/Invocations; a Work Lease/Grant spans primary and postconditions, each Invocation has a DISTINCT cgroup/containment. Probe gets separate Lease/Grant. SQL role_index counts ALL invocations in an Attempt, wire role_index is primary/probe zero or the zero-based contiguous postcondition array index. No Ticket means no OS release; pidfd/ptrace EXEC stop is before user loader. Cleanup requires actual cgroup emptiness and durable journal seal; heartbeat is never cleanup proof. Current binaries alpha20/IPC25 Windows x2, Linux y2; this z2 snapshot is being gated. Real root-exit/cancel/timeout, primary+2 postconditions and separate probe/work Grants passed on installed y2. One Sonnet review and one real agent managed Cargo+idempotent replay passed; remaining rounds, actual faults, idle budget and VM/logout are pending. Do not assume omitted code is absent: state uncertainty precisely. No tools, agents, commands or edits. Report concrete findings with severity, file/function evidence, failure trace and remedy.
+
+Primary lens: Review installed lifecycle/recovery: systemd delegated cgroup ownership, daemon restart with descendants, independent journal cleanup, transport/keepalive and upgrades. Observed idle systemctl restart once hit EBUSY because old bridge remained, then auto-recovered. systemd259 initially spawns main executor into service root even with DelegateSubgroup. Linger enabled, no Windows S4U Task (access denied/UAC canceled); a detached ordinary per-user wsl.exe keepalive is alive. No logout/coldboot guarantee claimed. Known bridge currently passes WSL_INTEROP but does not validate its socket, and an early connection succeeded with alias absent; assess implications.
+
+FILE scripts/wsl-service.py
+#!/usr/bin/env python3
+"""Installed WSL lifetime/delegation helper, outside user Invocation namespaces.
+
+The Windows scheduled task runs keepalive in a foreground wsl.exe session. It
+publishes only a transport alias, never resource or cleanup authority. The user
+service runs delegate before the pinned daemon. Neither operation invokes Cargo.
+"""
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import signal
+import stat
+import subprocess
+import uuid
+
+
+def private_directory(path):
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    metadata = path.lstat()
+    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077:
+        raise RuntimeError("service state directory must be owner-only")
+
+
+def keepalive(root):
+    private_directory(root)
+    descriptor = os.open(root / "keepalive.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    metadata = os.fstat(descriptor)
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077:
+        raise RuntimeError("unsafe keepalive singleton file")
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    socket = Path(os.environ["WSL_INTEROP"])
+    metadata = socket.lstat()
+    if not socket.is_absolute() or socket.parent != Path("/run/WSL") or not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != 0:
+        raise RuntimeError("keepalive must inherit a real WSL interop server")
+    alias = root / "interop.sock"
+    if alias.exists() and not alias.is_symlink():
+        raise RuntimeError("refusing to replace a non-alias interop path")
+    staging = root / (".interop-" + uuid.uuid4().hex)
+    staging.symlink_to(socket)
+    staging.replace(alias)
+    print(json.dumps({"pid": os.getpid(), "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
+                      "interop_alias": str(alias), "interop_server": str(socket), "kind": "wsl_keepalive"}), flush=True)
+    environment = {"XDG_RUNTIME_DIR": f"/run/user/{os.geteuid()}",
+                   "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{os.geteuid()}/bus"}
+    subprocess.run(["/usr/bin/systemctl", "--user", "start", "--no-block", "stillyard.service"],
+                   env=environment, check=True, timeout=15)
+    termination = {signal.SIGTERM, signal.SIGINT}
+    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, termination)
+    try:
+        signal.sigwait(termination)
+    finally:
+        if alias.is_symlink() and alias.readlink() == socket:
+            alias.unlink()
+        os.close(descriptor)
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+
+
+def delegate(executors, ram_mb):
+    # DelegateSubgroup=manager keeps service processes out of the delegated
+    # parent, which must be empty before enabling domain controllers.
+    entry = Path("/proc/self/cgroup").read_text().strip()
+    if not entry.startswith("0::/") or "\n" in entry:
+        raise RuntimeError("unified cgroup identity is unavailable")
+    current = Path("/sys/fs/cgroup") / entry[4:]
+    parent = current.parent
+    if current.name not in ("manager", ".control") or parent.name != "stillyard.service" or executors != parent / "executors":
+        raise RuntimeError(f"service cgroup differs from installed delegation: current={current}, expected={executors}")
+    controllers = (parent / "cgroup.controllers").read_text().split()
+    if not {"memory", "pids", "cpu"}.issubset(controllers):
+        raise RuntimeError("required cgroup controllers were not delegated")
+    (parent / "cgroup.subtree_control").write_text("+memory +pids +cpu")
+    executors.mkdir(exist_ok=True)
+    (executors / "cgroup.subtree_control").write_text("+memory +pids +cpu")
+    if not 512 <= ram_mb <= 1048576:
+        raise RuntimeError("invalid executor RAM hard limit")
+    (executors / "memory.max").write_text(str(ram_mb * 1024 * 1024))
+    (executors / "pids.max").write_text("4096")
+    print(json.dumps({"kind": "wsl_delegation", "executors": str(executors),
+                      "memory_max": (executors / "memory.max").read_text().strip(),
+                      "controllers": (executors / "cgroup.subtree_control").read_text().strip()}), flush=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+    p = sub.add_parser("keepalive")
+    p.add_argument("--root", type=Path, required=True)
+    p = sub.add_parser("delegate")
+    p.add_argument("--executors", type=Path, required=True)
+    p.add_argument("--ram-mb", type=int, required=True)
+    p = sub.add_parser("run")
+    p.add_argument("--executors", type=Path, required=True)
+    p.add_argument("--ram-mb", type=int, required=True)
+    p.add_argument("--daemon", type=Path, required=True)
+    args = parser.parse_args()
+    if args.command == "keepalive":
+        keepalive(args.root)
+    else:
+        delegate(args.executors, args.ram_mb)
+        if args.command == "run":
+            if not args.daemon.is_absolute():
+                raise RuntimeError("installed daemon path must be absolute")
+            os.execv(args.daemon, [str(args.daemon), "daemon"])
+
+
+if __name__ == "__main__":
+    main()
+
+
+FILE scripts/upgrade-wsl-daemon.py
+#!/usr/bin/env python3
+"""Upgrade the installed default WSL binary under a SQLite admission barrier.
+
+Prepare is read-only except evidence. Apply preserves the Store, pairing anchor,
+executor journal and queued Jobs. It refuses outstanding Leases or containment.
+"""
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import select
+import shutil
+import sqlite3
+import subprocess
+import time
+import uuid
+
+
+def digest(path):
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--candidate", type=Path, required=True)
+    p.add_argument("--candidate-sha256", required=True)
+    p.add_argument("--build-job-id", required=True)
+    p.add_argument("--evidence-directory", type=Path, required=True)
+    p.add_argument("--apply", action="store_true")
+    args = p.parse_args()
+    if os.environ.get("STILLYARD_JOB_ID"):
+        p.error("upgrade must run outside a Job scheduled by the daemon being replaced")
+    os.umask(0o077)
+    root = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))) / "stillyard"
+    installed = root / "bin/stillyard"
+    candidate = args.candidate.resolve()
+    def query(*command):
+        return json.loads(subprocess.check_output([str(installed), *command], timeout=15))
+    before = query("daemon-status")
+    build = query("status", args.build_job_id)
+    if build["state"] != "final" or build["outcome"] != "succeeded":
+        p.error("release build Job has not succeeded")
+    target = Path(build["spec"]["environment"]["set"]["CARGO_TARGET_DIR"]) / "release/stillyard"
+    if (candidate != target.resolve() or build["spec"]["args"] != ["build", "--locked", "--release"]
+            or {"key": "gate", "value": "wsl-build-release"} not in build["spec"]["labels"]
+            or candidate == installed or digest(candidate) != args.candidate_sha256):
+        p.error("candidate does not match the selected installed-system release Job")
+    version = subprocess.check_output([str(candidate), "--version"], text=True, timeout=5).strip()
+    if version != "stillyard " + before["version"]:
+        p.error("this updater supports same-version fixes; version upgrades need a reviewed migration")
+    evidence = args.evidence_directory.resolve() / ("upgrade-" + uuid.uuid4().hex)
+    evidence.mkdir(parents=True)
+    def save(name, value):
+        with (evidence / name).open("x") as stream:
+            json.dump(value, stream, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    save("plan.json", {"before": before, "candidate": str(candidate),
+                       "candidate_sha256": args.candidate_sha256, "build_job_id": args.build_job_id,
+                       "prior_sha256": digest(installed), "apply": args.apply})
+    print(evidence, flush=True)
+    if not args.apply:
+        return
+    lock = os.open(root / "upgrade.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    pidfd = os.pidfd_open(before["pid"])
+    process = Path("/proc") / str(before["pid"])
+    ticks = int((process / "stat").read_text().rsplit(")", 1)[1].split()[19])
+    if ticks != before["process_identity"]["start_ticks"] or (process / "exe").resolve() != installed:
+        raise RuntimeError("daemon process identity changed")
+    staged = installed.with_name(".next-" + uuid.uuid4().hex)
+    with candidate.open("rb") as source, staged.open("xb") as output:
+        shutil.copyfileobj(source, output)
+        output.flush()
+        os.fsync(output.fileno())
+    staged.chmod(0o700)
+    assert digest(staged) == args.candidate_sha256
+    db = sqlite3.connect(root / "stillyard.sqlite3", timeout=5, isolation_level=None)
+    try:
+        db.execute("BEGIN IMMEDIATE")
+        leases = db.execute("select count(*) from leases where state='granted'").fetchone()[0]
+        containment = db.execute("select count(*) from containments where state!='empty'").fetchone()[0]
+        if leases or containment:
+            raise RuntimeError("active or uncertain work prevents upgrade; daemon left running")
+        jobs = db.execute("select count(*) from jobs").fetchone()[0]
+        save("barrier.json", {"job_count": jobs, "granted_leases": leases, "blocking_containment": containment})
+        subprocess.run(["systemctl", "--user", "stop", "stillyard.service"], check=True, timeout=20)
+        poll = select.poll()
+        poll.register(pidfd, select.POLLIN)
+        if not poll.poll(5000):
+            raise RuntimeError("pinned old daemon did not exit")
+        backup = installed.with_name("stillyard.previous-" + uuid.uuid4().hex)
+        os.rename(installed, backup)
+        try:
+            os.rename(staged, installed)
+        except BaseException:
+            os.rename(backup, installed)
+            raise
+        descriptor = os.open(installed.parent, os.O_RDONLY | os.O_DIRECTORY)
+        os.fsync(descriptor)
+        os.close(descriptor)
+        save("replacement.json", {"backup": str(backup), "installed_sha256": digest(installed)})
+    finally:
+        if db.in_transaction:
+            db.execute("ROLLBACK")
+        db.close()
+        os.close(pidfd)
+        if staged.exists():
+            staged.unlink()
+    start = subprocess.run(["systemctl", "--user", "start", "stillyard.service"], capture_output=True, timeout=20)
+    save("service-start.json", {"exit_code": start.returncode, "stderr": start.stderr.decode()})
+    deadline = time.monotonic() + 45
+    while True:
+        try:
+            after = query("daemon-status")
+            if after["machine_scheduling"] and after["machine_scheduling"]["blocker"] is None:
+                break
+        except subprocess.CalledProcessError:
+            pass
+        if time.monotonic() > deadline:
+            raise RuntimeError("replacement did not reconnect; retained history and backup require diagnosis")
+        time.sleep(.5)
+    assert after["store_uuid"] == before["store_uuid"]
+    assert after["daemon_generation"] != before["daemon_generation"]
+    save("after.json", after)
+    os.close(lock)
+    print(json.dumps({"pid": after["pid"], "generation": after["daemon_generation"],
+                      "store_uuid": after["store_uuid"], "sha256": digest(installed)}), flush=True)
+
+
+if __name__ == "__main__":
+    main()
+
+
+FILE scripts/install-wsl-daemon.py
+#!/usr/bin/env python3
+"""Stage a validated first WSL installation and its stopped Store.
+
+No Cargo and no queue reset. This initial-install tool refuses an existing binary
+or service. Explicit pairing and Windows keepalive registration follow the saved
+setup receipt; staging alone is not installed-runtime acceptance.
+"""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import uuid
+
+
+def digest(path):
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def save(path, value):
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, "w") as stream:
+        stream.write(json.dumps(value, indent=2) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def quote(value):
+    return '"' + str(value).replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%').replace('$', '$$') + '"'
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--candidate", type=Path, required=True)
+    parser.add_argument("--candidate-sha256", required=True)
+    parser.add_argument("--source-root", type=Path, required=True)
+    parser.add_argument("--build-job-id", required=True)
+    parser.add_argument("--evidence-directory", type=Path, required=True)
+    parser.add_argument("--windows-cli", type=Path, default=Path("/mnt/c/Users/User/AppData/Local/stillyard/Stillyard/bin/stillyard.exe"))
+    parser.add_argument("--apply", action="store_true")
+    args = parser.parse_args()
+    if os.environ.get("STILLYARD_JOB_ID"):
+        parser.error("installation must run outside a managed Invocation")
+    if digest(args.candidate) != args.candidate_sha256:
+        parser.error("candidate digest differs from selected build")
+    status = json.loads(subprocess.check_output([str(args.windows_cli), "status", args.build_job_id,
+                                               "--deadline-seconds", "5"], timeout=15))
+    if status["state"] != "final" or status["outcome"] != "succeeded":
+        parser.error("the Linux release build Job has not succeeded")
+    if {"key": "gate", "value": "wsl-bootstrap-build-release"} not in status["spec"]["labels"]:
+        parser.error("selected Job is not the protected Linux release gate")
+    root = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))) / "stillyard"
+    root = root.absolute()
+    installed = root / "bin/stillyard"
+    helper = root / "libexec/wsl-service.py"
+    unit = Path.home() / ".config/systemd/user/stillyard.service"
+    if installed.exists() or unit.exists():
+        parser.error("initial installation refuses an existing executable or service; use an audited upgrade")
+    source_helper = args.source_root / "scripts/wsl-service.py"
+    if not source_helper.is_file():
+        parser.error("selected source snapshot does not include the lifetime/delegation helper")
+    executors = Path(f"/sys/fs/cgroup/user.slice/user-{os.geteuid()}.slice/user@{os.geteuid()}.service/app.slice/stillyard.service/executors")
+    configuration = {"resources": {"ram_mb": 16384, "cargo_slots": 2,
+                                  "custom": {name: 4 for name in ("claude1_slots", "claude2_slots", "codex1_slots", "codex2_slots", "grok_slots", "opencode_slots")}},
+                     "impact_incompatibilities": {"cpu_heavy": [], "measurement": ["cpu_heavy", "gpu_heavy"]},
+                     "observation": {"ram_safety_margin_mb": 1024,
+                                     "process_rules": {"block": ["cargo", "rustc", "rust-analyzer"], "ignore": []}}}
+    unit_text = f'''[Unit]
+Description=Stillyard attached Windows/WSL scheduler
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 {quote(helper)} run --executors {quote(executors)} --ram-mb 16384 --daemon {quote(installed)}
+WorkingDirectory={str(root).replace("%", "%%")}
+Delegate=cpu memory pids
+DelegateSubgroup=manager
+Slice=app.slice
+KillMode=process
+Restart=on-failure
+RestartSec=2
+UMask=0077
+UnsetEnvironment=STILLYARD_STORE STILLYARD_ENDPOINT STILLYARD_JOB_ID STILLYARD_ATTEMPT STILLYARD_INVOCATION_ID STILLYARD_ROLE
+
+[Install]
+WantedBy=default.target
+'''
+    evidence = args.evidence_directory / ("install-" + uuid.uuid4().hex)
+    evidence.mkdir(mode=0o700, parents=True)
+    plan = {"build_job_id": args.build_job_id, "candidate": str(args.candidate.resolve()),
+            "candidate_sha256": args.candidate_sha256, "installed": str(installed),
+            "helper_sha256": digest(source_helper), "unit": str(unit), "unit_text": unit_text,
+            "host_configuration": configuration, "executor_cgroup": str(executors),
+            "interop_alias": str(root / "interop.sock"), "applied": args.apply}
+    save(evidence / "plan.json", plan)
+    if args.apply:
+        root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if root.stat().st_uid != os.geteuid() or root.stat().st_mode & 0o077:
+            raise RuntimeError("existing Store root is not owner-only")
+        if (root / "config.json").exists() or (root / "stillyard.sqlite3").exists():
+            raise RuntimeError("initial installation refuses existing Store/configuration history")
+        installed.parent.mkdir(mode=0o700)
+        helper.parent.mkdir(mode=0o700)
+        shutil.copyfile(args.candidate, installed)
+        installed.chmod(0o700)
+        shutil.copyfile(source_helper, helper)
+        helper.chmod(0o600)
+        for path in (installed, helper):
+            with path.open("rb") as stream:
+                os.fsync(stream.fileno())
+        save(root / "config.json", configuration)
+        receipt = json.loads(subprocess.check_output([str(installed), "wsl-install"], timeout=15))
+        if Path(receipt["store_path"]) != root:
+            raise RuntimeError("installed binary selected different default coordinates")
+        save(evidence / "prepared-store.json", receipt)
+        unit.parent.mkdir(parents=True, exist_ok=True)
+        with unit.open("x") as stream:
+            stream.write(unit_text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        subprocess.run(["/usr/bin/systemctl", "--user", "daemon-reload"], check=True, timeout=15)
+        save(evidence / "staged.json", {"installed_sha256": digest(installed), "helper_sha256": digest(helper),
+                                     "state": "staged_stopped_unpaired"})
+    print(evidence)
+
+
+if __name__ == "__main__":
+    main()
+
+
+FILE src/runner/linux/journal.rs
+//! Reset-independent executor obligations. A missing cgroup is never a seal.
+use super::cgroup::{Boundary, Identity};
+use crate::{ContainmentId, InvocationId, ProcessIdentity};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
+use std::fs::{File, OpenOptions};
+use std::io::{self, Read, Write};
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
+use std::path::{Path, PathBuf};
+use std::time::Instant;
+use uuid::Uuid;
+
+const MAX_BYTES: usize = 16 * 1024 * 1024;
+const MAX_RECORDS: usize = 16_384;
+const MAX_ACTIVE: usize = 1024;
+
+#[cfg(test)]
+thread_local! {
+    static FAIL_BEFORE_SEAL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Anchor {
+    pub(super) journal: Uuid,
+    pub(super) store: Uuid,
+    pub(super) domain: crate::ExecutionDomainId,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct State {
+    version: u32,
+    anchor: Anchor,
+    records: BTreeMap<InvocationId, Record>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Record {
+    pub(super) containment: ContainmentId,
+    pub(super) lease: Uuid,
+    pub(super) daemon_generation: Uuid,
+    pub(super) creator: ProcessIdentity,
+    pub(super) boundary: Option<Identity>,
+    pub(super) root: Option<ProcessIdentity>,
+    pub(super) executable_sha256: Option<String>,
+    pub(super) release_intent: Option<crate::machine::InvocationTicket>,
+    pub(super) seal: Option<Seal>,
+}
+
+impl Record {
+    pub(super) fn boundary_sha256(&self) -> io::Result<String> {
+        let boundary = self
+            .boundary
+            .as_ref()
+            .ok_or_else(|| invalid("missing executor boundary"))?;
+        digest(&(
+            self.containment,
+            self.lease,
+            self.daemon_generation,
+            &self.creator,
+            boundary,
+            &self.root,
+            &self.executable_sha256,
+        ))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Seal {
+    pub(super) invocation: InvocationId,
+    pub(super) boundary_sha256: String,
+    pub(super) seal_id: Uuid,
+    pub(super) possibly_released: bool,
+}
+impl Seal {
+    pub(super) fn sha256(&self) -> io::Result<String> {
+        digest(self)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Envelope {
+    state: State,
+    sha256: String,
+}
+
+pub(super) struct Journal {
+    directory: PathBuf,
+    directory_guard: File,
+    _lock: File,
+    state: State,
+    poisoned: bool,
+}
+
+fn invalid(message: &str) -> io::Error {
+    io::Error::other(message)
+}
+pub(super) fn digest(value: &impl Serialize) -> io::Result<String> {
+    Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(value)?)))
+}
+fn owned(path: &Path, directory: bool) -> io::Result<File> {
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(
+            libc::O_NOFOLLOW | libc::O_CLOEXEC | if directory { libc::O_DIRECTORY } else { 0 },
+        )
+        .open(path)?;
+    let meta = file.metadata()?;
+    // SAFETY: geteuid has no preconditions.
+    if meta.uid() != unsafe { libc::geteuid() }
+        || meta.mode() & 0o077 != 0
+        || (directory && !meta.is_dir())
+        || (!directory && !meta.is_file())
+    {
+        return Err(invalid(
+            "executor history must be an owner-only regular file/directory",
+        ));
+    }
+    Ok(file)
+}
+fn read(path: &Path) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    owned(path, false)?
+        .take(MAX_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > MAX_BYTES {
+        return Err(invalid("executor history exceeds size bound"));
+    }
+    Ok(bytes)
+}
+fn publish(directory: &Path, name: &str, bytes: &[u8], replace: bool) -> io::Result<()> {
+    if bytes.len() > MAX_BYTES {
+        return Err(invalid("executor history exceeds size bound"));
+    }
+    let temporary = directory.join(format!(".publish-{}", Uuid::now_v7()));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&temporary)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    let target = directory.join(name);
+    if replace {
+        std::fs::rename(&temporary, &target)?;
+    } else {
+        std::fs::hard_link(&temporary, &target)?;
+        std::fs::remove_file(&temporary)?;
+    }
+    File::open(directory)?.sync_all()
+}
+
+impl Journal {
+    /// Called only by explicit installation after an empty-work inventory. An
+    /// existing, missing or damaged installation is never initialized on open.
+    pub(super) fn initialize(directory: &Path, anchor: Anchor) -> io::Result<Self> {
+        if anchor.journal.is_nil() || anchor.store.is_nil() || anchor.domain.0.is_nil() {
+            return Err(invalid("nil executor installation identity"));
+        }
+        let parent = directory
+            .parent()
+            .ok_or_else(|| invalid("executor journal has no parent"))?;
+        owned(parent, true)?;
+        crate::filesystem::require_durable_local_filesystem(parent)?;
+        std::fs::DirBuilder::new().mode(0o700).create(directory)?;
+        File::open(parent)?.sync_all()?;
+        let state = State {
+            version: 1,
+            anchor: anchor.clone(),
+            records: BTreeMap::new(),
+        };
+        publish(
+            directory,
+            "anchor.json",
+            &serde_json::to_vec(&anchor)?,
+            false,
+        )?;
+        let envelope = Envelope {
+            sha256: digest(&state)?,
+            state,
+        };
+        publish(
+            directory,
+            "state.json",
+            &serde_json::to_vec(&envelope)?,
+            false,
+        )?;
+        Self::open(directory, &anchor)
+    }
+
+    pub(super) fn open(directory: &Path, expected: &Anchor) -> io::Result<Self> {
+        let directory_guard = owned(directory, true)?;
+        crate::filesystem::require_durable_local_filesystem(directory)?;
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(directory.join("executor.lock"))?;
+        let guard = owned(&directory.join("executor.lock"), false)?;
+        if (guard.metadata()?.dev(), guard.metadata()?.ino())
+            != (lock.metadata()?.dev(), lock.metadata()?.ino())
+        {
+            return Err(invalid("executor lock was replaced"));
+        }
+        fs2::FileExt::try_lock_exclusive(&lock)?;
+        let anchor: Anchor = serde_json::from_slice(&read(&directory.join("anchor.json"))?)?;
+        let envelope: Envelope = serde_json::from_slice(&read(&directory.join("state.json"))?)?;
+        if &anchor != expected
+            || envelope.state.anchor != anchor
+            || envelope.state.version != 1
+            || digest(&envelope.state)? != envelope.sha256
+            || envelope.state.records.len() > MAX_RECORDS
+        {
+            return Err(invalid("executor history/anchor is unknown or mismatched"));
+        }
+        for (invocation, record) in &envelope.state.records {
+            if invocation.store_uuid() != anchor.store
+                || record.containment.store_uuid() != anchor.store
+                || record.lease.is_nil()
+                || record.daemon_generation.is_nil()
+            {
+                return Err(invalid("executor history contains a foreign obligation"));
+            }
+            if let Some(seal) = &record.seal {
+                if seal.invocation != *invocation
+                    || seal.seal_id.is_nil()
+                    || seal.boundary_sha256 != record.boundary_sha256()?
+                    || seal.possibly_released != record.release_intent.is_some()
+                {
+                    return Err(invalid("invalid executor seal"));
+                }
+            }
+        }
+        Ok(Self {
+            directory: directory.to_owned(),
+            directory_guard,
+            _lock: lock,
+            state: envelope.state,
+            poisoned: false,
+        })
+    }
+
+    fn check(&self) -> io::Result<()> {
+        if self.poisoned {
+            return Err(invalid(
+                "executor publication failed; history requires recovery",
+            ));
+        }
+        let meta = owned(&self.directory, true)?.metadata()?;
+        let pin = self.directory_guard.metadata()?;
+        if (meta.dev(), meta.ino()) != (pin.dev(), pin.ino()) || pin.nlink() == 0 {
+            return Err(invalid("executor journal directory was replaced"));
+        }
+        let anchor: Anchor = serde_json::from_slice(&read(&self.directory.join("anchor.json"))?)?;
+        let disk: Envelope = serde_json::from_slice(&read(&self.directory.join("state.json"))?)?;
+        if anchor != self.state.anchor
+            || disk.sha256 != digest(&disk.state)?
+            || digest(&self.state)? != disk.sha256
+        {
+            return Err(invalid("executor history changed outside its writer"));
+        }
+        Ok(())
+    }
+    fn commit(&mut self, state: State) -> io::Result<()> {
+        self.check()?;
+        let envelope = Envelope {
+            sha256: digest(&state)?,
+            state,
+        };
+        // Once publication is attempted, even an fsync error is an uncertain
+        // commit. This process must not continue from its old in-memory state.
+        self.poisoned = true;
+        publish(
+            &self.directory,
+            "state.json",
+            &serde_json::to_vec(&envelope)?,
+            true,
+        )?;
+        self.state = envelope.state;
+        self.poisoned = false;
+        Ok(())
+    }
+    pub(super) fn records(&self) -> io::Result<&BTreeMap<InvocationId, Record>> {
+        self.check()?;
+        Ok(&self.state.records)
+    }
+
+    pub(super) fn create(
+        &mut self,
+        parent: &Path,
+        invocation: InvocationId,
+        containment: ContainmentId,
+        lease: Uuid,
+        generation: Uuid,
+        creator: ProcessIdentity,
+    ) -> io::Result<Boundary> {
+        self.check()?;
+        let active = self
+            .state
+            .records
+            .values()
+            .filter(|r| r.seal.is_none())
+            .count();
+        // Reserve serialized space for every pending ticket and seal as well
+        // as disk space. Exhaustion rejects new obligations, never cleanup.
+        if serde_json::to_vec(&self.state)?
+            .len()
+            .saturating_add((active + 1) * 16_384)
+            > MAX_BYTES - 1024 * 1024
+        {
+            return Err(invalid("executor history cleanup headroom unavailable"));
+        }
+        if invocation.store_uuid() != self.state.anchor.store
+            || containment.store_uuid() != self.state.anchor.store
+            || lease.is_nil()
+            || generation.is_nil()
+            || self.state.records.contains_key(&invocation)
+            || self.state.records.len() >= MAX_RECORDS
+            || active >= MAX_ACTIVE
+            || !matches!(creator, ProcessIdentity::Linux { .. })
+        {
+            return Err(invalid(
+                "duplicate, foreign or over-budget executor creation intent",
+            ));
+        }
+        let mut space = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+        // SAFETY: pinned journal directory and writable statvfs storage.
+        if unsafe { libc::fstatvfs(self.directory_guard.as_raw_fd(), space.as_mut_ptr()) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: successful fstatvfs initialized the structure.
+        let space = unsafe { space.assume_init() };
+        if u128::from(space.f_bavail) * u128::from(space.f_frsize)
+            < (MAX_BYTES as u128 * 3 + (active as u128 + 1) * 65536)
+        {
+            return Err(invalid("executor cleanup publication headroom unavailable"));
+        }
+        let mut next = self.state.clone();
+        next.records.insert(
+            invocation,
+            Record {
+                containment,
+                lease,
+                daemon_generation: generation,
+                creator,
+                boundary: None,
+                root: None,
+                executable_sha256: None,
+                release_intent: None,
+                seal: None,
+            },
+        );
+        self.commit(next)?;
+        let boundary = Boundary::create(parent, invocation.entity_uuid())?;
+        let mut next = self.state.clone();
+        next.records.get_mut(&invocation).unwrap().boundary = Some(boundary.identity.clone());
+        self.commit(next)?;
+        Ok(boundary)
+    }
+
+    pub(super) fn ready(
+        &mut self,
+        invocation: InvocationId,
+        launch: &super::launch::PreparedLaunch,
+    ) -> io::Result<()> {
+        let mut next = self.state.clone();
+        let record = next
+            .records
+            .get_mut(&invocation)
+            .ok_or_else(|| invalid("unknown executor intent"))?;
+        if record.seal.is_some() || record.root.is_some() || record.release_intent.is_some() {
+            return Err(invalid("executor root was already prepared or sealed"));
+        }
+        let boundary = Boundary::reopen(
+            record
+                .boundary
+                .as_ref()
+                .ok_or_else(|| invalid("executor boundary not committed"))?,
+        )?;
+        if !boundary.contains_process(launch.root.proc_handle())? {
+            return Err(invalid("prepared root left the recorded boundary"));
+        }
+        record.root = Some(launch.root.identity.clone());
+        record.executable_sha256 = Some(launch.requested_sha256.clone());
+        self.commit(next)
+    }
+
+    /// Call before SQLite ticket consumption. A crash after this point is
+    /// possibly-released even if the kernel barrier was never actually resumed.
+    pub(super) fn release_intent(
+        &mut self,
+        ticket: &crate::machine::InvocationTicket,
+    ) -> io::Result<()> {
+        if serde_json::to_vec(ticket)?.len() > 8192 {
+            return Err(invalid("executor ticket exceeds reserved history bound"));
+        }
+        let mut next = self.state.clone();
+        let record = next
+            .records
+            .get_mut(&ticket.intent.invocation_id)
+            .ok_or_else(|| invalid("unknown executor ticket"))?;
+        if record.seal.is_some()
+            || record.release_intent.is_some()
+            || record.root.is_none()
+            || ticket.key.manager_store_uuid != next.anchor.store
+            || ticket.key.domain_id != next.anchor.domain
+            || ticket.key.lease_id != record.lease
+            || ticket.intent.containment_id != record.containment
+            || record.executable_sha256.as_deref() != Some(ticket.intent.executable_sha256.as_str())
+            || record.boundary_sha256()? != ticket.intent.boundary_sha256
+        {
+            return Err(invalid(
+                "ticket does not match an unreleased prepared executor intent",
+            ));
+        }
+        record.release_intent = Some(ticket.clone());
+        self.commit(next)
+    }
+
+    pub(super) fn cleanup(
+        &mut self,
+        invocation: InvocationId,
+        deadline: Instant,
+    ) -> io::Result<Seal> {
+        self.check()?;
+        let record = self
+            .state
+            .records
+            .get(&invocation)
+            .ok_or_else(|| invalid("unknown executor cleanup"))?;
+        if let Some(seal) = &record.seal {
+            return Ok(seal.clone());
+        }
+        let identity = record.boundary.as_ref().ok_or_else(|| {
+            invalid("creation interrupted before boundary identity; cleanup unknown")
+        })?;
+        Boundary::reopen(identity)?.kill_and_seal(deadline)?;
+        #[cfg(test)]
+        if FAIL_BEFORE_SEAL.replace(false) {
+            return Err(invalid("injected crash after removal before durable seal"));
+        }
+        let seal = Seal {
+            invocation,
+            boundary_sha256: record.boundary_sha256()?,
+            seal_id: Uuid::now_v7(),
+            possibly_released: record.release_intent.is_some(),
+        };
+        let mut next = self.state.clone();
+        next.records.get_mut(&invocation).unwrap().seal = Some(seal.clone());
+        self.commit(next)?;
+        Ok(seal)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    use std::time::Duration;
+
+    fn anchor() -> Anchor {
+        Anchor {
+            journal: Uuid::now_v7(),
+            store: Uuid::now_v7(),
+            domain: crate::ExecutionDomainId(Uuid::now_v7()),
+        }
+    }
+    fn current() -> ProcessIdentity {
+        // SAFETY: geteuid has no preconditions.
+        crate::identity::linux::Process::open(std::process::id(), unsafe { libc::geteuid() })
+            .unwrap()
+            .identity
+    }
+
+    #[test]
+    fn linux_executor_journal_never_reinitializes_missing_or_corrupt_history() {
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let anchor = anchor();
+        assert!(Journal::open(&path, &anchor).is_err());
+        let journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        assert!(
+            Journal::open(&path, &anchor).is_err(),
+            "duplicate writer acquired executor history"
+        );
+        drop(journal);
+        assert!(Journal::initialize(&path, anchor.clone()).is_err());
+        let mut wrong = anchor.clone();
+        wrong.store = Uuid::now_v7();
+        assert!(Journal::open(&path, &wrong).is_err());
+        let journal = Journal::open(&path, &anchor).unwrap();
+        let original = std::fs::read(path.join("state.json")).unwrap();
+        std::fs::write(path.join("state.json"), b"{}").unwrap();
+        assert!(
+            journal.records().is_err(),
+            "live writer accepted external history loss"
+        );
+        drop(journal);
+        assert!(Journal::open(&path, &anchor).is_err());
+        std::fs::write(path.join("state.json"), original).unwrap();
+        std::fs::remove_file(path.join("anchor.json")).unwrap();
+        assert!(Journal::open(&path, &anchor).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires delegated cgroup under a protected system bootstrap Job"]
+    fn linux_executor_journal_recovers_live_boundary_and_seals_once() {
+        let root = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap();
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let helper = temp.path().join("stillyard");
+        std::fs::copy(
+            std::env::var_os("STILLYARD_TEST_EXECUTABLE").unwrap(),
+            &helper,
+        )
+        .unwrap();
+        let anchor = anchor();
+        let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+        let containment = ContainmentId::from_parts(anchor.store, Uuid::now_v7());
+        let lease = Uuid::now_v7();
+        let generation = Uuid::now_v7();
+        let mut journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        let boundary = journal
+            .create(
+                Path::new(&root),
+                invocation,
+                containment,
+                lease,
+                generation,
+                current(),
+            )
+            .unwrap();
+        let spec=super::super::launch::LaunchSpec {executable:"/usr/bin/python3".into(),args:vec!["-c".into(),"import subprocess,time; subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(60)']); time.sleep(60)".into()],working_directory:temp.path().into(),environment:BTreeMap::new()};
+        let mut launch = super::super::launch::PreparedLaunch::prepare(
+            &boundary,
+            &helper,
+            &spec,
+            File::open("/dev/null").unwrap(),
+            Instant::now() + Duration::from_secs(15),
+        )
+        .unwrap();
+        journal.ready(invocation, &launch).unwrap();
+        let session = crate::machine::SessionIdentity {
+            machine_id: Uuid::now_v7(),
+            authority_epoch: Uuid::now_v7(),
+            domain_id: anchor.domain,
+            manager_store_uuid: anchor.store,
+            executor_incarnation: Uuid::now_v7(),
+            connection_epoch: 1,
+        };
+        let ticket = crate::machine::InvocationTicket {
+            grant_id: crate::GrantId::from_parts(Uuid::now_v7(), Uuid::now_v7()),
+            key: crate::machine::AllocationKey {
+                machine_id: session.machine_id,
+                authority_epoch: session.authority_epoch,
+                domain_id: anchor.domain,
+                manager_store_uuid: anchor.store,
+                lease_id: lease,
+            },
+            offer_nonce: Uuid::now_v7(),
+            intent: crate::machine::InvocationIntent {
+                invocation_id: invocation,
+                containment_id: containment,
+                role: crate::InvocationRole::Primary,
+                role_index: 0,
+                release_sequence: 1,
+                executable_sha256: launch.requested_sha256.clone(),
+                boundary_sha256: journal.records().unwrap()[&invocation]
+                    .boundary_sha256()
+                    .unwrap(),
+                readiness_challenge: Uuid::now_v7(),
+                previous_cleanup: None,
+            },
+            configuration_sha256: "a".repeat(64),
+            issued_unix_millis: 1,
+            host_observation_generation: Uuid::now_v7(),
+            host_sample_unix_millis: 1,
+            session,
+        };
+        journal.release_intent(&ticket).unwrap();
+        assert!(
+            journal.release_intent(&ticket).is_err(),
+            "a release intent was reused"
+        );
+        launch.release().unwrap();
+        assert!(boundary.populated().unwrap(), "live boundary disappeared");
+        drop(journal);
+        let mut journal = Journal::open(&path, &anchor).unwrap();
+        assert!(journal.records().unwrap()[&invocation].seal.is_none());
+        let seal = journal
+            .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+            .unwrap();
+        assert!(seal.possibly_released);
+        drop(journal);
+        let mut journal = Journal::open(&path, &anchor).unwrap();
+        assert_eq!(journal.cleanup(invocation, Instant::now()).unwrap(), seal);
+        assert_eq!(seal.sha256().unwrap().len(), 64);
+        assert!(
+            journal
+                .create(
+                    Path::new(&root),
+                    invocation,
+                    containment,
+                    lease,
+                    generation,
+                    current()
+                )
+                .is_err()
+        );
+        assert!(Boundary::reopen(&boundary.identity).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires delegated cgroup under a protected system bootstrap Job"]
+    fn linux_executor_journal_absence_after_seal_gap_retains_uncertainty() {
+        let root = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap();
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let anchor = anchor();
+        let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+        let mut journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        journal
+            .create(
+                Path::new(&root),
+                invocation,
+                ContainmentId::from_parts(anchor.store, Uuid::now_v7()),
+                Uuid::now_v7(),
+                Uuid::now_v7(),
+                current(),
+            )
+            .unwrap();
+        FAIL_BEFORE_SEAL.set(true);
+        assert!(
+            journal
+                .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+                .is_err()
+        );
+        drop(journal);
+        let mut recovered = Journal::open(&path, &anchor).unwrap();
+        assert!(recovered.records().unwrap()[&invocation].seal.is_none());
+        assert!(
+            recovered
+                .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+                .is_err(),
+            "missing cgroup was accepted as a seal"
+        );
+    }
+}
+
+
+FILE src/runner/linux/cgroup.rs
+//! Pinned cgroup v2 boundaries. Missing paths and dead roots are never empty proof.
+use serde::{Deserialize, Serialize};
+use std::fs::{File, OpenOptions};
+use std::io::{self, Read, Write};
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Identity {
+    pub(crate) boot_id: String,
+    pub(crate) path: PathBuf,
+    pub(crate) device: u64,
+    pub(crate) inode: u64,
+}
+
+pub(crate) struct Boundary {
+    directory: File,
+    pub(crate) identity: Identity,
+}
+
+fn boot() -> io::Result<String> {
+    let text = std::fs::read_to_string("/proc/sys/kernel/random/boot_id")?;
+    let id = uuid::Uuid::parse_str(text.trim()).map_err(io::Error::other)?;
+    if id.is_nil() {
+        return Err(io::Error::other("nil kernel boot identity"));
+    }
+    Ok(id.to_string())
+}
+
+fn open_directory(path: &Path) -> io::Result<File> {
+    let directory = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)?;
+    let mut fs = std::mem::MaybeUninit::<libc::statfs>::uninit();
+    // SAFETY: live owned fd and writable statfs storage.
+    if unsafe { libc::fstatfs(directory.as_raw_fd(), fs.as_mut_ptr()) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: successful fstatfs initialized the structure.
+    if unsafe { fs.assume_init() }.f_type != libc::CGROUP2_SUPER_MAGIC {
+        return Err(io::Error::other("execution boundary is not cgroup v2"));
+    }
+    Ok(directory)
+}
+
+impl Boundary {
+    pub(crate) fn create(parent: &Path, invocation: uuid::Uuid) -> io::Result<Self> {
+        if invocation.is_nil() {
+            return Err(io::Error::other("nil boundary identity"));
+        }
+        let parent = std::fs::canonicalize(parent)?;
+        let parent_guard = open_directory(&parent)?;
+        let parent_fd = PathBuf::from(format!("/proc/self/fd/{}", parent_guard.as_raw_fd()));
+        let name = format!("invocation-{invocation}");
+        // Exclusive creation prevents a second attempt from reusing a boundary.
+        std::fs::create_dir(parent_fd.join(&name))?;
+        let directory = open_directory(&parent_fd.join(&name))?;
+        let metadata = directory.metadata()?;
+        let identity = Identity {
+            boot_id: boot()?,
+            path: parent.join(name),
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        };
+        let boundary = Self {
+            directory,
+            identity,
+        };
+        // Opening the control file confirms actual delegated write capability.
+        OpenOptions::new()
+            .write(true)
+            .open(boundary.file("cgroup.kill"))?;
+        if boundary.populated()? {
+            return Err(io::Error::other("new boundary is not empty"));
+        }
+        Ok(boundary)
+    }
+
+    pub(crate) fn reopen(identity: &Identity) -> io::Result<Self> {
+        if boot()? != identity.boot_id {
+            return Err(io::Error::other("cgroup belongs to another boot"));
+        }
+        let boundary = Self {
+            directory: open_directory(&identity.path)?,
+            identity: identity.clone(),
+        };
+        boundary.check_identity()?;
+        Ok(boundary)
+    }
+
+    fn file(&self, name: &str) -> PathBuf {
+        PathBuf::from(format!(
+            "/proc/self/fd/{}/{name}",
+            self.directory.as_raw_fd()
+        ))
+    }
+
+    pub(super) fn attachment_file(&self) -> io::Result<File> {
+        self.check_identity()?;
+        OpenOptions::new()
+            .write(true)
+            .open(self.file("cgroup.procs"))
+    }
+
+    fn check_identity(&self) -> io::Result<()> {
+        let pinned = self.directory.metadata()?;
+        let current = std::fs::symlink_metadata(&self.identity.path)?;
+        if !current.is_dir()
+            || pinned.nlink() == 0
+            || (pinned.dev(), pinned.ino()) != (self.identity.device, self.identity.inode)
+            || (current.dev(), current.ino()) != (self.identity.device, self.identity.inode)
+        {
+            return Err(io::Error::other("recorded cgroup was replaced or removed"));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn populated(&self) -> io::Result<bool> {
+        self.check_identity()?;
+        let mut text = String::new();
+        File::open(self.file("cgroup.events"))?
+            .take(4097)
+            .read_to_string(&mut text)?;
+        if text.len() > 4096 {
+            return Err(io::Error::other("oversized cgroup event evidence"));
+        }
+        let values = text
+            .lines()
+            .filter_map(|line| line.strip_prefix("populated "))
+            .collect::<Vec<_>>();
+        match values.as_slice() {
+            ["0"] => Ok(false),
+            ["1"] => Ok(true),
+            _ => Err(io::Error::other("invalid cgroup populated evidence")),
+        }
+    }
+
+    /// The caller owns a live process guard and its pre-user-code release barrier.
+    pub(crate) fn attach_stopped(&self, pid: u32) -> io::Result<()> {
+        self.check_identity()?;
+        OpenOptions::new()
+            .write(true)
+            .open(self.file("cgroup.procs"))?
+            .write_all(pid.to_string().as_bytes())?;
+        let text = std::fs::read_to_string(self.file("cgroup.procs"))?;
+        if !text
+            .lines()
+            .any(|line| line.parse::<u32>().ok() == Some(pid))
+        {
+            return Err(io::Error::other(
+                "stopped root did not enter recorded cgroup",
+            ));
+        }
+        Ok(())
+    }
+
+    /// proc_handle is borrowed from the RPC's kernel-pinned peer guard, not a
+    /// PID supplied by the caller. Descendants inherit this same cgroup.
+    pub(crate) fn contains_process(&self, proc_handle: usize) -> io::Result<bool> {
+        self.check_identity()?;
+        let stat = std::fs::read_to_string(format!("/proc/self/fd/{proc_handle}/stat"))?;
+        let pid = stat
+            .split_once(" (")
+            .ok_or_else(|| io::Error::other("invalid pinned process stat"))?
+            .0
+            .parse::<u32>()
+            .map_err(io::Error::other)?;
+        let mut text = String::new();
+        File::open(self.file("cgroup.procs"))?
+            .take(1_048_577)
+            .read_to_string(&mut text)?;
+        if text.len() > 1_048_576 {
+            return Err(io::Error::other(
+                "containment membership exceeds evidence bound",
+            ));
+        }
+        Ok(text
+            .lines()
+            .any(|line| line.parse::<u32>().ok() == Some(pid)))
+    }
+
+    /// Successful return is a seal observation, which must be persisted before
+    /// any Lease/Grant release. A crash before persistence remains uncertain.
+    pub(crate) fn kill_and_seal(&self, deadline: Instant) -> io::Result<()> {
+        self.check_identity()?;
+        OpenOptions::new()
+            .write(true)
+            .open(self.file("cgroup.kill"))?
+            .write_all(b"1")?;
+        while self.populated()? {
+            if Instant::now() >= deadline {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "cgroup remains populated; allocation retained",
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        self.check_identity()?;
+        // Invocation user code sees read-only cgroups, so it cannot add child
+        // boundaries. Unexpected descendants make rmdir fail closed.
+        std::fs::remove_dir(&self.identity.path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn linux_cgroup_rejects_an_ordinary_directory_as_boundary_evidence() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::write(directory.path().join("cgroup.events"), b"populated 0\n").unwrap();
+        std::fs::write(directory.path().join("cgroup.kill"), b"").unwrap();
+        assert!(Boundary::create(directory.path(), uuid::Uuid::now_v7()).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires nested delegation under the protected system bootstrap Job"]
+    fn linux_cgroup_real_identity_empty_seal_and_missing_path_negative() {
+        let root = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT")
+            .expect("explicit protected test delegation");
+        let boundary = Boundary::create(Path::new(&root), uuid::Uuid::now_v7()).unwrap();
+        assert!(!boundary.populated().unwrap());
+        let mut wrong = boundary.identity.clone();
+        wrong.inode += 1;
+        assert!(Boundary::reopen(&wrong).is_err());
+        let reopened = Boundary::reopen(&boundary.identity).unwrap();
+        assert!(!reopened.populated().unwrap());
+        boundary
+            .kill_and_seal(Instant::now() + Duration::from_secs(3))
+            .unwrap();
+        assert!(
+            Boundary::reopen(&boundary.identity).is_err(),
+            "absence must not become an empty proof"
+        );
+        assert!(reopened.populated().is_err());
+    }
+
+    #[test]
+    #[ignore = "requires nested delegation under the protected system bootstrap Job"]
+    fn linux_cgroup_root_exit_keeps_descendant_debit_until_recursive_kill() {
+        use std::process::{Command, Stdio};
+        let root = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT")
+            .expect("explicit protected test delegation");
+        let boundary = Boundary::create(Path::new(&root), uuid::Uuid::now_v7()).unwrap();
+        // This trusted fixture waits before forking its live descendant. It is
+        // a cleanup control, not evidence of the executor's user-code barrier.
+        let mut child = Command::new("/usr/bin/python3").args(["-c", "import subprocess,sys; assert sys.stdin.read(1)=='R'; subprocess.Popen(['/usr/bin/python3','-c','import time; time.sleep(60)']); print('forked',flush=True)"])
+            .stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();
+        let process =
+            crate::identity::linux::Process::open(child.id(), unsafe { libc::geteuid() }).unwrap();
+        boundary.attach_stopped(child.id()).unwrap();
+        assert!(boundary.contains_process(process.proc_handle()).unwrap());
+        child.stdin.take().unwrap().write_all(b"R").unwrap();
+        let until = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(exit) = child.try_wait().unwrap() {
+                assert!(exit.success());
+                break;
+            }
+            assert!(Instant::now() < until, "trusted fixture root did not exit");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        // A root-only implementation would return false here and release early.
+        assert!(boundary.populated().unwrap());
+        let reopened = Boundary::reopen(&boundary.identity).unwrap();
+        assert!(reopened.populated().unwrap());
+        reopened
+            .kill_and_seal(Instant::now() + Duration::from_secs(5))
+            .unwrap();
+        assert!(Boundary::reopen(&boundary.identity).is_err());
+    }
+}
+
+
+FILE src/machine/bridge/linux.rs
+//! Linux side of the installed Windows bridge, with absolute pipe deadlines.
+use super::*;
+use std::fs::File;
+use std::io;
+use std::os::fd::AsRawFd;
+use std::path::Path;
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::time::{Duration, Instant};
+
+struct TimedIo<T> {
+    io: T,
+    deadline: Instant,
+}
+impl<T: AsRawFd> TimedIo<T> {
+    fn new(io: T, deadline: Instant) -> io::Result<Self> {
+        // SAFETY: borrowed live fd; changing status flags does not transfer it.
+        let flags = unsafe { libc::fcntl(io.as_raw_fd(), libc::F_GETFL) };
+        if flags < 0
+            || unsafe { libc::fcntl(io.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(Self { io, deadline })
+    }
+    fn ready(&self, events: i16) -> io::Result<()> {
+        loop {
+            let remaining = self.deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "Windows bridge deadline elapsed",
+                ));
+            }
+            let mut fd = libc::pollfd {
+                fd: self.io.as_raw_fd(),
+                events,
+                revents: 0,
+            };
+            // SAFETY: writable pollfd and finite timeout.
+            let result = unsafe {
+                libc::poll(
+                    &mut fd,
+                    1,
+                    remaining.as_millis().clamp(1, i32::MAX as u128) as i32,
+                )
+            };
+            if result < 0 {
+                let error = io::Error::last_os_error();
+                if error.kind() == io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return Err(error);
+            }
+            if result > 0 {
+                if fd.revents & libc::POLLNVAL != 0 {
+                    return Err(invalid("invalid Windows bridge pipe"));
+                }
+                // HUP/ERR is consumed by read/write as EOF or EPIPE.
+                return Ok(());
+            }
+        }
+    }
+}
+impl<T: Read + AsRawFd> Read for TimedIo<T> {
+    fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+        loop {
+            self.ready(libc::POLLIN)?;
+            match self.io.read(bytes) {
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                    ) =>
+                {
+                    continue;
+                }
+                result => return result,
+            }
+        }
+    }
+}
+impl<T: Write + AsRawFd> Write for TimedIo<T> {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        loop {
+            self.ready(libc::POLLOUT)?;
+            match self.io.write(bytes) {
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                    ) =>
+                {
+                    continue;
+                }
+                result => return result,
+            }
+        }
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.io.flush()
+    }
+}
+
+pub(crate) struct Bridge {
+    child: Option<Child>,
+    input: TimedIo<ChildStdin>,
+    output: TimedIo<ChildStdout>,
+    broken: bool,
+}
+
+impl Bridge {
+    pub(crate) fn spawn(
+        executable: &Path,
+        expected_sha256: &str,
+        endpoint: &str,
+        interop_socket: &Path,
+    ) -> io::Result<Self> {
+        if !executable.is_absolute() || !interop_socket.is_absolute() || expected_sha256.len() != 64
+        {
+            return Err(invalid(
+                "bridge needs explicit installed image and interop binding",
+            ));
+        }
+        let mut image = File::open(executable)?;
+        let mut hash = Sha256::new();
+        let mut buffer = [0_u8; 65536];
+        let mut total = 0_u64;
+        loop {
+            let n = image.read(&mut buffer)?;
+            if n == 0 {
+                break;
+            }
+            total += n as u64;
+            if total > 512 * 1024 * 1024 {
+                return Err(invalid("installed bridge image exceeds bound"));
+            }
+            hash.update(&buffer[..n]);
+        }
+        if format!("{:x}", hash.finalize()) != expected_sha256 {
+            return Err(invalid(
+                "installed Windows bridge differs from installation anchor",
+            ));
+        }
+        let mut child = Command::new(executable)
+            .args(["--endpoint", endpoint, "machine", "bridge"])
+            .env_clear()
+            .env("WSL_INTEROP", interop_socket)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?;
+        let input = child
+            .stdin
+            .take()
+            .ok_or_else(|| invalid("bridge has no input pipe"))?;
+        let output = child
+            .stdout
+            .take()
+            .ok_or_else(|| invalid("bridge has no output pipe"))?;
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let pipes = TimedIo::new(input, deadline)
+            .and_then(|input| Ok((input, TimedIo::new(output, deadline)?)));
+        match pipes {
+            Ok((input, output)) => Ok(Self {
+                child: Some(child),
+                input,
+                output,
+                broken: false,
+            }),
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                Err(error)
+            }
+        }
+    }
+
+    pub(crate) fn exchange(
+        &mut self,
+        command: BridgeCommand,
+        deadline: Instant,
+    ) -> crate::Result<BridgeOutcome> {
+        if self.broken {
+            return Err(crate::Error::Unavailable(
+                "Windows bridge requires reconnect and journal recovery".into(),
+            ));
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(crate::Error::DeadlineElapsed);
+        }
+        let request = BridgeRequest {
+            version: BRIDGE_VERSION,
+            protocol_version: crate::protocol::PROTOCOL_VERSION,
+            request_id: Uuid::now_v7(),
+            deadline_millis: remaining.as_millis().clamp(1, 30000) as u32,
+            command,
+        };
+        self.input.deadline = deadline;
+        self.output.deadline = deadline;
+        self.broken = true;
+        let result = (|| -> io::Result<BridgeReply> {
+            write_frame(&mut self.input, &request)?;
+            read_frame(&mut self.output)
+        })();
+        let reply = result.map_err(|e| {
+            if e.kind() == io::ErrorKind::TimedOut {
+                crate::Error::DeadlineElapsed
+            } else {
+                crate::Error::Unavailable(format!("Windows bridge disconnected: {e}"))
+            }
+        })?;
+        if reply.version != BRIDGE_VERSION
+            || reply.protocol_version != request.protocol_version
+            || reply.request_id != request.request_id
+        {
+            return Err(crate::Error::Protocol(
+                "Windows bridge response correlation/version mismatch".into(),
+            ));
+        }
+        self.broken = false;
+        match reply.outcome {
+            BridgeOutcome::Error { code, detail } => Err(crate::Error::Rejected { code, detail }),
+            outcome => Ok(outcome),
+        }
+    }
+}
+
+impl Drop for Bridge {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            // Reaping the transport has no effect on executor/cgroup obligations.
+            let _ = std::thread::Builder::new()
+                .name("stillyard-bridge-reap".into())
+                .spawn(move || {
+                    let _ = child.wait();
+                });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::net::UnixStream;
+    #[test]
+    fn linux_bridge_deadline_covers_partial_frame_and_writes() {
+        let (left, mut right) = UnixStream::pair().unwrap();
+        let mut input = TimedIo::new(left, Instant::now() + Duration::from_millis(40)).unwrap();
+        right.write_all(&[40, 0]).unwrap();
+        let error = read_frame::<BridgeReply>(&mut input).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+        let mut output = TimedIo::new(right, Instant::now() + Duration::from_millis(40)).unwrap();
+        assert_eq!(
+            output
+                .write_all(&vec![0; 8 * 1024 * 1024])
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::TimedOut
+        );
+    }
+}
+
+
+FILE src/daemon/attached.rs
+//! A trusted bridge worker lives outside every user Invocation namespace.
+use super::*;
+use crate::store::attached::driver::{Driver, ReleaseState};
+use std::sync::Weak;
+
+pub(super) fn start(
+    store: SharedStore,
+    scheduler: Weak<DaemonReactor>,
+    releases: Arc<ReleaseState>,
+) -> Result<()> {
+    std::thread::Builder::new()
+        .name("stillyard-coordinator-bridge".into())
+        .spawn(move || {
+            let mut driver = None;
+            let mut reported = None;
+            loop {
+                let Some(scheduler) = scheduler.upgrade() else {
+                    break;
+                };
+                let step = (|| -> std::result::Result<bool, StoreError> {
+                    if driver.is_none() {
+                        driver = Some(Driver::connect(&store, Arc::clone(&releases))?);
+                    }
+                    driver.as_mut().unwrap().step(&store)
+                })();
+                match step {
+                    Ok(changed) => {
+                        reported = None;
+                        // Refresh local readiness for every candidate before the
+                        // next bounded offer inspection. No domain-head shortcut.
+                        let interval = store
+                            .lock()
+                            .ok()
+                            .and_then(|store| store.attached_poll_interval().ok())
+                            .unwrap_or(Duration::from_secs(1));
+                        if changed || interval < Duration::from_secs(1) {
+                            scheduler.wake();
+                        }
+                        if !changed {
+                            releases.wait(interval);
+                        }
+                    }
+                    Err(error) => {
+                        // Store -> barrier ordering matches the release path. A
+                        // known disconnect fences starts before any reconnect.
+                        let offline = store
+                            .lock()
+                            .map_err(|_| "store mutex poisoned".to_owned())
+                            .and_then(|store| store.attached_offline().map_err(|e| e.to_string()));
+                        let _ = releases.disconnect();
+                        driver = None;
+                        let detail = offline.err().unwrap_or_else(|| error.to_string());
+                        if reported.as_ref() != Some(&detail) {
+                            eprintln!("stillyard attached coordinator unavailable: {detail}");
+                            reported = Some(detail);
+                        }
+                        scheduler.wake();
+                        std::thread::sleep(Duration::from_secs(1));
+                    }
+                }
+            }
+        })
+        .map_err(|e| Error::Unavailable(format!("cannot start coordinator bridge: {e}")))?;
+    Ok(())
+}
+

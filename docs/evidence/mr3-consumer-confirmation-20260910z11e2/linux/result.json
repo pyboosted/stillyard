@@ -1,0 +1,26 @@
+{
+  "jobs": [
+    {
+      "side": "windows",
+      "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b50-1246-7163-93c8-04e1e2cb103f",
+      "outcome": "succeeded",
+      "receipt": "/mnt/c/Development/stillyard-mr3-consumer-confirmation-evidence-20260910z11e2/test-0f342debe8414762ae1bc66d703c60f2.receipt.json"
+    },
+    {
+      "side": "linux",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b50-0cab-70d1-bfea-3815f6cd9643",
+      "outcome": "succeeded",
+      "receipt": "/home/pythonic/Development/stillyard-consumers-20260910z11e2/wc3/receipt.json"
+    },
+    {
+      "side": "linux",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b50-2569-7d83-b13d-3975a9770237",
+      "outcome": "succeeded",
+      "receipt": "/home/pythonic/Development/stillyard-consumers-20260910z11e2/wc3/child-evidence/58501d95-e9c8-52d3-b636-a5e2195ab41d.receipt.json"
+    }
+  ],
+  "managed_calls": 2,
+  "one_child": true,
+  "repeat_scope": "W-C3 after pre-release startup failure; W-C2/W-C4/W-C1-Linux outcomes retained from same-source z11e",
+  "source_files_sha256": "d22bfab38f5f26505dfc8ca24c1c2fea1c958b608eef85f4088f7a5343d2e27e"
+}

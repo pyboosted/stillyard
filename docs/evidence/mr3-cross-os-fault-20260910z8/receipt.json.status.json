@@ -1,0 +1,203 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aaf-f72f-7d01-a33e-3384f5846681",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aaf-f72e-71b0-a2f6-e9a6e9f9c11d",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ab2-3ab1-7e51-a232-981440e2d55f",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ab2-3ab2-7481-a8db-49a73027256e",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ab2-3ab2-7481-a8db-49be1096a153",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789033183023,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789033331394,
+  "finished_unix_millis": 1789033390255,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr3-cross-os-fault-evidence-20260910z8\\cross-os-reset-178ae8baf82e44659b05355341aa89f7\\work.json",
+      "--native-controller",
+      "C:\\Development\\stillyard-mr3-live-controls-20260910z8\\target\\scheduled\\debug\\deps\\isolated_daemon-1384df69d7746917.exe",
+      "--",
+      "machine_cross_os_reset_retains_live_linux_executor_and_guest_history",
+      "--ignored",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr3-live-controls-20260910z8",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CARGO_HOME": "C:\\Users\\User\\.cargo",
+        "CARGO_TARGET_DIR": "C:\\Development\\stillyard-mr3-live-controls-20260910z8\\target\\scheduled",
+        "COMSPEC": "C:\\WINDOWS\\System32\\cmd.exe",
+        "INCLUDE": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\include;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\VS\\include;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\ucrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\um;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\shared;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\winrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\cppwinrt",
+        "LIB": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\lib\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\lib\\10.0.26100.0\\ucrt\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\\\lib\\10.0.26100.0\\\\um\\x64",
+        "MR_WSL_FAULT_EVIDENCE": "C:\\Development\\stillyard-mr3-cross-os-fault-evidence-20260910z8\\cross-os-reset-178ae8baf82e44659b05355341aa89f7\\subject",
+        "MR_WSL_FAULT_MAILBOX_WINDOWS": "C:\\Development\\stillyard-mr3-cross-os-fault-evidence-20260910z8\\cross-os-reset-178ae8baf82e44659b05355341aa89f7\\private-mailbox",
+        "MR_WSL_TEST_BINARY": "/home/pythonic/Development/stillyard-mr3-live-controls-20260910z8/target/scheduled-linux/debug/deps/stillyard-8d19002362520820",
+        "MR_WSL_TEST_DISTRO": "Ubuntu-SSD",
+        "MR_WSL_TEST_EXECUTABLE": "/home/pythonic/Development/stillyard-mr3-live-controls-20260910z8/target/scheduled-linux/debug/stillyard",
+        "MR_WSL_TEST_SOURCE": "/home/pythonic/Development/stillyard-mr3-live-controls-20260910z8",
+        "MR_WSL_TEST_USER": "pythonic",
+        "PATH": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\VCPackages;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\TestWindow;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Current\\bin\\Roslyn;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Team Tools\\DiagnosticsHub\\Collector;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\Extensions\\Microsoft\\CodeCoverage.Console;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\\\MSBuild\\Current\\Bin\\amd64;C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\Tools\\;C:\\WINDOWS\\System32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\Ninja;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\Linux\\bin\\ConnectionManagerExe;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\vcpkg;C:\\Users\\User\\.cargo\\bin;C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Mozilla.sccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\sccache-v0.16.0-x86_64-pc-windows-msvc;C:\\Program Files\\Git\\cmd;C:\\Program Files\\CMake\\bin",
+        "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+        "RUSTUP_HOME": "C:\\Users\\User\\.rustup",
+        "SCCACHE_DIR": "C:\\Development\\.sccache",
+        "SYSTEMDRIVE": "C:",
+        "USERPROFILE": "C:\\Users\\User"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "cross-os-reset"
+      },
+      {
+        "key": "source",
+        "value": "103ff0bcad1df790ade627d2dcde9300044e200ccb1b4a271430a066cb72eef5"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 600,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ab2-3ab1-7e51-a232-981440e2d55f",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789033331377,
+      "started_unix_millis": 1789033331377,
+      "deadline_unix_millis": 1789033931377,
+      "finished_unix_millis": 1789033390255,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aaf-f72f-7d01-a33e-3384f5846681",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ab2-3ab1-7e51-a232-981440e2d55f",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ab2-3ab2-7481-a8db-49a73027256e",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789033331394,
+        "exited_unix_millis": 1789033390238,
+        "resolved_unix_millis": 1789033390249
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ab2-3ab2-7481-a8db-49a73027256e",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 57700,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 57700,
+            "creation_filetime_100ns": 134335069313903380
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "aa70ac4683d525e2b2f99f1e83ddfce65099a1bff2d5561c674495d8b1d38493",
+          "daemon_generation": "01a08a8f-6129-7923-a4b4-8c5d072fde5f",
+          "started_unix_millis": 1789033331394,
+          "finished_unix_millis": 1789033390249,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ab2-3ab2-7481-a8db-49be1096a153",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "\nrunning 1 test\ntest machine_cross_os_reset_retains_live_linux_executor_and_guest_history ... \nrunning 1 test\ntest runner::linux::journal::cross_os::linux_executor_cross_os_reset_subject ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 282 filtered out; finished in 28.87s\n\nok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 58.80s\n\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ab2-3ab2-7481-a8db-49cea40b3f23",
+      "lease_id": "01a08ab2-3ab2-7481-a8db-49cea40b3f23",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+        "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+        "lease_id": "01a08ab2-3ab2-7481-a8db-49cea40b3f23"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aaf-f72f-7d01-a33e-3384f5846681",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ab2-3ab1-7e51-a232-981440e2d55f"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08a8f-6129-7923-a4b4-8c5d072fde5f"
+}

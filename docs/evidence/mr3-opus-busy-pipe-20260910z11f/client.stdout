@@ -1,0 +1,274 @@
+{
+  "outcome": {
+    "outcome": "final",
+    "value": {
+      "receipt": {
+        "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-fcc1-7ae0-92d7-4d8308249be4",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-fcd2-7f21-bf09-d243cec29247",
+        "submission_state": "accepted",
+        "job_state": "pending",
+        "reason_code": null,
+        "accepted_unix_millis": 1789044194514,
+        "priority": 0,
+        "effective_priority": 0,
+        "blockers": [],
+        "queue_rank": 1,
+        "reservation": null,
+        "conditions": [],
+        "estimate": {
+          "confidence": "estimated",
+          "start_in_millis": 0,
+          "assumptions": [
+            "currently admissible"
+          ]
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a08b4a-da2c-72d1-bcdc-f5b512f5a453"
+      },
+      "snapshot": {
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-fcd2-7f21-bf09-d243cec29247",
+        "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-fcc1-7ae0-92d7-4d8308249be4",
+        "batch_id": null,
+        "batch_member": null,
+        "state": "final",
+        "outcome": "succeeded",
+        "reason_code": null,
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-fce8-7ef1-ba6f-1ee548775773",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b5c-1b3e-76f3-af06-662d53769530",
+        "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b5c-1b3e-76f3-af06-663de8d7a5bf",
+        "root_exit_code": 0,
+        "cancel_requested": false,
+        "accepted_unix_millis": 1789044194514,
+        "priority": 0,
+        "effective_priority": null,
+        "queue_rank": null,
+        "reservation": null,
+        "conditions": [],
+        "started_unix_millis": 1789044195067,
+        "finished_unix_millis": 1789044465042,
+        "spec": {
+          "spec_version": 4,
+          "priority": 0,
+          "executable": "/usr/bin/python3",
+          "args": [
+            "/home/pythonic/Development/stillyard-mr3-opus-busy-pipe-20260910z11f/efa74cb59d564d0eb2c071e2b3bf9c40/reviewer.py",
+            "review",
+            "--cli",
+            "/home/pythonic/.local/bin/claude-current",
+            "--brief",
+            "/home/pythonic/Development/stillyard-mr3-opus-busy-pipe-20260910z11f/efa74cb59d564d0eb2c071e2b3bf9c40/brief.txt",
+            "--output",
+            "/home/pythonic/Development/stillyard-mr3-opus-busy-pipe-20260910z11f/efa74cb59d564d0eb2c071e2b3bf9c40/review.json",
+            "--model",
+            "opus",
+            "--effort",
+            "high"
+          ],
+          "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-busy-pipe-20260910z11f/efa74cb59d564d0eb2c071e2b3bf9c40",
+          "stdin": {
+            "kind": "eof"
+          },
+          "environment": {
+            "set": {
+              "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+              "HOME": "/home/pythonic",
+              "LANG": "C.UTF-8",
+              "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+            },
+            "unset": []
+          },
+          "resources": {
+            "cpu_units": null,
+            "ram_mb": null,
+            "cargo_slots": null,
+            "gpu_slots": null,
+            "custom": {
+              "claude2_slots": 1
+            },
+            "shared_fences": [],
+            "exclusive_fences": [],
+            "impacts": []
+          },
+          "observed": null,
+          "conditions": [],
+          "retry": {
+            "max_attempts": 3,
+            "backoff_seconds": 1,
+            "retryable": [
+              "start_failed"
+            ]
+          },
+          "postconditions": [
+            {
+              "executable": "/usr/bin/python3",
+              "args": [
+                "/home/pythonic/Development/stillyard-mr3-opus-busy-pipe-20260910z11f/efa74cb59d564d0eb2c071e2b3bf9c40/reviewer.py",
+                "validate-review",
+                "--input",
+                "/home/pythonic/Development/stillyard-mr3-opus-busy-pipe-20260910z11f/efa74cb59d564d0eb2c071e2b3bf9c40/review.json",
+                "--expected-model-prefix",
+                "claude-opus-"
+              ],
+              "working_directory": null,
+              "accepted_exit_codes": [
+                0
+              ],
+              "retryable_exit_codes": []
+            }
+          ],
+          "labels": [
+            {
+              "key": "project",
+              "value": "stillyard"
+            },
+            {
+              "key": "gate",
+              "value": "mr3-opus-busy-pipe-z11f"
+            }
+          ],
+          "expected_duration_seconds": null,
+          "timeout_seconds": 1200,
+          "quiet": null,
+          "artifacts": [],
+          "child_submission_policy": null
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "blockers": [],
+        "attempts": [
+          {
+            "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-fce8-7ef1-ba6f-1ee548775773",
+            "attempt_index": 1,
+            "verdict": "succeeded",
+            "reason_code": null,
+            "created_unix_millis": 1789044194535,
+            "started_unix_millis": 1789044194713,
+            "deadline_unix_millis": 1789045394713,
+            "finished_unix_millis": 1789044465042,
+            "primary_result": {
+              "schema_version": 1,
+              "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-fcd2-7f21-bf09-d243cec29247",
+              "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-fce8-7ef1-ba6f-1ee548775773",
+              "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-fce8-7ef1-ba6f-1ef248dc340f",
+              "verdict": "succeeded",
+              "root_exit_code": 0,
+              "termination": "exited",
+              "containment": "empty",
+              "started_unix_millis": 1789044195067,
+              "exited_unix_millis": 1789044464246,
+              "resolved_unix_millis": 1789044464388
+            },
+            "admission": null,
+            "invocations": [
+              {
+                "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-fce8-7ef1-ba6f-1ef248dc340f",
+                "role": "primary",
+                "role_index": 0,
+                "state": "resolved",
+                "root_pid": 1800399,
+                "root_identity": {
+                  "platform": "linux",
+                  "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+                  "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+                  "pid": 1800399,
+                  "start_ticks": 9030156,
+                  "pid_namespace_inode": 4026534426,
+                  "uid": 1000
+                },
+                "root_exit_code": 0,
+                "exit_classification": null,
+                "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+                "daemon_generation": "01a08b4a-da2c-72d1-bcdc-f5b512f5a453",
+                "started_unix_millis": 1789044195067,
+                "finished_unix_millis": 1789044464388,
+                "containment": {
+                  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-fce8-7ef1-ba6f-1f08f06060a9",
+                  "state": "empty",
+                  "strength": "linux_cgroup_v2",
+                  "incident_id": null,
+                  "incident": null,
+                  "resolution": null,
+                  "resolution_audit": null
+                },
+                "stdout_tail": "intended failure mode is an assertion.\\\",\\\"Deadline-semantics change beyond the stated fix, untested: any non-ERROR_SEM_TIMEOUT wait failure now returns `Error::Unavailable` immediately with deadline still remaining, whereas the old 1s-poll loop would retry until the deadline. The concrete case is ERROR_FILE_NOT_FOUND, which WaitNamedPipeW returns immediately when no instance of the pipe exists — i.e. a coordinator restart landing between the ERROR_PIPE_BUSY from `open` and the wait. Previously that was absorbed within one request; now it tears down the driver and costs a reconnect plus the 1s backoff in `attached.rs`. This may be the intended fail-fast posture, but it is unstated in the comment and no test covers the `Unavailable` branch.\\\",\\\"The OpenFile-race re-wait path is the only path that can produce more than one wait, and it is untested. The regression asserts `== 1` against a permanently-occupied single instance, so it exercises only the timeout branch; nothing demonstrates that a successful wait followed by a re-busy `open` recomputes `remaining` correctly rather than reusing a stale duration. Given the assertion is an exact equality, this is also the only realistic flake source if the fixture ever admits a transient availability window.\\\",\\\"SAFETY comment is detached from its unsafe block. In `#[cfg(test)]` builds the `NATIVE_PIPE_WAITS` increment statement sits between `// SAFETY: endpoint is NUL-terminated and remains alive for the call.` and the `unsafe { WaitNamedPipeW(..) }`, so the comment documents different code under different cfgs and `clippy::undocumented_unsafe_blocks` would not see it in test builds. Relatedly, the test's own `CreateNamedPipeW` and `File::from_raw_handle` unsafe blocks carry no SAFETY comments while the production code in the same file consistently does.\\\",\\\"`transport_request` takes no `CancellationToken`, yet `check_wait(deadline, cancellation)` exists in the same module for exactly that purpose. The fix converts a wait that was interruptible at 1s granularity into one uninterruptible block for the entire remaining deadline (up to 30s on the bridge path, unbounded for other Windows callers). If any caller depends on prompt cancellation during a busy-pipe stall, this is a responsiveness regression; the change should state that no caller does, or thread cancellation through.\\\",\\\"UNPROVEN PREMISE, load-bearing for the whole idle conclusion: \\\\\\\"the native bridge's only explicit timed wait is WaitNamedPipe\\\\\\\" is not established by the supplied code. The presence of `check_wait(deadline, cancellation)` in `client.rs` implies retry/wait loops elsewhere in the Windows client whose bodies are not shown; any sleep in such a loop is a native timer. The bodies of `machine_connect_begin`, `machine_connect_finish`, `machine_exchange`, `machine_participant`, `authority_status` and `daemon_status` — every entry point `bridge::run` dispatches to — are likewise not supplied. The inference cannot be accepted on this material.\\\",\\\"UNPROVEN PREMISE: the inference requires that killing the Linux-side process terminates the Windows-side bridge. The chain itself does hold within the reviewed code — a native error propagates as `BridgeOutcome::Error` (note `serve` does NOT exit; it writes the error reply and continues its loop), Linux `Bridge::exchange` maps that to `Err(Error::Rejected)`, and every `exchange` call site in `Driver` (both `connect` calls, `refresh_observation`, the heartbeat, and the main `Exchange`) uses `.map_err(bridge_error)?`, so `step` returns `Err`, `attached.rs` sets `driver = None`, and `Bridge::drop` issues `child.kill()`. But the native process is only terminated if SIGKILL of the Linux-side WSL interop stub actually kills the Windows process, and if respawn yields a different PID+creation time. That kill-propagation property is a vendor WSL interop behavior the brief explicitly places outside this audit. If an orphaned Windows process could survive, stable PID+creation time is *consistent* with a native timeout having occurred, and the exclusion fails. State this as a conditional resting on the WSL audit, not as established.\\\",\\\"SCOPE ERROR in the idle conclusion: the propagation chain can only exclude *expired* native waits. A `WaitNamedPipeW` that is entered because of ERROR_PIPE_BUSY and satisfied before its timeout leaves no trace whatsoever — the driver survives, `NATIVE_PIPE_WAITS` is `#[cfg(test)]`-only, and the brief confirms no production timer instrumentation was added. `Driver::step` issues a `Participant` heartbeat plus `refresh_observation` at least every 5s, so requests (and therefore possible busy-pipe waits) occur throughout any \\\\\\\"idle\\\\\\\" interval. If the claim is \\\\\\\"no native timer was armed,\\\\\\\" the evidence does not support it; it supports only \\\\\\\"no native deadline expiry occurred.\\\\\\\" Which of the two the accounting requires should be pinned down before the interval is signed off — note the old-code defect being fixed was described as hiding timer *wakes*, which is the weaker property.\\\",\\\"Linux `Timer::Transport` counter is not a faithful measure of application timeouts, which weakens \\\\\\\"Linux own response timeout counted / daemon counters actual application timers.\\\\\\\" `TimedIo::ready` computes the poll timeout as `remaining.as_millis().clamp(1, i32::MAX)`, which truncates sub-millisecond remainder; poll can therefore return 0 slightly before the deadline, record `waited(Transport, true)`, loop, re-arm for 1ms and record a second timeout event for one logical deadline. So Transport timeout counts can exceed the number of actual application-visible timeouts. It also never records satisfied polls (`waited(.., false)` is never called on this path), unlike `ReleaseState::wait`, which reports `result.timed_out()` for both outcomes. The asymmetry should be reconciled before these counters are used as an exhaustive timer ledger.\\\",\\\"Possible reply stall in `bridge::serve` (verify before relying on the idle argument): `serve` never calls `writer.flush()`, and `run` passes `stdout.lock()`, i.e. a `LineWriter` with a small buffer that flushes only through the last newline byte. Unless `write_frame` (not supplied) flushes internally, a binary `BridgeReply` whose tail contains no 0x0A can sit buffered until the next write, and the Linux peer blocks in `TimedIo::ready` until its 2–5s deadline. That would present as a Linux-side `DeadlineElapsed` and a driver teardown attributed to the transport rather than to the native side — directly relevant to the interval's attribution. Confirm `write_frame` flushes, or add an explicit flush after each reply.\\\"]}\",\"structured_output\":{\"verdict\":\"findings\",\"summary\":\"The core busy-pipe fix is correct on its own terms: `clamp(1, u32::MAX - 1)` correctly excludes both Win32 special values (0 = NMPWAIT_USE_DEFAULT_WAIT, 0xFFFFFFFF = NMPWAIT_WAIT_FOREVER); ERROR_SEM_TIMEOUT is the right timeout code for WaitNamedPipeW and, since the wait timeout is now exactly the remaining deadline, mapping it to DeadlineElapsed is sound; the second `Instant::now()` after the deadline check cannot yield a 0 timeout because of the lower clamp; the wide-string buffer outlives the call and the `endpoint` shadow is scoped to the match arm so the next iteration re-borrows the `&str`; and the post-readiness OpenFile race does re-loop with a fresh remaining deadline. No unsafe-API misuse found. However, the regression does not discriminate the specific hazard the clamp exists to prevent (a 0/default-timeout regression produces exactly one ~1000ms wait against this test's 1000ms nDefaultTimeOut and passes both assertions), several behavioral changes beyond the stated fix are untested, and the zero-native-timer inference does not follow as stated: it rests on an unproven \\\"only explicit timed wait\\\" premise, on WSL kill-propagation semantics the brief explicitly excludes from audit, and it can only exclude expired waits, not armed-and-satisfied ones — for which no production instrumentation exists.\",\"findings\":[\"Regression timing bound is too loose to cover the clamp's lower special value. The deadline is 1250ms but the assertion is `start.elapsed() >= Duration::from_secs(1)`, and the test's own `CreateNamedPipeW` is created with `nDefaultTimeOut = 1000`. A regression that passed `0` (NMPWAIT_USE_DEFAULT_WAIT) — precisely the value the `clamp(1, ..)` lower bound exists to exclude — would perform one wait of ~1000ms, return ERROR_SEM_TIMEOUT/DeadlineElapsed, and satisfy both `NATIVE_PIPE_WAITS == 1` and `elapsed >= 1s`. Same for any mutant that caps the timeout at 1000ms. Fix by asserting `>= Duration::from_millis(1200)` and/or setting `nDefaultTimeOut` to something small (e.g. 50) so the default-timeout path is distinguishable. As written, the surviving evidence (mutant W: expected 1 / observed 2) only covers the retry-count axis, not the timeout-value axis.\",\"Regression has unbounded failure modes that surface as CI hangs rather than assertion failures. There is no upper bound on `start.elapsed()`, so a mutant passing `u32::MAX` (infinite wait) hangs instead of failing. Worse, if `open` ever succeeds unexpectedly (occupant released early, instance count misconfigured), `verify_pipe_server` will *pass* — the pipe server is the test process itself, which is exactly `std::env::current_exe()` — and control proceeds to `write_frame`/`read_frame` on a handle whose server never reads, with no I/O deadline anywhere in `transport_request`. That blocks forever. Add an upper elapsed bound so the intended failure mode is an assertion.\",\"Deadline-semantics change beyond the stated fix, untested: any non-ERROR_SEM_TIMEOUT wait failure now returns `Error::Unavailable` immediately with deadline still remaining, whereas the old 1s-poll loop would retry until the deadline. The concrete case is ERROR_FILE_NOT_FOUND, which WaitNamedPipeW returns immediately when no instance of the pipe exists — i.e. a coordinator restart landing between the ERROR_PIPE_BUSY from `open` and the wait. Previously that was absorbed within one request; now it tears down the driver and costs a reconnect plus the 1s backoff in `attached.rs`. This may be the intended fail-fast posture, but it is unstated in the comment and no test covers the `Unavailable` branch.\",\"The OpenFile-race re-wait path is the only path that can produce more than one wait, and it is untested. The regression asserts `== 1` against a permanently-occupied single instance, so it exercises only the timeout branch; nothing demonstrates that a successful wait followed by a re-busy `open` recomputes `remaining` correctly rather than reusing a stale duration. Given the assertion is an exact equality, this is also the only realistic flake source if the fixture ever admits a transient availability window.\",\"SAFETY comment is detached from its unsafe block. In `#[cfg(test)]` builds the `NATIVE_PIPE_WAITS` increment statement sits between `// SAFETY: endpoint is NUL-terminated and remains alive for the call.` and the `unsafe { WaitNamedPipeW(..) }`, so the comment documents different code under different cfgs and `clippy::undocumented_unsafe_blocks` would not see it in test builds. Relatedly, the test's own `CreateNamedPipeW` and `File::from_raw_handle` unsafe blocks carry no SAFETY comments while the production code in the same file consistently does.\",\"`transport_request` takes no `CancellationToken`, yet `check_wait(deadline, cancellation)` exists in the same module for exactly that purpose. The fix converts a wait that was interruptible at 1s granularity into one uninterruptible block for the entire remaining deadline (up to 30s on the bridge path, unbounded for other Windows callers). If any caller depends on prompt cancellation during a busy-pipe stall, this is a responsiveness regression; the change should state that no caller does, or thread cancellation through.\",\"UNPROVEN PREMISE, load-bearing for the whole idle conclusion: \\\"the native bridge's only explicit timed wait is WaitNamedPipe\\\" is not established by the supplied code. The presence of `check_wait(deadline, cancellation)` in `client.rs` implies retry/wait loops elsewhere in the Windows client whose bodies are not shown; any sleep in such a loop is a native timer. The bodies of `machine_connect_begin`, `machine_connect_finish`, `machine_exchange`, `machine_participant`, `authority_status` and `daemon_status` — every entry point `bridge::run` dispatches to — are likewise not supplied. The inference cannot be accepted on this material.\",\"UNPROVEN PREMISE: the inference requires that killing the Linux-side process terminates the Windows-side bridge. The chain itself does hold within the reviewed code — a native error propagates as `BridgeOutcome::Error` (note `serve` does NOT exit; it writes the error reply and continues its loop), Linux `Bridge::exchange` maps that to `Err(Error::Rejected)`, and every `exchange` call site in `Driver` (both `connect` calls, `refresh_observation`, the heartbeat, and the main `Exchange`) uses `.map_err(bridge_error)?`, so `step` returns `Err`, `attached.rs` sets `driver = None`, and `Bridge::drop` issues `child.kill()`. But the native process is only terminated if SIGKILL of the Linux-side WSL interop stub actually kills the Windows process, and if respawn yields a different PID+creation time. That kill-propagation property is a vendor WSL interop behavior the brief explicitly places outside this audit. If an orphaned Windows process could survive, stable PID+creation time is *consistent* with a native timeout having occurred, and the exclusion fails. State this as a conditional resting on the WSL audit, not as established.\",\"SCOPE ERROR in the idle conclusion: the propagation chain can only exclude *expired* native waits. A `WaitNamedPipeW` that is entered because of ERROR_PIPE_BUSY and satisfied before its timeout leaves no trace whatsoever — the driver survives, `NATIVE_PIPE_WAITS` is `#[cfg(test)]`-only, and the brief confirms no production timer instrumentation was added. `Driver::step` issues a `Participant` heartbeat plus `refresh_observation` at least every 5s, so requests (and therefore possible busy-pipe waits) occur throughout any \\\"idle\\\" interval. If the claim is \\\"no native timer was armed,\\\" the evidence does not support it; it supports only \\\"no native deadline expiry occurred.\\\" Which of the two the accounting requires should be pinned down before the interval is signed off — note the old-code defect being fixed was described as hiding timer *wakes*, which is the weaker property.\",\"Linux `Timer::Transport` counter is not a faithful measure of application timeouts, which weakens \\\"Linux own response timeout counted / daemon counters actual application timers.\\\" `TimedIo::ready` computes the poll timeout as `remaining.as_millis().clamp(1, i32::MAX)`, which truncates sub-millisecond remainder; poll can therefore return 0 slightly before the deadline, record `waited(Transport, true)`, loop, re-arm for 1ms and record a second timeout event for one logical deadline. So Transport timeout counts can exceed the number of actual application-visible timeouts. It also never records satisfied polls (`waited(.., false)` is never called on this path), unlike `ReleaseState::wait`, which reports `result.timed_out()` for both outcomes. The asymmetry should be reconciled before these counters are used as an exhaustive timer ledger.\",\"Possible reply stall in `bridge::serve` (verify before relying on the idle argument): `serve` never calls `writer.flush()`, and `run` passes `stdout.lock()`, i.e. a `LineWriter` with a small buffer that flushes only through the last newline byte. Unless `write_frame` (not supplied) flushes internally, a binary `BridgeReply` whose tail contains no 0x0A can sit buffered until the next write, and the Linux peer blocks in `TimedIo::ready` until its 2–5s deadline. That would present as a Linux-side `DeadlineElapsed` and a driver teardown attributed to the transport rather than to the native side — directly relevant to the interval's attribution. Confirm `write_frame` flushes, or add an explicit flush after each reply.\"]},\"ttft_ms\":189298,\"type\":\"result\",\"duration_ms\":267163,\"uuid\":\"98d2702d-163b-419d-9fc1-351e8039259a\",\"ttft_stream_ms\":1499,\"time_to_request_ms\":57,\"first_content_frame_ms\":1842,\"queued_turn_count\":0}\n",
+                "stderr_tail": ""
+              },
+              {
+                "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b5c-1b3e-76f3-af06-662d53769530",
+                "role": "postcondition",
+                "role_index": 1,
+                "state": "resolved",
+                "root_pid": 1845930,
+                "root_identity": {
+                  "platform": "linux",
+                  "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+                  "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+                  "pid": 1845930,
+                  "start_ticks": 9057130,
+                  "pid_namespace_inode": 4026534279,
+                  "uid": 1000
+                },
+                "root_exit_code": 0,
+                "exit_classification": "accepted",
+                "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+                "daemon_generation": "01a08b4a-da2c-72d1-bcdc-f5b512f5a453",
+                "started_unix_millis": 1789044464856,
+                "finished_unix_millis": 1789044465029,
+                "containment": {
+                  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b5c-1b3e-76f3-af06-663de8d7a5bf",
+                  "state": "empty",
+                  "strength": "linux_cgroup_v2",
+                  "incident_id": null,
+                  "incident": null,
+                  "resolution": null,
+                  "resolution_audit": null
+                },
+                "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-opus-5\"], \"selected_family_models\": [\"claude-opus-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"verdict\": \"findings\", \"summary\": \"The core busy-pipe fix is correct on its own terms: `clamp(1, u32::MAX - 1)` correctly excludes both Win32 special values (0 = NMPWAIT_USE_DEFAULT_WAIT, 0xFFFFFFFF = NMPWAIT_WAIT_FOREVER); ERROR_SEM_TIMEOUT is the right timeout code for WaitNamedPipeW and, since the wait timeout is now exactly the remaining deadline, mapping it to DeadlineElapsed is sound; the second `Instant::now()` after the deadline check cannot yield a 0 timeout because of the lower clamp; the wide-string buffer outlives the call and the `endpoint` shadow is scoped to the match arm so the next iteration re-borrows the `&str`; and the post-readiness OpenFile race does re-loop with a fresh remaining deadline. No unsafe-API misuse found. However, the regression does not discriminate the specific hazard the clamp exists to prevent (a 0/default-timeout regression produces exactly one ~1000ms wait against this test's 1000ms nDefaultTimeOut and passes both assertions), several behavioral changes beyond the stated fix are untested, and the zero-native-timer inference does not follow as stated: it rests on an unproven \\\"only explicit timed wait\\\" premise, on WSL kill-propagation semantics the brief explicitly excludes from audit, and it can only exclude expired waits, not armed-and-satisfied ones \\u2014 for which no production instrumentation exists.\", \"findings\": [\"Regression timing bound is too loose to cover the clamp's lower special value. The deadline is 1250ms but the assertion is `start.elapsed() >= Duration::from_secs(1)`, and the test's own `CreateNamedPipeW` is created with `nDefaultTimeOut = 1000`. A regression that passed `0` (NMPWAIT_USE_DEFAULT_WAIT) \\u2014 precisely the value the `clamp(1, ..)` lower bound exists to exclude \\u2014 would perform one wait of ~1000ms, return ERROR_SEM_TIMEOUT/DeadlineElapsed, and satisfy both `NATIVE_PIPE_WAITS == 1` and `elapsed >= 1s`. Same for any mutant that caps the timeout at 1000ms. Fix by asserting `>= Duration::from_millis(1200)` and/or setting `nDefaultTimeOut` to something small (e.g. 50) so the default-timeout path is distinguishable. As written, the surviving evidence (mutant W: expected 1 / observed 2) only covers the retry-count axis, not the timeout-value axis.\", \"Regression has unbounded failure modes that surface as CI hangs rather than assertion failures. There is no upper bound on `start.elapsed()`, so a mutant passing `u32::MAX` (infinite wait) hangs instead of failing. Worse, if `open` ever succeeds unexpectedly (occupant released early, instance count misconfigured), `verify_pipe_server` will *pass* \\u2014 the pipe server is the test process itself, which is exactly `std::env::current_exe()` \\u2014 and control proceeds to `write_frame`/`read_frame` on a handle whose server never reads, with no I/O deadline anywhere in `transport_request`. That blocks forever. Add an upper elapsed bound so the intended failure mode is an assertion.\", \"Deadline-semantics change beyond the stated fix, untested: any non-ERROR_SEM_TIMEOUT wait failure now returns `Error::Unavailable` immediately with deadline still remaining, whereas the old 1s-poll loop would retry until the deadline. The concrete case is ERROR_FILE_NOT_FOUND, which WaitNamedPipeW returns immediately when no instance of the pipe exists \\u2014 i.e. a coordinator restart landing between the ERROR_PIPE_BUSY from `open` and the wait. Previously that was absorbed within one request; now it tears down the driver and costs a reconnect plus the 1s backoff in `attached.rs`. This may be the intended fail-fast posture, but it is unstated in the comment and no test covers the `Unavailable` branch.\", \"The OpenFile-race re-wait path is the only path that can produce more than one wait, and it is untested. The regression asserts `== 1` against a permanently-occupied single instance, so it exercises only the timeout branch; nothing demonstrates that a successful wait followed by a re-busy `open` recomputes `remaining` correctly rather than reusing a stale duration. Given the assertion is an exact equality, this is also the only realistic flake source if the fixture ever admits a transient availability window.\", \"SAFETY comment is detached from its unsafe block. In `#[cfg(test)]` builds the `NATIVE_PIPE_WAITS` increment statement sits between `// SAFETY: endpoint is NUL-terminated and remains alive for the call.` and the `unsafe { WaitNamedPipeW(..) }`, so the comment documents different code under different cfgs and `clippy::undocumented_unsafe_blocks` would not see it in test builds. Relatedly, the test's own `CreateNamedPipeW` and `File::from_raw_handle` unsafe blocks carry no SAFETY comments while the production code in the same file consistently does.\", \"`transport_request` takes no `CancellationToken`, yet `check_wait(deadline, cancellation)` exists in the same module for exactly that purpose. The fix converts a wait that was interruptible at 1s granularity into one uninterruptible block for the entire remaining deadline (up to 30s on the bridge path, unbounded for other Windows callers). If any caller depends on prompt cancellation during a busy-pipe stall, this is a responsiveness regression; the change should state that no caller does, or thread cancellation through.\", \"UNPROVEN PREMISE, load-bearing for the whole idle conclusion: \\\"the native bridge's only explicit timed wait is WaitNamedPipe\\\" is not established by the supplied code. The presence of `check_wait(deadline, cancellation)` in `client.rs` implies retry/wait loops elsewhere in the Windows client whose bodies are not shown; any sleep in such a loop is a native timer. The bodies of `machine_connect_begin`, `machine_connect_finish`, `machine_exchange`, `machine_participant`, `authority_status` and `daemon_status` \\u2014 every entry point `bridge::run` dispatches to \\u2014 are likewise not supplied. The inference cannot be accepted on this material.\", \"UNPROVEN PREMISE: the inference requires that killing the Linux-side process terminates the Windows-side bridge. The chain itself does hold within the reviewed code \\u2014 a native error propagates as `BridgeOutcome::Error` (note `serve` does NOT exit; it writes the error reply and continues its loop), Linux `Bridge::exchange` maps that to `Err(Error::Rejected)`, and every `exchange` call site in `Driver` (both `connect` calls, `refresh_observation`, the heartbeat, and the main `Exchange`) uses `.map_err(bridge_error)?`, so `step` returns `Err`, `attached.rs` sets `driver = None`, and `Bridge::drop` issues `child.kill()`. But the native process is only terminated if SIGKILL of the Linux-side WSL interop stub actually kills the Windows process, and if respawn yields a different PID+creation time. That kill-propagation property is a vendor WSL interop behavior the brief explicitly places outside this audit. If an orphaned Windows process could survive, stable PID+creation time is *consistent* with a native timeout having occurred, and the exclusion fails. State this as a conditional resting on the WSL audit, not as established.\", \"SCOPE ERROR in the idle conclusion: the propagation chain can only exclude *expired* native waits. A `WaitNamedPipeW` that is entered because of ERROR_PIPE_BUSY and satisfied before its timeout leaves no trace whatsoever \\u2014 the driver survives, `NATIVE_PIPE_WAITS` is `#[cfg(test)]`-only, and the brief confirms no production timer instrumentation was added. `Driver::step` issues a `Participant` heartbeat plus `refresh_observation` at least every 5s, so requests (and therefore possible busy-pipe waits) occur throughout any \\\"idle\\\" interval. If the claim is \\\"no native timer was armed,\\\" the evidence does not support it; it supports only \\\"no native deadline expiry occurred.\\\" Which of the two the accounting requires should be pinned down before the interval is signed off \\u2014 note the old-code defect being fixed was described as hiding timer *wakes*, which is the weaker property.\", \"Linux `Timer::Transport` counter is not a faithful measure of application timeouts, which weakens \\\"Linux own response timeout counted / daemon counters actual application timers.\\\" `TimedIo::ready` computes the poll timeout as `remaining.as_millis().clamp(1, i32::MAX)`, which truncates sub-millisecond remainder; poll can therefore return 0 slightly before the deadline, record `waited(Transport, true)`, loop, re-arm for 1ms and record a second timeout event for one logical deadline. So Transport timeout counts can exceed the number of actual application-visible timeouts. It also never records satisfied polls (`waited(.., false)` is never called on this path), unlike `ReleaseState::wait`, which reports `result.timed_out()` for both outcomes. The asymmetry should be reconciled before these counters are used as an exhaustive timer ledger.\", \"Possible reply stall in `bridge::serve` (verify before relying on the idle argument): `serve` never calls `writer.flush()`, and `run` passes `stdout.lock()`, i.e. a `LineWriter` with a small buffer that flushes only through the last newline byte. Unless `write_frame` (not supplied) flushes internally, a binary `BridgeReply` whose tail contains no 0x0A can sit buffered until the next write, and the Linux peer blocks in `TimedIo::ready` until its 2\\u20135s deadline. That would present as a Linux-side `DeadlineElapsed` and a driver teardown attributed to the transport rather than to the native side \\u2014 directly relevant to the interval's attribution. Confirm `write_frame` flushes, or add an explicit flush after each reply.\"]}}\n",
+                "stderr_tail": ""
+              }
+            ]
+          }
+        ],
+        "allocations": [
+          {
+            "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b57-fd1a-7862-9f50-b21efc32ebfd",
+            "lease_id": "01a08b57-fce8-7ef1-ba6f-1f1943eb70f3",
+            "key": {
+              "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+              "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+              "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+              "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+              "lease_id": "01a08b57-fce8-7ef1-ba6f-1f1943eb70f3"
+            },
+            "owner": {
+              "kind": "work",
+              "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-fcd2-7f21-bf09-d243cec29247",
+              "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b57-fce8-7ef1-ba6f-1ee548775773"
+            },
+            "state": "armed",
+            "claims": {
+              "scalars": {
+                "cargo_slots": 0,
+                "claude2_slots": 1,
+                "cpu_units": 0,
+                "gpu_slots": 0,
+                "ram_mb": 0
+              },
+              "shared_fences": [],
+              "exclusive_fences": [],
+              "impacts": []
+            }
+          }
+        ],
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a08b4a-da2c-72d1-bcdc-f5b512f5a453"
+      }
+    }
+  },
+  "exit_source": "scheduler",
+  "exit_code": 0
+}

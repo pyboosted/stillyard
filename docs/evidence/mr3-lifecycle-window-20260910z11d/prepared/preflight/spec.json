@@ -1,0 +1,31 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+  "args": [
+    "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11d2\\controller.py",
+    "--operation",
+    "preflight",
+    "--evidence-directory",
+    "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11d2\\preflight\\result"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11d2",
+  "environment": {
+    "set": {
+      "SystemRoot": "C:\\Windows",
+      "USERPROFILE": "C:\\Users\\User",
+      "PATH": "C:\\Windows\\System32;C:\\Windows"
+    }
+  },
+  "resources": {},
+  "timeout_seconds": 120,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr3-lifecycle-preflight"
+    }
+  ]
+}

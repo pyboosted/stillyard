@@ -1,0 +1,177 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2b5a-73c1-8b1d-b4a0920912ea",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2b59-7900-b13b-879525b9b87b",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2b60-71b3-9d47-35a309b5c935",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2b60-71b3-9d47-35bf88bef45d",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2b60-71b3-9d47-35c003c60174",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789015567194,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789015567214,
+  "finished_unix_millis": 1789015575576,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr3-installed-observation-linux-evidence-20260910x\\wsl-clippy-ae7b2fb6593c40a68cc660eaf5fbe2ff\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr3-installed-observation-linux-evidence-20260910x\\wsl-clippy-ae7b2fb6593c40a68cc660eaf5fbe2ff",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-bootstrap-clippy"
+      },
+      {
+        "key": "source",
+        "value": "31ad15da0250f2f2e67ec9444d6f05392626aa889dcb9863df09495b37f8555b"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1830,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2b60-71b3-9d47-35a309b5c935",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789015567199,
+      "started_unix_millis": 1789015567199,
+      "deadline_unix_millis": 1789017397199,
+      "finished_unix_millis": 1789015575576,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2b5a-73c1-8b1d-b4a0920912ea",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2b60-71b3-9d47-35a309b5c935",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2b60-71b3-9d47-35bf88bef45d",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789015567214,
+        "exited_unix_millis": 1789015575567,
+        "resolved_unix_millis": 1789015575570
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2b60-71b3-9d47-35bf88bef45d",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 46824,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 46824,
+            "creation_filetime_100ns": 134334891672112224
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "42a2cda64b56c30d939c427312505f7812a0ceb6ca4824e572fdd69b2c73cc8b",
+          "daemon_generation": "01a088e2-c443-7f02-887c-2f0ecdb42500",
+          "started_unix_millis": 1789015567214,
+          "finished_unix_millis": 1789015575570,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2b60-71b3-9d47-35c003c60174",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": "    Checking stillyard v0.1.0-alpha.20 (/home/pythonic/Development/stillyard-mr3-installed-observation-20260910x)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.98s\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2b60-71b3-9d47-35db0bb963cb",
+      "lease_id": "01a089a3-2b60-71b3-9d47-35db0bb963cb",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+        "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+        "lease_id": "01a089a3-2b60-71b3-9d47-35db0bb963cb"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2b5a-73c1-8b1d-b4a0920912ea",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089a3-2b60-71b3-9d47-35a309b5c935"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a088e2-c443-7f02-887c-2f0ecdb42500"
+}

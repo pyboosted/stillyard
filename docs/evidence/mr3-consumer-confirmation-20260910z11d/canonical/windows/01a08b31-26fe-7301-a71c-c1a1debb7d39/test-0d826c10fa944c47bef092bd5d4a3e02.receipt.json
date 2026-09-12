@@ -1,0 +1,41 @@
+{
+  "version": 5,
+  "idempotency_key": "01a08b31-26f4-71b0-9e6c-8cdc0f036bdb",
+  "payload_hash": "822a2948e4ee62352b7d917199ac883cb343d330b1551249a081891acaf1e040",
+  "endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+  "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+  "parent": null,
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b31-26fd-74e0-a423-c5ee7b010e68",
+      "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b31-26fe-7301-a71c-c1a1debb7d39",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1789041649406,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [
+        {
+          "code": "resource_busy",
+          "detail": "cargo_slots: requested 1, available 0, configured 1"
+        }
+      ],
+      "queue_rank": 1,
+      "reservation": null,
+      "conditions": [],
+      "estimate": {
+        "confidence": "unknown",
+        "start_in_millis": null,
+        "assumptions": [
+          "blocked work has no sufficient declared running duration"
+        ]
+      },
+      "parent": null,
+      "managed_policy_admission": null,
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a08b2f-ae10-7451-943c-2d1137c525cd"
+    }
+  }
+}

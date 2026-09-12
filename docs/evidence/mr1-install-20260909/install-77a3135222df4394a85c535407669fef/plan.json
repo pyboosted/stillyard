@@ -1,0 +1,102 @@
+{
+  "build_job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08723-366f-7d20-a2ab-ecdda1d372c4",
+  "candidate": "C:\\Development\\stillyard-mr1-native-20260909e\\target\\scheduled\\release\\stillyard.exe",
+  "candidate_sha256": "38246f2e6c04b3983d98b30e9da4434f26ed27afd63f25e9a504f7b2c5f0d732",
+  "candidate_version": "stillyard 0.1.0-alpha.16",
+  "installed": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+  "prior_sha256": "868d089a7ae94445457b32b43e91a5d3c54e845535ec639fc9a8e4065c89c8e4",
+  "before": {
+    "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+    "daemon_generation": "01a086e8-b524-70b1-b563-4b2eb76ce274",
+    "version": "0.1.0-alpha.15",
+    "pid": 53160,
+    "process_identity": {
+      "platform": "windows",
+      "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+      "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+      "pid": 53160,
+      "creation_filetime_100ns": 134334433923885991
+    },
+    "endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+    "store_path": "\\\\?\\C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\data",
+    "config_path": "\\\\?\\C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\data\\config.json",
+    "capacities": {
+      "cpu_units": 0,
+      "ram_mb": 32768,
+      "cargo_slots": 1,
+      "gpu_slots": 1,
+      "custom": {
+        "claude1_slots": 4,
+        "claude2_slots": 4,
+        "codex1_slots": 4,
+        "codex2_slots": 4,
+        "grok_slots": 4,
+        "opencode_slots": 4,
+        "vram_mb:GPU-a1144c26-a15c-cba1-3b7a-870c755ef08a": 30000
+      }
+    },
+    "resources": {
+      "cpu_units": {
+        "capacity": 0,
+        "granted": 0,
+        "reserved": 0
+      },
+      "ram_mb": {
+        "capacity": 32768,
+        "granted": 0,
+        "reserved": 0
+      },
+      "cargo_slots": {
+        "capacity": 1,
+        "granted": 0,
+        "reserved": 0
+      },
+      "gpu_slots": {
+        "capacity": 1,
+        "granted": 0,
+        "reserved": 0
+      },
+      "custom": {
+        "claude1_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "claude2_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "codex1_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "codex2_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "grok_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "opencode_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "vram_mb:gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a": {
+          "capacity": 30000,
+          "granted": 0,
+          "reserved": 0
+        }
+      }
+    },
+    "config_sha256": "7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978",
+    "queued_jobs": 0,
+    "running_jobs": 0
+  },
+  "initialize_new_authority": false
+}

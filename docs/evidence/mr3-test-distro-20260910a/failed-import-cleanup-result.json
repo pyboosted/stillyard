@@ -1,0 +1,10 @@
+{
+  "job": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08bb0-b833-7483-a3a5-fc52cb0458ba",
+  "target": "Stillyard-MR3-Test",
+  "guid": "{1cf1e672-7ffd-4a75-a2b5-c6dc6b127450}",
+  "operation": "unregister own failed import only",
+  "timeout": true,
+  "stdout_hex": "",
+  "stderr_hex": "",
+  "elapsed_seconds": 30.017202000002726
+}

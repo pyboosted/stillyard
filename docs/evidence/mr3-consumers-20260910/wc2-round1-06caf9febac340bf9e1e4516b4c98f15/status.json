@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d2-b175-7750-8cfa-18284eb0c1cf",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d2-b16d-7e21-8740-8e08451878cc",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d2-b17a-7032-b562-c0ea25d12468",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d4-8d44-7473-b7e0-3d19ffe4d80a",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d4-8d44-7473-b7e0-3d21a255fb55",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789018681717,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789018681946,
+  "finished_unix_millis": 1789018803775,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-06caf9febac340bf9e1e4516b4c98f15/consumer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-06caf9febac340bf9e1e4516b4c98f15/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-06caf9febac340bf9e1e4516b4c98f15/review.json",
+      "--model",
+      "sonnet"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-06caf9febac340bf9e1e4516b4c98f15",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-06caf9febac340bf9e1e4516b4c98f15/consumer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-06caf9febac340bf9e1e4516b4c98f15/review.json"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "acceptance",
+        "value": "W-C2"
+      },
+      {
+        "key": "round",
+        "value": "1"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 600,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d2-b17a-7032-b562-c0ea25d12468",
+      "attempt_index": 1,
+      "verdict": "postcondition_failed",
+      "reason_code": null,
+      "created_unix_millis": 1789018681722,
+      "started_unix_millis": 1789018681798,
+      "deadline_unix_millis": 1789019281798,
+      "finished_unix_millis": 1789018803775,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d2-b175-7750-8cfa-18284eb0c1cf",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d2-b17a-7032-b562-c0ea25d12468",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d2-b17a-7032-b562-c0f800395904",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789018681946,
+        "exited_unix_millis": 1789018803492,
+        "resolved_unix_millis": 1789018803515
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d2-b17a-7032-b562-c0f800395904",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 4066693,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 4066693,
+            "start_ticks": 6478854,
+            "pid_namespace_inode": 4026534284,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608",
+          "started_unix_millis": 1789018681946,
+          "finished_unix_millis": 1789018803515,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d2-b17a-7032-b562-c10338b07ef6",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"duration_api_ms\":121023,\"stop_reason\":\"end_turn\",\"session_id\":\"1a864ed5-cc8d-4f18-bacb-9a0c1da553e4\",\"total_cost_usd\":0.1665558,\"usage\":{\"input_tokens\":2,\"cache_creation_input_tokens\":9376,\"cache_read_input_tokens\":3289,\"output_tokens\":12146,\"output_tokens_details\":{\"thinking_tokens\":11621},\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":9376,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"not_available\",\"iterations\":[{\"input_tokens\":2,\"output_tokens\":12146,\"cache_read_input_tokens\":3289,\"cache_creation_input_tokens\":9376,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":9376},\"type\":\"message\"}],\"speed\":\"standard\"},\"modelUsage\":{\"claude-haiku-4-5-20251001\":{\"inputTokens\":6845,\"outputTokens\":17,\"cacheReadInputTokens\":0,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.00693,\"contextWindow\":200000,\"maxOutputTokens\":32000,\"thinkingTokens\":0,\"canonicalModel\":\"claude-haiku-4-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"},\"claude-sonnet-5\":{\"inputTokens\":2,\"outputTokens\":12146,\"cacheReadInputTokens\":3289,\"cacheCreationInputTokens\":9376,\"webSearchRequests\":0,\"costUSD\":0.1596258,\"contextWindow\":1000000,\"maxOutputTokens\":64000,\"thinkingTokens\":11621,\"canonicalModel\":\"claude-sonnet-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"fast_mode_disabled_reason\":\"sdk_opt_in_required\",\"subagent_stats\":{\"spawned\":0,\"requested\":{\"background\":0,\"foreground\":0,\"unset\":0},\"started_in_background\":0,\"max_depth\":0,\"spawned_by_subagents\":0,\"completed\":0,\"failed\":0,\"killed\":{\"parent\":0,\"user\":0,\"system\":0},\"refused\":{\"depth_limit\":0,\"concurrency_limit\":0,\"budget\":0},\"by_type\":{}},\"is_error\":false,\"num_turns\":1,\"subtype\":\"success\",\"api_error_status\":null,\"result\":\"```json\\n{\\n  \\\"verdict\\\": \\\"findings\\\",\\n  \\\"summary\\\": \\\"The coordinator's ticket-history conflict check in validate_next rejects legitimate Primary->Postcondition transitions and retries because it treats containment_id equality as a replay conflict, even though containment_id is intentionally shared across every invocation in an attempt.\\\",\\n  \\\"findings\\\": [\\n    \\\"In validate_next, the replay/conflict guard `grant.tickets.iter().any(|t| t.invocation_id == intent.invocation_id || t.containment_id == intent.containment_id || t.readiness_challenge == intent.readiness_challenge)` ORs together three fields, but containment_id is shared by design across the whole Attempt: request_attached_ticket only flips `containments.state` from 'creating' to 'live' once and every subsequent invocation (primary retries, postconditions) reuses the same job.containment_id. Once the first ticket for a Grant is recorded in grant.tickets, every later ticket request in that same Grant (e.g. the Primary->Postcondition handoff or a postcondition retry) will have a matching containment_id and be incorrectly rejected with 'ticket identity is single-use; replay the original operation' before the role/index transition table below it is ever evaluated. This makes the explicitly-supported (Primary,Primary,false), (Primary,Postcondition,true), and (Postcondition,Postcondition,*) transitions unreachable in practice. The check should only compare fields that are genuinely unique per ticket (invocation_id and/or readiness_challenge), not containment_id.\\\"\\n  ]\\n}\\n```\",\"ttft_ms\":114950,\"type\":\"result\",\"duration_ms\":119777,\"uuid\":\"b60178f5-8f86-4497-a45c-4d9faf851007\",\"ttft_stream_ms\":1575,\"time_to_request_ms\":39,\"first_content_frame_ms\":2095,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d4-8d44-7473-b7e0-3d19ffe4d80a",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 4080945,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 4080945,
+            "start_ticks": 6491027,
+            "pid_namespace_inode": 4026533826,
+            "uid": 1000
+          },
+          "root_exit_code": 1,
+          "exit_classification": "failed",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608",
+          "started_unix_millis": 1789018803663,
+          "finished_unix_millis": 1789018803772,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d4-8d44-7473-b7e0-3d21a255fb55",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": "Traceback (most recent call last):\n  File \"/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-06caf9febac340bf9e1e4516b4c98f15/consumer.py\", line 153, in <module>\n    raise SystemExit(main())\n                     ~~~~^^\n  File \"/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-06caf9febac340bf9e1e4516b4c98f15/consumer.py\", line 106, in main\n    print(json.dumps(validate_review(json.loads(args.input.read_text()), args.expected_model_prefix)))\n                     ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-06caf9febac340bf9e1e4516b4c98f15/consumer.py\", line 30, in validate_review\n    raise ValueError(\"actual modelUsage is absent or differs from selected model family\")\nValueError: actual modelUsage is absent or differs from selected model family\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089d2-b199-7dc0-85c2-8edac9f0722d",
+      "lease_id": "01a089d2-b17a-7032-b562-c1188cf4c8b8",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a089d2-b17a-7032-b562-c1188cf4c8b8"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d2-b175-7750-8cfa-18284eb0c1cf",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089d2-b17a-7032-b562-c0ea25d12468"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608"
+}

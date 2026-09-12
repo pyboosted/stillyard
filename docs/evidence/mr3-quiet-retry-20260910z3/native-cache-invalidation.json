@@ -1,0 +1,18 @@
+{
+  "reason": "Rebuild workspace targets at new snapshot",
+  "fingerprints": [
+    "debug\\.fingerprint\\stillyard-06546834d605fc3c",
+    "debug\\.fingerprint\\stillyard-0d66819aaa5048e7",
+    "debug\\.fingerprint\\stillyard-0fe77e21aed61e73",
+    "debug\\.fingerprint\\stillyard-1384df69d7746917",
+    "debug\\.fingerprint\\stillyard-1ef91dc002d4d34c",
+    "debug\\.fingerprint\\stillyard-478b4b2fa3f7c571",
+    "debug\\.fingerprint\\stillyard-5797d4970dcf790a",
+    "debug\\.fingerprint\\stillyard-6335a5de85397acd",
+    "debug\\.fingerprint\\stillyard-6b6b3e25370e1245",
+    "debug\\.fingerprint\\stillyard-7cd9a47e5ce47509",
+    "debug\\.fingerprint\\stillyard-c7ecbd3ad18543cb",
+    "debug\\.fingerprint\\stillyard-e7f7bb020a234f2e",
+    "debug\\.fingerprint\\stillyard-fc25245511ca72ac"
+  ]
+}

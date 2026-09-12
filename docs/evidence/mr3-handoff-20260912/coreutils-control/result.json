@@ -1,0 +1,13 @@
+{
+  "job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09607-b0fc-7672-b1d6-d30ad8d2dd17",
+  "normal_path": {
+    "exit": 0,
+    "stdout": "scheduled coreutils control\n",
+    "stderr": ""
+  },
+  "fd_exec_same_argv0": {
+    "exit": 1,
+    "stdout": "",
+    "stderr": "coreutils: unknown program '3'\n"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "version": 5,
+  "idempotency_key": "01a085c8-34ef-7262-8509-b332a8e58790",
+  "payload_hash": "5db24d03c089550f3f846a86c65d800643ce7f2d3a3d7ed2a1800680f72c9d4d",
+  "endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+  "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+  "parent": null,
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c8-34f5-7431-8de3-6111457ebdb9",
+      "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085c8-34f6-7420-bdc6-faa63e096cda",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1788950885622,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [
+        {
+          "code": "resource_busy",
+          "detail": "cargo_slots: requested 1, available 0, configured 1"
+        }
+      ],
+      "queue_rank": 1,
+      "reservation": null,
+      "conditions": [],
+      "estimate": {
+        "confidence": "estimated",
+        "start_in_millis": 586162,
+        "assumptions": [
+          "conservative snapshot estimate from declared durations of running Jobs and the current effective-priority order; aging or new reservations may reorder queued work, and orthogonal work may start sooner"
+        ]
+      },
+      "parent": null,
+      "managed_policy_admission": null,
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a082ce-ae5d-72d3-84e5-5579ad17b6da"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "spec_version": 4,
+  "priority": 1,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import time;print('older-blocked',flush=True);time.sleep(0)"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-mr3-priority-evidence-20260910z3b/older-blocked",
+  "timeout_seconds": 120,
+  "resources": {
+    "cargo_slots": 1
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "installed-priority-older-blocked"
+    }
+  ]
+}

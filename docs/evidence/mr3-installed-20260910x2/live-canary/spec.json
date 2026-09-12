@@ -1,0 +1,30 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import subprocess; subprocess.Popen(['/usr/bin/python3','-c','import time; time.sleep(60)']); print('installed-wsl-shared-coordinator',flush=True)"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-installation-evidence-20260910x2/live-canary-0177669c9ce34bd9a2a95dab484c5a23",
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "timeout_seconds": 20,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "phase",
+      "value": "mr3"
+    },
+    {
+      "key": "gate",
+      "value": "installed-wsl-live-canary"
+    }
+  ]
+}

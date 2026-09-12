@@ -1,0 +1,41 @@
+{
+  "version": 5,
+  "idempotency_key": "01a087b1-2395-7a32-aecf-7f0abc45a25e",
+  "payload_hash": "a5db4e22c92e06dc3d63d682f4cdb0b44d24dee23435048b0c58175a29537c5e",
+  "endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+  "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+  "parent": null,
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b1-239b-7b31-81bb-9b9d207fa413",
+      "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a087b1-239c-7aa1-ae02-15f320e94795",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1788982928284,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [
+        {
+          "code": "resource_capacity",
+          "detail": "claude2: requested 3, available 0, configured 0"
+        }
+      ],
+      "queue_rank": 1,
+      "reservation": null,
+      "conditions": [],
+      "estimate": {
+        "confidence": "unknown",
+        "start_in_millis": null,
+        "assumptions": [
+          "a configured-capacity or impossible-dependency blocker has no time estimate"
+        ]
+      },
+      "parent": null,
+      "managed_policy_admission": null,
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a08727-6971-79a1-a1b3-fd73badf9036"
+    }
+  }
+}

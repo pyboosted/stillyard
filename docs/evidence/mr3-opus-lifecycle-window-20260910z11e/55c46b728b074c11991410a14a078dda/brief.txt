@@ -1,0 +1,723 @@
+Independent focused read-only review of the concrete controlled lifecycle window harness. User authorized MR0..MR3 implementation and acceptance, but NOT interruption of foreign work; plan explicitly requires separate agreement for whole WSL/VM interruption. Destructive terminate/shutdown specs are prepared, NOT submitted. Read-only preflight has run; this review is preparation for asking user for an agreed window only after independent work is complete. Native controller runs as actual default Windows Job, own current primary PID verified; WSL controller is not allowed to schedule its own disappearance. It checks quiet queues, public durable journal checksum and kernel recursive population; retains identities/history, starts controller-owned foreground keepalive, awaits external handoff without escaping Windows Job containment. Check material safety or operational errors, feasibility of this handoff after our WSL agent disappears, deadlocks, timeouts, missing barrier checks, and false acceptance. Snapshot checks are explicitly not an atomic admission fence: agreed window must freeze all submissions. It covers only already-sealed quiescent history, NOT active VM death cleanup. No instructions to execute anything, no tools or edits. Return concrete findings, distinguish limitations honestly documented versus blocking implementation bugs.
+
+FILE /mnt/c/Development/stillyard-mr3-lifecycle-window-20260910z11e/controller.py
+"""Native default-Job controller; destructive modes require an agreed window.
+
+Preflight is read-only. Terminate/shutdown are quiescent lifecycle controls,
+not proofs of cleanup of live Linux Invocations. A controller-owned keepalive
+must be handed off to an external session before this Job completes.
+"""
+import argparse, hashlib, json, os, subprocess, time
+from pathlib import Path
+
+WCLI = Path(r'C:\Users\User\AppData\Local\stillyard\Stillyard\bin\stillyard.exe')
+WSL = Path(r'C:\Windows\System32\wsl.exe')
+LROOT = '/home/pythonic/.local/share/stillyard'
+LCLI = LROOT + '/bin/stillyard'
+HELPER = LROOT + '/libexec/wsl-service.py'
+
+# Public evidence only: never read/export the pairing secret.
+INVENTORY = '''import os,json,hashlib,sqlite3,stat
+from pathlib import Path
+r=Path('/home/pythonic/.local/share/stillyard');raw=(r/'attachment/executor/state.json').read_bytes();envelope=json.loads(raw);j=envelope['state'];rows=[]
+metadata=(r/'attachment/executor/state.json').lstat()
+assert stat.S_ISREG(metadata.st_mode) and metadata.st_uid==os.geteuid() and not metadata.st_mode & 0o077
+assert hashlib.sha256(json.dumps(j,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()==envelope['sha256']
+# Export only the public cgroup path; no credentials from the private anchor.
+cgroup=Path(json.loads((r/'attachment/anchor.json').read_bytes())['configuration']['executor_cgroup'])
+assert cgroup.is_relative_to('/sys/fs/cgroup') and not cgroup.is_symlink() and '..' not in cgroup.parts and cgroup.resolve()==cgroup
+kernel={'path':str(cgroup),'events':dict(line.split() for line in (cgroup/'cgroup.events').read_text().splitlines()),'children':[p.name for p in cgroup.iterdir() if p.is_dir()]}
+for p in Path('/proc').glob('[0-9]*'):
+ try:
+  fields=(p/'stat').read_text().rsplit(')',1)[1].split();name=(p/'comm').read_text().strip();cg=(p/'cgroup').read_text().strip()
+  if name in ('cargo','rustc','codex','claude','node','Runner.Listener','Runner.Worker','postgres','ollama') and 'stillyard.service/executors/' not in cg:rows.append({'pid':int(p.name),'start_ticks':int(fields[19]),'name':name,'cgroup':cg})
+ except (OSError,ValueError):pass
+with sqlite3.connect('file:'+str(r/'stillyard.sqlite3')+'?mode=ro',uri=True) as db:
+ leases=db.execute("select count(*) from leases where state='granted'").fetchone()[0]
+ records=db.execute("select count(*) from containments where state!='empty'").fetchone()[0]
+print(json.dumps({'kernel':kernel,'journal_checksum_valid':True,'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'journal_sha256':hashlib.sha256(raw).hexdigest(),'unsealed_invocations':[k for k,v in j['records'].items() if v['seal'] is None],'active_leases':leases,'nonempty_containments':records,'binary_sha256':hashlib.sha256((r/'bin/stillyard').read_bytes()).hexdigest(),'interop_target':str((r/'interop.sock').resolve()),'foreign_work_candidates':rows,'foreign_inventory_scope':'selected workload names; not a full quiescence proof'}))'''
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--operation', choices=['preflight','terminate','shutdown'], default='preflight')
+    parser.add_argument('--foreign-work-agreed', action='store_true')
+    parser.add_argument('--evidence-directory', type=Path, required=True)
+    args = parser.parse_args()
+    if os.name != 'nt' or not os.environ.get('STILLYARD_JOB_ID'):
+        parser.error('requires a native default Windows Stillyard Job')
+    if args.operation != 'preflight' and not args.foreign_work_agreed:
+        parser.error('the scheduling plan requires a separate agreed interruption window')
+    out = args.evidence_directory.resolve();out.mkdir(parents=True, exist_ok=False)
+    def save(name, value):
+        target=out/name;tmp=out/(name+'.tmp')
+        with tmp.open('w',encoding='utf-8') as f:
+            json.dump(value,f,indent=2);f.flush();os.fsync(f.fileno())
+        tmp.replace(target)
+    def native(*cmd):return json.loads(subprocess.check_output([str(WCLI),*cmd],timeout=20))
+    def linux(*cmd):return subprocess.check_output([str(WSL),'-d','Ubuntu-SSD','-u','pythonic','--exec',*cmd],timeout=30)
+    def guest():return json.loads(linux(LCLI,'--endpoint',LROOT+'/stillyard-v6.sock','daemon-status'))
+    def inventory():return json.loads(linux('/usr/bin/python3','-c',INVENTORY))
+    own=native('status',os.environ['STILLYARD_JOB_ID'])
+    inv=[i for a in own['attempts'] for i in a['invocations'] if i['invocation_id']==os.environ['STILLYARD_INVOCATION_ID']]
+    assert len(inv)==1 and inv[0]['role']=='primary' and inv[0]['root_identity']['pid']==os.getpid()
+    win=native('daemon-status');store_path=win['store_path']
+    if store_path.startswith(chr(92)*2+'?'+chr(92)):store_path=store_path[4:]
+    assert Path(store_path)==WCLI.parent.parent/'data'
+    running=subprocess.check_output([str(WSL),'--list','--running','--quiet'],timeout=20).decode('utf-16le').replace('\x00','').splitlines()
+    assert 'Ubuntu-SSD' in [s.strip() for s in running], 'preflight must not cold-start an unobserved distro'
+    before=guest();public=inventory();authority=native('authority','status')
+    plan={'controller_job':own['job_id'],'controller_invocation':inv[0]['invocation_id'],'operation':args.operation,'agreed_window':args.foreign_work_agreed,'running_distributions':running,'windows':win,'linux':before,'executor':public,'authority':authority,'controller_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'disruptive_action_executed':False}
+    save('before.json',plan)
+    save('windows-doctor.json',native('doctor','--json'))
+    save('linux-doctor.json',json.loads(linux(LCLI,'doctor','--json')))
+    if args.operation=='preflight':
+        print(json.dumps({'preflight_only':True,'foreign_work_candidates':len(public['foreign_work_candidates']),'directory':str(out)}),flush=True);return
+    assert win['running_jobs']==1 and win['queued_jobs']==0 and before['running_jobs']==0 and before['queued_jobs']==0
+    assert not public['unsealed_invocations'] and public['active_leases']==0 and public['nonempty_containments']==0
+    assert not [h for h in authority['holds'] if not h['released']]
+    assert not authority['machine_obligations'] and authority['blocker'] is None
+    assert before['machine_scheduling']['blocker'] is None
+    # A second observation catches changes during preparation. The agreed window
+    # must prohibit new submissions; these snapshots are not an atomic fence.
+    win2=native('daemon-status');before2=guest();public2=inventory();authority2=native('authority','status')
+    save('immediate-barrier.json',{'windows':win2,'linux':before2,'executor':public2,'authority':authority2})
+    assert win2['running_jobs']==1 and win2['queued_jobs']==0 and before2['running_jobs']==0 and before2['queued_jobs']==0
+    assert public2['journal_sha256']==public['journal_sha256'] and public2['foreign_work_candidates']==public['foreign_work_candidates']
+    assert public2['active_leases']==0 and public2['nonempty_containments']==0 and not public2['unsealed_invocations']
+    assert public2['kernel']['events']['populated']=='0' and not public2['kernel']['children']
+    assert authority2['blocker'] is None and not authority2['machine_obligations'] and not [h for h in authority2['holds'] if not h['released']]
+    assert before2['daemon_generation']==before['daemon_generation'] and win2['daemon_generation']==win['daemon_generation']
+    command=[str(WSL),'--terminate','Ubuntu-SSD'] if args.operation=='terminate' else [str(WSL),'--shutdown']
+    save('fault-intent.json',{'command':command,'unix_ns':time.time_ns(),'scope':'quiescent prior sealed history'})
+    result=subprocess.run(command,capture_output=True,timeout=60)
+    save('fault-result.json',{'exit_code':result.returncode,'stdout_hex':result.stdout.hex(),'stderr_hex':result.stderr.hex(),'unix_ns':time.time_ns()})
+    assert result.returncode==0, 'fault result is not success; original evidence retained'
+    with (out/'keepalive.stdout').open('wb') as stdout,(out/'keepalive.stderr').open('wb') as stderr:
+        keeper=subprocess.Popen([str(WSL),'-d','Ubuntu-SSD','-u','pythonic','--exec','/usr/bin/python3',HELPER,'keepalive','--root',LROOT],stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr)
+    save('keepalive-owner.json',{'windows_pid':keeper.pid,'owned_by_controller_job':own['job_id'],'external_handoff_required':True})
+    until=time.monotonic()+120
+    while True:
+        assert keeper.poll() is None, 'controller keepalive exited before recovery'
+        try:
+            after=guest()
+            if after['machine_scheduling']['blocker'] is None:break
+        except (subprocess.CalledProcessError,subprocess.TimeoutExpired,ValueError):pass
+        assert time.monotonic()<until,'restart did not become healthy; no history is cleared';time.sleep(2)
+    after_public=inventory();after_win=native('daemon-status');save('after-restart.json',{'linux':after,'executor':after_public,'windows':after_win})
+    assert after_win['store_uuid']==win['store_uuid'] and after_win['daemon_generation']==win['daemon_generation']
+    assert after_win['machine_scheduling']['domains']==win['machine_scheduling']['domains'] and after['machine_scheduling']['domains']==before['machine_scheduling']['domains']
+    assert after_public['kernel']['events']['populated']=='0' and not after_public['kernel']['children']
+    assert after['store_uuid']==before['store_uuid'] and after['daemon_generation']!=before['daemon_generation']
+    assert after_public['journal_sha256']==public['journal_sha256'] and after_public['binary_sha256']==public['binary_sha256']
+    assert not after_public['unsealed_invocations'] and after_public['active_leases']==0
+    save('awaiting-handoff.json',{'directory':str(out),'instruction':'Resume the external agent in a new WSL session. Capture the exact controller keepalive identity, stop only that helper, start an external foreground keepalive, and submit installed canaries. This controller completes only after the new alias and healthy pair are observed.','controller_keepalive_windows_pid':keeper.pid})
+    print('Recovered; awaiting external keepalive handoff',out,flush=True)
+    until=time.monotonic()+1500
+    while keeper.poll() is None:
+        assert time.monotonic()<until,'external handoff not completed; retained receipt identifies the controller';time.sleep(5)
+    until=time.monotonic()+120
+    while True:
+        try:
+            handed=guest();state=inventory()
+            if handed['machine_scheduling']['blocker'] is None and state['interop_target']!=after_public['interop_target']:break
+        except (subprocess.CalledProcessError,subprocess.TimeoutExpired,ValueError):pass
+        assert time.monotonic()<until,'external keepalive takeover did not become healthy';time.sleep(2)
+    assert handed['store_uuid']==before['store_uuid'] and not state['unsealed_invocations'] and state['active_leases']==0
+    save('result.json',{'quiescent_restart_passed':True,'operation':args.operation,'controller_job':own['job_id'],'external_handoff':state,'canary_acceptance':'must be collected separately; this restart result alone does not close M-A12'})
+
+if __name__=='__main__':main()
+
+FILE /home/pythonic/Development/stillyard/docs/mr3-lifecycle-window.md
+# MR-3 controlled Windows/WSL interruption window
+
+Status: prepared procedure; disruptive steps have not run. This is not acceptance
+ evidence. Current installed identity and the exact accepted build Jobs are in
+[machine-resource-implementation-status.md](machine-resource-implementation-status.md).
+
+The scheduling plan requires a native default Windows Job to control whole-VM
+faults, and separate agreement if unrelated work is affected. The current WSL
+inventory includes other development sessions and services. Do not run the
+commands below from the current WSL agent or as an unscheduled shell fault.
+Do not retry the canceled S4U/UAC task registration.
+
+## Preconditions and durable record
+
+Prepare the native controller and its receipt on NTFS, outside every target
+cache. Use the installed Windows Stillyard CLI and native Python 3.13. The
+controller is a default Windows Job with no Cargo claim; its own receipt and
+Job ID identify each operation. Keep the same intent/key when reconnecting.
+The controller must reject execution from Linux or without its Stillyard
+Invocation environment and record the actual native daemon identity.
+
+Before each interruption, record both daemon statuses and doctor reports,
+Windows authority obligations, running distributions, Linux boot ID, current
+interop alias/owner and installed binary hashes. Require empty user queues,
+no retained unsealed executor obligations, no active bootstrap holds, and no
+unresolved cleanup. The controller's own native Job is the only permitted
+active native Job at this initial quiescent lifecycle stage. Confirm the agreed
+inventory again immediately before the fault; a changed inventory stops the step.
+Keep pairing anchors private; hashes and public identities suffice.
+
+This first window tests restart/lifetime with already sealed history. Existing
+active-daemon SIGKILL and bridge-loss Jobs cover live work. It must not be
+reported as active-work whole-VM cleanup acceptance.
+
+## Separate operations and recovery
+
+1. **Terminate Ubuntu-SSD:** the native controller records intent, then invokes
+   `C:\Windows\System32\wsl.exe --terminate Ubuntu-SSD`. Record its actual exit
+   and elapsed time. Absence from the running list is only a runtime observation,
+   never an empty-process proof. The current WSL agent session will end.
+2. **Cold start:** start an ordinary Windows-owned foreground session with
+   `wsl.exe -d Ubuntu-SSD -u pythonic --exec /usr/bin/python3
+   /home/pythonic/.local/share/stillyard/libexec/wsl-service.py keepalive
+   --root /home/pythonic/.local/share/stillyard`.
+   The user service and supervisor must start the installed daemon. Record the
+   fresh socket owner, supervisor and daemon identities. Verify unchanged Store,
+   pairing and executor journal history, pinned bridge image and healthy shared
+   scheduling. A keepalive launched inside the controller Job lasts only as long
+   as that Job; complete an explicit external-session handoff before finalizing
+   that controller. Do not bypass its Windows containment to detach a descendant.
+3. **Whole WSL VM shutdown:** after another quiescent/foreign-work preflight,
+   a separate native default Job invokes `wsl.exe --shutdown`, records outcome,
+   then uses the same cold-start checks. This affects every running distribution,
+   including Docker/other development environments, if present.
+4. **Windows sleep/resume:** with external native observations already armed,
+   the user triggers sleep and resume during the agreed window. Record Windows
+   and Linux monotonic/boot observations before/after, bridge reconnect, fresh
+   quiet/observation evidence and a real measurement Job. Do not infer VM suspend
+   from a timer delay or SIGSTOP of one process.
+5. **Windows logout/login:** the user logs out and back in during the agreed
+   window. Retain native/WSL receipts and inspect them after login. The current
+   interactive Windows daemon/keepalive may disappear. Restart from installed
+   paths and verify continuous histories and shared admission; record manual
+   recovery as manual, not automatic scheduled-task lifetime. No S4U guarantee
+   is claimed. Host reboot is a distinct operation and needs its own agreed
+   interruption and before/after boot evidence.
+
+After each restart, submit actual Windows and attached WSL canaries through their
+installed defaults, record their Jobs and Grants, and verify the one-slot shared
+resource observation. Stop on unexpected retained obligations: preserve evidence
+and diagnose rather than deleting any Store, anchor or journal.
+
+## Explicit recovery boundary
+
+`Journal::cleanup` currently requires the exact recorded cgroup identity.
+`Boundary::reopen` rejects a different Linux boot and an absent/reused cgroup.
+Consequently a whole-VM/distro stop during an **unsealed** Invocation can retain
+its Grant after restart. Neither a new boot nor disappearance of a path is
+currently implemented as an executor seal. This is a conservative limitation,
+not successful unattended recovery. A future boot-death proof needs authenticated
+VM/host continuity and executor fencing. Existing audited domain retirement is
+explicit risk acceptance, revokes the old domain, and is not an automatic
+substitute for real cleanup or part of this quiescent procedure.
+
+Acceptance remains open until actual observations, controller Job IDs, recovered
+canaries, scope limitations and independent review are recorded. Any failed
+restart remains a failed case alongside the successful cases.
+
+FILE /home/pythonic/Development/stillyard/scripts/wsl-service.py
+#!/usr/bin/env python3
+"""Installed WSL lifetime/delegation helper, outside user Invocation namespaces.
+
+A Windows lifetime owner runs keepalive in a foreground wsl.exe session. It
+publishes only a transport alias, never resource or cleanup authority. The user
+service owns delegation and supervises the pinned daemon in a separate subgroup,
+so daemon crashes cannot make systemd remove unsealed executor boundaries.
+Neither operation invokes Cargo.
+"""
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import signal
+import selectors
+import stat
+import subprocess
+import time
+import uuid
+
+
+def private_directory(path):
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    metadata = path.lstat()
+    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077:
+        raise RuntimeError("service state directory must be owner-only")
+
+
+def keepalive(root):
+    private_directory(root)
+    descriptor = os.open(root / "keepalive.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    metadata = os.fstat(descriptor)
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077:
+        raise RuntimeError("unsafe keepalive singleton file")
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    socket = Path(os.environ["WSL_INTEROP"])
+    if not socket.is_absolute() or socket.parent != Path("/run/WSL"):
+        raise RuntimeError("keepalive must inherit an absolute WSL runtime socket")
+    metadata = socket.lstat()
+    if not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != 0:
+        raise RuntimeError("keepalive must inherit a real WSL interop server")
+    alias = root / "interop.sock"
+    if alias.exists() and not alias.is_symlink():
+        raise RuntimeError("refusing to replace a non-alias interop path")
+    # Block termination before publishing the alias or starting the service.
+    # Failed startup and pending signals share the same cleanup scope.
+    termination = {signal.SIGTERM, signal.SIGINT}
+    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, termination)
+    staging = root / (".interop-" + uuid.uuid4().hex)
+    try:
+        staging.symlink_to(socket)
+        staging.replace(alias)
+        print(json.dumps({"pid": os.getpid(), "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
+                          "interop_alias": str(alias), "interop_server": str(socket), "kind": "wsl_keepalive"}), flush=True)
+        environment = {"XDG_RUNTIME_DIR": f"/run/user/{os.geteuid()}",
+                       "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{os.geteuid()}/bus"}
+        subprocess.run(["/usr/bin/systemctl", "--user", "start", "--no-block", "stillyard.service"],
+                       env=environment, check=True, timeout=15)
+        signal.sigwait(termination)
+    finally:
+        if alias.is_symlink() and alias.readlink() == socket:
+            alias.unlink()
+        if staging.is_symlink():
+            staging.unlink()
+        os.close(descriptor)
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+
+
+def delegate(executors, ram_mb):
+    # DelegateSubgroup=manager keeps service processes out of the delegated
+    # parent, which must be empty before enabling domain controllers.
+    entry = Path("/proc/self/cgroup").read_text().strip()
+    if not entry.startswith("0::/") or "\n" in entry:
+        raise RuntimeError("unified cgroup identity is unavailable")
+    current = Path("/sys/fs/cgroup") / entry[4:]
+    parent = current.parent
+    if current.name not in ("manager", ".control") or parent.name != "stillyard.service" or executors != parent / "executors":
+        raise RuntimeError(f"service cgroup differs from installed delegation: current={current}, expected={executors}")
+    controllers = (parent / "cgroup.controllers").read_text().split()
+    if not {"memory", "pids", "cpu"}.issubset(controllers):
+        raise RuntimeError("required cgroup controllers were not delegated")
+    (parent / "cgroup.subtree_control").write_text("+memory +pids +cpu")
+    executors.mkdir(exist_ok=True)
+    (executors / "cgroup.subtree_control").write_text("+memory +pids +cpu")
+    if not 512 <= ram_mb <= 1048576:
+        raise RuntimeError("invalid executor RAM hard limit")
+    (executors / "memory.max").write_text(str(ram_mb * 1024 * 1024))
+    (executors / "pids.max").write_text("4096")
+    print(json.dumps({"kind": "wsl_delegation", "executors": str(executors),
+                      "memory_max": (executors / "memory.max").read_text().strip(),
+                      "controllers": (executors / "cgroup.subtree_control").read_text().strip()}), flush=True)
+
+
+def supervise(executors, daemon):
+    """Keep delegation alive across daemon crashes; never clean user cgroups.
+
+    systemd 259 may spawn a restarted unit into a non-leaf cgroup (EBUSY).
+    More importantly, stopping that unit can remove empty but unsealed cgroups.
+    Its persistent main process therefore owns delegation; the daemon alone is
+    restarted here and must reconcile its unchanged journal/boundary identities.
+    """
+    parent = executors.parent
+    control = parent / "manager"
+    keeper = parent / "supervisor"
+    keeper.mkdir(exist_ok=True)
+    (keeper / "cgroup.procs").write_text(str(os.getpid()))
+    closing = False
+    def stop(_number, _frame):
+        nonlocal closing
+        closing = True
+    read_fd, write_fd = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+    previous_wakeup = signal.set_wakeup_fd(write_fd)
+    previous_term = signal.signal(signal.SIGTERM, stop)
+    previous_int = signal.signal(signal.SIGINT, stop)
+    selector = selectors.DefaultSelector()
+    selector.register(read_fd, selectors.EVENT_READ)
+    def drain_signal():
+        try:
+            while os.read(read_fd, 4096):
+                pass
+        except BlockingIOError:
+            pass
+    def emit(value):
+        # A failed journal sink must not tear down the lifetime owner.
+        try:
+            print(json.dumps(value), flush=True)
+        except OSError:
+            pass
+    def clear_control():
+        # Only trusted daemon/bridge processes inherit manager. Invocations are
+        # born separately under executors and are cleaned ONLY by their journal.
+        if not control.exists():
+            return
+        (control / "cgroup.kill").write_text("1")
+        until = time.monotonic() + 5
+        while dict(line.split() for line in (control / "cgroup.events").read_text().splitlines())["populated"] != "0":
+            if time.monotonic() >= until:
+                raise RuntimeError("control-plane cgroup did not empty; executor history retained")
+            time.sleep(.01)
+    def place_child():
+        # This process must remain single-threaded: preexec_fn runs Python
+        # between fork and exec to place the trusted daemon before it can spawn.
+        (control / "cgroup.procs").write_text(str(os.getpid()))
+        signal.set_wakeup_fd(-1)
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+    delay = 1
+    child = None
+    try:
+        while True:
+            pidfd = None
+            registered = False
+            started = time.monotonic()
+            try:
+                # A prior failed teardown must complete before another spawn.
+                clear_control()
+                if child is not None:
+                    child.wait(timeout=1)
+                    child = None
+                if closing:
+                    break
+                control.mkdir(exist_ok=True)
+                child = subprocess.Popen([str(daemon), "daemon"], preexec_fn=place_child)
+                # Unreaped direct child: no PID reuse before pidfd_open.
+                pidfd = os.pidfd_open(child.pid)
+                selector.register(pidfd, selectors.EVENT_READ)
+                registered = True
+                emit({"kind": "wsl_daemon_started", "supervisor_pid": os.getpid(),
+                      "daemon_pid": child.pid, "executable": str(daemon)})
+                while child.poll() is None and not closing:
+                    for key, _ in selector.select():
+                        if key.fd == read_fd:
+                            drain_signal()
+                if closing and child.poll() is None:
+                    try:
+                        signal.pidfd_send_signal(pidfd, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        child.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        clear_control()
+                code = child.wait(timeout=1)
+                clear_control()
+                emit({"kind": "wsl_daemon_exited", "daemon_pid": child.pid,
+                      "exit_code": code, "service_stopping": closing})
+                child = None
+                if closing:
+                    break
+            except Exception as error:
+                # Retain the main process and delegated tree even when spawn,
+                # inspection or teardown fails. Never infer executor emptiness.
+                emit({"kind": "wsl_supervisor_retry", "error": str(error),
+                      "service_stopping": closing})
+            finally:
+                if registered:
+                    selector.unregister(pidfd)
+                if pidfd is not None:
+                    os.close(pidfd)
+            delay = 1 if time.monotonic() - started >= 10 else min(delay * 2, 30)
+            # No idle polling. Only failure backoff has a timer; stop wakes it.
+            for key, _ in selector.select(timeout=delay):
+                if key.fd == read_fd:
+                    drain_signal()
+    finally:
+        # Routine child failures are handled inside the loop. Always restore
+        # signal/fd state if an exceptional interpreter shutdown escapes it.
+        try:
+            if child is not None and child.poll() is None:
+                clear_control()
+                child.wait(timeout=1)
+        finally:
+            selector.close()
+            signal.set_wakeup_fd(previous_wakeup)
+            signal.signal(signal.SIGTERM, previous_term)
+            signal.signal(signal.SIGINT, previous_int)
+            os.close(read_fd)
+            os.close(write_fd)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+    p = sub.add_parser("keepalive")
+    p.add_argument("--root", type=Path, required=True)
+    p = sub.add_parser("delegate")
+    p.add_argument("--executors", type=Path, required=True)
+    p.add_argument("--ram-mb", type=int, required=True)
+    p = sub.add_parser("run")
+    p.add_argument("--executors", type=Path, required=True)
+    p.add_argument("--ram-mb", type=int, required=True)
+    p.add_argument("--daemon", type=Path, required=True)
+    args = parser.parse_args()
+    if args.command == "keepalive":
+        keepalive(args.root)
+    else:
+        delegate(args.executors, args.ram_mb)
+        if args.command == "run":
+            if not args.daemon.is_absolute():
+                raise RuntimeError("installed daemon path must be absolute")
+            supervise(args.executors, args.daemon)
+
+
+if __name__ == "__main__":
+    main()
+
+FILE /home/pythonic/Development/stillyard/scripts/upgrade-wsl-daemon.py
+#!/usr/bin/env python3
+"""Upgrade the installed default WSL binary under a SQLite admission barrier.
+
+Prepare is read-only except evidence. Apply preserves the Store, pairing anchor,
+executor journal and queued Jobs. Sealed final work can be explicitly retained
+across a binary repair; only the daemon protocol may release its resources.
+"""
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import select
+import shutil
+import sqlite3
+import stat
+import subprocess
+import time
+import uuid
+
+from wsl_maintenance import sql_barrier
+
+
+def digest(path):
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def sync_directory(path):
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def bootstrap_build(build, holds, job_id, candidate):
+    """Bind a recovery image to durable default-coordinator work and cleanup."""
+    matching = [h for h in holds if h.get('bootstrap')
+                and h['bootstrap']['parent']['job_id'] == job_id]
+    if len(matching) != 1:
+        raise RuntimeError('recovery build requires exactly one actual bootstrap Hold')
+    hold = matching[0]
+    bootstrap, proof = hold['bootstrap'], hold['cleanup_proof']
+    work = bootstrap['work']
+    spec = build['spec']
+    if (build['state'] != 'final' or build['outcome'] != 'succeeded'
+            or {'key': 'gate', 'value': 'wsl-bootstrap-build-release'} not in spec['labels']
+            or spec['args'][:3] != ['bootstrap', 'run', '--spec']
+            or spec['resources']['cargo_slots'] != 1
+            or work['args'] != ['build', '--locked', '--release']
+            or Path(work['executable']) != Path.home() / '.cargo/bin/cargo'
+            or work['distribution'] != os.environ.get('WSL_DISTRO_NAME')
+            or work['user'] != Path.home().name
+            or candidate != (Path(work['environment']['CARGO_TARGET_DIR']) / 'release/stillyard').resolve()
+            or hold['released'] is not True or proof is None
+            or proof['phase'] != 'sealed_empty' or proof['root_exit_code'] != 0
+            or proof['termination'] != 'exited'
+            or proof['operation_id'] != work['operation_id']
+            or proof['request_sha256'] != bootstrap['request_sha256']
+            or bootstrap['parent']['invocation_id'].split('~')[-1] != work['operation_id']):
+        raise RuntimeError('recovery build does not match durable bootstrap work and seal')
+    return hold
+
+
+def executor_barrier(root, *, allow_absent=False, db=None, store_uuid=None,
+                     allow_sealed_release_pending=False):
+    """Independent retained obligations and recursive kernel emptiness, not SQL alone."""
+    path = root / "attachment/executor/state.json"
+    metadata = path.lstat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077:
+        raise RuntimeError("unsafe executor journal")
+    raw = path.read_bytes()
+    envelope = json.loads(raw)
+    encoded = json.dumps(envelope["state"], ensure_ascii=False, separators=(",", ":")).encode()
+    if hashlib.sha256(encoded).hexdigest() != envelope["sha256"]:
+        raise RuntimeError("executor journal checksum differs")
+    records = envelope["state"]["records"]
+    unsealed = [key for key, record in records.items() if record["seal"] is None]
+    # Read only this public path from the private anchor; never copy its credentials.
+    anchor = json.loads((root / "attachment/anchor.json").read_bytes())
+    executors = Path(anchor["configuration"]["executor_cgroup"])
+    if (not executors.is_relative_to("/sys/fs/cgroup") or executors.is_symlink()
+            or '..' in executors.parts or executors.resolve() != executors):
+        raise RuntimeError("invalid executor cgroup path")
+    if allow_absent and not executors.exists():
+        # Used only by explicit interrupted-maintenance recovery with a stopped
+        # unit. Every retained executor record must already have its own seal.
+        events, children = {"populated": "0", "maintenance_absent": "true"}, []
+    else:
+        events = dict(line.split() for line in (executors / "cgroup.events").read_text().splitlines())
+        children = [p.name for p in executors.iterdir() if p.is_dir()]
+    if unsealed or events.get("populated") != "0" or children:
+        raise RuntimeError("executor obligations or kernel boundaries prevent upgrade; daemon left running")
+    sql = sql_barrier(db, store_uuid, records,
+                      allow_sealed_release_pending=allow_sealed_release_pending) if db is not None else None
+    return {"sql_clearance": sql, "journal_sha256": hashlib.sha256(raw).hexdigest(), "records": len(records),
+            "unsealed": 0, "executors": str(executors), "events": events, "children": children}
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--candidate", type=Path, required=True)
+    p.add_argument("--candidate-sha256", required=True)
+    p.add_argument("--build-job-id", required=True)
+    p.add_argument("--evidence-directory", type=Path, required=True)
+    p.add_argument("--allow-sealed-release-pending", action="store_true",
+                   help="Retain fully sealed final work Leases across a binary repair")
+    p.add_argument("--bootstrap-build", action="store_true",
+                   help="Verify recovery build against the default Windows bootstrap Hold")
+    p.add_argument("--apply", action="store_true")
+    args = p.parse_args()
+    if os.environ.get("STILLYARD_JOB_ID"):
+        p.error("upgrade must run outside a Job scheduled by the daemon being replaced")
+    os.umask(0o077)
+    root = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))) / "stillyard"
+    installed = root / "bin/stillyard"
+    candidate = args.candidate.resolve()
+    def query(*command):
+        return json.loads(subprocess.check_output([str(installed), *command], timeout=15))
+    before = query("daemon-status")
+    if before["store_path"] != str(root) or before["machine_scheduling"]["mode"] != "attached":
+        p.error("upgrade requires the installed default attached manager")
+    build_cli = (Path('/mnt/c/Users/User/AppData/Local/stillyard/Stillyard/bin/stillyard.exe')
+                 if args.bootstrap_build else installed)
+    build = json.loads(subprocess.check_output([str(build_cli), 'status', args.build_job_id], timeout=15))
+    if build["state"] != "final" or build["outcome"] != "succeeded":
+        p.error("release build Job has not succeeded")
+    provenance = None
+    if args.bootstrap_build:
+        holds = json.loads(subprocess.check_output([str(build_cli), 'authority', 'status'], timeout=15))['holds']
+        provenance = bootstrap_build(build, holds, args.build_job_id, candidate)
+    else:
+        target = Path(build["spec"]["environment"]["set"]["CARGO_TARGET_DIR"]) / "release/stillyard"
+        if (candidate != target.resolve() or build["spec"]["args"] != ["build", "--locked", "--release"]
+                or {"key": "gate", "value": "wsl-build-release"} not in build["spec"]["labels"]):
+            p.error("candidate does not match the selected installed-system release Job")
+    if candidate == installed or digest(candidate) != args.candidate_sha256:
+        p.error("candidate does not match the selected installed-system release Job")
+    version = subprocess.check_output([str(candidate), "--version"], text=True, timeout=5).strip()
+    if version != "stillyard " + before["version"]:
+        p.error("this updater supports same-version fixes; version upgrades need a reviewed migration")
+    evidence = args.evidence_directory.resolve() / ("upgrade-" + uuid.uuid4().hex)
+    evidence.mkdir(parents=True)
+    def save(name, value):
+        with (evidence / name).open("x") as stream:
+            json.dump(value, stream, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        sync_directory(evidence)
+    save("plan.json", {"before": before, "candidate": str(candidate),
+                       "candidate_sha256": args.candidate_sha256, "build_job_id": args.build_job_id,
+                       "prior_sha256": digest(installed), "apply": args.apply,
+                       "allow_sealed_release_pending": args.allow_sealed_release_pending,
+                       "bootstrap_build": provenance})
+    print(evidence, flush=True)
+    if not args.apply:
+        return
+    lock = os.open(root / "upgrade.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    pidfd = os.pidfd_open(before["pid"])
+    process = Path("/proc") / str(before["pid"])
+    ticks = int((process / "stat").read_text().rsplit(")", 1)[1].split()[19])
+    if ticks != before["process_identity"]["start_ticks"] or (process / "exe").resolve() != installed:
+        raise RuntimeError("daemon process identity changed")
+    staged = installed.with_name(".next-" + uuid.uuid4().hex)
+    with candidate.open("rb") as source, staged.open("xb") as output:
+        shutil.copyfileobj(source, output)
+        output.flush()
+        os.fsync(output.fileno())
+    staged.chmod(0o700)
+    if digest(staged) != args.candidate_sha256:
+        raise RuntimeError("staged binary checksum differs")
+    sync_directory(installed.parent)
+    db = sqlite3.connect((root / "stillyard.sqlite3").as_uri() + "?mode=rw", uri=True, timeout=5, isolation_level=None)
+    stop_requested = False
+    try:
+        db.execute("BEGIN IMMEDIATE")
+        jobs = db.execute("select count(*) from jobs").fetchone()[0]
+        independent = executor_barrier(root, db=db, store_uuid=before["store_uuid"],
+                                      allow_sealed_release_pending=args.allow_sealed_release_pending)
+        save("barrier.json", {"job_count": jobs, "executor": independent})
+        stop_requested = True
+        subprocess.run(["systemctl", "--user", "stop", "stillyard.service"], check=True, timeout=20)
+        poll = select.poll()
+        poll.register(pidfd, select.POLLIN)
+        if not poll.poll(5000):
+            raise RuntimeError("pinned old daemon did not exit")
+        stopped = executor_barrier(root, allow_absent=True, db=db, store_uuid=before['store_uuid'],
+                                   allow_sealed_release_pending=args.allow_sealed_release_pending)
+        if stopped['journal_sha256'] != independent['journal_sha256']:
+            raise RuntimeError('executor journal changed during the verified empty stop')
+        save('stopped-barrier.json', stopped)
+        backup = installed.with_name("stillyard.previous-" + uuid.uuid4().hex)
+        # Preserve the old inode without ever removing the canonical path.
+        os.link(installed, backup, follow_symlinks=False)
+        sync_directory(installed.parent)
+        os.replace(staged, installed)
+        sync_directory(installed.parent)
+        save("replacement.json", {"backup": str(backup), "installed_sha256": digest(installed)})
+    finally:
+        if db.in_transaction:
+            db.execute("ROLLBACK")
+        db.close()
+        os.close(pidfd)
+        # Reopen service even if replacement or evidence publication failed.
+        # The atomic path contains either the complete old or complete new image.
+        try:
+            if stop_requested:
+                start = subprocess.run(["systemctl", "--user", "start", "stillyard.service"],
+                                       capture_output=True, timeout=20)
+                save("service-start.json", {"exit_code": start.returncode,
+                                            "stderr": start.stderr.decode()})
+        finally:
+            if staged.exists():
+                staged.unlink()
+    deadline = time.monotonic() + 45
+    while True:
+        try:
+            after = query("daemon-status")
+            if after["machine_scheduling"] and after["machine_scheduling"]["blocker"] is None:
+                break
+        except subprocess.CalledProcessError:
+            pass
+        if time.monotonic() > deadline:
+            raise RuntimeError("replacement did not reconnect; retained history and backup require diagnosis")
+        time.sleep(.5)
+    if after["store_uuid"] != before["store_uuid"] or after["daemon_generation"] == before["daemon_generation"]:
+        raise RuntimeError("replacement Store identity or generation differs from the upgrade contract")
+    save("after.json", after)
+    retained = independent['sql_clearance']['sealed_release_pending']
+    if retained:
+        deadline = time.monotonic() + 45
+        with sqlite3.connect((root / 'stillyard.sqlite3').as_uri() + '?mode=ro', uri=True) as db:
+            while True:
+                states = {item['lease_id']: db.execute("""select l.state,p.released,
+                    json_extract(g.grant_json,'$.state'),g.seal_json is not null
+                    from leases l join attached_local_plans p on p.lease_id=l.id
+                    join attached_grants g using(allocation_key) where l.id=?""",
+                    (item['lease_id'],)).fetchone() for item in retained}
+                if all(state == ('released', 1, 'released', 1) for state in states.values()):
+                    save('retained-released.json', states)
+                    break
+                if time.monotonic() >= deadline:
+                    save('retained-release-timeout.json', states)
+                    raise RuntimeError('replacement connected but original retained releases have not reconciled')
+                time.sleep(.2)
+    os.close(lock)
+    print(json.dumps({"pid": after["pid"], "generation": after["daemon_generation"],
+                      "store_uuid": after["store_uuid"], "sha256": digest(installed)}), flush=True)
+
+
+if __name__ == "__main__":
+    main()

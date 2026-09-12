@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "criteria": "no overlapping measurement/cpu_heavy Grant debits; Ticket issued after Windows release",
+  "native_release_ms": 1789022991640,
+  "measurement_ticket_ms": 1789022995837
+}

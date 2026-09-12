@@ -1,0 +1,45 @@
+{
+  "version": 5,
+  "idempotency_key": "01a08822-168d-72a2-beb5-73267130812d",
+  "payload_hash": "4cd56e46b2b9aebaa57d528f6ba20ed32bbbab0dc702bbe376521010d53bfba9",
+  "endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+  "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+  "parent": null,
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08822-1693-7ee3-bf4c-396f5e05aae4",
+      "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08822-1694-7473-886d-a761921de303",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1788990330516,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [
+        {
+          "code": "authority_held",
+          "detail": "Durable admission hold; process exit and store reset do not release it"
+        },
+        {
+          "code": "resource_busy",
+          "detail": "cargo_slots: requested 1, available 0, configured 1"
+        }
+      ],
+      "queue_rank": 2,
+      "reservation": null,
+      "conditions": [],
+      "estimate": {
+        "confidence": "unknown",
+        "start_in_millis": null,
+        "assumptions": [
+          "a running job has exceeded its declared duration"
+        ]
+      },
+      "parent": null,
+      "managed_policy_admission": null,
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a08727-6971-79a1-a1b3-fd73badf9036"
+    }
+  }
+}

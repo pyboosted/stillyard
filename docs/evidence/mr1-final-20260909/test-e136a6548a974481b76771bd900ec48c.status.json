@@ -1,0 +1,152 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08715-6d1f-7533-998c-be02c11aecdf",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08715-6d1e-7932-9bef-75f2044f63c3",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08715-6d24-77a2-a314-d3a4dd083e71",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08715-6d24-77a2-a314-d37d67f5409c",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08715-6d24-77a2-a314-d382c3f7ae61",
+  "root_exit_code": 101,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788972723487,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788972723509,
+  "finished_unix_millis": 1788972754127,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\.cargo\\bin\\cargo.exe",
+    "args": [
+      "test",
+      "--workspace",
+      "--all-features"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr1-native-20260909d",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CARGO_HOME": "C:\\Users\\User\\.cargo",
+        "CARGO_TARGET_DIR": "C:\\Development\\stillyard-mr1-native-20260909d\\target\\scheduled",
+        "COMSPEC": "C:\\WINDOWS\\System32\\cmd.exe",
+        "INCLUDE": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\include;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\VS\\include;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\ucrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\um;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\shared;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\winrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\cppwinrt",
+        "LIB": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\lib\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\lib\\10.0.26100.0\\ucrt\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\\\lib\\10.0.26100.0\\\\um\\x64",
+        "PATH": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\VCPackages;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\TestWindow;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Current\\bin\\Roslyn;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Team Tools\\DiagnosticsHub\\Collector;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\Extensions\\Microsoft\\CodeCoverage.Console;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\\\MSBuild\\Current\\Bin\\amd64;C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\Tools\\;C:\\WINDOWS\\System32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\Ninja;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\Linux\\bin\\ConnectionManagerExe;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\vcpkg;C:\\Users\\User\\.cargo\\bin;C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Mozilla.sccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\sccache-v0.16.0-x86_64-pc-windows-msvc;C:\\Program Files\\Git\\cmd;C:\\Program Files\\CMake\\bin",
+        "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+        "RUSTUP_HOME": "C:\\Users\\User\\.rustup",
+        "SCCACHE_DIR": "C:\\Development\\.sccache",
+        "SYSTEMDRIVE": "C:",
+        "USERPROFILE": "C:\\Users\\User"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "test"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1800,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08715-6d24-77a2-a314-d3a4dd083e71",
+      "attempt_index": 1,
+      "verdict": "process_failed",
+      "reason_code": null,
+      "created_unix_millis": 1788972723492,
+      "started_unix_millis": 1788972723492,
+      "deadline_unix_millis": 1788974523492,
+      "finished_unix_millis": 1788972754127,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08715-6d1f-7533-998c-be02c11aecdf",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08715-6d24-77a2-a314-d3a4dd083e71",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08715-6d24-77a2-a314-d37d67f5409c",
+        "verdict": "process_failed",
+        "root_exit_code": 101,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1788972723509,
+        "exited_unix_millis": 1788972754120,
+        "resolved_unix_millis": 1788972754125
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08715-6d24-77a2-a314-d37d67f5409c",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 45692,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 45692,
+            "creation_filetime_100ns": 134334463235044267
+          },
+          "root_exit_code": 101,
+          "exit_classification": null,
+          "executable_hash": "6f4bef66261261fcb43131be8720bab817d403a09edec7455c371974b90bdb7e",
+          "daemon_generation": "01a086e8-b524-70b1-b563-4b2eb76ce274",
+          "started_unix_millis": 1788972723509,
+          "finished_unix_millis": 1788972754125,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08715-6d24-77a2-a314-d382c3f7ae61",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "indows::tests::quiet_resume_failure_after_durable_authorization_is_start_failed ... ok\ntest store::tests::managed_submission::neutral_only_parent_does_not_inherit_priority_and_rejects_escalation_durably ... ok\ntest store::tests::managed_submission::managed_wait_walks_unfinished_predecessors_and_rejects_self_or_foreign_targets ... ok\ntest store::tests::managed_submission::child_policy_negative_axes_are_durable_contextual_and_create_no_work ... ok\ntest store::tests::managed_submission::vram_policy_claims_compare_and_persist_in_canonical_form ... ok\ntest store::tests::managed_submission::policy_invalid_batch_names_the_member_and_is_atomic ... ok\ntest store::tests::store_recovery::only_corruption_errors_authorize_destructive_reset ... ok\ntest store::tests::managed_submission::received_wait_intent_survives_resume_and_cannot_accept_an_unsafe_child ... ok\ntest store::tests::conditions::restart_finalizes_cancel_and_deadline_after_probe_becomes_uncertain ... ok\ntest store::tests::observation::lifecycle_and_cancellation_transitions_emit_named_events ... ok\ntest store::tests::observation::list_events_and_cursor_are_one_public_observation_path ... ok\ntest store::tests::managed_submission::restart_rejects_managed_received_work_from_the_previous_daemon_generation ... ok\ntest store::tests::priority_reservations::priority_is_bounded_neutral_immutable_and_hashed_per_batch_member ... ok\ntest store::tests::observation::list_cursor_is_stable_and_store_scoped ... ok\ntest store::tests::observation::invocation_event_identity_is_atomic_and_required ... ok\ntest store::tests::store_recovery::current_schema_reopens_without_changing_store_identity ... ok\ntest store::tests::store_recovery::duplicate_key_returns_one_job ... ok\ntest store::tests::store_recovery::recovery_never_creates_work_and_distinguishes_conflict ... ok\ntest store::tests::store_recovery::rejected_idempotency_decision_replays_as_rejected ... ok\ntest store::tests::store_recovery::diagnostic_tail_io_failure_cannot_block_invocation_resolution ... ok\ntest store::tests::store_recovery::logs_publish_only_flushed_committed_prefix ... ok\ntest store::tests::priority_reservations::reservations_are_full_vector_bounded_observable_and_protect_only_claimed_scalars ... ok\ntest store::tests::store_recovery::corrupt_or_empty_database_is_replaced_with_current_schema ... ok\ntest store::tests::priority_reservations::retry_and_restart_preserve_acceptance_and_aging_history ... ok\ntest store::tests::store_recovery::same_key_different_payload_conflicts ... ok\ntest store::tests::store_recovery::corruption_discovered_during_recovery_resets_once ... ok\ntest store::tests::store_recovery::restart_after_empty_proof_before_primary_result_is_fail_closed ... ok\ntest store::tests::store_recovery::foreign_store_id_rejects_even_if_entity_uuid_collides ... ok\ntest store::tests::priority_reservations::reservation_deadline_survives_restart_expiry_yields_and_cancellation_cleans_up ... ok\ntest store::tests::store_recovery::restart_before_root_retains_boundary_until_reconciled ... ok\ntest store::tests::store_recovery::restart_during_prepared_postcondition_retains_attempt_lease ... ok\ntest store::tests::store_recovery::restart_after_resolved_postcondition_releases_empty_attempt_lease ... ok\ntest store::tests::store_recovery::uncertain_settlement_retains_lease_and_is_terminal ... ok\ntest store::tests::store_recovery::startup_resumes_durable_received_submission ... ok\ntest store::tests::store_recovery::restart_never_uses_pid_only_root_disappearance_as_proof ... ok\ntest store::tests::store_recovery::restart_interrupts_active_job_without_requeueing_it ... ok\ntest store::tests::priority_reservations::blocked_and_impossible_high_priority_jobs_do_not_head_of_line_block ... ok\ntest store::tests::tree::filtered_tree_retains_only_connecting_ancestors_and_selector_bound_expansion ... ok\ntest store::tests::store_recovery::damaged_schema_and_identity_each_reset_the_whole_database ... ok\ntest store::tests::tree::schema_rejects_a_noncanonical_tree_order_trigger ... ok\ntest store::tests::tree::root_cursor_survives_logs_but_fails_closed_when_attention_order_changes ... ok\ntest store::tests::tree::depth_cut_before_a_connector_keeps_an_inclusive_child_continuation ... ok\ntest store::tests::store_recovery::schema_epoch_mismatch_resets_database_and_preserves_other_files ... ok\ntest runner::windows::tests::primary_tree_is_empty_before_postcondition_receives_immutable_result ... ok\ntest store::tests::tree::tree_observation_includes_future_descendants_and_wrong_store_gap_snapshot ... ok\ntest store::tests::tree::tree_depth_cursor_and_for_job_preserve_the_complete_ancestor_path ... ok\ntest store::tests::tree::orphan_is_explicit_and_a_parent_cycle_fails_closed ... ok\ntest store::tests::priority_reservations::effective_priority_ages_monotonically_and_orders_by_original_acceptance ... ok\ntest store::tests::priority_reservations::restart_capacity_shrink_keeps_only_the_scheduler_ordered_reservation_prefix ... ok\ntest store::tests::tree::schema_requires_tree_query_indexes ... ok\ntest store::tests::priority_reservations::reservations_sum_to_capacity_and_non_scalar_changes_release_them ... ok\ntest store::tests::conditions::restart_preserves_the_durable_pre_resume_terminal_latch ... ok\ntest store::tests::observation::event_ring_reports_gap_and_resynchronizes ... ok\ntest store::tests::containment_safety::doctor_snapshot_stress_resists_parallel_incident_turnover ... ok\ntest store::tests::tree::encoded_budget_truncates_with_a_root_continuation_and_makes_progress ... ok\ntest store::tests::tree::row_sixteen_thousand_three_hundred_eighty_five_fails_before_classification ... ok\ntest store::tests::tree::managed_ancestry_accepts_sixty_four_jobs_and_rejects_the_sixty_fifth ... ok\ntest store::tests::conditions::probe_history_is_pruned_after_its_pinning_events_leave_the_ring ... ok\ntest runner::windows::tests::attempt_timeout_covers_postconditions ... ok\ntest runner::windows::tests::timeout_kills_containment_and_releases_lease ... ok\ntest runner::windows::tests::timeout_kills_descendant_not_only_root ... ok\n\ntest result: ok. 269 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 5.42s\n\n\nrunning 35 tests\ntest tests::managed_execution_exit_namespace_keeps_success_scheduler_owned ... ok\ntest tui::tests::civil_day_conversion_round_trips ... ok\ntest tests::structured_rejections_have_the_rejection_exit_code ... ok\ntest tui::tests::completed_family_scroll_keeps_children_beside_selected_parent ... ok\ntest tui::tests::commands_split_into_executable_and_arguments ... ok\ntest tui::tests::clock_renders_local_time_and_elides_todays_date ... ok\ntest tui::tests::edges_join_on_one_line_and_the_right_edge_yields_when_cramped ... ok\ntest tui::tests::retry_gap_reseats_the_log_window_behind_new_committed_output ... ok\ntest tui::tests::states_map_to_glyphs_and_semantic_colours ... ok\ntest tui::tests::queue_columns_shed_detail_on_narrow_terminals ... ok\ntest tui::tests::terminal_rendering_drops_ansi_and_marks_other_controls ... ok\ntest tui::tests::text_fits_columns_with_an_ellipsis ... ok\ntest tui::tests::wrapping_counts_lines_exactly_and_indents_continuations ... ok\ntest tui::tests::durations_and_sizes_use_operator_units ... ok\ntest tui::tests::claims_render_as_chips ... ok\ntest tui::tests::scrolling_clamps_to_content_and_follow_pins_logs_to_the_tail ... ok\ntest tui::tree::tests::user_expansion_overrides_survive_refresh ... ok\ntest tui::tests::selection_walks_the_display_order_and_skips_group_rows ... ok\ntest tests::cli_and_tui_have_no_private_store_read_path ... ok\ntest tui::tests::queue_groups_running_then_queued_then_finished_newest_first ... ok\ntest tui::tests::project_filter_cycles_through_known_projects_and_keeps_a_visible_selection ... ok\ntest tui::tree::tests::stale_root_cursor_discards_partial_tree_and_restarts_at_page_one ... ok\ntest tui::tests::tree_guides_close_last_siblings_and_carry_ancestor_rails ... ok\ntest tui::tree::tests::continuation_pages_are_linearized_depth_first ... ok\ntest tui::tree::tests::sibling_branch_continuations_keep_left_to_right_depth_first_priority ... ok\ntest tui::tree::tests::all_branches_stay_expanded_and_explicit_collapse_has_outcome_summary ... ok\ntest tests::ensure_requires_an_explicit_endpoint ... ok\ntest tests::recover_wait_and_wait_passthrough_have_agent_sized_defaults ... ok\ntest tests::isolated_instance_coordinates_are_global_and_daemon_store_is_explicit ... ok\ntest tests::context_cli_is_an_explicit_json_query ... ok\ntest tests::observation_cli_keeps_the_public_spellings ... ok\ntest tests::doctor_cli_exposes_json_paging_and_explicit_force ... ok\ntest tui::tests::mouse_targets_panes_rows_gutter_and_log_tabs ... ok\ntest tui::tests::expanded_finished_family_is_visibly_a_tree ... ok\ntest tui::tests::screen_renders_groups_selection_detail_and_scrollbars_at_every_size ... ok\n\ntest result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s\n\n\nrunning 16 tests\ntest isolated_client_helper ... ignored, launched as a scoped managed-environment client helper\ntest no_autostart_helper ... ignored, launched as an absent-custom-endpoint client helper\ntest wsl_bootstrap_installer_refuses_busy_work_and_preserves_queue_and_authority ... ignored, native Windows installer acceptance inside a system Job\ntest wsl_bootstrap_public_path_preserves_outputs_exit_timeout_and_bridge_loss_obligation ... ignored, requires explicit WSL distribution/user and must be scheduled by the system daemon\n\nrunning 1 test\ntest no_autostart_helper ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.00s\n\n\nrunning 1 test\ntest no_autostart_helper ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.00s\n\ntest absent_custom_endpoints_never_auto_start ... ok\ntest timed_out_probe_is_observable_and_condition_deadline_prevents_primary_release ... ok\ntest probe_condition_runs_in_its_own_invocation_before_primary_release ... ok\ntest authority_hold_rejects_active_work_and_managed_administration ... ok\ntest ensure_concurrent_callers_converge_and_conflict_is_typed ... ok\ntest daemon_instance_tuple_accepts_mixed_sources_and_rejects_singletons ... ok\ntest pinned_isolated_daemons_coexist_and_own_both_coordinates ... FAILED\ntest doctor_complete_crosses_transport_pages_and_restart_rejects_old_cursor ... ok\ntest path_condition_freshness_wakes_scheduler_and_rescans_without_manual_signal ... ok\ntest typed_wait_and_cli_keep_terminal_root_exit_25_distinct_from_pending ... ok\ntest external_nvml_generation_change_never_releases_the_suspended_child ... ok\ntest durable_authority_blocks_release_across_restart_database_reset_and_history_loss ... ok\n\nfailures:\n\n---- pinned_isolated_daemons_coexist_and_own_both_coordinates stdout ----\n\nthread 'pinned_isolated_daemons_coexist_and_own_both_coordinates' (32716) panicked at tests\\isolated_daemon.rs:1369:5:\nassertion `left == right` failed\n  left: DaemonSnapshot { store_uuid: 01a08715-db63-7742-9f15-f4e4ae127aaf, daemon_generation: 01a08715-db71-7c10-960a-cf8f8423dfa7, version: \"0.1.0-alpha.16\", pid: 33128, process_identity: Some(Windows { host_id: HostId(\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\"), boot_id: BootId(\"3472a414-3353-11f1-8eac-b29d069fdb29\"), pid: 33128, creation_filetime_100ns: 134334463516917854 }), endpoint: \"\\\\\\\\.\\\\pipe\\\\stillyard-isolated-b-01a08715-c767-72b0-b2a1-98fb09aaa997\", store_path: \"\\\\\\\\?\\\\C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Temp\\\\.tmp4eweCp\\\\store-b\", config_path: \"\\\\\\\\?\\\\C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Temp\\\\.tmp4eweCp\\\\store-b\\\\config.json\", capacities: ResourceCapacities { cpu_units: 0, ram_mb: 0, cargo_slots: 0, gpu_slots: 0, custom: {} }, resources: Some(ResourceSnapshot { cpu_units: ScalarResourceSnapshot { capacity: 0, granted: 0, reserved: 0 }, ram_mb: ScalarResourceSnapshot { capacity: 0, granted: 0, reserved: 0 }, cargo_slots: ScalarResourceSnapshot { capacity: 0, granted: 0, reserved: 0 }, gpu_slots: ScalarResourceSnapshot { capacity: 0, granted: 0, reserved: 0 }, custom: {} }), machine_scheduling: Some(MachineSchedulingSnapshot { authority_epoch: 01a08715-db78-7800-b069-b9860a323835, domains: AuthorityDomains { machine_id: 01a08715-db78-7800-b069-b99bb1bd2477, machine_scope: ExecutionDomainId(01a08715-db78-7800-b069-b9ac81e05940), native_domain: ExecutionDomainId(01a08715-db78-7800-b069-b9b3de92dd35) }, mode: Standalone, observed_unix_millis: 1788972751819, configuration_sha256: \"41f1c5ddb41cbabf7887978ee5c51e55e064a976650d8e091d10696473f77d34\", resources: [ScopedResourceSnapshot { resource: ScopedResourceId { scope: ExecutionDomainId(01a08715-db78-7800-b069-b9ac81e05940), kind: Scalar, resource_id: \"cargo_slots\" }, capacity: 0, granted: 0, offered: 0, reserved: 0 }, ScopedResourceSnapshot { resource: ScopedResourceId { scope: ExecutionDomainId(01a08715-db78-7800-b069-b9ac81e05940), kind: Scalar, resource_id: \"cpu_units\" }, capacity: 0, granted: 0, offered: 0, reserved: 0 }, ScopedResourceSnapshot { resource: ScopedResourceId { scope: ExecutionDomainId(01a08715-db78-7800-b069-b9ac81e05940), kind: Scalar, resource_id: \"gpu_slots\" }, capacity: 0, granted: 0, offered: 0, reserved: 0 }, ScopedResourceSnapshot { resource: ScopedResourceId { scope: ExecutionDomainId(01a08715-db78-7800-b069-b9ac81e05940), kind: Scalar, resource_id: \"ram_mb\" }, capacity: 0, granted: 0, offered: 0, reserved: 0 }], blocker: None }), config_sha256: \"41f1c5ddb41cbabf7887978ee5c51e55e064a976650d8e091d10696473f77d34\", queued_jobs: 0, running_jobs: 0 }\n right: DaemonSnapshot { store_uuid: 01a08715-db63-7742-9f15-f4e4ae127aaf, daemon_generation: 01a08715-db71-7c10-960a-cf8f8423dfa7, version: \"0.1.0-alpha.16\", pid: 33128, process_identity: Some(Windows { host_id: HostId(\"sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4\"), boot_id: BootId(\"3472a414-3353-11f1-8eac-b29d069fdb29\"), pid: 33128, creation_filetime_100ns: 134334463516917854 }), endpoint: \"\\\\\\\\.\\\\pipe\\\\stillyard-isolated-b-01a08715-c767-72b0-b2a1-98fb09aaa997\", store_path: \"\\\\\\\\?\\\\C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Temp\\\\.tmp4eweCp\\\\store-b\", config_path: \"\\\\\\\\?\\\\C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Temp\\\\.tmp4eweCp\\\\store-b\\\\config.json\", capacities: ResourceCapacities { cpu_units: 0, ram_mb: 0, cargo_slots: 0, gpu_slots: 0, custom: {} }, resources: Some(ResourceSnapshot { cpu_units: ScalarResourceSnapshot { capacity: 0, granted: 0, reserved: 0 }, ram_mb: ScalarResourceSnapshot { capacity: 0, granted: 0, reserved: 0 }, cargo_slots: ScalarResourceSnapshot { capacity: 0, granted: 0, reserved: 0 }, gpu_slots: ScalarResourceSnapshot { capacity: 0, granted: 0, reserved: 0 }, custom: {} }), machine_scheduling: Some(MachineSchedulingSnapshot { authority_epoch: 01a08715-db78-7800-b069-b9860a323835, domains: AuthorityDomains { machine_id: 01a08715-db78-7800-b069-b99bb1bd2477, machine_scope: ExecutionDomainId(01a08715-db78-7800-b069-b9ac81e05940), native_domain: ExecutionDomainId(01a08715-db78-7800-b069-b9b3de92dd35) }, mode: Standalone, observed_unix_millis: 1788972751760, configuration_sha256: \"41f1c5ddb41cbabf7887978ee5c51e55e064a976650d8e091d10696473f77d34\", resources: [ScopedResourceSnapshot { resource: ScopedResourceId { scope: ExecutionDomainId(01a08715-db78-7800-b069-b9ac81e05940), kind: Scalar, resource_id: \"cargo_slots\" }, capacity: 0, granted: 0, offered: 0, reserved: 0 }, ScopedResourceSnapshot { resource: ScopedResourceId { scope: ExecutionDomainId(01a08715-db78-7800-b069-b9ac81e05940), kind: Scalar, resource_id: \"cpu_units\" }, capacity: 0, granted: 0, offered: 0, reserved: 0 }, ScopedResourceSnapshot { resource: ScopedResourceId { scope: ExecutionDomainId(01a08715-db78-7800-b069-b9ac81e05940), kind: Scalar, resource_id: \"gpu_slots\" }, capacity: 0, granted: 0, offered: 0, reserved: 0 }, ScopedResourceSnapshot { resource: ScopedResourceId { scope: ExecutionDomainId(01a08715-db78-7800-b069-b9ac81e05940), kind: Scalar, resource_id: \"ram_mb\" }, capacity: 0, granted: 0, offered: 0, reserved: 0 }], blocker: None }), config_sha256: \"41f1c5ddb41cbabf7887978ee5c51e55e064a976650d8e091d10696473f77d34\", queued_jobs: 0, running_jobs: 0 }\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n\nfailures:\n    pinned_isolated_daemons_coexist_and_own_both_coordinates\n\ntest result: FAILED. 11 passed; 1 failed; 4 ignored; 0 measured; 0 filtered out; finished in 7.55s\n\n",
+          "stderr_tail": "   Compiling stillyard v0.1.0-alpha.16 (C:\\Development\\stillyard-mr1-native-20260909d)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.64s\n     Running unittests src\\lib.rs (target\\scheduled\\debug\\deps\\stillyard-a383a0fbdb3e9a8f.exe)\nstillyard runner for 01a08715-b01e-7992-a9e1-059dd1a4c3c6~01a08715-b0d0-7b22-8d56-c614c9584bf5 failed: created image C:\\Windows\\System32\\cmd.exe differs from requested executable C:\\WINDOWS\\System32\\cmd.exe\nstillyard runner for 01a08715-b02a-7ce3-92b3-9e82c8c22cb8~01a08715-b0d7-78c3-8e91-2a9f9a0ee049 failed: forced pre-start failure\nstillyard runner for 01a08715-b025-7140-b91a-5d3d535e6d65~01a08715-b0ed-7b61-82cb-8a8c15ab3859 failed: \u041e\u043f\u0435\u0440\u0430\u0446\u0438\u044f \u0443\u0441\u043f\u0435\u0448\u043d\u043e \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u0430. (os error 0)\nstillyard runner for 01a08715-b049-7d12-84f9-eadea3fb0355~01a08715-b121-7711-838b-254918d939f3 failed: staged stdin hash changed before launch\nstillyard runner for 01a08715-b01d-7023-8540-56733a7a0d80~01a08715-b0a9-7e82-9e40-9495154231fb failed: stopped suspended root did not exit within cleanup bound\nstillyard runner for 01a08715-b026-7c10-a3b6-82d52b638b46~01a08715-b0e3-7853-ae68-d948237b0073 failed: forced pre-start failure\nstillyard runner for 01a08715-b046-71e3-8e9c-5bb6ac2376e3~01a08715-b0fe-7742-9b30-b4f5a6d56253 failed: \u041d\u0435 \u0443\u0434\u0430\u0435\u0442\u0441\u044f \u043d\u0430\u0439\u0442\u0438 \u0443\u043a\u0430\u0437\u0430\u043d\u043d\u044b\u0439 \u0444\u0430\u0439\u043b. (os error 2)\n     Running unittests src\\main.rs (target\\scheduled\\debug\\deps\\stillyard-bbc874887fe1f759.exe)\n     Running tests\\isolated_daemon.rs (target\\scheduled\\debug\\deps\\isolated_daemon-4e4b81658c3e76dd.exe)\nerror: test failed, to rerun pass `--test isolated_daemon`\n"
+        }
+      ]
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a086e8-b524-70b1-b563-4b2eb76ce274"
+}

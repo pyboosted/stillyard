@@ -49,6 +49,12 @@ impl ConditionEvaluations {
     fn scan_until(conditions: &[crate::ConditionSpec], deadline: Instant) -> Self {
         let scan_started = Instant::now();
         let mut evaluations = Self::at_now();
+        // No provider work occurred. In particular, do not advance a supplied
+        // model observation clock by wall-time jitter from this empty scan.
+        // Live observation moments still reread the actual clock at admission.
+        if conditions.is_empty() {
+            return evaluations;
+        }
         for (index, condition) in conditions.iter().enumerate() {
             if let Some(path) = condition_path(condition) {
                 let remaining = deadline.saturating_duration_since(Instant::now());
@@ -874,6 +880,7 @@ impl Store {
     }
 
     pub(super) fn prune_condition_history(&mut self) -> StoreResult<()> {
+        self.reconcile_native_start_permissions()?;
         let condition_keys = {
             let mut statement = self.connection.prepare(
                 "SELECT invocations.condition_id FROM invocations
@@ -1053,6 +1060,9 @@ impl Store {
         original_spec: &JobSpec,
         observation: Option<crate::host_observation::ObservationMoment<'_>>,
     ) -> StoreResult<Option<PreparedJob>> {
+        if self.authority_blocker()?.is_some() {
+            return Ok(None);
+        }
         let now = now_millis();
         let store_uuid = self.store_uuid;
         let capacities = self.capacities.clone();
@@ -1186,8 +1196,27 @@ impl Store {
                 attempt_id
             }
         };
-        let invocation_id = InvocationId::new(store_uuid);
-        let containment_id = ContainmentId::new(store_uuid);
+        let admission = attached::prepare(
+            &transaction,
+            job_id,
+            attempt_id,
+            Some(ConditionId::from_parts(
+                store_uuid,
+                Uuid::parse_str(&condition_key)?,
+            )),
+            &probe_spec,
+            &claims,
+        )?;
+        if !admission.ready {
+            if admission.persist {
+                transaction.commit()?;
+            } else {
+                transaction.rollback()?;
+            }
+            return Ok(None);
+        }
+        let invocation_id = admission.ids.invocation;
+        let containment_id = admission.ids.containment;
         let role_index: u32 = transaction.query_row(
             "SELECT COALESCE(MAX(role_index), -1) + 1 FROM invocations WHERE attempt_id = ?1",
             [attempt_id.entity_uuid().to_string()],
@@ -1207,20 +1236,21 @@ impl Store {
         transaction.execute(
             "INSERT INTO containments(
                 id, invocation_id, state, host_id, boot_id, daemon_generation, strength, version
-             ) VALUES (?1, ?2, 'creating', ?3, ?4, ?5, 'windows_job_object', 1)",
+             ) VALUES (?1, ?2, 'creating', ?3, ?4, ?5, ?6, 1)",
             params![
                 containment_id.entity_uuid().to_string(),
                 invocation_id.entity_uuid().to_string(),
                 startup_identity.host_id.as_ref().map(|value| &value.0),
                 startup_identity.boot_id.as_ref().map(|value| &value.0),
                 daemon_generation.to_string(),
+                crate::platform::containment_strength(),
             ],
         )?;
         transaction.execute(
             "INSERT INTO leases(id, attempt_id, invocation_id, state, claims_json)
              VALUES (?1, ?2, ?3, 'granted', ?4)",
             params![
-                Uuid::now_v7().to_string(),
+                admission.ids.lease.to_string(),
                 attempt_id.entity_uuid().to_string(),
                 invocation_id.entity_uuid().to_string(),
                 serde_json::to_string(&claims)?,

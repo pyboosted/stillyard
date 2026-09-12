@@ -1,0 +1,56 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-retry-184d47b729bc43c990b2cc6150106a35/consumer.py",
+    "review",
+    "--cli",
+    "/home/pythonic/.local/bin/claude-current",
+    "--brief",
+    "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-retry-184d47b729bc43c990b2cc6150106a35/brief.txt",
+    "--output",
+    "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-retry-184d47b729bc43c990b2cc6150106a35/review.json",
+    "--model",
+    "sonnet"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-retry-184d47b729bc43c990b2cc6150106a35",
+  "environment": {
+    "set": {
+      "HOME": "/home/pythonic",
+      "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+      "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin",
+      "LANG": "C.UTF-8"
+    }
+  },
+  "resources": {
+    "custom": {
+      "claude2_slots": 1
+    }
+  },
+  "timeout_seconds": 600,
+  "postconditions": [
+    {
+      "executable": "/usr/bin/python3",
+      "args": [
+        "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-retry-184d47b729bc43c990b2cc6150106a35/consumer.py",
+        "validate-review",
+        "--input",
+        "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-retry-184d47b729bc43c990b2cc6150106a35/review.json"
+      ]
+    }
+  ],
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "acceptance",
+      "value": "W-C2"
+    },
+    {
+      "key": "round",
+      "value": "1"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import pathlib,subprocess; subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(120)']); pathlib.Path('/home/pythonic/Development/stillyard-installed-lifecycle-20260910/timeout-0f1aa5b1c9824081be64c35c289a3d06/primary-marker').write_text('primary'); print('primary with live descendant',flush=True); import time; time.sleep(120)"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-installed-lifecycle-20260910/timeout-0f1aa5b1c9824081be64c35c289a3d06",
+  "timeout_seconds": 2,
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "installed-wsl-timeout"
+    }
+  ]
+}

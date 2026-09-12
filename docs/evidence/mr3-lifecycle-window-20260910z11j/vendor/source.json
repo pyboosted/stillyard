@@ -1,0 +1,6 @@
+{
+  "url": "https://github.com/microsoft/WSL/blob/2.6.3/src/windows/common/WslClient.cpp",
+  "version": "2.6.3",
+  "sha256": "751bf52ee671e58dd6a096059b831b87ca8a819e6abf085133ca9d3ba116632f",
+  "scope": "quiet empty-list branch source attribution; not live cold-start evidence"
+}

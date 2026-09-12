@@ -1,4 +1,13 @@
 mod evidence;
+#[cfg(target_os = "linux")]
+mod linux_cpu;
+#[cfg(target_os = "linux")]
+mod linux_disk;
+#[cfg(target_os = "linux")]
+mod linux_memory;
+#[cfg(target_os = "linux")]
+mod linux_process;
+mod platform;
 mod policy;
 mod service;
 #[cfg(windows)]
@@ -15,18 +24,12 @@ mod windows_utilization;
 pub(crate) use evidence::{
     ComponentEvidence, ComponentValue, GpuEvidence, HostSample, MemoryEvidence, ProcessEvidence,
 };
-pub(crate) use policy::{AdmissionContext, evaluate_admission};
+pub(crate) use platform::observation_clock;
+pub(crate) use policy::{
+    AdmissionContext, ObservationRequest, evaluate_admission, evaluate_request, quiet_budget,
+    quiet_stability,
+};
 pub(crate) use service::{HostObservationRequirements, HostObservationService};
-#[cfg(windows)]
-pub(crate) use windows_disk::DiskUtilizationSampler;
-#[cfg(windows)]
-pub(crate) use windows_memory::probe_memory;
-#[cfg(windows)]
-pub(crate) use windows_nvml::NvmlProvider;
-#[cfg(windows)]
-pub(crate) use windows_process::probe_processes;
-#[cfg(windows)]
-pub(crate) use windows_utilization::{CpuUtilizationSampler, observation_clock};
 
 #[derive(Clone, Copy)]
 pub(crate) struct ObservationMoment<'a> {

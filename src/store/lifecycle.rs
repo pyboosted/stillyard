@@ -18,33 +18,23 @@ impl Store {
         executable_hash: &str,
         root_identity: Option<&ProcessIdentity>,
     ) -> StoreResult<()> {
+        self.mark_started_with_ticket(job, root_pid, executable_hash, root_identity, None)
+    }
+
+    pub(crate) fn mark_started_with_ticket(
+        &mut self,
+        job: &PreparedJob,
+        root_pid: u32,
+        executable_hash: &str,
+        root_identity: Option<&ProcessIdentity>,
+        ticket: Option<&crate::machine::InvocationTicket>,
+    ) -> StoreResult<()> {
         let (root_host_id, root_boot_id, root_creation_filetime_100ns) = match root_identity {
-            Some(ProcessIdentity::Windows {
-                host_id,
-                boot_id,
-                pid,
-                creation_filetime_100ns,
-            }) if *pid == root_pid => (
-                Some(host_id.0.as_str()),
-                Some(boot_id.0.as_str()),
-                Some(i64::try_from(*creation_filetime_100ns).map_err(|_| {
-                    StoreError::InvalidState(
-                        "process creation identity exceeds SQLite range".into(),
-                    )
-                })?),
-            ),
-            Some(ProcessIdentity::Windows { pid, .. }) => {
-                return Err(StoreError::InvalidState(format!(
-                    "process identity PID {pid} does not match created PID {root_pid}"
-                )));
-            }
-            Some(ProcessIdentity::Unknown { .. }) => {
-                return Err(StoreError::InvalidState(
-                    "unknown process identity cannot authorize native containment".into(),
-                ));
-            }
+            Some(identity) => process_records::legacy_columns(identity, root_pid)?,
             None => (None, None, None),
         };
+        let journal = self.authority.clone();
+        let permission = self.native_start_permission(job, executable_hash, root_identity)?;
         let started = now_millis();
         let transaction = self.connection.transaction()?;
         let state: String = transaction.query_row(
@@ -62,6 +52,15 @@ impl Store {
                 "job {} cannot start from {state}",
                 job.job_id
             )));
+        }
+        if let (Some(journal), Some(permission)) = (journal, permission) {
+            journal
+                .lock()
+                .map_err(|_| StoreError::InvalidState("authority mutex poisoned".into()))?
+                .record_native_start(permission)?;
+        }
+        if let Some(identity) = root_identity {
+            process_records::record(&transaction, job.invocation_id, identity, root_pid)?;
         }
         transaction.execute(
             "UPDATE invocations SET state = 'started', root_pid = ?2,
@@ -95,6 +94,7 @@ impl Store {
                 params![job.job_id.entity_uuid().to_string(), started],
             )?;
         }
+        attached::invocation::consume(&transaction, job, self.daemon_generation, ticket)?;
         transaction.commit()?;
         Ok(())
     }
@@ -188,6 +188,7 @@ impl Store {
             [job.containment_id.entity_uuid().to_string()],
         )?;
         transaction.commit()?;
+        self.reconcile_native_start_permissions()?;
         Ok(())
     }
 
@@ -677,6 +678,7 @@ impl Store {
             ],
         )?;
         transaction.commit()?;
+        self.reconcile_native_start_permissions()?;
         Ok(())
     }
 

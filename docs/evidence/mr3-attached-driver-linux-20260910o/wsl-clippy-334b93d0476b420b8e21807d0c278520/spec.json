@@ -1,0 +1,33 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+  "args": [
+    "bootstrap",
+    "run",
+    "--spec",
+    "C:\\Development\\stillyard-mr3-attached-driver-linux-evidence-20260910o\\wsl-clippy-334b93d0476b420b8e21807d0c278520\\work.json"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr3-attached-driver-linux-evidence-20260910o\\wsl-clippy-334b93d0476b420b8e21807d0c278520",
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "wsl-bootstrap-clippy"
+    },
+    {
+      "key": "source",
+      "value": "224d5a56c8f38c6cf5ea8dd8f5536a028b1059939b4c0f4b97fe9ca11e1fc02d"
+    }
+  ],
+  "expected_duration_seconds": 180,
+  "timeout_seconds": 1830
+}

@@ -1,0 +1,239 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b7b-7eb2-88f0-feb5e49130ee",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b76-7ed3-a6b1-e1a1ed11a1b4",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b84-7430-972a-bc25a3291a2b",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b6e-86dd-76b1-9f8c-49b23f072fe9",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b6e-86dd-76b1-9f8c-49c92a1fb4fc",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789045336955,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789045337294,
+  "finished_unix_millis": 1789045671890,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11h/edc98241c58645c99991561a048c0014/reviewer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11h/edc98241c58645c99991561a048c0014/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11h/edc98241c58645c99991561a048c0014/review.json",
+      "--model",
+      "opus",
+      "--effort",
+      "high"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11h/edc98241c58645c99991561a048c0014",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 3,
+      "backoff_seconds": 1,
+      "retryable": [
+        "start_failed"
+      ]
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11h/edc98241c58645c99991561a048c0014/reviewer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11h/edc98241c58645c99991561a048c0014/review.json",
+          "--expected-model-prefix",
+          "claude-opus-"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr3-opus-lifecycle-window-z11h"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b84-7430-972a-bc25a3291a2b",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789045336963,
+      "started_unix_millis": 1789045337077,
+      "deadline_unix_millis": 1789046537077,
+      "finished_unix_millis": 1789045671890,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b7b-7eb2-88f0-feb5e49130ee",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b84-7430-972a-bc25a3291a2b",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b85-7002-9131-c913a90f32ee",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789045337294,
+        "exited_unix_millis": 1789045671610,
+        "resolved_unix_millis": 1789045671639
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b85-7002-9131-c913a90f32ee",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 1969463,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1969463,
+            "start_ticks": 9144385,
+            "pid_namespace_inode": 4026534693,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+          "started_unix_millis": 1789045337294,
+          "finished_unix_millis": 1789045671639,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b85-7002-9131-c923783ff5f8",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": " no script, evidence schema, or 'armed external native observation' implementation for the sleep/resume monotonic-vs-boot comparison or for post-login receipt inspection, and no reviewed source hashes covering them. Either scope this window's approval to steps 1\u20133 (plus the separately-agreed canaries) or prepare and review the step 4/5 tooling first. Steps 1\u20133 are concrete: exact commands, exact gating, exact recovery checks.\\\",\\\"`approval.json` has no published schema, although the controller consumes exact keys and demands byte-exact structural equality. It reads `user_agreement`, `no_new_submissions` (must be literally `True`), `operations`, `running_distributions`, and `foreign_work_candidates`, and requires `before['executor']['foreign_work_candidates']==approval['foreign_work_candidates']` \u2014 i.e. the full sorted list of `{pid,start_ticks,name,cgroup}` dicts copied verbatim from the immediately preceding preflight `before.json`. The procedure describes this only in prose. Publish a literal template and state the copy-verbatim rule; otherwise the agreed window is consumed by KeyError/mismatch retries. This fails closed pre-fault, so it is an operational cost, not a safety defect.\\\",\\\"Nothing constrains `--evidence-directory` or `--exchange-directory` to a local fixed volume. Both are only `.resolve()`d, and 'on NTFS, outside every target cache' is procedural guidance. A path under `\\\\\\\\\\\\\\\\wsl.localhost\\\\\\\\Ubuntu-SSD\\\\\\\\...` or a network share works perfectly up to the fault and then destroys the recovery channel and the durable record at exactly the moment they are load-bearing. Add a GetDriveTypeW/UNC check rejecting non-fixed-local paths for both directories.\\\",\\\"Recovery timing budget has two avoidable failure modes. The starter's `wait_json(start-request.json, +1800)` is checked for liveness only before the fault, so a starter within ~150s of its deadline (fault timeout 90s + stop settle 60s) can exit between the check and the request; and the controller's single `until=+600` covers waiting for `launched.json`, the keepalive stdout record, and the full reconnect loop, while never watching for `exchange/failure.json`. A starter that has already failed therefore costs the full 600s with the distro down. Make the starter wait unbounded (or publish its remaining budget in `ready.json` for the controller to require), and fail fast when `exchange/failure.json` appears.\\\",\\\"`common.process()` treats `GetExitCodeProcess()==259` as liveness, which is the classic STILL_ACTIVE ambiguity and here it fails permissive on the one check the whole recovery depends on (external keepalive alive and outside every Job). Use `WaitForSingleObject(handle,0)==WAIT_TIMEOUT` instead; the creation-time/image pinning already handles PID reuse. Minor companion in the same block: the keeper poll executes `require(time.monotonic()<until, 'external keepalive did not publish its own startup record')` after a successful parse, so a record found on the deadline tick still raises.\\\",\\\"Evidence hygiene: `inventory.py` emits `'journal_checksum_valid': True` as a hardcoded literal. Its truth is in fact enforced by the earlier `require(...==envelope['sha256'])`, so the field is not false, but a reader of the retained evidence would reasonably take it as an independently recorded measurement. Emit the computed comparison (or the recomputed digest alongside the envelope value) or drop the field.\\\"],\\\"summary\\\":\\\"Reviewed the h bundle (controller.py, starter.py, common.py, inventory.py), the installed wsl-service.py, the MR-3 procedure, and the vendor WslClient.cpp excerpt, read-only, within the stated owner-trusted harness model.\\\\\\\\n\\\\\\\\nThe earlier material findings are genuinely addressed. Execution gating is intact: native-only, actual primary Invocation whose `root_identity['pid']` equals `os.getpid()`, `IsProcessInJob` true for the controller and false for the starter and the new keepalive, approval file required with `no_new_submissions is True`, operation-in-scope, exact running-distribution and foreign-work equality, replay guard on `start-request.json`, and a genuine double barrier (`empty(before)` then a re-snapshotted `empty(immediate)` with journal/generation/inventory equality) immediately before the fault. The recovery chain is properly bound end to end: approval hash and starter source hash in `ready.json`, controller Job ID and approval hash echoed through `launched.json`, `creation_time>=fault_filetime` (the FILETIME conversion is correct) proving a new native wsl.exe, the keepalive's own Linux startup record gating any observer entry, and the live interop alias, boot_id, and helper PID all tied back to that record. Evidence durability is sound (fsync + MoveFileExW with REPLACE_EXISTING|WRITE_THROUGH, `exist_ok=False` evidence dir, stdout parsed tolerantly against partial lines). No force-clear path exists anywhere: the controller kills nothing and writes `failure.json` before re-raising, the starter terminates only a child it just created that unexpectedly landed in a Job, and `supervise`'s `clear_control` touches only the control-plane cgroup and refuses to proceed rather than assume executor emptiness.\\\\\\\\n\\\\\\\\nThe vendor claim now checks out. In the retained 2.6.3 branch the empty-list message and `return -1` are guarded by `(!options.quiet) && (distros.empty())`, the later `THROW_HR_IF(WSL_E_DEFAULT_DISTRO_NOT_FOUND, ...)` sits inside `if (!options.quiet)`, and the `for_each` over an empty vector prints nothing \u2014 so `--list --running --quiet` with nothing running exits 0 silently and `check_output` will not raise. That grounds the previously ungrounded claim as source attribution, exactly as the disposition scopes it, and the g settle loop remains the right belt-and-braces.\\\\\\\\n\\\\\\\\nI found no remaining material blocker in the safety sense and no path by which a failed recovery could be recorded as success. What I would still close before approving the window is concreteness and unexercised-path risk: the entire post-fault acceptance predicate set (journal byte-stability across restart, keepalive PPID binding, empty-list parsing for `--shutdown`) has never been executed, and each failure lands after Ubuntu-SSD is already down. A non-disruptive Linux-daemon-only restart rehearsal plus a pre-fault non-empty keepalive check would retire most of that risk. Separately, steps 4 and 5 have no prepared tooling and should be scoped out of this approval or built first, and the approval.json template, a local-volume guard on the evidence/exchange paths, and the starter timeout/fast-fail handling are cheap fixes worth having before the window opens.\\\",\\\"verdict\\\":\\\"findings\\\"}\",\"structured_output\":{\"findings\":[\"Post-fault-only assertion set was never exercised \u2014 recommend a non-disruptive rehearsal before the window. Every acceptance predicate that distinguishes a good recovery from a bad one runs only after the fault: `after['executor']['journal_sha256']==before[...]`, `binary_sha256` equality, `store_uuid`/`machine_scheduling['domains']` dict equality, and `after['linux']['daemon_generation']!=before[...]`. Whether a clean daemon restart leaves `attachment/executor/state.json` byte-identical is an empirical property of the reopen path (any re-serialization, key reordering, or reopen bookkeeping changes the hash), and nothing in the passed read-only preflight touches it. A false failure here lands after Ubuntu-SSD has already been terminated. Cheap mitigation: restart only the Linux daemon (leaving the distro and keepalive up) and confirm journal bytes and binary hash unchanged, domains/store_uuid unchanged, generation changed. This is the single highest-value item to close before approval.\",\"Live keepalive binding is checked only after the fault and rests on an unverified PPID relation. `controller.py` requires `keeper['pid'] in [h['pid'] for h in after['executor']['keepalive_processes']]`, and `inventory.py` populates that list only for processes whose `stat` field 2 equals `initpid=int(server.name.removesuffix('_interop'))`. Nothing requires `keepalive_processes` to be non-empty before the fault, so a passing preflight does not prove the relation holds on this install (`wsl.exe --exec` need not reparent the payload directly under the PID that names the interop socket). If it does not hold, a fully successful recovery is recorded as a failure post-fault. Add a pre-fault `require(before['executor']['keepalive_processes'])` and confirm from the retained preflight `before.json` that the currently running keepalive appears there.\",\"The empty-list parse in `running()` is the acceptance gate for `--shutdown` and is itself unexercised. The vendor branch now confirms the quiet+empty case prints nothing and does not `return -1`, so `check_output` yields `b''` and does not raise \u2014 good \u2014 but the remaining risk is decoding: a UTF-16LE BOM survives `str.strip()` (`'\ufeff'.isspace()` is False), so an empty run would yield `['\ufeff']` and `not stopped` would stay False until the 60s deadline. That failure occurs *before* `start-request.json` is written, so no recovery is attempted at all after a genuinely successful whole-VM shutdown. Strip `\ufeff` explicitly and surface a decode error distinctly from 'requested scope did not stop'. Preflight only ever exercised the non-empty path.\",\"Procedure steps 4 (sleep/resume) and 5 (logout/login) have no prepared tooling and are not concrete enough to approve. `controller.py --operation` accepts only preflight/terminate/shutdown; there is no script, evidence schema, or 'armed external native observation' implementation for the sleep/resume monotonic-vs-boot comparison or for post-login receipt inspection, and no reviewed source hashes covering them. Either scope this window's approval to steps 1\u20133 (plus the separately-agreed canaries) or prepare and review the step 4/5 tooling first. Steps 1\u20133 are concrete: exact commands, exact gating, exact recovery checks.\",\"`approval.json` has no published schema, although the controller consumes exact keys and demands byte-exact structural equality. It reads `user_agreement`, `no_new_submissions` (must be literally `True`), `operations`, `running_distributions`, and `foreign_work_candidates`, and requires `before['executor']['foreign_work_candidates']==approval['foreign_work_candidates']` \u2014 i.e. the full sorted list of `{pid,start_ticks,name,cgroup}` dicts copied verbatim from the immediately preceding preflight `before.json`. The procedure describes this only in prose. Publish a literal template and state the copy-verbatim rule; otherwise the agreed window is consumed by KeyError/mismatch retries. This fails closed pre-fault, so it is an operational cost, not a safety defect.\",\"Nothing constrains `--evidence-directory` or `--exchange-directory` to a local fixed volume. Both are only `.resolve()`d, and 'on NTFS, outside every target cache' is procedural guidance. A path under `\\\\\\\\wsl.localhost\\\\Ubuntu-SSD\\\\...` or a network share works perfectly up to the fault and then destroys the recovery channel and the durable record at exactly the moment they are load-bearing. Add a GetDriveTypeW/UNC check rejecting non-fixed-local paths for both directories.\",\"Recovery timing budget has two avoidable failure modes. The starter's `wait_json(start-request.json, +1800)` is checked for liveness only before the fault, so a starter within ~150s of its deadline (fault timeout 90s + stop settle 60s) can exit between the check and the request; and the controller's single `until=+600` covers waiting for `launched.json`, the keepalive stdout record, and the full reconnect loop, while never watching for `exchange/failure.json`. A starter that has already failed therefore costs the full 600s with the distro down. Make the starter wait unbounded (or publish its remaining budget in `ready.json` for the controller to require), and fail fast when `exchange/failure.json` appears.\",\"`common.process()` treats `GetExitCodeProcess()==259` as liveness, which is the classic STILL_ACTIVE ambiguity and here it fails permissive on the one check the whole recovery depends on (external keepalive alive and outside every Job). Use `WaitForSingleObject(handle,0)==WAIT_TIMEOUT` instead; the creation-time/image pinning already handles PID reuse. Minor companion in the same block: the keeper poll executes `require(time.monotonic()<until, 'external keepalive did not publish its own startup record')` after a successful parse, so a record found on the deadline tick still raises.\",\"Evidence hygiene: `inventory.py` emits `'journal_checksum_valid': True` as a hardcoded literal. Its truth is in fact enforced by the earlier `require(...==envelope['sha256'])`, so the field is not false, but a reader of the retained evidence would reasonably take it as an independently recorded measurement. Emit the computed comparison (or the recomputed digest alongside the envelope value) or drop the field.\"],\"summary\":\"Reviewed the h bundle (controller.py, starter.py, common.py, inventory.py), the installed wsl-service.py, the MR-3 procedure, and the vendor WslClient.cpp excerpt, read-only, within the stated owner-trusted harness model.\\\\n\\\\nThe earlier material findings are genuinely addressed. Execution gating is intact: native-only, actual primary Invocation whose `root_identity['pid']` equals `os.getpid()`, `IsProcessInJob` true for the controller and false for the starter and the new keepalive, approval file required with `no_new_submissions is True`, operation-in-scope, exact running-distribution and foreign-work equality, replay guard on `start-request.json`, and a genuine double barrier (`empty(before)` then a re-snapshotted `empty(immediate)` with journal/generation/inventory equality) immediately before the fault. The recovery chain is properly bound end to end: approval hash and starter source hash in `ready.json`, controller Job ID and approval hash echoed through `launched.json`, `creation_time>=fault_filetime` (the FILETIME conversion is correct) proving a new native wsl.exe, the keepalive's own Linux startup record gating any observer entry, and the live interop alias, boot_id, and helper PID all tied back to that record. Evidence durability is sound (fsync + MoveFileExW with REPLACE_EXISTING|WRITE_THROUGH, `exist_ok=False` evidence dir, stdout parsed tolerantly against partial lines). No force-clear path exists anywhere: the controller kills nothing and writes `failure.json` before re-raising, the starter terminates only a child it just created that unexpectedly landed in a Job, and `supervise`'s `clear_control` touches only the control-plane cgroup and refuses to proceed rather than assume executor emptiness.\\\\n\\\\nThe vendor claim now checks out. In the retained 2.6.3 branch the empty-list message and `return -1` are guarded by `(!options.quiet) && (distros.empty())`, the later `THROW_HR_IF(WSL_E_DEFAULT_DISTRO_NOT_FOUND, ...)` sits inside `if (!options.quiet)`, and the `for_each` over an empty vector prints nothing \u2014 so `--list --running --quiet` with nothing running exits 0 silently and `check_output` will not raise. That grounds the previously ungrounded claim as source attribution, exactly as the disposition scopes it, and the g settle loop remains the right belt-and-braces.\\\\n\\\\nI found no remaining material blocker in the safety sense and no path by which a failed recovery could be recorded as success. What I would still close before approving the window is concreteness and unexercised-path risk: the entire post-fault acceptance predicate set (journal byte-stability across restart, keepalive PPID binding, empty-list parsing for `--shutdown`) has never been executed, and each failure lands after Ubuntu-SSD is already down. A non-disruptive Linux-daemon-only restart rehearsal plus a pre-fault non-empty keepalive check would retire most of that risk. Separately, steps 4 and 5 have no prepared tooling and should be scoped out of this approval or built first, and the approval.json template, a local-volume guard on the evidence/exchange paths, and the starter timeout/fast-fail handling are cheap fixes worth having before the window opens.\",\"verdict\":\"findings\"},\"ttft_ms\":289430,\"type\":\"result\",\"duration_ms\":332420,\"uuid\":\"c152e7fb-897e-4b56-8856-853c791545c5\",\"ttft_stream_ms\":1671,\"time_to_request_ms\":43,\"first_content_frame_ms\":2144,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b6e-86dd-76b1-9f8c-49b23f072fe9",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 2026988,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 2026988,
+            "start_ticks": 9177841,
+            "pid_namespace_inode": 4026534693,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+          "started_unix_millis": 1789045671818,
+          "finished_unix_millis": 1789045671887,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b6e-86dd-76b1-9f8c-49c92a1fb4fc",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-opus-5\"], \"selected_family_models\": [\"claude-opus-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"findings\": [\"Post-fault-only assertion set was never exercised \\u2014 recommend a non-disruptive rehearsal before the window. Every acceptance predicate that distinguishes a good recovery from a bad one runs only after the fault: `after['executor']['journal_sha256']==before[...]`, `binary_sha256` equality, `store_uuid`/`machine_scheduling['domains']` dict equality, and `after['linux']['daemon_generation']!=before[...]`. Whether a clean daemon restart leaves `attachment/executor/state.json` byte-identical is an empirical property of the reopen path (any re-serialization, key reordering, or reopen bookkeeping changes the hash), and nothing in the passed read-only preflight touches it. A false failure here lands after Ubuntu-SSD has already been terminated. Cheap mitigation: restart only the Linux daemon (leaving the distro and keepalive up) and confirm journal bytes and binary hash unchanged, domains/store_uuid unchanged, generation changed. This is the single highest-value item to close before approval.\", \"Live keepalive binding is checked only after the fault and rests on an unverified PPID relation. `controller.py` requires `keeper['pid'] in [h['pid'] for h in after['executor']['keepalive_processes']]`, and `inventory.py` populates that list only for processes whose `stat` field 2 equals `initpid=int(server.name.removesuffix('_interop'))`. Nothing requires `keepalive_processes` to be non-empty before the fault, so a passing preflight does not prove the relation holds on this install (`wsl.exe --exec` need not reparent the payload directly under the PID that names the interop socket). If it does not hold, a fully successful recovery is recorded as a failure post-fault. Add a pre-fault `require(before['executor']['keepalive_processes'])` and confirm from the retained preflight `before.json` that the currently running keepalive appears there.\", \"The empty-list parse in `running()` is the acceptance gate for `--shutdown` and is itself unexercised. The vendor branch now confirms the quiet+empty case prints nothing and does not `return -1`, so `check_output` yields `b''` and does not raise \\u2014 good \\u2014 but the remaining risk is decoding: a UTF-16LE BOM survives `str.strip()` (`'\\ufeff'.isspace()` is False), so an empty run would yield `['\\ufeff']` and `not stopped` would stay False until the 60s deadline. That failure occurs *before* `start-request.json` is written, so no recovery is attempted at all after a genuinely successful whole-VM shutdown. Strip `\\ufeff` explicitly and surface a decode error distinctly from 'requested scope did not stop'. Preflight only ever exercised the non-empty path.\", \"Procedure steps 4 (sleep/resume) and 5 (logout/login) have no prepared tooling and are not concrete enough to approve. `controller.py --operation` accepts only preflight/terminate/shutdown; there is no script, evidence schema, or 'armed external native observation' implementation for the sleep/resume monotonic-vs-boot comparison or for post-login receipt inspection, and no reviewed source hashes covering them. Either scope this window's approval to steps 1\\u20133 (plus the separately-agreed canaries) or prepare and review the step 4/5 tooling first. Steps 1\\u20133 are concrete: exact commands, exact gating, exact recovery checks.\", \"`approval.json` has no published schema, although the controller consumes exact keys and demands byte-exact structural equality. It reads `user_agreement`, `no_new_submissions` (must be literally `True`), `operations`, `running_distributions`, and `foreign_work_candidates`, and requires `before['executor']['foreign_work_candidates']==approval['foreign_work_candidates']` \\u2014 i.e. the full sorted list of `{pid,start_ticks,name,cgroup}` dicts copied verbatim from the immediately preceding preflight `before.json`. The procedure describes this only in prose. Publish a literal template and state the copy-verbatim rule; otherwise the agreed window is consumed by KeyError/mismatch retries. This fails closed pre-fault, so it is an operational cost, not a safety defect.\", \"Nothing constrains `--evidence-directory` or `--exchange-directory` to a local fixed volume. Both are only `.resolve()`d, and 'on NTFS, outside every target cache' is procedural guidance. A path under `\\\\\\\\wsl.localhost\\\\Ubuntu-SSD\\\\...` or a network share works perfectly up to the fault and then destroys the recovery channel and the durable record at exactly the moment they are load-bearing. Add a GetDriveTypeW/UNC check rejecting non-fixed-local paths for both directories.\", \"Recovery timing budget has two avoidable failure modes. The starter's `wait_json(start-request.json, +1800)` is checked for liveness only before the fault, so a starter within ~150s of its deadline (fault timeout 90s + stop settle 60s) can exit between the check and the request; and the controller's single `until=+600` covers waiting for `launched.json`, the keepalive stdout record, and the full reconnect loop, while never watching for `exchange/failure.json`. A starter that has already failed therefore costs the full 600s with the distro down. Make the starter wait unbounded (or publish its remaining budget in `ready.json` for the controller to require), and fail fast when `exchange/failure.json` appears.\", \"`common.process()` treats `GetExitCodeProcess()==259` as liveness, which is the classic STILL_ACTIVE ambiguity and here it fails permissive on the one check the whole recovery depends on (external keepalive alive and outside every Job). Use `WaitForSingleObject(handle,0)==WAIT_TIMEOUT` instead; the creation-time/image pinning already handles PID reuse. Minor companion in the same block: the keeper poll executes `require(time.monotonic()<until, 'external keepalive did not publish its own startup record')` after a successful parse, so a record found on the deadline tick still raises.\", \"Evidence hygiene: `inventory.py` emits `'journal_checksum_valid': True` as a hardcoded literal. Its truth is in fact enforced by the earlier `require(...==envelope['sha256'])`, so the field is not false, but a reader of the retained evidence would reasonably take it as an independently recorded measurement. Emit the computed comparison (or the recomputed digest alongside the envelope value) or drop the field.\"], \"summary\": \"Reviewed the h bundle (controller.py, starter.py, common.py, inventory.py), the installed wsl-service.py, the MR-3 procedure, and the vendor WslClient.cpp excerpt, read-only, within the stated owner-trusted harness model.\\\\n\\\\nThe earlier material findings are genuinely addressed. Execution gating is intact: native-only, actual primary Invocation whose `root_identity['pid']` equals `os.getpid()`, `IsProcessInJob` true for the controller and false for the starter and the new keepalive, approval file required with `no_new_submissions is True`, operation-in-scope, exact running-distribution and foreign-work equality, replay guard on `start-request.json`, and a genuine double barrier (`empty(before)` then a re-snapshotted `empty(immediate)` with journal/generation/inventory equality) immediately before the fault. The recovery chain is properly bound end to end: approval hash and starter source hash in `ready.json`, controller Job ID and approval hash echoed through `launched.json`, `creation_time>=fault_filetime` (the FILETIME conversion is correct) proving a new native wsl.exe, the keepalive's own Linux startup record gating any observer entry, and the live interop alias, boot_id, and helper PID all tied back to that record. Evidence durability is sound (fsync + MoveFileExW with REPLACE_EXISTING|WRITE_THROUGH, `exist_ok=False` evidence dir, stdout parsed tolerantly against partial lines). No force-clear path exists anywhere: the controller kills nothing and writes `failure.json` before re-raising, the starter terminates only a child it just created that unexpectedly landed in a Job, and `supervise`'s `clear_control` touches only the control-plane cgroup and refuses to proceed rather than assume executor emptiness.\\\\n\\\\nThe vendor claim now checks out. In the retained 2.6.3 branch the empty-list message and `return -1` are guarded by `(!options.quiet) && (distros.empty())`, the later `THROW_HR_IF(WSL_E_DEFAULT_DISTRO_NOT_FOUND, ...)` sits inside `if (!options.quiet)`, and the `for_each` over an empty vector prints nothing \\u2014 so `--list --running --quiet` with nothing running exits 0 silently and `check_output` will not raise. That grounds the previously ungrounded claim as source attribution, exactly as the disposition scopes it, and the g settle loop remains the right belt-and-braces.\\\\n\\\\nI found no remaining material blocker in the safety sense and no path by which a failed recovery could be recorded as success. What I would still close before approving the window is concreteness and unexercised-path risk: the entire post-fault acceptance predicate set (journal byte-stability across restart, keepalive PPID binding, empty-list parsing for `--shutdown`) has never been executed, and each failure lands after Ubuntu-SSD is already down. A non-disruptive Linux-daemon-only restart rehearsal plus a pre-fault non-empty keepalive check would retire most of that risk. Separately, steps 4 and 5 have no prepared tooling and should be scoped out of this approval or built first, and the approval.json template, a local-volume guard on the evidence/exchange paths, and the starter timeout/fast-fail handling are cheap fixes worth having before the window opens.\", \"verdict\": \"findings\"}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b69-6ba6-76d0-8ab2-7e64de02b517",
+      "lease_id": "01a08b69-6b85-7002-9131-c93d989989ad",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08b69-6b85-7002-9131-c93d989989ad"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b7b-7eb2-88f0-feb5e49130ee",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b84-7430-972a-bc25a3291a2b"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4"
+}

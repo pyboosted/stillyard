@@ -1,0 +1,177 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088b7-4d5a-7201-819e-873c6ed0f981",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088b7-4d58-7ec3-b5e7-a5bcb3ea3546",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088b8-059e-7aa0-b369-9eff03cab7b6",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088b8-059d-7c11-8ab4-3d27b4e0efdd",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088b8-059d-7c11-8ab4-3d391c937a04",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789000109402,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789000156589,
+  "finished_unix_millis": 1789000157514,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr3-bridge-journal-normal-evidence-20260910j\\wsl-test-474246fe97304c6f885760506723c414\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr3-bridge-journal-normal-evidence-20260910j\\wsl-test-474246fe97304c6f885760506723c414",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-bootstrap-test"
+      },
+      {
+        "key": "source",
+        "value": "fc91a8ae0b12426b36c62e558069825ce523d043aa8c9bebafb49f4b2ea1abb6"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1830,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088b8-059e-7aa0-b369-9eff03cab7b6",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789000156573,
+      "started_unix_millis": 1789000156573,
+      "deadline_unix_millis": 1789001986573,
+      "finished_unix_millis": 1789000157514,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088b7-4d5a-7201-819e-873c6ed0f981",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088b8-059e-7aa0-b369-9eff03cab7b6",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088b8-059d-7c11-8ab4-3d27b4e0efdd",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789000156589,
+        "exited_unix_millis": 1789000157505,
+        "resolved_unix_millis": 1789000157509
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088b8-059d-7c11-8ab4-3d27b4e0efdd",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 10384,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 10384,
+            "creation_filetime_100ns": 134334737565844819
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "60b595c07732199f891f8fe76f1f684e4c13c5e599bff7fff06be3bb0aa246f4",
+          "daemon_generation": "01a0888c-4082-7550-96a3-f1288b6210d0",
+          "started_unix_millis": 1789000156589,
+          "finished_unix_millis": 1789000157509,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088b8-059d-7c11-8ab4-3d391c937a04",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "\nrunning 17 tests\ntest api::tests::linux_process_identity_is_typed_and_requires_complete_kernel_evidence ... ok\ntest identity::linux::tests::comm_delimiters_do_not_change_the_kernel_start_field ... ok\ntest runner::linux::cgroup::tests::linux_cgroup_real_identity_empty_seal_and_missing_path_negative ... ignored, requires nested delegation under the protected system bootstrap Job\ntest runner::linux::cgroup::tests::linux_cgroup_root_exit_keeps_descendant_debit_until_recursive_kill ... ignored, requires nested delegation under the protected system bootstrap Job\ntest runner::linux::journal::tests::linux_executor_journal_absence_after_seal_gap_retains_uncertainty ... ignored, requires delegated cgroup under a protected system bootstrap Job\ntest runner::linux::journal::tests::linux_executor_journal_recovers_live_boundary_and_seals_once ... ignored, requires delegated cgroup under a protected system bootstrap Job\ntest runner::linux::launch::tests::linux_exec_barrier_bad_image_and_abandoned_release_never_run_user_code ... ignored, requires delegated cgroup under a protected system bootstrap Job\ntest runner::linux::launch::tests::linux_exec_barrier_prevents_user_code_and_pins_script_bytes ... ignored, requires delegated cgroup under a protected system bootstrap Job\ntest runner::linux::cgroup::tests::linux_cgroup_rejects_an_ordinary_directory_as_boundary_evidence ... ok\ntest identity::linux::tests::socket_peer_is_kernel_pinned_and_image_checked ... ok\ntest client::linux::tests::socket_mode_and_foreign_image_are_rejected ... ok\ntest runner::linux::launch::tests::linux_exec_permission_binds_private_key_and_fresh_ready_challenge ... ok\ntest store::process_records::tests::typed_linux_identity_never_uses_filetime_and_cannot_be_replaced ... ok\ntest runner::linux::journal::tests::linux_executor_journal_never_reinitializes_missing_or_corrupt_history ... ok\ntest store::tests::containment_safety::typed_linux_root_roundtrips_all_containment_views_without_filetime_aliasing ... ok\ntest machine::bridge::linux::tests::linux_bridge_deadline_covers_partial_frame_and_writes ... ok\ntest client::linux::tests::socket_exchange_checks_owner_image_and_deadline ... ok\n\ntest result: ok. 11 passed; 0 failed; 6 ignored; 0 measured; 247 filtered out; finished in 0.25s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 35 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 2 tests\ntest linux_daemon_rejects_unsafe_paths_and_never_autostarts_explicit_endpoint ... ok\ntest linux_daemon_singletons_and_crash_recovery_preserve_store_and_queue ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s\n\n",
+          "stderr_tail": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s\n     Running unittests src/lib.rs (target/scheduled-linux/debug/deps/stillyard-643cc56938156cff)\n     Running unittests src/main.rs (target/scheduled-linux/debug/deps/stillyard-fc331ae182c6ded4)\n     Running tests/isolated_daemon.rs (target/scheduled-linux/debug/deps/isolated_daemon-f29be9e52daf0304)\n     Running tests/linux_daemon.rs (target/scheduled-linux/debug/deps/linux_daemon-c6872bd96cf1a3ff)\nstillyard: the local daemon is unavailable: refusing to replace an unsafe Unix endpoint\nstillyard: the local daemon is unavailable: daemon endpoint is already owned: Resource temporarily unavailable (os error 11)\nstillyard: the local daemon is unavailable: Unix endpoint parent must be an owner-only directory\nstillyard: the local daemon is unavailable: daemon already running: Resource temporarily unavailable (os error 11)\nstillyard: the local daemon is unavailable: Unix endpoint still has a listener or cannot be inspected\n     Running tests/public_api.rs (target/scheduled-linux/debug/deps/public_api-9b02a94ffb35b679)\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088b8-059d-7c11-8ab4-3d474cf56cde",
+      "lease_id": "01a088b8-059d-7c11-8ab4-3d474cf56cde",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+        "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+        "lease_id": "01a088b8-059d-7c11-8ab4-3d474cf56cde"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088b7-4d5a-7201-819e-873c6ed0f981",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a088b8-059e-7aa0-b369-9eff03cab7b6"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a0888c-4082-7550-96a3-f1288b6210d0"
+}

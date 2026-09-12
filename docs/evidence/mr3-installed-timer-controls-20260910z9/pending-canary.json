@@ -1,0 +1,96 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae0-57ba-79e1-9eeb-f1b1bca59e00",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae0-57b7-7cc2-affb-88ba23fd8a6a",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "pending",
+  "outcome": null,
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae0-57be-7211-9853-882b927f7f21",
+  "invocation_id": null,
+  "containment_id": null,
+  "root_exit_code": null,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789036353466,
+  "priority": 0,
+  "effective_priority": 0,
+  "queue_rank": 1,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": null,
+  "finished_unix_millis": null,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/true",
+    "args": [],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-timer-controls-evidence-20260910z9/timer-controls-e1548f10603048128399b901f7703bde",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "installed-timer-controls"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 30,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [
+    {
+      "code": "attached_disconnected",
+      "detail": "Paired coordinator connection and inventory reconciliation are required before admission"
+    }
+  ],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae0-57be-7211-9853-882b927f7f21",
+      "attempt_index": 1,
+      "verdict": null,
+      "reason_code": null,
+      "created_unix_millis": 1789036353470,
+      "started_unix_millis": null,
+      "deadline_unix_millis": null,
+      "finished_unix_millis": null,
+      "primary_result": null,
+      "admission": null,
+      "invocations": []
+    }
+  ],
+  "allocations": [],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08ade-f588-79e1-b441-a47c40c531b8"
+}

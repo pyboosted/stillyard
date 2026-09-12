@@ -1,0 +1,36 @@
+{
+  "version": 5,
+  "idempotency_key": "01a08b41-2912-73b1-af15-c1221b7391ef",
+  "payload_hash": "2dce8696404066666c0bb3b7f99a090e2a6b3eea72fec45f000595707e6c1be3",
+  "endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+  "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+  "parent": null,
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b41-2918-7e71-b78d-494045718db0",
+      "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b41-291a-72d1-8df2-55908401b9ec",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1789042698522,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [],
+      "queue_rank": 1,
+      "reservation": null,
+      "conditions": [],
+      "estimate": {
+        "confidence": "estimated",
+        "start_in_millis": 0,
+        "assumptions": [
+          "currently admissible"
+        ]
+      },
+      "parent": null,
+      "managed_policy_admission": null,
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a08b2f-ae10-7451-943c-2d1137c525cd"
+    }
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "path": "/home/pythonic/Development/stillyard-wc3-scratch-20260910z11f/target",
+  "removed": true,
+  "bytes_reclaimed": 667979776,
+  "job_history_rows_checked": {
+    "windows": 1229,
+    "linux": 161
+  },
+  "active_or_pending_jobs": [
+    {
+      "side": "linux",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b69-6b7b-7eb2-88f0-feb5e49130ee",
+      "spec": {
+        "spec_version": 4,
+        "priority": 0,
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11h/edc98241c58645c99991561a048c0014/reviewer.py",
+          "review",
+          "--cli",
+          "/home/pythonic/.local/bin/claude-current",
+          "--brief",
+          "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11h/edc98241c58645c99991561a048c0014/brief.txt",
+          "--output",
+          "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11h/edc98241c58645c99991561a048c0014/review.json",
+          "--model",
+          "opus",
+          "--effort",
+          "high"
+        ],
+        "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11h/edc98241c58645c99991561a048c0014",
+        "stdin": {
+          "kind": "eof"
+        },
+        "environment": {
+          "set": {
+            "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+            "HOME": "/home/pythonic",
+            "LANG": "C.UTF-8",
+            "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+          },
+          "unset": []
+        },
+        "resources": {
+          "cpu_units": null,
+          "ram_mb": null,
+          "cargo_slots": null,
+          "gpu_slots": null,
+          "custom": {
+            "claude2_slots": 1
+          },
+          "shared_fences": [],
+          "exclusive_fences": [],
+          "impacts": []
+        },
+        "observed": null,
+        "conditions": [],
+        "retry": {
+          "max_attempts": 3,
+          "backoff_seconds": 1,
+          "retryable": [
+            "start_failed"
+          ]
+        },
+        "postconditions": [
+          {
+            "executable": "/usr/bin/python3",
+            "args": [
+              "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11h/edc98241c58645c99991561a048c0014/reviewer.py",
+              "validate-review",
+              "--input",
+              "/home/pythonic/Development/stillyard-mr3-opus-lifecycle-window-20260910z11h/edc98241c58645c99991561a048c0014/review.json",
+              "--expected-model-prefix",
+              "claude-opus-"
+            ],
+            "working_directory": null,
+            "accepted_exit_codes": [
+              0
+            ],
+            "retryable_exit_codes": []
+          }
+        ],
+        "labels": [
+          {
+            "key": "project",
+            "value": "stillyard"
+          },
+          {
+            "key": "gate",
+            "value": "mr3-opus-lifecycle-window-z11h"
+          }
+        ],
+        "expected_duration_seconds": null,
+        "timeout_seconds": 1200,
+        "quiet": null,
+        "artifacts": [],
+        "child_submission_policy": null
+      }
+    }
+  ],
+  "process_references": [],
+  "reason": "current-source W-C3 completed successfully; no remaining scratch acceptance step; source retained",
+  "unix_ns": 1789045578115959246
+}

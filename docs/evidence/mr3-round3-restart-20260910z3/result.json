@@ -1,0 +1,6 @@
+{
+  "initial_restart_exit": 1,
+  "initial_failure": "systemd executor EBUSY with prior bridge proxy",
+  "automatic_recovery": true,
+  "observed_restart_count": 1
+}

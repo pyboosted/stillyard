@@ -1,0 +1,73 @@
+{
+  "version": 5,
+  "idempotency_key": "619b0a6c-fde7-4bee-ae99-e029604fc6ac",
+  "payload_hash": "929514c330307a0a2861602236dafffc65245b5fa8aff7c3ac1a77470b96559a",
+  "endpoint": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock",
+  "store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+  "parent": null,
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae0-8176-7241-9b70-ad358b8d4244",
+      "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae0-8179-79f1-9746-c2db80314782",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1789036364153,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [
+        {
+          "code": "condition_waiting",
+          "detail": "{\"predicate\":{\"kind\":\"path_exists\",\"path\":\"/home/pythonic/Development/stillyard-mr3-timer-controls-evidence-20260910z9/timer-controls-e1548f10603048128399b901f7703bde/never-created\"},\"deadline\":{\"kind\":\"relative\",\"seconds\":5},\"on_deadline\":\"failed\"}"
+        }
+      ],
+      "queue_rank": 1,
+      "reservation": null,
+      "conditions": [
+        {
+          "condition_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae0-817a-70f2-bb7a-d62dd8c0023c",
+          "condition_index": 0,
+          "state": "waiting",
+          "spec": {
+            "predicate": {
+              "kind": "path_exists",
+              "path": "/home/pythonic/Development/stillyard-mr3-timer-controls-evidence-20260910z9/timer-controls-e1548f10603048128399b901f7703bde/never-created"
+            },
+            "deadline": {
+              "kind": "relative",
+              "seconds": 5
+            },
+            "on_deadline": "failed"
+          },
+          "deadline_unix_millis": 1789036369153,
+          "last_observation": {
+            "observation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae0-817a-70f2-bb7a-d633a6ae450a",
+            "value": {
+              "kind": "path",
+              "exists": false
+            },
+            "observed_unix_millis": 1789036364153,
+            "observed_monotonic_millis": 82470830,
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "daemon_generation": "01a08ade-f588-79e1-b441-a47c40c531b8",
+            "fresh_until_unix_millis": 1789036365153,
+            "source": "filesystem_rescan"
+          },
+          "probe_invocation_id": null
+        }
+      ],
+      "estimate": {
+        "confidence": "unknown",
+        "start_in_millis": null,
+        "assumptions": [
+          "filesystem transitions and executable probes have no honest completion ETA"
+        ]
+      },
+      "parent": null,
+      "managed_policy_admission": null,
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a08ade-f588-79e1-b441-a47c40c531b8"
+    }
+  }
+}

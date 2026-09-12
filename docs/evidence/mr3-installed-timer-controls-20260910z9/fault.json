@@ -1,0 +1,7 @@
+{
+  "proxy_pid": 1022463,
+  "start_ticks": 8243092,
+  "interop_target": "/run/WSL/3989858_interop",
+  "action": "SIGSTOP exact proxy; park reconnect alias",
+  "unix_ns": 1789036353453266740
+}

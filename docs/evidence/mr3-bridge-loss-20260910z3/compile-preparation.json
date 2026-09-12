@@ -1,0 +1,29 @@
+{
+  "reason": "force real workspace recompilation long enough to inject bridge failure during Cargo execution; dependencies and release candidate retained",
+  "removed_workspace_fingerprints": [
+    "stillyard-5b1c4f6016f1a180",
+    "stillyard-ef1a60204084c61a",
+    "stillyard-94e21b3691a91b66",
+    "stillyard-c0058586f5285ef6",
+    "stillyard-0b0399be0e0146d0",
+    "stillyard-125648cbd9bb923c",
+    "stillyard-b8a6baf3fe614004",
+    "stillyard-4576eea97a6f6a2b",
+    "stillyard-87bc326e2a934425",
+    "stillyard-6d3d6096fdce1aa0",
+    "stillyard-52132f4d68e26f67",
+    "stillyard-151fb199ef6961b3",
+    "stillyard-10ad84632547b5e6",
+    "stillyard-99e3c9e0236d82ab",
+    "stillyard-5b44b5396d342aba",
+    "stillyard-8d19002362520820",
+    "stillyard-e7d53dea861bea8e",
+    "stillyard-e56fd9f10ebc7daf",
+    "stillyard-e5c0c73ffecd3fff",
+    "stillyard-4775657eb692cc51",
+    "stillyard-e4dae8d2a502fb94",
+    "stillyard-6446f034e56ab2de",
+    "stillyard-1d80906a2b1f8f31",
+    "stillyard-2df892134682a173"
+  ]
+}

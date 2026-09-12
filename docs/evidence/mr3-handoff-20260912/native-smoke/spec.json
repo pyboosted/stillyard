@@ -1,0 +1,30 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+  "args": [
+    "-c",
+    "import os,json;print(json.dumps({'job':os.environ['STILLYARD_JOB_ID'],'invocation':os.environ['STILLYARD_INVOCATION_ID'],'platform':os.name,'message':'Windows installed scheduler handoff'}))"
+  ],
+  "working_directory": "C:\\Development\\stillyard-handoff-20260912",
+  "environment": {
+    "set": {
+      "SystemRoot": "C:\\Windows",
+      "USERPROFILE": "C:\\Users\\User",
+      "PATH": "C:\\Windows\\System32;C:\\Windows"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1
+  },
+  "timeout_seconds": 30,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr3-handoff-native-smoke"
+    }
+  ]
+}

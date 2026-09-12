@@ -1,0 +1,35 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import pathlib,subprocess; subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(120)']); pathlib.Path('/home/pythonic/Development/stillyard-installed-lifecycle-20260910/postcondition-77522e1c463f4b3299e738f5ad851a84/primary-marker').write_text('primary'); print('primary with live descendant',flush=True)"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-installed-lifecycle-20260910/postcondition-77522e1c463f4b3299e738f5ad851a84",
+  "timeout_seconds": 30,
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "installed-wsl-postcondition"
+    }
+  ],
+  "postconditions": [
+    {
+      "executable": "/usr/bin/python3",
+      "args": [
+        "-c",
+        "import pathlib,time; assert pathlib.Path('/home/pythonic/Development/stillyard-installed-lifecycle-20260910/postcondition-77522e1c463f4b3299e738f5ad851a84/primary-marker').read_text()=='primary'; print('validated real primary output',flush=True);time.sleep(1)"
+      ]
+    }
+  ]
+}

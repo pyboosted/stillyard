@@ -1,0 +1,204 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ec-2978-7d03-b398-9b29518843e6",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ec-2959-70e3-8998-ac3f092db972",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ec-29f6-7f13-8bde-f82531ee848d",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ec-29f6-7f13-8bde-f83ed2582066",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ec-29f6-7f13-8bde-f8427eddeda9",
+  "root_exit_code": 137,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789020350840,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789020352809,
+  "finished_unix_millis": 1789020353250,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/ticket-correctness-b92fa764ad3b4c76922fc1b299bf691f/reviewer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/ticket-correctness-b92fa764ad3b4c76922fc1b299bf691f/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/ticket-correctness-b92fa764ad3b4c76922fc1b299bf691f/review.json",
+      "--model",
+      "opus",
+      "--effort",
+      "high"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/ticket-correctness-b92fa764ad3b4c76922fc1b299bf691f",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/ticket-correctness-b92fa764ad3b4c76922fc1b299bf691f/reviewer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-mr3-opus-readiness-20260910z2/ticket-correctness-b92fa764ad3b4c76922fc1b299bf691f/review.json",
+          "--expected-model-prefix",
+          "claude-opus-"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr3-opus-ticket-correctness"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ec-29f6-7f13-8bde-f82531ee848d",
+      "attempt_index": 1,
+      "verdict": "start_failed",
+      "reason_code": null,
+      "created_unix_millis": 1789020350959,
+      "started_unix_millis": 1789020352066,
+      "deadline_unix_millis": 1789021552066,
+      "finished_unix_millis": 1789020353250,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ec-2978-7d03-b398-9b29518843e6",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ec-29f6-7f13-8bde-f82531ee848d",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ec-29f6-7f13-8bde-f83ed2582066",
+        "verdict": "start_failed",
+        "root_exit_code": 137,
+        "termination": "start_failed",
+        "containment": "empty",
+        "started_unix_millis": 1789020352809,
+        "exited_unix_millis": 1789020353125,
+        "resolved_unix_millis": 1789020353200
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ec-29f6-7f13-8bde-f83ed2582066",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 4166504,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 4166504,
+            "start_ticks": 6645909,
+            "pid_namespace_inode": 4026534485,
+            "uid": 1000
+          },
+          "root_exit_code": 137,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608",
+          "started_unix_millis": 1789020352809,
+          "finished_unix_millis": 1789020353200,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ec-29f6-7f13-8bde-f8427eddeda9",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089ec-2b38-7081-8fcb-19fe1203cbd9",
+      "lease_id": "01a089ec-29f6-7f13-8bde-f856c7edee19",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a089ec-29f6-7f13-8bde-f856c7edee19"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ec-2978-7d03-b398-9b29518843e6",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089ec-29f6-7f13-8bde-f82531ee848d"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608"
+}

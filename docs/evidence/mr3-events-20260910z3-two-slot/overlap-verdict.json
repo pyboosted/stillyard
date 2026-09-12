@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "windows_job": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e553-79a1-9c77-ca5525b9eb19",
+  "linux_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-dfb1-7db0-a6b0-82f3dd319441",
+  "child_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-fe5b-7701-8658-6b92bccb200c",
+  "windows_interval": [
+    1789023937901,
+    1789024023426
+  ],
+  "linux_interval": [
+    1789023936708,
+    1789023977186
+  ],
+  "child_interval": [
+    1789023977422,
+    1789023985848
+  ],
+  "overlap_ms": 39285,
+  "child_overlap_ms": 8426
+}

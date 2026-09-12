@@ -1,0 +1,160 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08715-6da4-77e0-b1f3-8b8d07ff7648",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08715-6da3-79c0-8696-4a7916010c1e",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08717-eae0-7040-ba8f-6f819c8aab8b",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08717-eadf-7db1-b5e2-eed0a326ae50",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08717-eadf-7db1-b5e2-eee419a06646",
+  "root_exit_code": 101,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788972723620,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788972886764,
+  "finished_unix_millis": 1788972931038,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\.cargo\\bin\\cargo.exe",
+    "args": [
+      "test",
+      "--test",
+      "isolated_daemon",
+      "wsl_bootstrap_",
+      "--",
+      "--ignored",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr1-native-20260909d",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CARGO_HOME": "C:\\Users\\User\\.cargo",
+        "CARGO_TARGET_DIR": "C:\\Development\\stillyard-mr1-native-20260909d\\target\\scheduled",
+        "COMSPEC": "C:\\WINDOWS\\System32\\cmd.exe",
+        "INCLUDE": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\include;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\VS\\include;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\ucrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\um;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\shared;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\winrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\cppwinrt",
+        "LIB": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\lib\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\lib\\10.0.26100.0\\ucrt\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\\\lib\\10.0.26100.0\\\\um\\x64",
+        "MR_WINDOWS_PYTHON": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "MR_WSL_TEST_DISTRO": "Ubuntu-SSD",
+        "MR_WSL_TEST_USER": "pythonic",
+        "PATH": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\VCPackages;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\TestWindow;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Current\\bin\\Roslyn;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Team Tools\\DiagnosticsHub\\Collector;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\Extensions\\Microsoft\\CodeCoverage.Console;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\\\MSBuild\\Current\\Bin\\amd64;C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\Tools\\;C:\\WINDOWS\\System32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\Ninja;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\Linux\\bin\\ConnectionManagerExe;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\vcpkg;C:\\Users\\User\\.cargo\\bin;C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Mozilla.sccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\sccache-v0.16.0-x86_64-pc-windows-msvc;C:\\Program Files\\Git\\cmd;C:\\Program Files\\CMake\\bin",
+        "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+        "RUSTUP_HOME": "C:\\Users\\User\\.rustup",
+        "SCCACHE_DIR": "C:\\Development\\.sccache",
+        "SYSTEMDRIVE": "C:",
+        "USERPROFILE": "C:\\Users\\User"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "test-wsl-bootstrap"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1800,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08717-eae0-7040-ba8f-6f819c8aab8b",
+      "attempt_index": 1,
+      "verdict": "process_failed",
+      "reason_code": null,
+      "created_unix_millis": 1788972886751,
+      "started_unix_millis": 1788972886751,
+      "deadline_unix_millis": 1788974686751,
+      "finished_unix_millis": 1788972931038,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08715-6da4-77e0-b1f3-8b8d07ff7648",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08717-eae0-7040-ba8f-6f819c8aab8b",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08717-eadf-7db1-b5e2-eed0a326ae50",
+        "verdict": "process_failed",
+        "root_exit_code": 101,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1788972886764,
+        "exited_unix_millis": 1788972931031,
+        "resolved_unix_millis": 1788972931035
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08717-eadf-7db1-b5e2-eed0a326ae50",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 53904,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 53904,
+            "creation_filetime_100ns": 134334464867622878
+          },
+          "root_exit_code": 101,
+          "exit_classification": null,
+          "executable_hash": "6f4bef66261261fcb43131be8720bab817d403a09edec7455c371974b90bdb7e",
+          "daemon_generation": "01a086e8-b524-70b1-b563-4b2eb76ce274",
+          "started_unix_millis": 1788972886764,
+          "finished_unix_millis": 1788972931035,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08717-eadf-7db1-b5e2-eee419a06646",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "\nrunning 2 tests\ntest wsl_bootstrap_installer_refuses_busy_work_and_preserves_queue_and_authority ... installer preserved store and queue: C:\\Users\\User\\AppData\\Local\\Temp\\.tmptLstw9\\install-evidence\\install-6641a6369f004be28285597aec55bc5b\\plan.json\r\n{\"installed\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Temp\\\\.tmptLstw9\\\\pinned-revision\\\\stillyard.exe\", \"pid\": 10028, \"version\": \"0.1.0-alpha.16\", \"authority_blocker\": \"authority_held\"}\r\n\nok\ntest wsl_bootstrap_public_path_preserves_outputs_exit_timeout_and_bridge_loss_obligation ... FAILED\n\nfailures:\n\nfailures:\n    wsl_bootstrap_public_path_preserves_outputs_exit_timeout_and_bridge_loss_obligation\n\ntest result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 39.82s\n\n",
+          "stderr_tail": "   Compiling stillyard v0.1.0-alpha.16 (C:\\Development\\stillyard-mr1-native-20260909d)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.38s\n     Running tests\\isolated_daemon.rs (target\\scheduled\\debug\\deps\\isolated_daemon-4e4b81658c3e76dd.exe)\n\nthread 'wsl_bootstrap_public_path_preserves_outputs_exit_timeout_and_bridge_loss_obligation' (45552) panicked at tests\\isolated_daemon.rs:451:9:\nassertion failed: matches!(client.wait_outcome(id, deadline(), None), WaitOutcome::Final { .. })\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nerror: test failed, to rerun pass `--test isolated_daemon`\n"
+        }
+      ]
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a086e8-b524-70b1-b563-4b2eb76ce274"
+}

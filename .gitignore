@@ -5,3 +5,8 @@
 *.log
 .DS_Store
 
+
+__pycache__/
+
+# Canonical evidence retains receipts, not temporary writer locks.
+docs/evidence/**/*.json.lock

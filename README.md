@@ -1,16 +1,21 @@
 # Stillyard
 
-*A local scheduler for expensive Windows processes.*
+*A local resource scheduler for Windows and attached WSL processes.*
 
 Stillyard coordinates programs that share one workstation: builds, tests, GPU work, benchmarks,
 and automation launched by tools or coding agents. Callers submit ordinary executables with their
-resource and quiet-host requirements; one per-user daemon decides when they may start, keeps their
-state and logs, and exposes visible reasons while they wait.
+resource and quiet-host requirements. One machine coordinator admits Windows and paired WSL
+work; each local manager keeps its Jobs, state and logs, and explains why work is waiting.
 
 Stillyard is useful when independent processes need one scheduling authority without moving into
 containers, a CI service, or a remote worker platform.
 
-Current release: **0.1.0-alpha.14 for Windows 10 1809+ and Windows Server 2019+**.
+Current development version: **0.1.0-alpha.20**. Windows and WSL2 are installed together on the
+reference workstation. Build gates, live consumers and installed idle acceptance have passed.
+The [daily-use acceptance report](docs/windows-wsl-acceptance.md) records exact evidence and
+deferred lifecycle checks; full MR-3 recovery acceptance remains open.
+Windows requires Windows 10 1809+ or Windows Server 2019+. WSL operation and its current lifetime
+boundaries are described in the [Windows/WSL operator guide](docs/windows-wsl-operation.md).
 
 ## What works today
 
@@ -28,9 +33,9 @@ Current release: **0.1.0-alpha.14 for Windows 10 1809+ and Windows Server 2019+*
 - **Quiet-host admission.** A Job can require a stable window for CPU, GPU, disk, foreign GPU
   compute, or configured process rules. Stillyard rechecks quiet immediately before releasing a
   born-suspended child.
-- **Contained processes.** Windows Job Objects contain the full process tree. Timeouts and cancel
-  clean it up; uncertain containment retains its resource Lease until safety is proven or an
-  operator explicitly accepts the risk.
+- **Contained processes.** Windows Job Objects and WSL cgroup v2 boundaries contain process trees.
+  WSL user commands run in private namespaces with Windows interop hidden. Timeouts and cancel
+  clean descendants; uncertain cleanup retains the local Lease and the machine Grant.
 - **Job lifecycle.** Success/failure dependencies, immutable file stdin, explicit environments,
   bounded retries, executable postconditions with immutable primary results, managed child
   submission, and safe managed waits are supported.
@@ -138,15 +143,19 @@ configuration identity, and unresolved containment incidents.
 
 ## Boundaries
 
-Stillyard currently supports one host-local, per-user Windows daemon. It has no network listener,
-distributed placement, container runtime, Linux runner, secrets, artifacts,
-cascade cancellation, or drain mode. Explicit isolated daemon instances exist for tests and
-special-purpose tools; custom endpoints are connect-only.
+The machine coordinator serves one Windows owner and explicitly paired WSL environments.
+Standalone Linux, general containers, macOS, cross-machine placement, secret/artifact services,
+cascade cancellation and drain mode remain outside this delivery. There is no network listener.
+WSL GPU observation is unsupported; Windows owns physical GPU observations and machine budgets.
+Explicit isolated daemon instances exist for tests and special-purpose tools; custom endpoints
+are connect-only.
 
 This is an alpha with one current SQLite schema epoch and no database migrations. An incompatible
 or damaged database is replaced as a whole on daemon startup, producing a new store identity.
 Configuration and canonical log files are preserved, but old Job IDs, cursors, receipts, and
-idempotency history do not survive that reset.
+idempotency history do not survive that reset. Authority and executor obligations live outside
+SQLite: a new empty database does not make outstanding resources free. Missing pairing history
+fences attached admission until its retained obligations can be reconciled.
 
 For the exact contract, see [requirements](docs/requirements.md). Evidence for observed-resource
 and quiet admission is recorded in the
@@ -177,6 +186,16 @@ installed system Stillyard daemon:
 The two MSRV definitions are checked-in templates. The launcher discovers the current checkout,
 user Rust installation, and x64 Visual Studio/Windows SDK environment before submitting a temporary
 JobSpec, so they do not need path edits in another Windows checkout.
+
+Installed WSL validation uses the paired default manager and the same machine Cargo token:
+
+```bash
+python3 scripts/run-wsl-job.py test --evidence-directory /absolute/evidence/path
+python3 scripts/run-wsl-job.py msrv-test --evidence-directory /absolute/evidence/path
+```
+
+Both launchers support a separate source snapshot and retain a durable receipt. Recover that
+receipt after a client disconnect; keep the same idempotency key.
 
 See [AGENTS.md](AGENTS.md) for the build invariant and [CONTRIBUTING.md](CONTRIBUTING.md) for
 repository conventions.

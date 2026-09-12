@@ -1,0 +1,171 @@
+{
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085ea-e48a-7b91-a7e9-bf1cc1f824f1",
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085ea-e48b-7570-a76f-6d859f5ff640",
+  "submission_state": "accepted",
+  "job_state": "pending",
+  "reason_code": null,
+  "accepted_unix_millis": 1788953158795,
+  "priority": 0,
+  "effective_priority": 0,
+  "blockers": [],
+  "queue_rank": 1,
+  "reservation": null,
+  "conditions": [],
+  "estimate": {
+    "confidence": "estimated",
+    "start_in_millis": 0,
+    "assumptions": [
+      "currently admissible"
+    ]
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a082ce-ae5d-72d3-84e5-5579ad17b6da"
+}
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085ea-e48b-7570-a76f-6d859f5ff640",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085ea-e48a-7b91-a7e9-bf1cc1f824f1",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085ea-e48f-7a20-b01d-4939c719e956",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085ea-e48e-71c2-accb-a131e1a91805",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085ea-e48e-71c2-accb-a14cc8f0ff8d",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788953158795,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788953158805,
+  "finished_unix_millis": 1788953159112,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Windows\\System32\\wsl.exe",
+    "args": [
+      "--distribution",
+      "Ubuntu-SSD",
+      "--user",
+      "pythonic",
+      "--cd",
+      "/tmp",
+      "--exec",
+      "/usr/bin/python3",
+      "/mnt/c/Development/stillyard-mr0-authority-evidence-20260909/interop-bcaadda67d114db88852a6bb537b5183.py",
+      "/mnt/c/Development/stillyard-mr0-authority-evidence-20260909/interop-bcaadda67d114db88852a6bb537b5183"
+    ],
+    "working_directory": "C:\\Development",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr0-interop-boundary"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 30,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085ea-e48f-7a20-b01d-4939c719e956",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1788953158798,
+      "started_unix_millis": 1788953158798,
+      "deadline_unix_millis": 1788953188798,
+      "finished_unix_millis": 1788953159112,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085ea-e48b-7570-a76f-6d859f5ff640",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085ea-e48f-7a20-b01d-4939c719e956",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085ea-e48e-71c2-accb-a131e1a91805",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1788953158805,
+        "exited_unix_millis": 1788953159106,
+        "resolved_unix_millis": 1788953159108
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085ea-e48e-71c2-accb-a131e1a91805",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 60200,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 60200,
+            "creation_filetime_100ns": 134334267588021998
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "27cc8dd52be326e138a89f8889241b1d8c51dd1978b22eb70be77036ccdee3c2",
+          "daemon_generation": "01a082ce-ae5d-72d3-84e5-5579ad17b6da",
+          "started_unix_millis": 1788953158805,
+          "finished_unix_millis": 1788953159108,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085ea-e48e-71c2-accb-a14cc8f0ff8d",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\n  \"outside\": {\n    \"exit_code\": 0,\n    \"stdout\": \"\",\n    \"stderr\": \"\\\"\\\\\\\\wsl.localhost\\\\Ubuntu-SSD\\\\tmp\\\"\\r\\n\\ufffd\\ufffd\\ufffd\\ufffd\\ufffd\\ufffd\\ufffd\\ufffd \\ufffd\\ufffd\\ufffd\\ufffd \\ufffd\\ufffd \\ufffd\\u1bee\\ufffd\\uc9ee\\ufffd\\ufffd\\ufffd \\ufffd\\ufffd \\ufffd\\ufffd\\ufffd\\ufffd\\u1aa5 CMD.EXE \\ufffd \\ufffd\\ufffd\\ufffd\\ufffd\\u28a5 \\u296a\\ufffd\\u9969 \\ufffd\\ufffd\\ufffd\\ufffd\\ufffd.\\r\\nCMD.EXE \\ufffd\\ufffd \\ufffd\\ufffd\\ufffd\\ufffd\\ufffd\\u09a8\\ufffd\\ufffd\\ufffd\\ufffd \\ufffd\\ufffd\\ufffd UNC. \\ufffd\\ufffd \\u3b2e\\ufffd\\u782d\\ufffd\\ufffd \\ufffd\\ufffd\\u082d\\ufffd \\ufffd\\ufffd\\u296c\\ufffd\\ufffd\\ufffd \\ufffd\\ufffd\\ufffd\\ufffd\\ufffd Windows.\\r\\n\"\n  },\n  \"inside_exit\": 0,\n  \"inside\": {\n    \"pe\": {\n      \"exec_errno\": 13,\n      \"error\": \"[Errno 13] Permission denied: '/mnt/c/Windows/System32/cmd.exe'\"\n    },\n    \"init_is_regular\": false,\n    \"init_is_character_device\": true,\n    \"pid_namespace\": \"pid:[4026536390]\",\n    \"mount_namespace\": \"mnt:[4026536388]\",\n    \"interop_environment_retained\": true\n  },\n  \"inside_stderr\": \"\",\n  \"pid_namespace\": \"pid:[4026532221]\",\n  \"mount_namespace\": \"mnt:[4026532219]\",\n  \"scope\": \"ordinary PE execution barrier only\"\n}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a082ce-ae5d-72d3-84e5-5579ad17b6da"
+}

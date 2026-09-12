@@ -1,0 +1,30 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+  "args": [
+    "C:/Development/stillyard-mr3-install-evidence-20260910n/installed-canary.py"
+  ],
+  "working_directory": "C:/Development/stillyard-mr3-install-evidence-20260910n",
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr3-installed-canary"
+    },
+    {
+      "key": "source",
+      "value": "4d25930688523c02dea336ea0a3b89264d9e62780a8d9a2add0750d19ca75593"
+    }
+  ],
+  "expected_duration_seconds": 2,
+  "timeout_seconds": 30
+}

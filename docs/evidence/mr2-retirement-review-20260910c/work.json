@@ -1,0 +1,26 @@
+{
+  "distribution": "Ubuntu-SSD",
+  "user": "pythonic",
+  "executable": "/usr/bin/python3",
+  "args": [
+    "/home/pythonic/.codex-account-2/skills/opus-review/scripts/run_opus_review.py",
+    "--prompt-file",
+    "/mnt/c/Development/stillyard-mr2-retirement-review-20260910c/brief.txt",
+    "--perspective",
+    "retirement atomicity, authentication and crash/SQL reset safety",
+    "--perspective",
+    "durable inventory completeness, bounded history and recovery liveness; assess remaining MR-2 exit criteria",
+    "--cwd",
+    "/mnt/c/Development/stillyard-mr2-retirement-review-20260910c",
+    "--timeout",
+    "1200",
+    "--output",
+    "/mnt/c/Development/stillyard-mr2-retirement-review-20260910c/review-results.json"
+  ],
+  "working_directory": "/mnt/c/Development/stillyard-mr2-retirement-review-20260910c",
+  "timeout_seconds": 1500,
+  "environment": {
+    "HOME": "/home/pythonic",
+    "PATH": "/home/pythonic/.local/bin:/usr/local/bin:/usr/bin:/bin"
+  }
+}

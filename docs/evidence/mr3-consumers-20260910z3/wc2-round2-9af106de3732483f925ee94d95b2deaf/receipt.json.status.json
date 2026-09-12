@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3830-7a80-b3cb-973cfef7acdd",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-382c-7412-a9c4-acf397607ce6",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3837-7722-916d-71109b61ce09",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a24-6134-7960-b1c7-79abf7fc4b81",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a24-6134-7960-b1c7-79bea542b37c",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789023959088,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789023959295,
+  "finished_unix_millis": 1789024035346,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-consumers-20260910z3/wc2-round2-9af106de3732483f925ee94d95b2deaf/consumer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-consumers-20260910z3/wc2-round2-9af106de3732483f925ee94d95b2deaf/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-consumers-20260910z3/wc2-round2-9af106de3732483f925ee94d95b2deaf/review.json",
+      "--model",
+      "sonnet"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-consumers-20260910z3/wc2-round2-9af106de3732483f925ee94d95b2deaf",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-consumers-20260910z3/wc2-round2-9af106de3732483f925ee94d95b2deaf/consumer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-consumers-20260910z3/wc2-round2-9af106de3732483f925ee94d95b2deaf/review.json"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "acceptance",
+        "value": "W-C2"
+      },
+      {
+        "key": "round",
+        "value": "2"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 600,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3837-7722-916d-71109b61ce09",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789023959095,
+      "started_unix_millis": 1789023959161,
+      "deadline_unix_millis": 1789024559161,
+      "finished_unix_millis": 1789024035346,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3830-7a80-b3cb-973cfef7acdd",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3837-7722-916d-71109b61ce09",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3837-7722-916d-712b0e502f78",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789023959295,
+        "exited_unix_millis": 1789024035091,
+        "resolved_unix_millis": 1789024035114
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3837-7722-916d-712b0e502f78",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 110779,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 110779,
+            "start_ticks": 7006590,
+            "pid_namespace_inode": 4026534426,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08a20-4b37-7cb0-8340-8704746b9685",
+          "started_unix_millis": 1789023959295,
+          "finished_unix_millis": 1789024035114,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3837-7722-916d-713fdfeb4a96",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"duration_api_ms\":75942,\"stop_reason\":\"tool_use\",\"session_id\":\"fe6de57c-9ae4-4010-a4ba-abd7c0ec9e8a\",\"total_cost_usd\":0.17345100000000002,\"usage\":{\"input_tokens\":2,\"cache_creation_input_tokens\":22394,\"cache_read_input_tokens\":0,\"output_tokens\":7040,\"output_tokens_details\":{\"thinking_tokens\":6252},\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":22394,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"not_available\",\"iterations\":[{\"input_tokens\":2,\"output_tokens\":7040,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":22394,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":22394},\"type\":\"message\"}],\"speed\":\"standard\"},\"modelUsage\":{\"claude-haiku-4-5-20251001\":{\"inputTokens\":13391,\"outputTokens\":16,\"cacheReadInputTokens\":0,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.013471,\"contextWindow\":200000,\"maxOutputTokens\":32000,\"thinkingTokens\":0,\"canonicalModel\":\"claude-haiku-4-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"},\"claude-sonnet-5\":{\"inputTokens\":2,\"outputTokens\":7040,\"cacheReadInputTokens\":0,\"cacheCreationInputTokens\":22394,\"webSearchRequests\":0,\"costUSD\":0.15998,\"contextWindow\":1000000,\"maxOutputTokens\":64000,\"thinkingTokens\":6252,\"canonicalModel\":\"claude-sonnet-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"fast_mode_disabled_reason\":\"sdk_opt_in_required\",\"subagent_stats\":{\"spawned\":0,\"requested\":{\"background\":0,\"foreground\":0,\"unset\":0},\"started_in_background\":0,\"max_depth\":0,\"spawned_by_subagents\":0,\"completed\":0,\"failed\":0,\"killed\":{\"parent\":0,\"user\":0,\"system\":0},\"refused\":{\"depth_limit\":0,\"concurrency_limit\":0,\"budget\":0},\"by_type\":{}},\"is_error\":false,\"num_turns\":2,\"subtype\":\"success\",\"api_error_status\":null,\"result\":\"{\\\"findings\\\":[\\\"src/store/attached/invocation.rs \u2014 `retry_waiting_attached_ticket`: after confirming the invocation has a waiting/retryable outcome, it does `tx.query_row(\\\\\\\"SELECT grant_json FROM attached_grants WHERE allocation_key=?1 AND seal_json IS NULL\\\\\\\", ...)?` with no `.optional()`. If the grant has since been sealed (release completed, or sealed for any other reason) between the original request and the retry, this query returns zero rows and the `?` propagates a hard `StoreError` instead of the graceful `Ok(false)` the very next line already handles for the 'not Armed' case (`if grant.state != GrantState::Armed { return Ok(false); }`). This is an inconsistent/incomplete guard: a sealed grant should be treated the same as a non-Armed grant (no retry, return false), not surfaced as an unexpected error to the caller.\\\",\\\"src/store/attached/invocation.rs \u2014 `waiting_outcome` treats the generic rejection code \\\\\\\"unavailable\\\\\\\" as a transient/retryable outcome alongside more specific codes like `detector_unavailable`/`observation_*`. Because this is a broad catch-all string rather than a scoped code, it risks classifying an actually-terminal rejection as indefinitely retryable via `retry_waiting_attached_ticket`, unlike the explicitly-fatal codes exercised in the unit test (`conflict`, `quiet_unattainable`, `stale`, `unauthorized`). Worth confirming with the coordinator's Outcome contract that `\\\\\\\"unavailable\\\\\\\"` is guaranteed transient before treating it as always-safe-to-retry.\\\"],\\\"summary\\\":\\\"Reviewed transaction ordering, delayed-reply handling, and recovery/cleanup invariants across invocation.rs, cleanup.rs, and recovery.rs. Overall the design correctly avoids recreating Tickets during recovery (validates against durable Authorize/Abandoned command intents) and enforces cleanup seals before marking a Grant Released. Two concrete issues found in the delayed-reply retry path.\\\\\\\"\\\",\\\"verdict\\\":\\\"findings\\\"}\",\"structured_output\":{\"findings\":[\"src/store/attached/invocation.rs \u2014 `retry_waiting_attached_ticket`: after confirming the invocation has a waiting/retryable outcome, it does `tx.query_row(\\\"SELECT grant_json FROM attached_grants WHERE allocation_key=?1 AND seal_json IS NULL\\\", ...)?` with no `.optional()`. If the grant has since been sealed (release completed, or sealed for any other reason) between the original request and the retry, this query returns zero rows and the `?` propagates a hard `StoreError` instead of the graceful `Ok(false)` the very next line already handles for the 'not Armed' case (`if grant.state != GrantState::Armed { return Ok(false); }`). This is an inconsistent/incomplete guard: a sealed grant should be treated the same as a non-Armed grant (no retry, return false), not surfaced as an unexpected error to the caller.\",\"src/store/attached/invocation.rs \u2014 `waiting_outcome` treats the generic rejection code \\\"unavailable\\\" as a transient/retryable outcome alongside more specific codes like `detector_unavailable`/`observation_*`. Because this is a broad catch-all string rather than a scoped code, it risks classifying an actually-terminal rejection as indefinitely retryable via `retry_waiting_attached_ticket`, unlike the explicitly-fatal codes exercised in the unit test (`conflict`, `quiet_unattainable`, `stale`, `unauthorized`). Worth confirming with the coordinator's Outcome contract that `\\\"unavailable\\\"` is guaranteed transient before treating it as always-safe-to-retry.\"],\"summary\":\"Reviewed transaction ordering, delayed-reply handling, and recovery/cleanup invariants across invocation.rs, cleanup.rs, and recovery.rs. Overall the design correctly avoids recreating Tickets during recovery (validates against durable Authorize/Abandoned command intents) and enforces cleanup seals before marking a Grant Released. Two concrete issues found in the delayed-reply retry path.\\\"\",\"verdict\":\"findings\"},\"ttft_ms\":67827,\"type\":\"result\",\"duration_ms\":74556,\"uuid\":\"634a1efb-8068-419c-a575-26d18fe9dd60\",\"ttft_stream_ms\":1031,\"time_to_request_ms\":28,\"first_content_frame_ms\":1389,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a24-6134-7960-b1c7-79abf7fc4b81",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 122717,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 122717,
+            "start_ticks": 7014187,
+            "pid_namespace_inode": 4026534152,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08a20-4b37-7cb0-8340-8704746b9685",
+          "started_unix_millis": 1789024035283,
+          "finished_unix_millis": 1789024035342,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a24-6134-7960-b1c7-79bea542b37c",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-sonnet-5\"], \"selected_family_models\": [\"claude-sonnet-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"findings\": [\"src/store/attached/invocation.rs \\u2014 `retry_waiting_attached_ticket`: after confirming the invocation has a waiting/retryable outcome, it does `tx.query_row(\\\"SELECT grant_json FROM attached_grants WHERE allocation_key=?1 AND seal_json IS NULL\\\", ...)?` with no `.optional()`. If the grant has since been sealed (release completed, or sealed for any other reason) between the original request and the retry, this query returns zero rows and the `?` propagates a hard `StoreError` instead of the graceful `Ok(false)` the very next line already handles for the 'not Armed' case (`if grant.state != GrantState::Armed { return Ok(false); }`). This is an inconsistent/incomplete guard: a sealed grant should be treated the same as a non-Armed grant (no retry, return false), not surfaced as an unexpected error to the caller.\", \"src/store/attached/invocation.rs \\u2014 `waiting_outcome` treats the generic rejection code \\\"unavailable\\\" as a transient/retryable outcome alongside more specific codes like `detector_unavailable`/`observation_*`. Because this is a broad catch-all string rather than a scoped code, it risks classifying an actually-terminal rejection as indefinitely retryable via `retry_waiting_attached_ticket`, unlike the explicitly-fatal codes exercised in the unit test (`conflict`, `quiet_unattainable`, `stale`, `unauthorized`). Worth confirming with the coordinator's Outcome contract that `\\\"unavailable\\\"` is guaranteed transient before treating it as always-safe-to-retry.\"], \"summary\": \"Reviewed transaction ordering, delayed-reply handling, and recovery/cleanup invariants across invocation.rs, cleanup.rs, and recovery.rs. Overall the design correctly avoids recreating Tickets during recovery (validates against durable Authorize/Abandoned command intents) and enforces cleanup seals before marking a Grant Released. Two concrete issues found in the delayed-reply retry path.\\\"\", \"verdict\": \"findings\"}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a23-384f-7591-b78a-85a1eb5a838c",
+      "lease_id": "01a08a23-3837-7722-916d-714f9e6445c9",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08a23-3837-7722-916d-714f9e6445c9"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3830-7a80-b3cb-973cfef7acdd",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3837-7722-916d-71109b61ce09"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08a20-4b37-7cb0-8340-8704746b9685"
+}

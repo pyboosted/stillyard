@@ -61,9 +61,115 @@ fn scope_for(prepared: &PreparedJob) -> SubmissionScope {
 }
 
 #[test]
+fn non_primary_transport_identity_does_not_confer_child_authority() {
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let mut parent_spec = spec(temp.path());
+    parent_spec.child_submission_policy = Some(child_policy());
+    parent_spec.postconditions.push(PostconditionSpec {
+        executable: temp.path().join("validate.exe"),
+        args: Vec::new(),
+        working_directory: None,
+        accepted_exit_codes: vec![0],
+        retryable_exit_codes: Vec::new(),
+    });
+    let primary = start_managed_parent_with_spec(&mut store, parent_spec);
+    let primary_identity = scope_for(&primary).parent().unwrap();
+    store
+        .validate_attested_invocation(primary_identity)
+        .unwrap();
+    store
+        .mark_invocation_resolved(&primary, Some(0), None)
+        .unwrap();
+    store
+        .record_primary_result(
+            &primary,
+            InvocationVerdict::Succeeded,
+            TerminationReason::Exited,
+        )
+        .unwrap();
+    let validator = store.prepare_postcondition(&primary, 0).unwrap();
+    let caller = scope_for(&validator).parent().unwrap();
+    assert!(
+        store.validate_attested_invocation(caller).is_err(),
+        "prepared is not started"
+    );
+    store
+        .mark_started(&validator, 4343, "validator-image")
+        .unwrap();
+    store.validate_attested_invocation(caller).unwrap();
+    assert!(
+        store
+            .validate_attested_invocation(primary_identity)
+            .is_err()
+    );
+    let mut forged = caller;
+    forged.job_id = JobId::from_parts(store.store_uuid(), Uuid::now_v7());
+    assert!(store.validate_attested_invocation(forged).is_err());
+    forged = caller;
+    forged.invocation_id =
+        InvocationId::from_parts(Uuid::now_v7(), caller.invocation_id.entity_uuid());
+    assert!(store.validate_attested_invocation(forged).is_err());
+    let candidates = store.managed_containment_candidates().unwrap();
+    let candidate = candidates
+        .iter()
+        .find(|c| c.parent == caller)
+        .expect("postcondition must not become unmanaged when caller clears its environment");
+    assert!(
+        !candidate.current,
+        "postcondition must not inherit the primary's child policy"
+    );
+    let child = spec(temp.path());
+    assert!(
+        store
+            .submit_with_stdin_scoped(
+                scope_for(&validator),
+                Uuid::now_v7(),
+                &normalized_payload_hash(&child).unwrap(),
+                &child,
+                None
+            )
+            .is_err()
+    );
+    assert_eq!(
+        store
+            .connection
+            .query_row("SELECT COUNT(*) FROM jobs", [], |row| row.get::<_, u64>(0))
+            .unwrap(),
+        1
+    );
+    // The transport predicate is role-independent, while submission remains
+    // primary-only. Exercise probe classification against the same live tuple.
+    store
+        .connection
+        .execute(
+            "UPDATE invocations SET role = 'probe' WHERE id = ?1",
+            [caller.invocation_id.entity_uuid().to_string()],
+        )
+        .unwrap();
+    store.validate_attested_invocation(caller).unwrap();
+    assert!(
+        !store
+            .managed_containment_candidates()
+            .unwrap()
+            .iter()
+            .find(|c| c.parent == caller)
+            .unwrap()
+            .current
+    );
+    store
+        .mark_invocation_resolved(&validator, Some(0), Some(ExitClassification::Accepted))
+        .unwrap();
+    assert!(
+        store.validate_attested_invocation(caller).is_err(),
+        "root-exited or sealed caller is not authenticated"
+    );
+}
+
+#[test]
 fn managed_not_received_is_provable_only_for_the_live_current_parent() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let parent = start_managed_parent(&mut store, temp.path(), true);
     let scope = scope_for(&parent);
     let key = Uuid::now_v7();
@@ -88,8 +194,8 @@ fn managed_not_received_is_provable_only_for_the_live_current_parent() {
 
 #[test]
 fn managed_exact_replay_is_idempotent_and_commits_parentage() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let parent = start_managed_parent(&mut store, temp.path(), true);
     let scope = scope_for(&parent);
     let child = spec(temp.path());
@@ -130,9 +236,9 @@ fn managed_exact_replay_is_idempotent_and_commits_parentage() {
 
 #[test]
 fn managed_combined_wait_rejects_ancestor_scalar_but_detached_submit_survives() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+    let mut store = open_model_store_with_capacities(paths, capacities()).unwrap();
     let mut parent_spec = spec(temp.path());
     parent_spec.child_submission_policy = Some(child_policy());
     parent_spec.resources.cargo_slots = Some(1);
@@ -203,9 +309,9 @@ fn managed_combined_wait_rejects_ancestor_scalar_but_detached_submit_survives() 
 
 #[test]
 fn managed_wait_rejects_a_claim_that_exceeds_host_capacity() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+    let mut store = open_model_store_with_capacities(paths, capacities()).unwrap();
     let mut parent_spec = spec(temp.path());
     parent_spec.child_submission_policy = Some(child_policy());
     let parent = start_managed_parent_with_spec(&mut store, parent_spec);
@@ -239,9 +345,9 @@ fn managed_wait_rejects_a_claim_that_exceeds_host_capacity() {
 
 #[test]
 fn received_wait_intent_survives_resume_and_cannot_accept_an_unsafe_child() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+    let mut store = open_model_store_with_capacities(paths, capacities()).unwrap();
     let mut parent_spec = spec(temp.path());
     parent_spec.child_submission_policy = Some(child_policy());
     parent_spec.resources.cargo_slots = Some(1);
@@ -292,9 +398,9 @@ fn received_wait_intent_survives_resume_and_cannot_accept_an_unsafe_child() {
 
 #[test]
 fn managed_wait_allows_orthogonal_child_and_checks_the_full_ancestor_chain() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+    let mut store = open_model_store_with_capacities(paths, capacities()).unwrap();
     let mut grandparent_spec = spec(temp.path());
     grandparent_spec.child_submission_policy = Some(child_policy());
     grandparent_spec.resources.cargo_slots = Some(1);
@@ -339,9 +445,9 @@ fn managed_wait_allows_orthogonal_child_and_checks_the_full_ancestor_chain() {
 
 #[test]
 fn managed_wait_walks_unfinished_predecessors_and_rejects_self_or_foreign_targets() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+    let mut store = open_model_store_with_capacities(paths, capacities()).unwrap();
     let mut parent_spec = spec(temp.path());
     parent_spec.child_submission_policy = Some(child_policy());
     parent_spec.resources.cargo_slots = Some(1);
@@ -413,9 +519,9 @@ fn managed_wait_walks_unfinished_predecessors_and_rejects_self_or_foreign_target
 
 #[test]
 fn managed_batch_wait_rejects_atomically_when_one_member_conflicts() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open_with_capacities(paths, capacities()).unwrap();
+    let mut store = open_model_store_with_capacities(paths, capacities()).unwrap();
     let mut parent_spec = spec(temp.path());
     parent_spec.child_submission_policy = Some(child_policy());
     parent_spec.resources.cargo_slots = Some(1);
@@ -472,8 +578,8 @@ fn managed_batch_wait_rejects_atomically_when_one_member_conflicts() {
 
 #[test]
 fn managed_acceptance_rechecks_parent_and_disabled_primary_proves_only_absence() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let disabled = start_managed_parent(&mut store, temp.path(), false);
     let disabled_scope = scope_for(&disabled);
     let child = spec(temp.path());
@@ -521,9 +627,9 @@ fn managed_acceptance_rechecks_parent_and_disabled_primary_proves_only_absence()
 
 #[test]
 fn restart_rejects_managed_received_work_from_the_previous_daemon_generation() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open(paths.clone()).unwrap();
+    let mut store = open_model_store(paths.clone()).unwrap();
     let previous_generation = store.daemon_generation;
     let parent = start_managed_parent(&mut store, temp.path(), true);
     let scope = scope_for(&parent);
@@ -553,7 +659,7 @@ fn restart_rejects_managed_received_work_from_the_previous_daemon_generation() {
         .unwrap();
     drop(store);
 
-    let reopened = Store::open(paths).unwrap();
+    let reopened = open_model_store(paths).unwrap();
     assert_ne!(reopened.daemon_generation, previous_generation);
     let state: String = reopened
         .connection
@@ -577,12 +683,12 @@ fn restart_rejects_managed_received_work_from_the_previous_daemon_generation() {
 
 #[test]
 fn child_policy_negative_axes_are_durable_contextual_and_create_no_work() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let shared = temp.path().join("shared");
     let exclusive = temp.path().join("exclusive");
     std::fs::create_dir_all(&shared).unwrap();
     std::fs::create_dir_all(&exclusive).unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let mut parent_spec = spec(temp.path());
     parent_spec.child_submission_policy = Some(crate::ChildSubmissionPolicy {
         min_priority: crate::NEUTRAL_JOB_PRIORITY,
@@ -719,8 +825,8 @@ fn child_policy_negative_axes_are_durable_contextual_and_create_no_work() {
 
 #[test]
 fn delegated_policy_is_intersected_across_the_full_ancestor_chain() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let mut outer_policy = child_policy();
     outer_policy.max_claims.cargo_slots = Some(2);
     let mut root_spec = spec(temp.path());
@@ -756,8 +862,8 @@ fn delegated_policy_is_intersected_across_the_full_ancestor_chain() {
 
 #[test]
 fn vram_policy_claims_compare_and_persist_in_canonical_form() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let mut policy = child_policy();
     policy
         .max_claims
@@ -803,8 +909,8 @@ fn vram_policy_claims_compare_and_persist_in_canonical_form() {
 
 #[test]
 fn policy_invalid_batch_names_the_member_and_is_atomic() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let mut policy = child_policy();
     policy.max_claims.cargo_slots = Some(1);
     let mut parent_spec = spec(temp.path());
@@ -856,15 +962,15 @@ fn policy_invalid_batch_names_the_member_and_is_atomic() {
 
 #[test]
 fn managed_policy_applies_claim_impact_and_fence_limits_to_probes() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let parent = start_managed_parent(&mut store, temp.path(), true);
     let scope = scope_for(&parent);
     let mut child = spec(temp.path());
     child.conditions.push(crate::ConditionSpec {
         predicate: crate::ConditionPredicate::Probe {
             probe: Box::new(crate::ProbeCondition {
-                executable: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+                executable: model_probe_executable(),
                 args: vec!["/d".into(), "/c".into(), "exit 0".into()],
                 working_directory: temp.path().to_path_buf(),
                 environment: crate::EnvironmentSpec::default(),
@@ -895,8 +1001,8 @@ fn managed_policy_applies_claim_impact_and_fence_limits_to_probes() {
 
 #[test]
 fn neutral_only_parent_does_not_inherit_priority_and_rejects_escalation_durably() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let mut parent_spec = spec(temp.path());
     parent_spec.priority = crate::MAX_JOB_PRIORITY;
     parent_spec.child_submission_policy = Some(crate::ChildSubmissionPolicy::default());
@@ -959,8 +1065,8 @@ fn neutral_only_parent_does_not_inherit_priority_and_rejects_escalation_durably(
 
 #[test]
 fn managed_batch_with_one_forbidden_priority_is_atomically_rejected() {
-    let temp = tempfile::tempdir().unwrap();
-    let mut store = Store::open(StorePaths::new(temp.path().to_path_buf())).unwrap();
+    let temp = model_tempdir().unwrap();
+    let mut store = open_model_store(StorePaths::new(temp.path().to_path_buf())).unwrap();
     let mut parent_spec = spec(temp.path());
     parent_spec.child_submission_policy = Some(crate::ChildSubmissionPolicy::default());
     let parent = start_managed_parent_with_spec(&mut store, parent_spec);

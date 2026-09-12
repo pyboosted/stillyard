@@ -1,0 +1,23 @@
+{
+  "outside": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": "\"\\\\wsl.localhost\\Ubuntu-SSD\\tmp\"\r\n\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd \ufffd\ufffd \ufffd\u1bee\ufffd\uc9ee\ufffd\ufffd\ufffd \ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\u1aa5 CMD.EXE \ufffd \ufffd\ufffd\ufffd\ufffd\u28a5 \u296a\ufffd\u9969 \ufffd\ufffd\ufffd\ufffd\ufffd.\r\nCMD.EXE \ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\u09a8\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd UNC. \ufffd\ufffd \u3b2e\ufffd\u782d\ufffd\ufffd \ufffd\ufffd\u082d\ufffd \ufffd\ufffd\u296c\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd Windows.\r\n"
+  },
+  "inside_exit": 0,
+  "inside": {
+    "pe": {
+      "exec_errno": 13,
+      "error": "[Errno 13] Permission denied: '/mnt/c/Windows/System32/cmd.exe'"
+    },
+    "init_is_regular": false,
+    "init_is_character_device": true,
+    "pid_namespace": "pid:[4026536390]",
+    "mount_namespace": "mnt:[4026536388]",
+    "interop_environment_retained": true
+  },
+  "inside_stderr": "",
+  "pid_namespace": "pid:[4026532221]",
+  "mount_namespace": "mnt:[4026532219]",
+  "scope": "ordinary PE execution barrier only"
+}

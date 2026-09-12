@@ -1,0 +1,35 @@
+[
+  {
+    "pid": 44148,
+    "command_line": "\"C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe\" watch",
+    "threads": [
+      {
+        "IDThread": 53936,
+        "ElapsedTime": 134335147045708156,
+        "ContextSwitchesPersec": 86272
+      },
+      {
+        "IDThread": 48328,
+        "ElapsedTime": 134335147046244943,
+        "ContextSwitchesPersec": 24058
+      },
+      {
+        "IDThread": 40176,
+        "ElapsedTime": 134335147046245242,
+        "ContextSwitchesPersec": 3975
+      },
+      {
+        "IDThread": 35940,
+        "ElapsedTime": 134335208756638860,
+        "ContextSwitchesPersec": 3
+      }
+    ],
+    "name": "stillyard",
+    "cpu_seconds": 22.65625,
+    "private_bytes": 10645504,
+    "start_filetime": 134335147045708125,
+    "start_time": "2026-09-10T11:51:44.5708125Z",
+    "image": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "process_cycles": 96746769400
+  }
+]

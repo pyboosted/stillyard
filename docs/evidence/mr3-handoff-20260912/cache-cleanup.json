@@ -1,0 +1,21 @@
+{
+  "purpose": "completed daily-use handoff; no remaining gate/canary needs these caches; installed images and rollback copies preserved",
+  "paths": [
+    {
+      "path": "/home/pythonic/Development/stillyard-mr3-membership-20260910z11f/target",
+      "allocated_bytes_before": 19212132352,
+      "removed": true
+    },
+    {
+      "path": "/mnt/c/Development/stillyard-mr3-membership-20260910z11f/target",
+      "allocated_bytes_before": 19044962304,
+      "removed": true
+    }
+  ],
+  "history_rows": {
+    "linux": 169,
+    "windows": 1238
+  },
+  "matching_processes": [],
+  "finished_unix_ns": 1789224038936797772
+}

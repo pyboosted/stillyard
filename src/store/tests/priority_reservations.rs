@@ -21,7 +21,7 @@ fn cpu_job(root: &Path, units: u32) -> JobSpec {
 
 #[test]
 fn priority_is_bounded_neutral_immutable_and_hashed_per_batch_member() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut neutral = spec(temp.path());
     let mut value = serde_json::to_value(&neutral).unwrap();
     value.as_object_mut().unwrap().remove("priority");
@@ -59,7 +59,7 @@ fn priority_is_bounded_neutral_immutable_and_hashed_per_batch_member() {
     );
 
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let (_, accepted) = submit_job(&mut store, &first);
     first.priority = crate::MAX_JOB_PRIORITY;
@@ -72,9 +72,9 @@ fn priority_is_bounded_neutral_immutable_and_hashed_per_batch_member() {
 
 #[test]
 fn effective_priority_ages_monotonically_and_orders_by_original_acceptance() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let mut earlier = cpu_job(temp.path(), 1);
     earlier.priority = crate::NEUTRAL_JOB_PRIORITY;
@@ -98,8 +98,8 @@ fn effective_priority_ages_monotonically_and_orders_by_original_acceptance() {
     );
     assert_eq!(store.status(high_id).unwrap().state, JobState::Active);
 
-    let equal_temp = tempfile::tempdir().unwrap();
-    let mut equal_store = Store::open_with_capacities(
+    let equal_temp = model_tempdir().unwrap();
+    let mut equal_store = open_model_store_with_capacities(
         StorePaths::new(equal_temp.path().to_path_buf()),
         capacities(),
     )
@@ -123,8 +123,8 @@ fn effective_priority_ages_monotonically_and_orders_by_original_acceptance() {
         .unwrap();
     assert_eq!(equal_store.pending_jobs().unwrap()[0], equal_first);
 
-    let aging_temp = tempfile::tempdir().unwrap();
-    let mut aging_store = Store::open_with_capacities(
+    let aging_temp = model_tempdir().unwrap();
+    let mut aging_store = open_model_store_with_capacities(
         StorePaths::new(aging_temp.path().to_path_buf()),
         capacities(),
     )
@@ -174,9 +174,9 @@ fn effective_priority_ages_monotonically_and_orders_by_original_acceptance() {
 
 #[test]
 fn retry_and_restart_preserve_acceptance_and_aging_history() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open_with_capacities(paths.clone(), capacities()).unwrap();
+    let mut store = open_model_store_with_capacities(paths.clone(), capacities()).unwrap();
     let mut low = cpu_job(temp.path(), 1);
     low.priority = crate::MIN_JOB_PRIORITY;
     low.retry = RetryPolicy {
@@ -209,7 +209,7 @@ fn retry_and_restart_preserve_acceptance_and_aging_history() {
     let effective = after_retry.effective_priority.unwrap();
     drop(store);
 
-    let mut reopened = Store::open_with_capacities(paths, capacities()).unwrap();
+    let mut reopened = open_model_store_with_capacities(paths, capacities()).unwrap();
     let after_restart = reopened.status(low_id).unwrap();
     assert_eq!(after_restart.accepted_unix_millis, accepted);
     assert!(after_restart.effective_priority.unwrap() >= effective);
@@ -221,9 +221,9 @@ fn retry_and_restart_preserve_acceptance_and_aging_history() {
 
 #[test]
 fn blocked_and_impossible_high_priority_jobs_do_not_head_of_line_block() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let fence = temp.path().join("gpu-provider");
     let mut fence_holder = spec(temp.path());
@@ -244,8 +244,8 @@ fn blocked_and_impossible_high_priority_jobs_do_not_head_of_line_block() {
     assert!(store.status(blocked_gpu_id).unwrap().reservation.is_none());
     assert_eq!(store.status(holder_id).unwrap().state, JobState::Active);
 
-    let impossible_temp = tempfile::tempdir().unwrap();
-    let mut impossible_store = Store::open_with_capacities(
+    let impossible_temp = model_tempdir().unwrap();
+    let mut impossible_store = open_model_store_with_capacities(
         StorePaths::new(impossible_temp.path().to_path_buf()),
         capacities(),
     )
@@ -271,9 +271,9 @@ fn blocked_and_impossible_high_priority_jobs_do_not_head_of_line_block() {
 
 #[test]
 fn reservations_are_full_vector_bounded_observable_and_protect_only_claimed_scalars() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let (_, holder_id) = submit_job(&mut store, &cpu_job(temp.path(), 2));
     let holder = store.prepare_job(holder_id).unwrap().unwrap();
@@ -346,9 +346,9 @@ fn reservations_are_full_vector_bounded_observable_and_protect_only_claimed_scal
 
 #[test]
 fn reservations_sum_to_capacity_and_non_scalar_changes_release_them() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let mut store =
-        Store::open_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
+        open_model_store_with_capacities(StorePaths::new(temp.path().to_path_buf()), capacities())
             .unwrap();
     let (_, holder_id) = submit_job(&mut store, &cpu_job(temp.path(), capacities().cpu_units));
     let holder = store.prepare_job(holder_id).unwrap().unwrap();
@@ -384,8 +384,8 @@ fn reservations_sum_to_capacity_and_non_scalar_changes_release_them() {
         "equal effective priority converts reservations in acceptance order"
     );
 
-    let independent_temp = tempfile::tempdir().unwrap();
-    let mut independent = Store::open_with_capacities(
+    let independent_temp = model_tempdir().unwrap();
+    let mut independent = open_model_store_with_capacities(
         StorePaths::new(independent_temp.path().to_path_buf()),
         capacities(),
     )
@@ -429,8 +429,8 @@ fn reservations_sum_to_capacity_and_non_scalar_changes_release_them() {
     );
     finish(&mut independent, &cpu_holder);
 
-    let release_temp = tempfile::tempdir().unwrap();
-    let mut release_store = Store::open_with_capacities(
+    let release_temp = model_tempdir().unwrap();
+    let mut release_store = open_model_store_with_capacities(
         StorePaths::new(release_temp.path().to_path_buf()),
         capacities(),
     )
@@ -531,13 +531,13 @@ fn restart_capacity_shrink_keeps_only_the_scheduler_ordered_reservation_prefix()
     for (axis, cpu_claim, custom_claim) in
         [("cpu_units", 2_u32, 0_u64), ("review_slots", 0_u32, 2_u64)]
     {
-        let temp = tempfile::tempdir().unwrap();
+        let temp = model_tempdir().unwrap();
         let paths = StorePaths::new(temp.path().to_path_buf());
         let mut original_capacities = capacities();
         original_capacities.cpu_units = 4;
         original_capacities.custom.insert("review_slots".into(), 4);
         let mut store =
-            Store::open_with_capacities(paths.clone(), original_capacities.clone()).unwrap();
+            open_model_store_with_capacities(paths.clone(), original_capacities.clone()).unwrap();
 
         let mut holder_spec = spec(temp.path());
         if cpu_claim > 0 {
@@ -577,7 +577,7 @@ fn restart_capacity_shrink_keeps_only_the_scheduler_ordered_reservation_prefix()
         } else {
             reduced_capacities.custom.insert("review_slots".into(), 3);
         }
-        let reopened = Store::open_with_capacities(paths, reduced_capacities).unwrap();
+        let reopened = open_model_store_with_capacities(paths, reduced_capacities).unwrap();
 
         assert_eq!(
             reopened.status(high_id).unwrap().reservation,
@@ -634,9 +634,9 @@ fn restart_capacity_shrink_keeps_only_the_scheduler_ordered_reservation_prefix()
 
 #[test]
 fn reservation_deadline_survives_restart_expiry_yields_and_cancellation_cleans_up() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = model_tempdir().unwrap();
     let paths = StorePaths::new(temp.path().to_path_buf());
-    let mut store = Store::open_with_capacities(paths.clone(), capacities()).unwrap();
+    let mut store = open_model_store_with_capacities(paths.clone(), capacities()).unwrap();
     let (_, holder_id) = submit_job(&mut store, &cpu_job(temp.path(), 2));
     let holder = store.prepare_job(holder_id).unwrap().unwrap();
     let mut preferred = cpu_job(temp.path(), 3);
@@ -646,7 +646,7 @@ fn reservation_deadline_survives_restart_expiry_yields_and_cancellation_cleans_u
     let before_restart = store.status(preferred_id).unwrap().reservation.unwrap();
     drop(store);
 
-    let mut reopened = Store::open_with_capacities(paths, capacities()).unwrap();
+    let mut reopened = open_model_store_with_capacities(paths, capacities()).unwrap();
     let after_restart = reopened.status(preferred_id).unwrap().reservation.unwrap();
     assert_eq!(
         after_restart, before_restart,

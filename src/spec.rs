@@ -941,7 +941,7 @@ pub struct QuietPolicy {
 }
 
 impl QuietPolicy {
-    fn validate(&self) -> Result<()> {
+    pub(crate) fn validate(&self) -> Result<()> {
         if !(1..=3600).contains(&self.stable_seconds)
             || !(1..=30).contains(&self.max_sample_age_seconds)
             || self.wait_budget_seconds < self.stable_seconds
@@ -1010,7 +1010,7 @@ pub struct ObservedResourcePolicy {
 }
 
 impl ObservedResourcePolicy {
-    fn validate(&self) -> Result<()> {
+    pub(crate) fn validate(&self) -> Result<()> {
         let nonempty = self.cpu_utilization_percent_at_most.is_some()
             || !self.gpu_utilization_percent_at_most.is_empty();
         if !nonempty || !(1..=30).contains(&self.max_sample_age_seconds) {
@@ -1400,12 +1400,34 @@ pub fn managed_execution_schema_json() -> Result<String> {
     Ok(json)
 }
 
+pub fn machine_scheduling_schema_json() -> Result<String> {
+    let schema = schema_for!(crate::MachineSchedulingSnapshot);
+    let mut json = serde_json::to_string_pretty(&schema)?;
+    json.push('\n');
+    Ok(json)
+}
+
+pub fn machine_protocol_schema_json() -> Result<String> {
+    let schema = schema_for!(crate::machine::ProtocolRecord);
+    let mut json = serde_json::to_string_pretty(&schema)?;
+    json.push('\n');
+    Ok(json)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn schema_is_stable_within_one_build() {
+        assert_eq!(
+            machine_protocol_schema_json().unwrap(),
+            include_str!("../schema/stillyard-machine-protocol-v1.json")
+        );
+        assert_eq!(
+            machine_scheduling_schema_json().unwrap(),
+            include_str!("../schema/stillyard-machine-scheduling-v1.json")
+        );
         assert_eq!(
             schema_json().unwrap(),
             include_str!("../schema/stillyard-spec-v4.json")

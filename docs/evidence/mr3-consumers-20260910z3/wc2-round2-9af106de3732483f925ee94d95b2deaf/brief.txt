@@ -1,0 +1,1008 @@
+Review the following real Stillyard code for correctness, particularly transaction ordering and delayed coordinator replies. Identify concrete findings only. This is consumer acceptance, not final project exit review. The authoritative manager recovery archives unanswered requests on reconnect and never recreates Tickets. Cleanup seals precede release. Each Invocation owns a distinct kernel cgroup. No tools.
+
+FILE src/store/attached/invocation.rs
+//! The platform's prepared-root identity, durable Ticket intent and lifecycle
+//! authorization share the Store transaction boundary. No function releases OS code.
+use super::*;
+#[cfg(target_os = "linux")]
+use crate::machine::{InvocationIntent, TicketCleanup};
+use crate::machine::{InvocationTicket, manager};
+
+pub(super) fn initialize(c: &Connection) -> StoreResult<()> {
+    c.execute_batch(
+        "CREATE TABLE IF NOT EXISTS attached_local_invocations(
+        invocation_id TEXT PRIMARY KEY, operation_id TEXT UNIQUE NOT NULL,
+        allocation_key TEXT NOT NULL, intent_json TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS attached_local_ticket_outcomes(
+        invocation_id TEXT PRIMARY KEY, operation_id TEXT NOT NULL, outcome_json TEXT NOT NULL);",
+    )?;
+    let paired: bool = c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='attached_outbox')",
+        [],
+        |r| r.get(0),
+    )?;
+    if paired {
+        c.execute_batch(
+            "CREATE TRIGGER IF NOT EXISTS attached_ticket_wait_outcome
+        AFTER UPDATE OF outcome_json ON attached_outbox
+        WHEN json_extract(NEW.outcome_json,'$.result')='rejected'
+        BEGIN
+          INSERT INTO attached_local_ticket_outcomes
+          SELECT invocation_id,operation_id,NEW.outcome_json FROM attached_local_invocations
+          WHERE operation_id=NEW.operation_id
+          ON CONFLICT(invocation_id) DO UPDATE SET operation_id=excluded.operation_id,
+            outcome_json=excluded.outcome_json;
+        END;",
+        )?;
+    }
+    Ok(())
+}
+
+/// Called immediately before the SAME transaction commits the started state.
+/// Native callers pass None; an attached store can never use that native path.
+pub(in crate::store) fn consume(
+    tx: &Transaction<'_>,
+    job: &PreparedJob,
+    generation: Uuid,
+    ticket: Option<&InvocationTicket>,
+) -> StoreResult<()> {
+    let connected: Option<bool> = tx
+        .query_row(
+            "SELECT connected FROM attached_local_mode WHERE singleton=1",
+            [],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if connected.is_none() && ticket.is_none() {
+        return Ok(());
+    }
+    let ticket = ticket.ok_or_else(|| {
+        StoreError::InvalidState(
+            "attached Invocation requires its one-use coordinator Ticket".into(),
+        )
+    })?;
+    if connected != Some(true)
+        || ticket.intent.invocation_id != job.invocation_id
+        || ticket.intent.containment_id != job.containment_id
+        || ticket.intent.role != job.role
+        || ticket.session.executor_incarnation != generation
+    {
+        return Err(StoreError::InvalidState(
+            "Ticket belongs to a disconnected or different Invocation generation".into(),
+        ));
+    }
+    let matches:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM attached_local_plans p
+        JOIN leases l ON l.id=p.lease_id JOIN invocations i ON i.attempt_id=p.attempt_id
+        JOIN invocation_process_identities r ON r.invocation_id=i.id
+        WHERE p.allocation_key=?1 AND p.committed=1 AND p.armed=1 AND p.released=0 AND p.release_pending=0
+          AND l.state='granted' AND i.id=?2 AND i.executable_hash=?4
+          AND (CASE WHEN i.role='postcondition' THEN i.postcondition_index ELSE 0 END)=?3
+          AND i.state='started' AND json_extract(r.identity_json,'$.platform')='linux'
+          AND json_extract(r.identity_json,'$.pid')=i.root_pid
+          AND ((i.role='probe' AND l.invocation_id=i.id)
+            OR (i.role IN ('primary','postcondition') AND l.invocation_id IS NULL)))",
+        params![serde_json::to_string(&ticket.key)?,job.invocation_id.entity_uuid().to_string(),ticket.intent.role_index,ticket.intent.executable_sha256],|r|r.get(0))?;
+    if !matches || !manager::consume_ticket(tx, ticket).map_err(protocol_error)? {
+        return Err(StoreError::InvalidState(
+            "Ticket has no matching start transaction or was already consumed".into(),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+impl Store {
+    pub(crate) fn attached_observation_ready(
+        &self,
+        job: &PreparedJob,
+        lease: Uuid,
+        sample: Option<&crate::host_observation::HostSample>,
+    ) -> StoreResult<bool> {
+        if !job.spec.requires_host_observation() {
+            return Ok(true);
+        }
+        let Some(sample) = sample else {
+            return Ok(false);
+        };
+        let mut statement = self
+            .connection
+            .prepare("SELECT claims_json FROM leases WHERE state='granted' AND id!=?1")?;
+        let active = statement
+            .query_map([lease.to_string()], |r| r.get::<_, String>(0))?
+            .map(|row| Ok(serde_json::from_str::<ResolvedClaims>(&row?)?))
+            .collect::<StoreResult<Vec<_>>>()?;
+        let (wall, monotonic) = crate::host_observation::observation_clock()?;
+        Ok(crate::host_observation::evaluate_admission(
+            &job.spec,
+            &self.host_config(),
+            sample,
+            &active,
+            wall,
+            monotonic,
+        )
+        .blockers
+        .is_empty())
+    }
+    pub(crate) fn attached_launch_identity(
+        &self,
+        job: &PreparedJob,
+    ) -> StoreResult<(Uuid, PathBuf, Uuid)> {
+        self.check_authority_release()?;
+        let config = super::installation::load(&self.paths.root)?.ok_or_else(|| {
+            StoreError::InvalidState("installed executor configuration missing".into())
+        })?;
+        let lease:String=self.connection.query_row("SELECT p.lease_id FROM attached_local_plans p
+            JOIN leases l ON l.id=p.lease_id WHERE p.job_id=?1 AND p.attempt_id=?2
+            AND p.armed=1 AND p.committed=1 AND p.released=0 AND p.release_pending=0 AND l.state='granted'
+            AND ((?3='probe' AND l.invocation_id=?4) OR (?3!='probe' AND l.invocation_id IS NULL))",
+            params![job.job_id.entity_uuid().to_string(),job.attempt_id.entity_uuid().to_string(),role_text(job.role),job.invocation_id.entity_uuid().to_string()],|r|r.get(0))?;
+        Ok((
+            Uuid::parse_str(&lease)?,
+            config.executor_cgroup,
+            self.daemon_generation,
+        ))
+    }
+    pub(crate) fn request_attached_ticket(
+        &mut self,
+        job: &PreparedJob,
+        root: &ProcessIdentity,
+        executable_sha256: &str,
+        boundary_sha256: &str,
+    ) -> StoreResult<Uuid> {
+        self.check_authority_release()?;
+        // Pairing may have been explicitly installed after this Store opened.
+        initialize(&self.connection)?;
+        let ProcessIdentity::Linux { pid, .. } = root else {
+            return Err(StoreError::InvalidState(
+                "attached executor requires a pinned Linux root".into(),
+            ));
+        };
+        let store_uuid = self.store_uuid;
+        let generation = self.daemon_generation;
+        let tx = self.connection.transaction()?;
+        let key_json:String=tx.query_row("SELECT p.allocation_key FROM attached_local_plans p JOIN leases l ON l.id=p.lease_id
+            WHERE p.job_id=?1 AND p.attempt_id=?2 AND p.committed=1 AND p.armed=1 AND p.released=0 AND p.release_pending=0
+              AND l.state='granted' AND ((?3='probe' AND l.invocation_id=?4) OR (?3!='probe' AND l.invocation_id IS NULL))",
+            params![job.job_id.entity_uuid().to_string(),job.attempt_id.entity_uuid().to_string(),role_text(job.role),job.invocation_id.entity_uuid().to_string()],|r|r.get(0))?;
+        let key: AllocationKey = serde_json::from_str(&key_json)?;
+        let prior:Option<(String,String)> = tx.query_row("SELECT operation_id,intent_json FROM attached_local_invocations WHERE invocation_id=?1",[job.invocation_id.to_string()],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+        if let Some((operation, json)) = prior {
+            let recorded: String = tx.query_row(
+                "SELECT identity_json FROM invocation_process_identities WHERE invocation_id=?1",
+                [job.invocation_id.entity_uuid().to_string()],
+                |r| r.get(0),
+            )?;
+            if serde_json::from_str::<ProcessIdentity>(&recorded)? != *root {
+                return Err(StoreError::InvalidState(
+                    "prepared root identity changed".into(),
+                ));
+            }
+            let prior: InvocationIntent = serde_json::from_str(&json)?;
+            if prior.containment_id != job.containment_id
+                || prior.executable_sha256 != executable_sha256
+                || prior.boundary_sha256 != boundary_sha256
+            {
+                return Err(StoreError::InvalidState(
+                    "prepared Invocation intent changed".into(),
+                ));
+            }
+            return Ok(Uuid::parse_str(&operation)?);
+        }
+        let (json, seal): (String, Option<String>) = tx.query_row(
+            "SELECT grant_json,seal_json FROM attached_grants WHERE allocation_key=?1",
+            [&key_json],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        let grant: crate::machine::GrantSnapshot = serde_json::from_str(&json)?;
+        if seal.is_some()
+            || grant.state != GrantState::Armed
+            || key.manager_store_uuid != store_uuid
+        {
+            return Err(StoreError::InvalidState(
+                "prepared Invocation has no unsealed Armed Grant".into(),
+            ));
+        }
+        let previous_cleanup = grant
+            .tickets
+            .last()
+            .map(|intent| -> StoreResult<TicketCleanup> {
+                let json: Option<String> = tx
+                    .query_row(
+                        "SELECT cleanup_json FROM attached_tickets WHERE invocation_id=?1",
+                        [intent.invocation_id.to_string()],
+                        |r| r.get(0),
+                    )
+                    .optional()?
+                    .flatten();
+                serde_json::from_str(&json.ok_or_else(|| {
+                    StoreError::InvalidState("previous Invocation has no committed cleanup".into())
+                })?)
+                .map_err(Into::into)
+            })
+            .transpose()?;
+        // SQL role_index orders every Invocation in an Attempt (including
+        // probes and host deferrals). The wire index identifies a role within
+        // its allocation: primary/probe are zero; postconditions use their
+        // specification index, preserved across pre-release deferrals.
+        let (role, index, state): (String, Option<u32>, String) = tx.query_row(
+            "SELECT role,postcondition_index,state FROM invocations WHERE id=?1 AND attempt_id=?2",
+            params![
+                job.invocation_id.entity_uuid().to_string(),
+                job.attempt_id.entity_uuid().to_string()
+            ],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )?;
+        if role != role_text(job.role) || state != "prepared" {
+            return Err(StoreError::InvalidState(
+                "Invocation root is not awaiting its first release".into(),
+            ));
+        }
+        let index = match job.role {
+            InvocationRole::Postcondition => index.ok_or_else(|| {
+                StoreError::InvalidState("postcondition has no specification index".into())
+            })?,
+            InvocationRole::Primary | InvocationRole::Probe => 0,
+        };
+        let intent = InvocationIntent {
+            invocation_id: job.invocation_id,
+            containment_id: job.containment_id,
+            role: job.role,
+            role_index: index,
+            release_sequence: grant
+                .tickets
+                .last()
+                .map_or(1, |i| i.release_sequence.saturating_add(1)),
+            executable_sha256: executable_sha256.into(),
+            boundary_sha256: boundary_sha256.into(),
+            readiness_challenge: Uuid::now_v7(),
+            previous_cleanup,
+        };
+        let (host, boot, creation) = process_records::legacy_columns(root, *pid)?;
+        process_records::record(&tx, job.invocation_id, root, *pid)?;
+        tx.execute("UPDATE invocations SET root_pid=?2,executable_hash=?3,daemon_generation=?4,root_host_id=?5,root_boot_id=?6,root_creation_filetime_100ns=?7 WHERE id=?1 AND state='prepared'",
+            params![job.invocation_id.entity_uuid().to_string(),pid,executable_sha256,generation.to_string(),host,boot,creation])?;
+        tx.execute(
+            "UPDATE containments SET state='live' WHERE id=?1 AND state='creating'",
+            [job.containment_id.entity_uuid().to_string()],
+        )?;
+        let operation = Uuid::now_v7();
+        tx.execute(
+            "INSERT INTO attached_local_invocations VALUES (?1,?2,?3,?4)",
+            params![
+                job.invocation_id.to_string(),
+                operation.to_string(),
+                key_json,
+                serde_json::to_string(&intent)?
+            ],
+        )?;
+        manager::enqueue(
+            &tx,
+            operation,
+            &Command::AuthorizeInvocation {
+                key,
+                offer_nonce: grant.offer_nonce,
+                intent,
+            },
+        )
+        .map_err(protocol_error)?;
+        tx.commit()?;
+        Ok(operation)
+    }
+
+    pub(crate) fn attached_ticket(
+        &self,
+        invocation: InvocationId,
+    ) -> StoreResult<Option<InvocationTicket>> {
+        let ticket: Option<String> = self
+            .connection
+            .query_row(
+                "SELECT ticket_json FROM attached_tickets WHERE invocation_id=?1",
+                [invocation.to_string()],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if let Some(json) = ticket {
+            return Ok(Some(serde_json::from_str(&json)?));
+        }
+        let outcome:Option<String>=self.connection.query_row("SELECT o.outcome_json FROM attached_local_invocations i JOIN attached_local_ticket_outcomes o ON o.operation_id=i.operation_id WHERE i.invocation_id=?1",[invocation.to_string()],|r|r.get(0)).optional()?;
+        if let Some(json) = outcome {
+            if waiting_outcome(&json)? {
+                return Ok(None);
+            }
+            return Err(StoreError::InvalidState(format!(
+                "Invocation Ticket request did not grant release: {json}"
+            )));
+        }
+        Ok(None)
+    }
+
+    /// Retry only an authenticated, durably completed waiting response. An
+    /// unknown/lost response keeps its original operation and cannot authorize
+    /// a second command. The same prepared root/intent remains kernel-stopped.
+    pub(crate) fn retry_waiting_attached_ticket(
+        &mut self,
+        invocation: InvocationId,
+    ) -> StoreResult<bool> {
+        let tx = self.connection.transaction()?;
+        let prior: Option<(String, String, String)> = tx.query_row(
+            "SELECT i.allocation_key,i.intent_json,o.outcome_json FROM attached_local_invocations i
+             JOIN attached_local_ticket_outcomes o ON o.operation_id=i.operation_id
+             WHERE i.invocation_id=?1
+             AND NOT EXISTS(SELECT 1 FROM attached_tickets t WHERE t.invocation_id=i.invocation_id)",
+            [invocation.to_string()],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        ).optional()?;
+        let Some((key, intent, outcome)) = prior else {
+            return Ok(false);
+        };
+        if !waiting_outcome(&outcome)? {
+            return Ok(false);
+        }
+        let json: String = tx.query_row(
+            "SELECT grant_json FROM attached_grants WHERE allocation_key=?1 AND seal_json IS NULL",
+            [&key],
+            |r| r.get(0),
+        )?;
+        let grant: crate::machine::GrantSnapshot = serde_json::from_str(&json)?;
+        if grant.state != GrantState::Armed {
+            return Ok(false);
+        }
+        let operation = Uuid::now_v7();
+        manager::enqueue(
+            &tx,
+            operation,
+            &Command::AuthorizeInvocation {
+                key: serde_json::from_str(&key)?,
+                offer_nonce: grant.offer_nonce,
+                intent: serde_json::from_str(&intent)?,
+            },
+        )
+        .map_err(protocol_error)?;
+        tx.execute(
+            "UPDATE attached_local_invocations SET operation_id=?2 WHERE invocation_id=?1",
+            params![invocation.to_string(), operation.to_string()],
+        )?;
+        tx.commit()?;
+        Ok(true)
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn waiting_outcome(json: &str) -> StoreResult<bool> {
+    Ok(
+        matches!(serde_json::from_str::<crate::machine::Outcome>(json)?,
+        crate::machine::Outcome::Rejected { code, .. } if matches!(code.as_str(),
+            "quiet_waiting" | "quiet_contaminated" | "detector_unavailable" |
+            "observation_stale" | "observation_missing" | "observation_unusable" |
+            "observed_resource_busy" | "unavailable")),
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn role_text(role: InvocationRole) -> &'static str {
+    match role {
+        InvocationRole::Primary => "primary",
+        InvocationRole::Probe => "probe",
+        InvocationRole::Postcondition => "postcondition",
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn waiting_ticket_reply_survives_outbox_compaction_without_replaying_unknown_operation() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch("CREATE TABLE attached_outbox(operation_id TEXT, outcome_json TEXT);")
+            .unwrap();
+        initialize(&connection).unwrap();
+        connection.execute_batch("INSERT INTO attached_local_invocations VALUES ('invocation','first','key','intent');
+            INSERT INTO attached_outbox VALUES ('first',NULL);").unwrap();
+        let waiting = serde_json::to_string(&crate::machine::Outcome::Rejected {
+            code: "quiet_waiting".into(),
+            detail: "not yet stable".into(),
+        })
+        .unwrap();
+        connection
+            .execute(
+                "UPDATE attached_outbox SET outcome_json=?1 WHERE operation_id='first'",
+                [&waiting],
+            )
+            .unwrap();
+        connection
+            .execute("DELETE FROM attached_outbox", [])
+            .unwrap();
+        let lookup = "SELECT o.outcome_json FROM attached_local_invocations i
+            JOIN attached_local_ticket_outcomes o ON o.operation_id=i.operation_id";
+        let retained: String = connection.query_row(lookup, [], |r| r.get(0)).unwrap();
+        assert!(waiting_outcome(&retained).unwrap());
+        connection
+            .execute(
+                "UPDATE attached_local_invocations SET operation_id='second'",
+                [],
+            )
+            .unwrap();
+        let unknown: Option<String> = connection
+            .query_row(lookup, [], |r| r.get(0))
+            .optional()
+            .unwrap();
+        assert!(
+            unknown.is_none(),
+            "old waiting reply authorized replay of an unanswered operation"
+        );
+        for code in ["conflict", "quiet_unattainable", "stale", "unauthorized"] {
+            let fatal = serde_json::to_string(&crate::machine::Outcome::Rejected {
+                code: code.into(),
+                detail: "final".into(),
+            })
+            .unwrap();
+            assert!(!waiting_outcome(&fatal).unwrap());
+        }
+    }
+}
+
+FILE src/store/attached/cleanup.rs
+//! Retain executor seals across delayed Ticket replies and inventory recovery.
+use super::*;
+use crate::machine::{InvocationTicket, TicketCleanup, manager};
+
+pub(super) fn initialize(c: &Connection) -> StoreResult<()> {
+    c.execute_batch(
+        "CREATE TABLE IF NOT EXISTS attached_local_cleanup(
+        invocation_id TEXT PRIMARY KEY, boundary_sha256 TEXT NOT NULL,
+        proof_sha256 TEXT NOT NULL);",
+    )?;
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+impl Store {
+    pub(crate) fn record_attached_cleanup(
+        &mut self,
+        invocation: InvocationId,
+        boundary: &str,
+        proof: &str,
+        never: Option<&manager::release::NeverReleased>,
+    ) -> StoreResult<()> {
+        let tx = self.connection.transaction()?;
+        tx.execute(
+            "INSERT OR IGNORE INTO attached_local_cleanup VALUES (?1,?2,?3)",
+            params![invocation.to_string(), boundary, proof],
+        )?;
+        let prior:(String,String)=tx.query_row("SELECT boundary_sha256,proof_sha256 FROM attached_local_cleanup WHERE invocation_id=?1",
+            [invocation.to_string()],|r|Ok((r.get(0)?,r.get(1)?)))?;
+        if prior != (boundary.into(), proof.into()) {
+            return Err(StoreError::InvalidState(
+                "executor cleanup seal changed".into(),
+            ));
+        }
+        if let Some(never) = never {
+            let json: String = tx.query_row(
+                "SELECT ticket_json FROM attached_tickets WHERE invocation_id=?1",
+                [invocation.to_string()],
+                |r| r.get(0),
+            )?;
+            let ticket: InvocationTicket = serde_json::from_str(&json)?;
+            manager::release::record_unused_cleanup(
+                &tx,
+                never,
+                &TicketCleanup {
+                    invocation_id: invocation,
+                    release_sequence: ticket.intent.release_sequence,
+                    boundary_sha256: boundary.into(),
+                    proof_sha256: proof.into(),
+                    user_code_released: false,
+                },
+            )
+            .map_err(protocol_error)?;
+        }
+        apply(&tx)?;
+        tx.commit()?;
+        Ok(())
+    }
+}
+
+pub(super) fn apply(tx: &Transaction<'_>) -> StoreResult<()> {
+    let rows = {
+        let mut stmt = tx.prepare(
+            "SELECT t.ticket_json,t.consumed,c.boundary_sha256,c.proof_sha256
+            FROM attached_tickets t JOIN attached_local_cleanup c USING(invocation_id)
+            WHERE t.cleanup_json IS NULL",
+        )?;
+        stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, bool>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, String>(3)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?
+    };
+    for (json, consumed, boundary, proof) in rows {
+        let ticket: InvocationTicket = serde_json::from_str(&json)?;
+        manager::record_cleanup(
+            tx,
+            &TicketCleanup {
+                invocation_id: ticket.intent.invocation_id,
+                release_sequence: ticket.intent.release_sequence,
+                boundary_sha256: boundary,
+                proof_sha256: proof,
+                user_code_released: consumed,
+            },
+        )
+        .map_err(protocol_error)?;
+    }
+    // Inventory can recover a Ticket that never reached the continuous local
+    // Store. Its durable request and executor seal prove an unused obligation.
+    let missing = {
+        let mut statement=tx.prepare("SELECT intent.value,c.boundary_sha256,c.proof_sha256
+            FROM attached_grants g JOIN json_each(g.grant_json,'$.tickets') intent
+            JOIN attached_local_cleanup c ON c.invocation_id=json_extract(intent.value,'$.invocation_id')
+            WHERE NOT EXISTS(SELECT 1 FROM attached_tickets t WHERE t.invocation_id=c.invocation_id)
+              AND NOT EXISTS(SELECT 1 FROM attached_recovered_cleanup r WHERE r.invocation_id=c.invocation_id)")?;
+        statement
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    for (json, boundary, proof) in missing {
+        let intent: crate::machine::InvocationIntent = serde_json::from_str(&json)?;
+        manager::record_cleanup(
+            tx,
+            &TicketCleanup {
+                invocation_id: intent.invocation_id,
+                release_sequence: intent.release_sequence,
+                boundary_sha256: boundary,
+                proof_sha256: proof,
+                user_code_released: false,
+            },
+        )
+        .map_err(protocol_error)?;
+    }
+    Ok(())
+}
+
+FILE src/machine/manager/recovery.rs
+//! Recovery of a continuous manager store after the coordinator retires replies.
+//! Inventory is imported as cleanup obligations, never reconstructed tickets.
+use super::*;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct Recovery {
+    after: Option<AllocationKey>,
+    complete: bool,
+    configuration: Option<String>,
+}
+
+pub(super) fn active(c: &Connection) -> Result<bool> {
+    Ok(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM attached_meta WHERE key='recovery')",
+        [],
+        |r| r.get(0),
+    )?)
+}
+
+/// Enter a fenced recovery session using the authenticated handshake. The local
+/// store must remain continuous. Superseded operations are retained for the
+/// caller's lifecycle reconciliation; advancing a watermark does not apply them.
+pub fn begin(
+    tx: &Transaction<'_>,
+    session: &SessionIdentity,
+    peer: &ParticipantSnapshot,
+) -> Result<()> {
+    let (store, prior, next, applied, floor):(String,Option<String>,u64,u64,u64) = tx.query_row(
+        "SELECT store_uuid,session_json,next_sequence,applied_sequence,retired_floor FROM attached_peer WHERE singleton=1",[],
+        |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?)))?;
+    let prior: SessionIdentity = serde_json::from_str(
+        &prior.ok_or_else(|| invalid("recovery requires continuous paired manager history"))?,
+    )?;
+    if store != session.manager_store_uuid.to_string()
+        || prior.machine_id != session.machine_id
+        || prior.domain_id != session.domain_id
+        || prior.manager_store_uuid != session.manager_store_uuid
+        || prior.connection_epoch > session.connection_epoch
+        || (prior.connection_epoch == session.connection_epoch && prior != *session)
+        || peer.manager_store_uuid != session.manager_store_uuid
+        || peer.installation.domain_id != session.domain_id
+        || peer.connection_epoch != session.connection_epoch
+        || peer.executor_incarnation != Some(session.executor_incarnation)
+        || !peer.reconciliation_required
+        || peer.accepted_sequence < applied
+        || peer.accepted_sequence >= next
+        || peer.retired_sequence_floor < floor
+        || peer.retired_sequence_floor > peer.accepted_sequence
+    {
+        return Err(invalid(
+            "recovery handshake does not cover continuous manager history",
+        ));
+    }
+    // Every existing pending command remains identifiable. Never resend a lost
+    // AuthorizeInvocation as new work after the coordinator has retired its ack.
+    let count:u64 = tx.query_row("SELECT (SELECT COUNT(*) FROM attached_abandoned)+(SELECT COUNT(*) FROM attached_outbox WHERE outcome_json IS NULL)",[],|r|r.get(0))?;
+    let bytes:u64=tx.query_row("SELECT (SELECT COALESCE(SUM(length(CAST(command_json AS BLOB))),0) FROM attached_abandoned)+(SELECT COALESCE(SUM(length(CAST(command_json AS BLOB))),0) FROM attached_outbox WHERE outcome_json IS NULL)",[],|r|r.get(0))?;
+    if count > 16384 || bytes > MAX_RECONCILE_BYTES as u64 {
+        return Err(invalid(
+            "unresolved lifecycle intents exceed recovery budget",
+        ));
+    }
+    tx.execute("INSERT OR IGNORE INTO attached_abandoned SELECT operation_id,sequence,payload_sha256,command_json FROM attached_outbox WHERE outcome_json IS NULL",[])?;
+    tx.execute("DELETE FROM attached_outbox WHERE outcome_json IS NULL", [])?;
+    tx.execute("UPDATE attached_peer SET session_json=?1,next_sequence=?2,applied_sequence=?3,retired_floor=?4 WHERE singleton=1",
+        params![serde_json::to_string(session)?,peer.accepted_sequence+1,peer.accepted_sequence,peer.retired_sequence_floor])?;
+    tx.execute("DELETE FROM attached_inventory", [])?;
+    save(
+        tx,
+        &Recovery {
+            after: None,
+            complete: false,
+            configuration: None,
+        },
+    )
+}
+
+fn save(tx: &Transaction<'_>, state: &Recovery) -> Result<()> {
+    tx.execute("INSERT INTO attached_meta VALUES ('recovery',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",[serde_json::to_string(state)?])?;
+    Ok(())
+}
+fn state(c: &Connection) -> Result<Recovery> {
+    let json: String = c.query_row(
+        "SELECT value FROM attached_meta WHERE key='recovery'",
+        [],
+        |r| r.get(0),
+    )?;
+    Ok(serde_json::from_str(&json)?)
+}
+
+pub(super) fn require_complete(c: &Connection) -> Result<()> {
+    if active(c)? && !state(c)?.complete {
+        return Err(invalid("cannot seal before complete recovery inventory"));
+    }
+    Ok(())
+}
+
+/// The next page request is durable through the ordinary outbox. Repeated calls
+/// use the caller's same operation UUID until its response is committed.
+pub fn next_page(c: &Connection) -> Result<Option<Command>> {
+    let s = state(c)?;
+    Ok((!s.complete).then_some(Command::InspectPage {
+        after: s.after,
+        limit: 256,
+    }))
+}
+
+pub(super) fn allow(c: &Connection, command: &Command) -> Result<()> {
+    if !active(c)? {
+        return Ok(());
+    }
+    let s = state(c)?;
+    let allowed = match command {
+        Command::InspectPage { after, .. } => !s.complete && *after == s.after,
+        Command::ReconcileBegin { .. }
+        | Command::ReconcilePage { .. }
+        | Command::ReconcileCommit { .. } => s.complete,
+        Command::Acknowledge { .. } => true,
+        _ => false,
+    };
+    if allowed {
+        Ok(())
+    } else {
+        Err(invalid(
+            "new work is fenced until full inventory reconciliation completes",
+        ))
+    }
+}
+
+pub(super) fn accept_page(
+    tx: &Transaction<'_>,
+    request: &Request,
+    grants: &[GrantSnapshot],
+    next: &Option<AllocationKey>,
+    configuration: &str,
+) -> Result<()> {
+    if !active(tx)? {
+        return Ok(());
+    }
+    let mut s = state(tx)?;
+    let Command::InspectPage { after, limit } = &request.command else {
+        return Err(invalid("unsolicited recovery page"));
+    };
+    if s.complete
+        || *after != s.after
+        || grants.len() > *limit as usize
+        || configuration.len() != 64
+        || !configuration.bytes().all(|c| c.is_ascii_hexdigit())
+        || s.configuration
+            .as_ref()
+            .is_some_and(|old| old != configuration)
+    {
+        return Err(invalid("recovery page cursor or configuration changed"));
+    }
+    let mut previous = after.as_ref().map(serde_json::to_string).transpose()?;
+    for grant in grants {
+        let key = &grant.candidate.key;
+        let encoded = serde_json::to_string(key)?;
+        if !request.session.owns(key)
+            || previous.as_ref().is_some_and(|p| p >= &encoded)
+            || !matches!(
+                grant.state,
+                GrantState::Offered | GrantState::Armed | GrantState::Uncertain
+            )
+        {
+            return Err(invalid(
+                "inventory is unordered or belongs to another authority",
+            ));
+        }
+        previous = Some(encoded.clone());
+        tx.execute(
+            "INSERT INTO attached_inventory VALUES (?1,?2)",
+            params![encoded, serde_json::to_string(grant)?],
+        )?;
+    }
+    if next.is_some()
+        && (grants.is_empty() || grants.last().map(|g| &g.candidate.key) != next.as_ref())
+    {
+        return Err(invalid(
+            "inventory cursor does not identify the last record",
+        ));
+    }
+    let (count, bytes): (u64, u64) = tx.query_row(
+        "SELECT COUNT(*),COALESCE(SUM(length(CAST(grant_json AS BLOB))),0) FROM attached_inventory",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    if count > MAX_DOMAIN_CANDIDATES as u64 || bytes > MAX_RECONCILE_BYTES as u64 {
+        return Err(invalid("recovery inventory exceeds durable bounds"));
+    }
+    s.after = next.clone();
+    s.complete = next.is_none();
+    s.configuration = Some(configuration.into());
+    if s.complete {
+        import_inventory(tx)?;
+    }
+    save(tx, &s)
+}
+
+fn grants(c: &Connection, table: &str) -> Result<Vec<GrantSnapshot>> {
+    let sql = match table {
+        "local" => "SELECT grant_json FROM attached_grants ORDER BY allocation_key",
+        _ => "SELECT grant_json FROM attached_inventory ORDER BY allocation_key",
+    };
+    let mut stmt = c.prepare(sql)?;
+    stmt.query_map([], |r| r.get::<_, String>(0))?
+        .map(|r| Ok(serde_json::from_str(&r?)?))
+        .collect()
+}
+
+fn import_inventory(tx: &Transaction<'_>) -> Result<()> {
+    let remote = grants(tx, "remote")?;
+    let local = grants(tx, "local")?;
+    let mut intents=tx.prepare("SELECT command_json FROM attached_abandoned UNION ALL SELECT command_json FROM attached_outbox")?;
+    let commands = intents
+        .query_map([], |r| r.get::<_, String>(0))?
+        .map(|r| Ok(serde_json::from_str::<Command>(&r?)?))
+        .collect::<Result<Vec<_>>>()?;
+    for grant in &remote {
+        let key = &grant.candidate.key;
+        let old = local.iter().find(|g| g.candidate.key == *key);
+        if let Some(old)=old {
+            if old.grant_id!=grant.grant_id || old.offer_nonce!=grant.offer_nonce
+                || old.state==GrantState::Released
+                || (matches!(old.state,GrantState::Armed|GrantState::Uncertain) && grant.state==GrantState::Offered)
+                || old.tickets.iter().any(|t|!grant.tickets.contains(t))
+            { return Err(invalid("coordinator inventory conflicts with local start history")); }
+        } else if grant.state!=GrantState::Offered && !commands.iter().any(|c|matches!(c,Command::Arm { key:k,offer_nonce } if k==key && *offer_nonce==grant.offer_nonce)) {
+            return Err(invalid("unknown Armed grant has no durable local Arm intent"));
+        }
+        for intent in &grant.tickets {
+            let known: Option<String> = tx
+                .query_row(
+                    "SELECT ticket_json FROM attached_tickets WHERE invocation_id=?1",
+                    [intent.invocation_id.to_string()],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            if let Some(known)=known {
+                let ticket:InvocationTicket=serde_json::from_str(&known)?;
+                if ticket.key!=*key || ticket.intent!=*intent || ticket.grant_id!=grant.grant_id { return Err(invalid("issued ticket conflicts with local Invocation history")); }
+            } else if !commands.iter().any(|c|matches!(c,Command::AuthorizeInvocation { key:k,offer_nonce,intent:i } if k==key && *offer_nonce==grant.offer_nonce && i==intent)) {
+                return Err(invalid("missing local ticket has no continuous durable request intent"));
+            }
+        }
+        let mut imported = grant.clone();
+        if let Some(old) = old.filter(|g| g.state == GrantState::Uncertain) {
+            imported.state = GrantState::Uncertain;
+            imported.uncertainty_reason = old.uncertainty_reason.clone();
+        }
+        tx.execute("INSERT INTO attached_grants VALUES (?1,?2,NULL) ON CONFLICT(allocation_key) DO UPDATE SET grant_json=excluded.grant_json",params![serde_json::to_string(key)?,serde_json::to_string(&imported)?])?;
+    }
+    // Absence from the completed authenticated inventory can acknowledge an
+    // already locally sealed release. It cannot erase an unsealed obligation.
+    for mut old in local {
+        if old.state == GrantState::Released
+            || remote.iter().any(|g| g.candidate.key == old.candidate.key)
+        {
+            continue;
+        }
+        let key = serde_json::to_string(&old.candidate.key)?;
+        let seal: Option<String> = tx.query_row(
+            "SELECT seal_json FROM attached_grants WHERE allocation_key=?1",
+            [&key],
+            |r| r.get(0),
+        )?;
+        let seal =
+            seal.ok_or_else(|| invalid("coordinator omitted an unsealed local allocation"))?;
+        old.state = GrantState::Released;
+        old.sealed_release = Some(serde_json::from_str(&seal)?);
+        tx.execute(
+            "UPDATE attached_grants SET grant_json=?2 WHERE allocation_key=?1",
+            params![key, serde_json::to_string(&old)?],
+        )?;
+    }
+    Ok(())
+}
+
+/// Build the complete snapshot after inventory import. Enqueue one command at a
+/// time and commit its acknowledgement before sending the next one.
+pub fn reconciliation(c: &Connection) -> Result<Vec<Command>> {
+    let s = state(c)?;
+    if !s.complete {
+        return Err(invalid("inventory is incomplete"));
+    }
+    let mut pages: Vec<Vec<ReconcileAllocation>> = Vec::new();
+    let mut page = Vec::new();
+    for grant in grants(c, "local")? {
+        if grant.state == GrantState::Released {
+            continue;
+        }
+        let seal: Option<String> = c.query_row(
+            "SELECT seal_json FROM attached_grants WHERE allocation_key=?1",
+            [serde_json::to_string(&grant.candidate.key)?],
+            |r| r.get(0),
+        )?;
+        let record = ReconcileAllocation {
+            key: grant.candidate.key,
+            offer_nonce: grant.offer_nonce,
+            tickets: grant.tickets,
+            sealed_release: seal.map(|s| serde_json::from_str(&s)).transpose()?,
+        };
+        page.push(record);
+        if page.len() > MAX_RECONCILE_PAGE
+            || serde_json::to_vec(&page)?.len() > MAX_FRAME_BYTES - 4096
+        {
+            let last = page.pop().unwrap();
+            if page.is_empty() {
+                return Err(invalid(
+                    "single reconciliation allocation exceeds frame budget",
+                ));
+            }
+            pages.push(std::mem::take(&mut page));
+            page.push(last);
+        }
+    }
+    if !page.is_empty() {
+        pages.push(page);
+    }
+    if serde_json::to_vec(&pages)?.len() > MAX_RECONCILE_BYTES {
+        return Err(invalid("reconciliation exceeds byte budget"));
+    }
+    let end: u64 = c.query_row(
+        "SELECT applied_sequence FROM attached_peer WHERE singleton=1",
+        [],
+        |r| r.get(0),
+    )?;
+    let pending: bool = c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM attached_outbox WHERE outcome_json IS NULL)",
+        [],
+        |r| r.get(0),
+    )?;
+    if pending {
+        return Err(invalid(
+            "drain outstanding replies before taking a reconciliation watermark",
+        ));
+    }
+    let snapshot_id = Uuid::now_v7();
+    let mut commands = vec![Command::ReconcileBegin {
+        snapshot_id,
+        begin_sequence: 0,
+        end_sequence: end,
+        page_count: pages.len() as u32,
+        digest: payload_hash(&pages)?,
+        configuration_sha256: s.configuration.unwrap(),
+    }];
+    commands.extend(pages.into_iter().enumerate().map(|(index, allocations)| {
+        Command::ReconcilePage {
+            snapshot_id,
+            index: index as u32,
+            allocations,
+        }
+    }));
+    commands.push(Command::ReconcileCommit { snapshot_id });
+    Ok(commands)
+}
+
+pub(super) fn committed(
+    tx: &Transaction<'_>,
+    request: &Request,
+    released: &[AllocationKey],
+) -> Result<()> {
+    if !active(tx)? {
+        return Ok(());
+    }
+    if !state(tx)?.complete || !matches!(request.command, Command::ReconcileCommit { .. }) {
+        return Err(invalid("unsolicited recovery completion"));
+    }
+    for key in released {
+        let encoded = serde_json::to_string(key)?;
+        let (json, seal): (String, Option<String>) = tx.query_row(
+            "SELECT grant_json,seal_json FROM attached_grants WHERE allocation_key=?1",
+            [&encoded],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        let mut grant: GrantSnapshot = serde_json::from_str(&json)?;
+        grant.sealed_release =
+            Some(serde_json::from_str(&seal.ok_or_else(|| {
+                invalid("reconciled release has no local seal")
+            })?)?);
+        grant.state = GrantState::Released;
+        tx.execute(
+            "UPDATE attached_grants SET grant_json=?2 WHERE allocation_key=?1",
+            params![encoded, serde_json::to_string(&grant)?],
+        )?;
+    }
+    tx.execute("DELETE FROM attached_inventory", [])?;
+    tx.execute("DELETE FROM attached_meta WHERE key='recovery'", [])?;
+    Ok(())
+}
+
+/// Return abandoned requests for explicit reconciliation with local Job states.
+/// These records are not launch permissions and must not be resent blindly.
+pub fn abandoned(c: &Connection) -> Result<Vec<(Uuid, Command)>> {
+    let mut stmt =
+        c.prepare("SELECT operation_id,command_json FROM attached_abandoned ORDER BY sequence")?;
+    stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+        .map(|r| {
+            let (id, json) = r?;
+            Ok((
+                Uuid::parse_str(&id).map_err(|_| invalid("invalid archived operation UUID"))?,
+                serde_json::from_str(&json)?,
+            ))
+        })
+        .collect()
+}
+
+/// Acknowledge superseded intents after the caller has settled their local
+/// lifecycle in this same transaction. A drained, fully reconciled manager is
+/// required: archives may still be the only proof of an issued missing Ticket.
+/// This does not delete Grant, Ticket, cleanup or caller-owned Job history.
+pub fn acknowledge_abandoned(tx: &Transaction<'_>, operations: &[Uuid]) -> Result<usize> {
+    if operations.is_empty() || operations.len() > 256 || operations.iter().any(Uuid::is_nil) {
+        return Err(invalid(
+            "acknowledge 1..256 explicit abandoned operation identities",
+        ));
+    }
+    if active(tx)?
+        || grants(tx, "local")?
+            .iter()
+            .any(|g| g.state != GrantState::Released)
+    {
+        return Err(invalid(
+            "abandoned intents remain necessary until all allocations reconcile released",
+        ));
+    }
+    let mut changed = 0;
+    for operation in operations {
+        changed += tx.execute(
+            "DELETE FROM attached_abandoned WHERE operation_id=?1",
+            [operation.to_string()],
+        )?;
+    }
+    Ok(changed)
+}

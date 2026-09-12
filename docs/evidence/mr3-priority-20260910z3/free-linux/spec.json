@@ -1,0 +1,22 @@
+{
+  "spec_version": 4,
+  "priority": 0,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import time;print('free-linux',flush=True);time.sleep(0)"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-mr3-priority-evidence-20260910z3b/free-linux",
+  "timeout_seconds": 120,
+  "resources": {},
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "installed-priority-free-linux"
+    }
+  ]
+}

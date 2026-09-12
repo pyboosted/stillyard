@@ -1,4 +1,8 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    std::fs::write(
+        "schema/stillyard-machine-protocol-v1.json",
+        stillyard::machine_protocol_schema_json()?,
+    )?;
     std::fs::write("schema/stillyard-spec-v4.json", stillyard::schema_json()?)?;
     std::fs::write(
         "schema/stillyard-config-v2.json",
@@ -7,6 +11,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::write(
         "schema/stillyard-managed-execution-v3.json",
         stillyard::managed_execution_schema_json()?,
+    )?;
+    std::fs::write(
+        "schema/stillyard-machine-scheduling-v1.json",
+        stillyard::machine_scheduling_schema_json()?,
     )?;
     Ok(())
 }

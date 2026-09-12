@@ -1,0 +1,1167 @@
+Independent focused review of native busy-pipe wait fix and idle-evidence implication. Previously Windows Client transport_request retried WaitNamedPipeW once per second, ignoring false/ERROR_SEM_TIMEOUT until deadline. Fix uses full finite remaining deadline (avoiding special 0/default and MAX/infinite), and returns DeadlineElapsed on ERROR_SEM_TIMEOUT, Unavailable on other wait failure. OpenFile race after successful readiness still loops with fresh remaining deadline. Actual occupied max-one-instance native pipe regression waits 1250ms; fixed expected one wait. Old implementation mutant W Job 01a08b56-6172-7e43-b483-85eda6ef3c22 compiled and failed expected1/observed2 actual WaitNamedPipe calls. Windows result counters only test cfg; no production timer polling instrumentation added. Idle reasoning: native bridge blocks framed stdin between requests and synchronous IPC within requests; its only explicit timed wait is WaitNamedPipe. Such timeout now ends the request; Bridge serve emits Error; Linux Bridge.exchange returns Err; Driver propagates; daemon attached sets driver None dropping native bridge; stable native bridge PID+creation and Linux proxy identities through the interval therefore exclude any such native timeout. Linux own response timeout counted; daemon counters actual application timers. Vendor WSL init/proxy source is separate audit, opaque external wsl.exe context-switch zero bounds need actual final interval. Assess concrete correctness, unsafe API mistakes, deadline semantics regression, and whether zero-native-timer inference really follows from supplied error propagation. Flag unproven assumptions, no blanket aggregate pass. No tools or edits.
+
+FILE src/client.rs transport and regression
+            return Err(Error::DoctorMemoryLimit {
+                limit_bytes: MAX_COMPLETE_DOCTOR_BYTES,
+            });
+        }
+        *prior_order = Some(order);
+        incidents.push(incident);
+    }
+    if incidents.len() as u64 > MAX_COMPLETE_DOCTOR_INCIDENTS {
+        return Err(Error::DoctorIncidentLimit {
+            limit: MAX_COMPLETE_DOCTOR_INCIDENTS,
+        });
+    }
+    Ok(())
+}
+
+fn check_wait(deadline: Instant, cancellation: Option<&CancellationToken>) -> Result<()> {
+    if cancellation.is_some_and(CancellationToken::is_canceled) {
+        return Err(Error::Canceled);
+    }
+    if Instant::now() >= deadline {
+        return Err(Error::DeadlineElapsed);
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn transport_request(
+    endpoint: &str,
+    daemon_executable: &Path,
+    request: &Request,
+    deadline: Instant,
+) -> Result<Response> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::{ERROR_PIPE_BUSY, ERROR_SEM_TIMEOUT};
+    use windows_sys::Win32::System::Pipes::WaitNamedPipeW;
+
+    let mut pipe = loop {
+        match OpenOptions::new().read(true).write(true).open(endpoint) {
+            Ok(pipe) => break pipe,
+            Err(error) if error.raw_os_error() == Some(ERROR_PIPE_BUSY as i32) => {
+                if Instant::now() >= deadline {
+                    return Err(Error::DeadlineElapsed);
+                }
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                // Wait for availability or the request deadline. One-second
+                // timeout/retry polling hides timer wakes in the native bridge.
+                // Exclude the Win32 special values 0 (server default) and MAX
+                // (infinite); normal caller deadlines are finite and bounded.
+                let timeout = remaining.as_millis().clamp(1, u128::from(u32::MAX - 1)) as u32;
+                let endpoint: Vec<u16> = OsStr::new(endpoint)
+                    .encode_wide()
+                    .chain(std::iter::once(0))
+                    .collect();
+                // SAFETY: endpoint is NUL-terminated and remains alive for the call.
+                #[cfg(test)]
+                NATIVE_PIPE_WAITS.with(|count| count.set(count.get() + 1));
+                if unsafe { WaitNamedPipeW(endpoint.as_ptr(), timeout) } == 0 {
+                    let error = std::io::Error::last_os_error();
+                    if error.raw_os_error() == Some(ERROR_SEM_TIMEOUT as i32) {
+                        return Err(Error::DeadlineElapsed);
+                    }
+                    return Err(Error::Unavailable(error.to_string()));
+                }
+            }
+            Err(error) => return Err(Error::Unavailable(error.to_string())),
+        }
+    };
+    verify_pipe_server(&pipe, daemon_executable)?;
+    write_frame(&mut pipe, request)?;
+    read_frame(&mut pipe).map_err(Error::from)
+}
+
+#[cfg(all(windows, test))]
+thread_local! {
+    static NATIVE_PIPE_WAITS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(windows)]
+fn verify_pipe_server(pipe: &std::fs::File, daemon_executable: &Path) -> Result<()> {
+    use std::os::windows::io::AsRawHandle;
+    use std::path::PathBuf;
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::System::Pipes::GetNamedPipeServerProcessId;
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
+    };
+
+    let mut pid = 0_u32;
+    // SAFETY: pipe owns a live named-pipe handle and pid is writable.
+    if unsafe { GetNamedPipeServerProcessId(pipe.as_raw_handle() as HANDLE, &mut pid) } == 0 {
+        return Err(Error::Protocol(format!(
+            "cannot identify named-pipe server: {}",
+            std::io::Error::last_os_error()
+        )));
+    }
+    // SAFETY: the requested access is read-only and pid came from the kernel for this pipe.
+    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+    if process.is_null() {
+        return Err(Error::Protocol(format!(
+            "cannot inspect named-pipe server process {pid}: {}",
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn busy_native_pipe_waits_once_until_deadline_without_polling() {
+        use std::os::windows::ffi::OsStrExt;
+        use std::os::windows::io::{FromRawHandle, RawHandle};
+        use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
+        use windows_sys::Win32::Storage::FileSystem::PIPE_ACCESS_DUPLEX;
+        use windows_sys::Win32::System::Pipes::{CreateNamedPipeW, PIPE_TYPE_BYTE, PIPE_WAIT};
+        let endpoint = format!(r"\\.\pipe\stillyard-busy-wait-{}", uuid::Uuid::now_v7());
+        let wide: Vec<u16> = OsStr::new(&endpoint).encode_wide().chain(Some(0)).collect();
+        // One real instance, held connected by another client for the whole
+        // deadline. Availability cannot satisfy the blocked caller's wait.
+        let handle = unsafe {
+            CreateNamedPipeW(
+                wide.as_ptr(),
+                PIPE_ACCESS_DUPLEX,
+                PIPE_TYPE_BYTE | PIPE_WAIT,
+                1,
+                4096,
+                4096,
+                1000,
+                std::ptr::null(),
+            )
+        };
+        assert_ne!(handle, INVALID_HANDLE_VALUE);
+        let _server = unsafe { std::fs::File::from_raw_handle(handle as RawHandle) };
+        let _occupant = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&endpoint)
+            .unwrap();
+        NATIVE_PIPE_WAITS.with(|count| count.set(0));
+        let start = Instant::now();
+        assert!(matches!(
+            transport_request(
+                &endpoint,
+                &std::env::current_exe().unwrap(),
+                &Request::Ping {},
+                start + Duration::from_millis(1250)
+            ),
+            Err(Error::DeadlineElapsed)
+        ));
+        assert_eq!(
+            NATIVE_PIPE_WAITS.with(std::cell::Cell::get),
+            1,
+            "native busy-pipe timeout was retried as a polling interval"
+        );
+        assert!(start.elapsed() >= Duration::from_secs(1));
+    }
+
+    #[test]
+    fn response_errors_preserve_known_wire_rejections() {
+        for code in [
+            error_code::IDEMPOTENCY_CONFLICT,
+            error_code::REJECTED,
+            "child_claim_not_permitted",
+            "containment_identity_unavailable",
+        ] {
+            assert!(matches!(
+                response_error::<()>(Response::Error {
+                    code: code.into(),
+                    message: "detail".into(),
+                }),
+                Err(Error::Rejected {
+                    code: observed,
+                    detail,
+                }) if observed == code && detail == "detail"
+            ));
+        }
+        assert!(matches!(
+            response_error::<()>(Response::Error {
+                code: error_code::NOT_FOUND.into(),
+                message: "not found: missing".into(),
+            }),
+            Err(Error::NotFound { detail }) if detail == "not found: missing"
+        ));
+        assert!(matches!(
+            response_error::<()>(Response::Error {
+FILE src/machine/bridge.rs
+//! Persistent, bounded stdin/stdout bridge. Its lifetime never releases a Grant.
+use super::*;
+
+#[cfg(target_os = "linux")]
+#[allow(dead_code)] // Connected by the attached-manager installation/runtime slice.
+pub(crate) mod linux;
+
+pub const BRIDGE_VERSION: u32 = 1;
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BridgeRequest {
+    pub version: u32,
+    pub protocol_version: u32,
+    pub request_id: Uuid,
+    pub deadline_millis: u32,
+    pub command: BridgeCommand,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum BridgeCommand {
+    ConnectBegin {
+        hello: ConnectHello,
+    },
+    ConnectFinish {
+        challenge: Box<ConnectChallenge>,
+        tag: [u8; 32],
+    },
+    Exchange {
+        request: Box<Request>,
+    },
+    Participant {
+        domain: ExecutionDomainId,
+    },
+    AuthorityStatus,
+    SchedulingStatus,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BridgeReply {
+    pub version: u32,
+    pub protocol_version: u32,
+    pub request_id: Uuid,
+    pub outcome: BridgeOutcome,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum BridgeOutcome {
+    Challenge {
+        challenge: Box<ConnectChallenge>,
+    },
+    Participant {
+        participant: ParticipantSnapshot,
+    },
+    Exchange {
+        reply: Box<Reply>,
+    },
+    Authority {
+        authority: Box<crate::AuthoritySnapshot>,
+    },
+    Scheduling {
+        snapshot: Option<crate::MachineSchedulingSnapshot>,
+    },
+    Error {
+        code: String,
+        detail: String,
+    },
+}
+
+/// One in-flight frame, no unbounded read-ahead or worker queue. EOF stops only
+/// the transport. A partial/malformed/oversized frame terminates the bridge.
+pub fn serve(
+    reader: &mut impl Read,
+    writer: &mut impl Write,
+    mut exchange: impl FnMut(BridgeCommand, std::time::Instant) -> crate::Result<BridgeOutcome>,
+) -> std::io::Result<()> {
+    loop {
+        let mut first = [0_u8; 1];
+        let count = loop {
+            match reader.read(&mut first) {
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                result => break result?,
+            }
+        };
+        if count == 0 {
+            return Ok(());
+        }
+        let mut input = first.as_slice().chain(&mut *reader);
+        let request: BridgeRequest = read_frame(&mut input)?;
+        if request.version != BRIDGE_VERSION
+            || request.protocol_version != crate::protocol::PROTOCOL_VERSION
+            || request.request_id.is_nil()
+            || !(1..=30_000).contains(&request.deadline_millis)
+        {
+            return Err(invalid("unsupported or invalid bridge frame"));
+        }
+        let deadline = std::time::Instant::now()
+            + std::time::Duration::from_millis(u64::from(request.deadline_millis));
+        let outcome = match exchange(request.command, deadline) {
+            Ok(outcome) => outcome,
+            Err(error) => BridgeOutcome::Error {
+                code: match &error {
+                    crate::Error::Rejected { code, .. } => code.clone(),
+                    crate::Error::DeadlineElapsed => "deadline_elapsed".into(),
+                    _ => "bridge_unavailable".into(),
+                },
+                detail: error.to_string().chars().take(4096).collect(),
+            },
+        };
+        write_frame(
+            writer,
+            &BridgeReply {
+                version: BRIDGE_VERSION,
+                protocol_version: crate::protocol::PROTOCOL_VERSION,
+                request_id: request.request_id,
+                outcome,
+            },
+        )?;
+    }
+}
+
+/// Called by the installed native CLI with a connect-only coordinator Client.
+#[cfg(windows)]
+pub fn run(client: &crate::Client) -> crate::Result<()> {
+    let stdin = std::io::stdin();
+    let stdout = std::io::stdout();
+    serve(
+        &mut stdin.lock(),
+        &mut stdout.lock(),
+        |command, deadline| {
+            Ok(match command {
+                BridgeCommand::ConnectBegin { hello } => BridgeOutcome::Challenge {
+                    challenge: Box::new(client.machine_connect_begin(hello, deadline)?),
+                },
+                BridgeCommand::ConnectFinish { challenge, tag } => BridgeOutcome::Participant {
+                    participant: client.machine_connect_finish(*challenge, tag, deadline)?,
+                },
+                BridgeCommand::Exchange { request } => BridgeOutcome::Exchange {
+                    reply: Box::new(client.machine_exchange(*request, deadline)?),
+                },
+                BridgeCommand::Participant { domain } => BridgeOutcome::Participant {
+                    participant: client.machine_participant(domain, deadline)?,
+                },
+                BridgeCommand::AuthorityStatus => BridgeOutcome::Authority {
+                    authority: Box::new(client.authority_status(deadline, None)?),
+                },
+                BridgeCommand::SchedulingStatus => BridgeOutcome::Scheduling {
+                    snapshot: client.daemon_status(deadline, None)?.machine_scheduling,
+                },
+            })
+        },
+    )
+    .map_err(|error| crate::Error::Unavailable(format!("machine bridge transport: {error}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn request() -> BridgeRequest {
+        BridgeRequest {
+            version: BRIDGE_VERSION,
+            protocol_version: crate::protocol::PROTOCOL_VERSION,
+            request_id: Uuid::now_v7(),
+            deadline_millis: 5000,
+            command: BridgeCommand::AuthorityStatus,
+        }
+    }
+
+    #[test]
+    fn bridge_preserves_multiple_correlations_and_eof_never_calls_cleanup() {
+        let a = request();
+        let b = request();
+        let mut input = Vec::new();
+        write_frame(&mut input, &a).unwrap();
+        write_frame(&mut input, &b).unwrap();
+        let mut output = Vec::new();
+        let mut calls = 0;
+        serve(&mut input.as_slice(), &mut output, |_, deadline| {
+            calls += 1;
+            assert!(deadline > std::time::Instant::now());
+            Err(crate::Error::DeadlineElapsed)
+        })
+        .unwrap();
+        assert_eq!(calls, 2);
+        let mut output = output.as_slice();
+        for expected in [a.request_id, b.request_id] {
+            let reply: BridgeReply = read_frame(&mut output).unwrap();
+            assert_eq!(reply.request_id, expected);
+            assert!(matches!(reply.outcome, BridgeOutcome::Error { .. }));
+        }
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn bridge_rejects_versions_truncation_and_oversize_before_dispatch() {
+        let mut bad = request();
+        bad.protocol_version += 1;
+        let mut encoded = Vec::new();
+        write_frame(&mut encoded, &bad).unwrap();
+        for input in [
+            encoded,
+            vec![1],
+            ((MAX_FRAME_BYTES + 1) as u32).to_le_bytes().to_vec(),
+        ] {
+            let mut output = Vec::new();
+            assert!(
+                serve(&mut input.as_slice(), &mut output, |_, _| panic!(
+                    "invalid bridge frame dispatched"
+                ))
+                .is_err()
+            );
+            assert!(output.is_empty());
+        }
+    }
+}
+
+FILE src/machine/bridge/linux.rs
+//! Linux side of the installed Windows bridge, with absolute pipe deadlines.
+use super::*;
+use std::fs::File;
+use std::io;
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{FileTypeExt, MetadataExt};
+use std::path::Path;
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::time::{Duration, Instant};
+
+struct TimedIo<T> {
+    io: T,
+    deadline: Instant,
+}
+impl<T: AsRawFd> TimedIo<T> {
+    fn new(io: T, deadline: Instant) -> io::Result<Self> {
+        // SAFETY: borrowed live fd; changing status flags does not transfer it.
+        let flags = unsafe { libc::fcntl(io.as_raw_fd(), libc::F_GETFL) };
+        if flags < 0
+            || unsafe { libc::fcntl(io.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(Self { io, deadline })
+    }
+    fn ready(&self, events: i16) -> io::Result<()> {
+        loop {
+            let remaining = self.deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "Windows bridge deadline elapsed",
+                ));
+            }
+            let mut fd = libc::pollfd {
+                fd: self.io.as_raw_fd(),
+                events,
+                revents: 0,
+            };
+            // SAFETY: writable pollfd and finite timeout.
+            let result = unsafe {
+                libc::poll(
+                    &mut fd,
+                    1,
+                    remaining.as_millis().clamp(1, i32::MAX as u128) as i32,
+                )
+            };
+            if result < 0 {
+                let error = io::Error::last_os_error();
+                if error.kind() == io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return Err(error);
+            }
+            if result == 0 {
+                crate::runtime_metrics::waited(crate::runtime_metrics::Timer::Transport, true);
+            }
+            if result > 0 {
+                if fd.revents & libc::POLLNVAL != 0 {
+                    return Err(invalid("invalid Windows bridge pipe"));
+                }
+                // HUP/ERR is consumed by read/write as EOF or EPIPE.
+                return Ok(());
+            }
+        }
+    }
+}
+impl<T: Read + AsRawFd> Read for TimedIo<T> {
+    fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+        loop {
+            self.ready(libc::POLLIN)?;
+            match self.io.read(bytes) {
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                    ) =>
+                {
+                    continue;
+                }
+                result => return result,
+            }
+        }
+    }
+}
+impl<T: Write + AsRawFd> Write for TimedIo<T> {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        loop {
+            self.ready(libc::POLLOUT)?;
+            match self.io.write(bytes) {
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                    ) =>
+                {
+                    continue;
+                }
+                result => return result,
+            }
+        }
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.io.flush()
+    }
+}
+
+pub(crate) struct Bridge {
+    child: Option<Child>,
+    input: TimedIo<ChildStdin>,
+    output: TimedIo<ChildStdout>,
+    broken: bool,
+}
+
+impl Bridge {
+    pub(crate) fn spawn(
+        executable: &Path,
+        expected_sha256: &str,
+        endpoint: &str,
+        interop_socket: &Path,
+    ) -> io::Result<Self> {
+        if !executable.is_absolute() || !interop_socket.is_absolute() || expected_sha256.len() != 64
+        {
+            return Err(invalid(
+                "bridge needs explicit installed image and interop binding",
+            ));
+        }
+        // WSL can fall back to another session when WSL_INTEROP names a missing
+        // server. Require the configured external keepalive binding explicitly;
+        // absence must fence reconnect, not borrow an unrelated terminal's life.
+        let socket = std::fs::canonicalize(interop_socket)?;
+        let metadata = std::fs::metadata(&socket)?;
+        if socket.parent() != Some(Path::new("/run/WSL"))
+            || !metadata.file_type().is_socket()
+            || metadata.uid() != 0
+        {
+            return Err(invalid(
+                "installed WSL interop binding is not a root-owned runtime socket",
+            ));
+        }
+        let mut image = File::open(executable)?;
+        let mut hash = Sha256::new();
+        let mut buffer = [0_u8; 65536];
+        let mut total = 0_u64;
+        loop {
+            let n = image.read(&mut buffer)?;
+            if n == 0 {
+                break;
+            }
+            total += n as u64;
+            if total > 512 * 1024 * 1024 {
+                return Err(invalid("installed bridge image exceeds bound"));
+            }
+            hash.update(&buffer[..n]);
+        }
+        if format!("{:x}", hash.finalize()) != expected_sha256 {
+            return Err(invalid(
+                "installed Windows bridge differs from installation anchor",
+            ));
+        }
+        let mut child = Command::new(executable)
+            .args(["--endpoint", endpoint, "machine", "bridge"])
+            .env_clear()
+            .env("WSL_INTEROP", socket)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?;
+        let input = child
+            .stdin
+            .take()
+            .ok_or_else(|| invalid("bridge has no input pipe"))?;
+        let output = child
+            .stdout
+            .take()
+            .ok_or_else(|| invalid("bridge has no output pipe"))?;
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let pipes = TimedIo::new(input, deadline)
+            .and_then(|input| Ok((input, TimedIo::new(output, deadline)?)));
+        match pipes {
+            Ok((input, output)) => Ok(Self {
+                child: Some(child),
+                input,
+                output,
+                broken: false,
+            }),
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                Err(error)
+            }
+        }
+    }
+
+    pub(crate) fn exchange(
+        &mut self,
+        command: BridgeCommand,
+        deadline: Instant,
+    ) -> crate::Result<BridgeOutcome> {
+        if self.broken {
+            return Err(crate::Error::Unavailable(
+                "Windows bridge requires reconnect and journal recovery".into(),
+            ));
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(crate::Error::DeadlineElapsed);
+        }
+        let request = BridgeRequest {
+            version: BRIDGE_VERSION,
+            protocol_version: crate::protocol::PROTOCOL_VERSION,
+            request_id: Uuid::now_v7(),
+            deadline_millis: remaining.as_millis().clamp(1, 30000) as u32,
+            command,
+        };
+        self.input.deadline = deadline;
+        self.output.deadline = deadline;
+        self.broken = true;
+        let result = (|| -> io::Result<BridgeReply> {
+            write_frame(&mut self.input, &request)?;
+            read_frame(&mut self.output)
+        })();
+        let reply = result.map_err(|e| {
+            if e.kind() == io::ErrorKind::TimedOut {
+                crate::Error::DeadlineElapsed
+            } else {
+                crate::Error::Unavailable(format!("Windows bridge disconnected: {e}"))
+            }
+        })?;
+        if reply.version != BRIDGE_VERSION
+            || reply.protocol_version != request.protocol_version
+            || reply.request_id != request.request_id
+        {
+            return Err(crate::Error::Protocol(
+                "Windows bridge response correlation/version mismatch".into(),
+            ));
+        }
+        self.broken = false;
+        match reply.outcome {
+            BridgeOutcome::Error { code, detail } => Err(crate::Error::Rejected { code, detail }),
+            outcome => Ok(outcome),
+        }
+    }
+}
+
+impl Drop for Bridge {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            // Reaping the transport has no effect on executor/cgroup obligations.
+            let _ = std::thread::Builder::new()
+                .name("stillyard-bridge-reap".into())
+                .spawn(move || {
+                    let _ = child.wait();
+                });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::net::UnixStream;
+    #[test]
+    fn linux_bridge_deadline_covers_partial_frame_and_writes() {
+        let (left, mut right) = UnixStream::pair().unwrap();
+        let mut input = TimedIo::new(left, Instant::now() + Duration::from_millis(40)).unwrap();
+        right.write_all(&[40, 0]).unwrap();
+        let error = read_frame::<BridgeReply>(&mut input).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+        let mut output = TimedIo::new(right, Instant::now() + Duration::from_millis(40)).unwrap();
+        assert_eq!(
+            output
+                .write_all(&vec![0; 8 * 1024 * 1024])
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::TimedOut
+        );
+    }
+}
+
+FILE src/store/attached/driver.rs
+//! One persistent transport, durable outbox, and generation-local release barriers.
+//! Network I/O never retains the Store mutex used by cancellation and settlement.
+use super::*;
+use crate::machine::{
+    bridge::{BridgeCommand, BridgeOutcome},
+    manager,
+};
+use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
+
+type SharedStore = Arc<Mutex<Store>>;
+type Barrier = Arc<manager::release::ReleaseBarrier>;
+
+#[derive(Default)]
+pub(crate) struct ReleaseState {
+    barriers: Mutex<BTreeMap<InvocationId, Barrier>>,
+    signal: (Mutex<bool>, std::sync::Condvar),
+}
+impl ReleaseState {
+    pub(crate) fn wake(&self) {
+        if let Ok(mut pending) = self.signal.0.lock() {
+            *pending = true;
+            self.signal.1.notify_one();
+        }
+    }
+    pub(crate) fn wait(&self, duration: Duration) {
+        if let Ok(pending) = self.signal.0.lock() {
+            if let Ok((mut pending, result)) =
+                self.signal
+                    .1
+                    .wait_timeout_while(pending, duration, |pending| !*pending)
+            {
+                crate::runtime_metrics::waited(
+                    crate::runtime_metrics::Timer::Attached,
+                    result.timed_out(),
+                );
+                *pending = false;
+            }
+        }
+    }
+    pub(crate) fn challenge(
+        &self,
+        request: &crate::machine::Request,
+        generation: Uuid,
+        configuration: String,
+    ) -> StoreResult<()> {
+        let Command::AuthorizeInvocation { intent, .. } = &request.command else {
+            return Err(StoreError::InvalidState(
+                "release barrier requires an Invocation intent".into(),
+            ));
+        };
+        let mut barriers = self
+            .barriers
+            .lock()
+            .map_err(|_| StoreError::InvalidState("release registry poisoned".into()))?;
+        if barriers.len() >= 1024 && !barriers.contains_key(&intent.invocation_id) {
+            return Err(StoreError::InvalidState(
+                "release registry capacity reached".into(),
+            ));
+        }
+        let barrier = match barriers.entry(intent.invocation_id) {
+            std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::btree_map::Entry::Vacant(entry) => entry.insert(Arc::new(
+                manager::release::ReleaseBarrier::new(
+                    request.session.clone(),
+                    generation,
+                    configuration,
+                )
+                .map_err(protocol_error)?,
+            )),
+        };
+        barrier.challenge(request).map_err(protocol_error)
+    }
+    pub(crate) fn retire(&self, invocation: InvocationId) -> StoreResult<()> {
+        let barrier = self
+            .barriers
+            .lock()
+            .map_err(|_| StoreError::InvalidState("release registry poisoned".into()))?
+            .remove(&invocation);
+        if let Some(barrier) = barrier {
+            barrier.cancel().map_err(protocol_error)?;
+        }
+        Ok(())
+    }
+    /// Call only after the matching authenticated outcome is durably accepted.
+    pub(crate) fn accepted_rejection(
+        &self,
+        request: &crate::machine::Request,
+        outcome: &crate::machine::Outcome,
+    ) -> StoreResult<()> {
+        if let (
+            Command::AuthorizeInvocation { intent, .. },
+            crate::machine::Outcome::Rejected { .. },
+        ) = (&request.command, outcome)
+        {
+            self.retire(intent.invocation_id)?;
+        }
+        Ok(())
+    }
+    pub(crate) fn barrier(&self, invocation: InvocationId) -> StoreResult<Barrier> {
+        self.barriers
+            .lock()
+            .map_err(|_| StoreError::InvalidState("release registry poisoned".into()))?
+            .get(&invocation)
+            .cloned()
+            .ok_or_else(|| {
+                StoreError::InvalidState("Invocation has no live transmission barrier".into())
+            })
+    }
+    /// Never hold Store while canceling these barriers: release takes Store
+    /// first, then its barrier, to order a concurrent cancellation commit.
+    pub(crate) fn disconnect(&self) -> StoreResult<()> {
+        let old = std::mem::take(
+            &mut *self
+                .barriers
+                .lock()
+                .map_err(|_| StoreError::InvalidState("release registry poisoned".into()))?,
+        );
+        for barrier in old.into_values() {
+            barrier.cancel().map_err(protocol_error)?;
+        }
+        Ok(())
+    }
+}
+
+pub(crate) struct Driver {
+    configuration: installation::Configuration,
+    bridge: crate::machine::bridge::linux::Bridge,
+    releases: Arc<ReleaseState>,
+    generation: Uuid,
+    last_heartbeat: Instant,
+    last_observation: Instant,
+}
+fn lock(store: &SharedStore) -> StoreResult<std::sync::MutexGuard<'_, Store>> {
+    store
+        .lock()
+        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+}
+fn bridge_error(e: crate::Error) -> StoreError {
+    StoreError::InvalidState(e.to_string())
+}
+
+impl Driver {
+    pub(crate) fn connect(store: &SharedStore, releases: Arc<ReleaseState>) -> StoreResult<Self> {
+        releases.disconnect()?;
+        let (configuration, generation) = {
+            let store = lock(store)?;
+            installation::validate_store(&store.paths.root, &store.connection, store.store_uuid)?;
+            store
+                .connection
+                .execute("UPDATE attached_local_mode SET connected=0", [])?;
+            let configuration = installation::load(&store.paths.root)?
+                .ok_or_else(|| StoreError::InvalidState("installed attachment missing".into()))?;
+            (configuration, store.daemon_generation)
+        };
+        let mut bridge = crate::machine::bridge::linux::Bridge::spawn(
+            &configuration.bridge_executable,
+            &configuration.bridge_sha256,
+            &configuration.coordinator_endpoint,
+            &configuration.interop_socket,
+        )?;
+        let mut nonce = [0; 32];
+        getrandom::fill(&mut nonce).map_err(|e| StoreError::Io(std::io::Error::other(e)))?;
+        let hello = crate::machine::ConnectHello {
+            installation_nonce: configuration.pairing.installation.installation_nonce,
+            manager_store_uuid: configuration.pairing.manager_store_uuid,
+            executor_incarnation: generation,
+            executor_protocol: crate::protocol::PROTOCOL_VERSION,
+            executor_nonce: nonce,
+        };
+        let BridgeOutcome::Challenge { challenge } = bridge
+            .exchange(
+                BridgeCommand::ConnectBegin { hello },
+                Instant::now() + Duration::from_secs(5),
+            )
+            .map_err(bridge_error)?
+        else {
+            return Err(StoreError::InvalidState(
+                "bridge returned no handshake challenge".into(),
+            ));
+        };
+        if challenge.executor_nonce != nonce
+            || challenge.installation != configuration.pairing.installation
+            || challenge.coordinator_installation != configuration.coordinator_installation
+            || challenge.session.machine_id != configuration.machine_id
+            || challenge.session.manager_store_uuid != configuration.pairing.manager_store_uuid
+            || challenge.session.domain_id != configuration.pairing.installation.domain_id
+            || challenge.session.executor_incarnation != generation
+            || challenge.executor_protocol != crate::protocol::PROTOCOL_VERSION
+            || challenge.coordinator_protocol != crate::protocol::PROTOCOL_VERSION
+        {
+            return Err(StoreError::InvalidState(
+                "coordinator handshake differs from installed attachment".into(),
+            ));
+        }
+        let secret = crate::machine::PairingSecret::from_anchor(configuration.pairing.secret);
+        let tag = secret.sign_challenge(&challenge)?;
+        let session = challenge.session.clone();
+        let BridgeOutcome::Participant { participant } = bridge
+            .exchange(
+                BridgeCommand::ConnectFinish { challenge, tag },
+                Instant::now() + Duration::from_secs(5),
+            )
+            .map_err(bridge_error)?
+        else {
+            return Err(StoreError::InvalidState(
+                "bridge returned no authenticated participant".into(),
+            ));
+        };
+        if participant.installation != configuration.pairing.installation {
+            return Err(StoreError::InvalidState(
+                "authenticated participant changed installation".into(),
+            ));
+        }
+        {
+            let mut store = lock(store)?;
+            installation::validate_store(&store.paths.root, &store.connection, store.store_uuid)?;
+            let tx = store.connection.transaction()?;
+            // Bind validates continuous local watermarks. Inventory recovery
+            // imports obligations, never resurrects a consumed launch ticket.
+            let prior: Option<String> = tx.query_row(
+                "SELECT session_json FROM attached_peer WHERE singleton=1",
+                [],
+                |r| r.get(0),
+            )?;
+            if prior.is_none() {
+                manager::bind(&tx, &session, &participant).map_err(protocol_error)?;
+            }
+            manager::recovery::begin(&tx, &session, &participant).map_err(protocol_error)?;
+            tx.execute(
+                "UPDATE attached_local_mode SET session_json=?1,connected=0",
+                [serde_json::to_string(&session)?],
+            )?;
+            tx.commit()?;
+        }
+        let driver = Self {
+            configuration,
+            bridge,
+            releases,
+            generation,
+            last_heartbeat: Instant::now(),
+            last_observation: Instant::now(),
+        };
+        let mut driver = driver;
+        driver.refresh_observation(store)?;
+        Ok(driver)
+    }
+
+    fn refresh_observation(&mut self, store: &SharedStore) -> StoreResult<()> {
+        let BridgeOutcome::Scheduling {
+            snapshot: Some(snapshot),
+        } = self
+            .bridge
+            .exchange(
+                BridgeCommand::SchedulingStatus,
+                Instant::now() + Duration::from_secs(2),
+            )
+            .map_err(bridge_error)?
+        else {
+            return Err(StoreError::InvalidState(
+                "coordinator scheduling evidence is unavailable".into(),
+            ));
+        };
+        let store = lock(store)?;
+        store.record_attached_machine_observation(&snapshot)?;
+        self.last_observation = Instant::now();
+        let changed: bool = store.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM attached_local_mode WHERE connected=1 AND configuration_sha256!=?1)",
+            [&snapshot.configuration_sha256], |r| r.get(0),
+        )?;
+        if changed {
+            // Diagnostic evidence can fence a stale session, never authorize a
+            // new configuration. Full authenticated inventory binds that hash.
+            return Err(StoreError::InvalidState(
+                "coordinator configuration changed; full inventory is required".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Return whether an operation was exchanged. The caller uses the reactor's
+    /// wake signal and bounded backoff for idle/reconnect; no busy-spin thread.
+    pub(crate) fn step(&mut self, store: &SharedStore) -> StoreResult<bool> {
+        // Busy protocol traffic must not indefinitely postpone observations.
+        if self.last_observation.elapsed() >= Duration::from_secs(20) {
+            self.refresh_observation(store)?;
+        }
+        let secret = crate::machine::PairingSecret::from_anchor(self.configuration.pairing.secret);
+        let pending = {
+            let mut store = lock(store)?;
+            installation::validate_store(&store.paths.root, &store.connection, store.store_uuid)?;
+            let tx = store.connection.transaction()?;
+            if manager::pending(&tx, &secret)
+                .map_err(protocol_error)?
+                .is_none()
+            {
+                let recovering: bool = tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM attached_meta WHERE key='recovery')",
+                    [],
+                    |r| r.get(0),
+                )?;
+                if recovering {
+                    if let Some(command) =
+                        manager::recovery::next_page(&tx).map_err(protocol_error)?
+                    {
+                        manager::enqueue(&tx, Uuid::now_v7(), &command).map_err(protocol_error)?;
+                    } else {
+                        for command in
+                            manager::recovery::reconciliation(&tx).map_err(protocol_error)?
+                        {
+                            manager::enqueue(&tx, Uuid::now_v7(), &command)
+                                .map_err(protocol_error)?;
+                        }
+                    }
+                } else {
+                    super::queue::maintain(&tx)?;
+                }
+            }
+            let pending = manager::pending(&tx, &secret).map_err(protocol_error)?;
+            tx.commit()?;
+            pending
+        };
+        let Some(request) = pending else {
+            if self.last_heartbeat.elapsed() >= Duration::from_secs(5) {
+                let outcome = self
+                    .bridge
+                    .exchange(
+                        BridgeCommand::Participant {
+                            domain: self.configuration.pairing.installation.domain_id,
+                        },
+                        Instant::now() + Duration::from_secs(2),
+                    )
+                    .map_err(bridge_error)?;
+                let BridgeOutcome::Participant { participant } = outcome else {
+                    return Err(StoreError::InvalidState(
+                        "invalid bridge heartbeat response".into(),
+                    ));
+                };
+                if participant.executor_incarnation != Some(self.generation)
+                    || participant.reconciliation_required
+                {
+                    return Err(StoreError::InvalidState(
+                        "coordinator fenced the executor session".into(),
+                    ));
+                }
+                self.refresh_observation(store)?;
+                self.last_heartbeat = Instant::now();
+            }
+            return Ok(false);
+        };
+        if matches!(&request.command, Command::AuthorizeInvocation { .. }) {
+            let configuration: String = lock(store)?.connection.query_row(
+                "SELECT configuration_sha256 FROM attached_local_mode",
+                [],
+                |r| r.get(0),
+            )?;
+            self.releases
+                .challenge(&request, self.generation, configuration)?;
+        }
+        let BridgeOutcome::Exchange { reply } = self
+            .bridge
+            .exchange(
+                BridgeCommand::Exchange {
+                    request: Box::new(request.clone()),
+                },
+                Instant::now() + Duration::from_secs(2),
+            )
+            .map_err(bridge_error)?
+        else {
+            return Err(StoreError::InvalidState(
+                "bridge returned no protocol reply".into(),
+            ));
+        };
+        let mut store = lock(store)?;
+        installation::validate_store(&store.paths.root, &store.connection, store.store_uuid)?;
+        let tx = store.connection.transaction()?;
+        accept(&tx, &request, &reply)?;
+        if let crate::machine::Outcome::InventoryPage {
+            configuration_sha256,
+            ..
+        } = &reply.outcome
+        {
+            tx.execute(
+                "UPDATE attached_local_mode SET configuration_sha256=?1",
+                [configuration_sha256],
+            )?;
+        }
+        if let crate::machine::Outcome::Reconciled { .. } = &reply.outcome {
+            tx.execute("UPDATE attached_local_mode SET connected=1", [])?;
+        }
+        tx.commit()?;
+        // A durably accepted rejection proves THIS operation issued no Ticket.
+        // An unanswered operation or issued Ticket never gets a new clock.
+        self.releases.accepted_rejection(&request, &reply.outcome)?;
+        self.last_heartbeat = Instant::now();
+        Ok(true)
+    }
+}
+
+impl Drop for Driver {
+    fn drop(&mut self) {
+        // Stopping a pipe never manufactures a cleanup seal or releases tokens.
+        let _ = self.releases.disconnect();
+    }
+}
+
+FILE src/daemon/attached.rs
+//! A trusted bridge worker lives outside every user Invocation namespace.
+use super::*;
+use crate::store::attached::driver::{Driver, ReleaseState};
+use std::sync::Weak;
+
+pub(super) fn start(
+    store: SharedStore,
+    scheduler: Weak<DaemonReactor>,
+    releases: Arc<ReleaseState>,
+) -> Result<()> {
+    std::thread::Builder::new()
+        .name("stillyard-coordinator-bridge".into())
+        .spawn(move || {
+            let mut driver = None;
+            let mut reported = None;
+            loop {
+                let Some(scheduler) = scheduler.upgrade() else {
+                    break;
+                };
+                let step = (|| -> std::result::Result<bool, StoreError> {
+                    if driver.is_none() {
+                        driver = Some(Driver::connect(&store, Arc::clone(&releases))?);
+                    }
+                    driver.as_mut().unwrap().step(&store)
+                })();
+                match step {
+                    Ok(changed) => {
+                        reported = None;
+                        // Refresh local readiness for every candidate before the
+                        // next bounded offer inspection. No domain-head shortcut.
+                        let interval = store
+                            .lock()
+                            .ok()
+                            .and_then(|store| store.attached_poll_interval().ok())
+                            .unwrap_or(Duration::from_secs(1));
+                        if changed || interval < Duration::from_secs(1) {
+                            scheduler.wake();
+                        }
+                        if !changed {
+                            releases.wait(interval);
+                        }
+                    }
+                    Err(error) => {
+                        // Store -> barrier ordering matches the release path. A
+                        // known disconnect fences starts before any reconnect.
+                        let offline = store
+                            .lock()
+                            .map_err(|_| "store mutex poisoned".to_owned())
+                            .and_then(|store| store.attached_offline().map_err(|e| e.to_string()));
+                        let _ = releases.disconnect();
+                        driver = None;
+                        let detail = offline.err().unwrap_or_else(|| error.to_string());
+                        if reported.as_ref() != Some(&detail) {
+                            eprintln!("stillyard attached coordinator unavailable: {detail}");
+                            reported = Some(detail);
+                        }
+                        scheduler.wake();
+                        std::thread::sleep(Duration::from_secs(1));
+                        crate::runtime_metrics::waited(
+                            crate::runtime_metrics::Timer::Backoff,
+                            true,
+                        );
+                    }
+                }
+            }
+        })
+        .map_err(|e| Error::Unavailable(format!("cannot start coordinator bridge: {e}")))?;
+    Ok(())
+}

@@ -1,0 +1,1106 @@
+Read-only independent MR3 idle CPU/memory/timer acceptance coverage review. Lens: measurement completeness and executable negative-control strength. Contract: 5min both installed default daemons idle, noJobs/subscribers, process identities unchanged. Aggregate own timer budget <=6/min inclusive Windows daemon, Linux daemon, bridge/helper chain. Measured 300.743186s: daemon counters Linux attached15, other4 buckets0, allWindows0. Aggregate0.048214% oneCPU/48.809MiB. Exact Windows installed image excludes unrelated daemon. Python supervisor, Python keepalive and /init relay voluntaryCSdelta0; Linux bridge90CS (actual IPC); Linuxdaemon156CS. Supervisor selector.select no idle timeout, only backoff after failure; persistentbridge reads stdin blocking, perrequestRPC deadlines; no transport/backoff expiry. WSL Windows host wsl.exe and bridge each0CPU; no direct wake counters for those images. Need assess if source audit+zero failurecounter+raw observation credibly establishes aggregate timers, and limitations. New ignored test exercises actual ReleaseState.wait with 10ms timeout8times and doctor_check JSON; also wake then wait must not count. It is run alone as default attached Job via prebuilt test exe; not fulldaemon config mutation. Distinguish precisely what this demonstrates; propose minimal justified extra measurement/control, not unrelated rewrite. Existing Counter-only test was explicitly deemed insufficient. No malicious host-owner threat. Read supplied code and result and return JSON {verdict:pass|findings,summary:string,findings:[string]}. For findings give severity, concrete evidence and remedy. Do not assert missing unseen code defects. Root controls pending gate validation. Installed source z7 lacks newignoredtest, product wait and counters identical.
+
+FILE src/runtime_metrics.rs
+//! Process-local timer expiration counters; reading them creates no timer.
+//!
+//! These are diagnostics, never scheduling or cleanup authority. Compare two
+//! doctor snapshots from the same daemon generation over an idle interval.
+use std::sync::atomic::{AtomicU64, Ordering};
+
+#[derive(Clone, Copy)]
+pub(crate) enum Timer {
+    Reactor,
+    #[cfg(target_os = "linux")]
+    Attached,
+    Subscriber,
+    #[cfg(target_os = "linux")]
+    Transport,
+    Backoff,
+}
+
+#[derive(Default)]
+struct Counter(AtomicU64);
+impl Counter {
+    fn waited(&self, timed_out: bool) {
+        if timed_out {
+            let _ = self
+                .0
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+                    Some(value.saturating_add(1))
+                });
+        }
+    }
+    fn read(&self) -> u64 {
+        self.0.load(Ordering::Relaxed)
+    }
+}
+static REACTOR: Counter = Counter(AtomicU64::new(0));
+static ATTACHED: Counter = Counter(AtomicU64::new(0));
+static SUBSCRIBER: Counter = Counter(AtomicU64::new(0));
+static TRANSPORT: Counter = Counter(AtomicU64::new(0));
+static BACKOFF: Counter = Counter(AtomicU64::new(0));
+
+pub(crate) fn waited(timer: Timer, timed_out: bool) {
+    match timer {
+        Timer::Reactor => &REACTOR,
+        #[cfg(target_os = "linux")]
+        Timer::Attached => &ATTACHED,
+        Timer::Subscriber => &SUBSCRIBER,
+        #[cfg(target_os = "linux")]
+        Timer::Transport => &TRANSPORT,
+        Timer::Backoff => &BACKOFF,
+    }
+    .waited(timed_out);
+}
+pub(crate) fn doctor_check() -> crate::DoctorCheck {
+    crate::DoctorCheck {
+        code: "runtime_timer_expirations".into(),
+        status: crate::DoctorCheckStatus::Pass,
+        summary: serde_json::json!({
+            "reactor":REACTOR.read(),"attached":ATTACHED.read(),
+            "subscriber":SUBSCRIBER.read(),"transport":TRANSPORT.read(),
+            "backoff":BACKOFF.read()
+        })
+        .to_string(),
+        remediation: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Condvar, Mutex};
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn polling_control_is_counted_and_event_notification_is_not_a_timer() {
+        let counter = Counter::default();
+        let lock = Mutex::new(false);
+        let condition = Condvar::new();
+        std::thread::scope(|scope| {
+            let guard = lock.lock().unwrap();
+            scope.spawn(|| {
+                *lock.lock().unwrap() = true;
+                condition.notify_one();
+            });
+            let (_guard, result) = condition
+                .wait_timeout_while(guard, Duration::from_secs(5), |ready| !*ready)
+                .unwrap();
+            counter.waited(result.timed_out());
+        });
+        assert_eq!(counter.read(), 0);
+        let begin = Instant::now();
+        for _ in 0..5 {
+            let (_guard, result) = condition
+                .wait_timeout(lock.lock().unwrap(), Duration::from_millis(2))
+                .unwrap();
+            counter.waited(result.timed_out());
+        }
+        let elapsed = begin.elapsed().as_secs_f64();
+        assert_eq!(counter.read(), 5);
+        assert!(
+            counter.read() as f64 * 60.0 / elapsed > 6.0,
+            "polling control unexpectedly met the attached idle timer budget"
+        );
+    }
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "run alone as a system Job to measure the real attached wait path"]
+    fn attached_wait_polling_mutant_exceeds_idle_budget() {
+        use crate::store::attached::driver::ReleaseState;
+        fn observed() -> u64 {
+            serde_json::from_str::<serde_json::Value>(&doctor_check().summary).unwrap()["attached"].as_u64().unwrap()
+        }
+        let state = ReleaseState::default();
+        let before = observed();
+        state.wake();
+        state.wait(Duration::from_secs(1));
+        assert_eq!(observed(), before, "an event notification counted as a timer");
+        // Mutate the real driver's 20s idle wait into an actual 10ms polling
+        // loop. Exercise its instrumentation and doctor projection, not a
+        // separate Counter that would still pass if driver wiring disappeared.
+        let begin = Instant::now();
+        for _ in 0..8 { state.wait(Duration::from_millis(10)); }
+        let elapsed = begin.elapsed().as_secs_f64();
+        let expirations = observed() - before;
+        assert_eq!(expirations, 8);
+        let per_minute = expirations as f64 * 60.0 / elapsed;
+        assert!(per_minute > 6.0, "the polling mutant incorrectly met the idle budget");
+        println!("\n{}", serde_json::json!({"control":"attached_wait_polling_mutant", "interval_ms":10,
+            "duration_seconds":elapsed, "timer_expirations":expirations,
+            "expirations_per_minute":per_minute, "idle_budget_pass":false}));
+    }
+
+}
+
+FILE src/store/attached/driver.rs
+//! One persistent transport, durable outbox, and generation-local release barriers.
+//! Network I/O never retains the Store mutex used by cancellation and settlement.
+use super::*;
+use crate::machine::{
+    bridge::{BridgeCommand, BridgeOutcome},
+    manager,
+};
+use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
+
+type SharedStore = Arc<Mutex<Store>>;
+type Barrier = Arc<manager::release::ReleaseBarrier>;
+
+#[derive(Default)]
+pub(crate) struct ReleaseState {
+    barriers: Mutex<BTreeMap<InvocationId, Barrier>>,
+    signal: (Mutex<bool>, std::sync::Condvar),
+}
+impl ReleaseState {
+    pub(crate) fn wake(&self) {
+        if let Ok(mut pending) = self.signal.0.lock() {
+            *pending = true;
+            self.signal.1.notify_one();
+        }
+    }
+    pub(crate) fn wait(&self, duration: Duration) {
+        if let Ok(pending) = self.signal.0.lock() {
+            if let Ok((mut pending, result)) =
+                self.signal
+                    .1
+                    .wait_timeout_while(pending, duration, |pending| !*pending)
+            {
+                crate::runtime_metrics::waited(
+                    crate::runtime_metrics::Timer::Attached,
+                    result.timed_out(),
+                );
+                *pending = false;
+            }
+        }
+    }
+    pub(crate) fn challenge(
+        &self,
+        request: &crate::machine::Request,
+        generation: Uuid,
+        configuration: String,
+    ) -> StoreResult<()> {
+        let Command::AuthorizeInvocation { intent, .. } = &request.command else {
+            return Err(StoreError::InvalidState(
+                "release barrier requires an Invocation intent".into(),
+            ));
+        };
+        let mut barriers = self
+            .barriers
+            .lock()
+            .map_err(|_| StoreError::InvalidState("release registry poisoned".into()))?;
+        if barriers.len() >= 1024 && !barriers.contains_key(&intent.invocation_id) {
+            return Err(StoreError::InvalidState(
+                "release registry capacity reached".into(),
+            ));
+        }
+        let barrier = match barriers.entry(intent.invocation_id) {
+            std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::btree_map::Entry::Vacant(entry) => entry.insert(Arc::new(
+                manager::release::ReleaseBarrier::new(
+                    request.session.clone(),
+                    generation,
+                    configuration,
+                )
+                .map_err(protocol_error)?,
+            )),
+        };
+        barrier.challenge(request).map_err(protocol_error)
+    }
+    pub(crate) fn retire(&self, invocation: InvocationId) -> StoreResult<()> {
+        let barrier = self
+            .barriers
+            .lock()
+            .map_err(|_| StoreError::InvalidState("release registry poisoned".into()))?
+            .remove(&invocation);
+        if let Some(barrier) = barrier {
+            barrier.cancel().map_err(protocol_error)?;
+        }
+        Ok(())
+    }
+    /// Call only after the matching authenticated outcome is durably accepted.
+    pub(crate) fn accepted_rejection(
+        &self,
+        request: &crate::machine::Request,
+        outcome: &crate::machine::Outcome,
+    ) -> StoreResult<()> {
+        if let (
+            Command::AuthorizeInvocation { intent, .. },
+            crate::machine::Outcome::Rejected { .. },
+        ) = (&request.command, outcome)
+        {
+            self.retire(intent.invocation_id)?;
+        }
+        Ok(())
+    }
+    pub(crate) fn barrier(&self, invocation: InvocationId) -> StoreResult<Barrier> {
+        self.barriers
+            .lock()
+            .map_err(|_| StoreError::InvalidState("release registry poisoned".into()))?
+            .get(&invocation)
+            .cloned()
+            .ok_or_else(|| {
+                StoreError::InvalidState("Invocation has no live transmission barrier".into())
+            })
+    }
+    /// Never hold Store while canceling these barriers: release takes Store
+    /// first, then its barrier, to order a concurrent cancellation commit.
+    pub(crate) fn disconnect(&self) -> StoreResult<()> {
+        let old = std::mem::take(
+            &mut *self
+                .barriers
+                .lock()
+                .map_err(|_| StoreError::InvalidState("release registry poisoned".into()))?,
+        );
+        for barrier in old.into_values() {
+            barrier.cancel().map_err(protocol_error)?;
+        }
+        Ok(())
+    }
+}
+
+pub(crate) struct Driver {
+    configuration: installation::Configuration,
+    bridge: crate::machine::bridge::linux::Bridge,
+    releases: Arc<ReleaseState>,
+    generation: Uuid,
+    last_heartbeat: Instant,
+    last_observation: Instant,
+}
+fn lock(store: &SharedStore) -> StoreResult<std::sync::MutexGuard<'_, Store>> {
+    store
+        .lock()
+        .map_err(|_| StoreError::InvalidState("store mutex poisoned".into()))
+}
+fn bridge_error(e: crate::Error) -> StoreError {
+    StoreError::InvalidState(e.to_string())
+}
+
+impl Driver {
+    pub(crate) fn connect(store: &SharedStore, releases: Arc<ReleaseState>) -> StoreResult<Self> {
+        releases.disconnect()?;
+        let (configuration, generation) = {
+            let store = lock(store)?;
+            installation::validate_store(&store.paths.root, &store.connection, store.store_uuid)?;
+            store
+                .connection
+                .execute("UPDATE attached_local_mode SET connected=0", [])?;
+            let configuration = installation::load(&store.paths.root)?
+                .ok_or_else(|| StoreError::InvalidState("installed attachment missing".into()))?;
+            (configuration, store.daemon_generation)
+        };
+        let mut bridge = crate::machine::bridge::linux::Bridge::spawn(
+            &configuration.bridge_executable,
+            &configuration.bridge_sha256,
+            &configuration.coordinator_endpoint,
+            &configuration.interop_socket,
+        )?;
+        let mut nonce = [0; 32];
+        getrandom::fill(&mut nonce).map_err(|e| StoreError::Io(std::io::Error::other(e)))?;
+        let hello = crate::machine::ConnectHello {
+            installation_nonce: configuration.pairing.installation.installation_nonce,
+            manager_store_uuid: configuration.pairing.manager_store_uuid,
+            executor_incarnation: generation,
+            executor_protocol: crate::protocol::PROTOCOL_VERSION,
+            executor_nonce: nonce,
+        };
+        let BridgeOutcome::Challenge { challenge } = bridge
+            .exchange(
+                BridgeCommand::ConnectBegin { hello },
+                Instant::now() + Duration::from_secs(5),
+            )
+            .map_err(bridge_error)?
+        else {
+            return Err(StoreError::InvalidState(
+                "bridge returned no handshake challenge".into(),
+            ));
+        };
+        if challenge.executor_nonce != nonce
+            || challenge.installation != configuration.pairing.installation
+            || challenge.coordinator_installation != configuration.coordinator_installation
+            || challenge.session.machine_id != configuration.machine_id
+            || challenge.session.manager_store_uuid != configuration.pairing.manager_store_uuid
+            || challenge.session.domain_id != configuration.pairing.installation.domain_id
+            || challenge.session.executor_incarnation != generation
+            || challenge.executor_protocol != crate::protocol::PROTOCOL_VERSION
+            || challenge.coordinator_protocol != crate::protocol::PROTOCOL_VERSION
+        {
+            return Err(StoreError::InvalidState(
+                "coordinator handshake differs from installed attachment".into(),
+            ));
+        }
+        let secret = crate::machine::PairingSecret::from_anchor(configuration.pairing.secret);
+        let tag = secret.sign_challenge(&challenge)?;
+        let session = challenge.session.clone();
+        let BridgeOutcome::Participant { participant } = bridge
+            .exchange(
+                BridgeCommand::ConnectFinish { challenge, tag },
+                Instant::now() + Duration::from_secs(5),
+            )
+            .map_err(bridge_error)?
+        else {
+            return Err(StoreError::InvalidState(
+                "bridge returned no authenticated participant".into(),
+            ));
+        };
+        if participant.installation != configuration.pairing.installation {
+            return Err(StoreError::InvalidState(
+                "authenticated participant changed installation".into(),
+            ));
+        }
+        {
+            let mut store = lock(store)?;
+            installation::validate_store(&store.paths.root, &store.connection, store.store_uuid)?;
+            let tx = store.connection.transaction()?;
+            // Bind validates continuous local watermarks. Inventory recovery
+            // imports obligations, never resurrects a consumed launch ticket.
+            let prior: Option<String> = tx.query_row(
+                "SELECT session_json FROM attached_peer WHERE singleton=1",
+                [],
+                |r| r.get(0),
+            )?;
+            if prior.is_none() {
+                manager::bind(&tx, &session, &participant).map_err(protocol_error)?;
+            }
+            manager::recovery::begin(&tx, &session, &participant).map_err(protocol_error)?;
+            tx.execute(
+                "UPDATE attached_local_mode SET session_json=?1,connected=0",
+                [serde_json::to_string(&session)?],
+            )?;
+            tx.commit()?;
+        }
+        let driver = Self {
+            configuration,
+            bridge,
+            releases,
+            generation,
+            last_heartbeat: Instant::now(),
+            last_observation: Instant::now(),
+        };
+        let mut driver = driver;
+        driver.refresh_observation(store)?;
+        Ok(driver)
+    }
+
+    fn refresh_observation(&mut self, store: &SharedStore) -> StoreResult<()> {
+        let BridgeOutcome::Scheduling {
+            snapshot: Some(snapshot),
+        } = self
+            .bridge
+            .exchange(
+                BridgeCommand::SchedulingStatus,
+                Instant::now() + Duration::from_secs(2),
+            )
+            .map_err(bridge_error)?
+        else {
+            return Err(StoreError::InvalidState(
+                "coordinator scheduling evidence is unavailable".into(),
+            ));
+        };
+        let store = lock(store)?;
+        store.record_attached_machine_observation(&snapshot)?;
+        self.last_observation = Instant::now();
+        let changed: bool = store.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM attached_local_mode WHERE connected=1 AND configuration_sha256!=?1)",
+            [&snapshot.configuration_sha256], |r| r.get(0),
+        )?;
+        if changed {
+            // Diagnostic evidence can fence a stale session, never authorize a
+            // new configuration. Full authenticated inventory binds that hash.
+            return Err(StoreError::InvalidState(
+                "coordinator configuration changed; full inventory is required".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Return whether an operation was exchanged. The caller uses the reactor's
+    /// wake signal and bounded backoff for idle/reconnect; no busy-spin thread.
+    pub(crate) fn step(&mut self, store: &SharedStore) -> StoreResult<bool> {
+        // Busy protocol traffic must not indefinitely postpone observations.
+        if self.last_observation.elapsed() >= Duration::from_secs(20) {
+            self.refresh_observation(store)?;
+        }
+        let secret = crate::machine::PairingSecret::from_anchor(self.configuration.pairing.secret);
+        let pending = {
+            let mut store = lock(store)?;
+            installation::validate_store(&store.paths.root, &store.connection, store.store_uuid)?;
+            let tx = store.connection.transaction()?;
+            if manager::pending(&tx, &secret)
+                .map_err(protocol_error)?
+                .is_none()
+            {
+                let recovering: bool = tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM attached_meta WHERE key='recovery')",
+                    [],
+                    |r| r.get(0),
+                )?;
+                if recovering {
+                    if let Some(command) =
+                        manager::recovery::next_page(&tx).map_err(protocol_error)?
+                    {
+                        manager::enqueue(&tx, Uuid::now_v7(), &command).map_err(protocol_error)?;
+                    } else {
+                        for command in
+                            manager::recovery::reconciliation(&tx).map_err(protocol_error)?
+                        {
+                            manager::enqueue(&tx, Uuid::now_v7(), &command)
+                                .map_err(protocol_error)?;
+                        }
+                    }
+                } else {
+                    super::queue::maintain(&tx)?;
+                }
+            }
+            let pending = manager::pending(&tx, &secret).map_err(protocol_error)?;
+            tx.commit()?;
+            pending
+        };
+        let Some(request) = pending else {
+            if self.last_heartbeat.elapsed() >= Duration::from_secs(5) {
+                let outcome = self
+                    .bridge
+                    .exchange(
+                        BridgeCommand::Participant {
+                            domain: self.configuration.pairing.installation.domain_id,
+                        },
+                        Instant::now() + Duration::from_secs(2),
+                    )
+                    .map_err(bridge_error)?;
+                let BridgeOutcome::Participant { participant } = outcome else {
+                    return Err(StoreError::InvalidState(
+                        "invalid bridge heartbeat response".into(),
+                    ));
+                };
+                if participant.executor_incarnation != Some(self.generation)
+                    || participant.reconciliation_required
+                {
+                    return Err(StoreError::InvalidState(
+                        "coordinator fenced the executor session".into(),
+                    ));
+                }
+                self.refresh_observation(store)?;
+                self.last_heartbeat = Instant::now();
+            }
+            return Ok(false);
+        };
+        if matches!(&request.command, Command::AuthorizeInvocation { .. }) {
+            let configuration: String = lock(store)?.connection.query_row(
+                "SELECT configuration_sha256 FROM attached_local_mode",
+                [],
+                |r| r.get(0),
+            )?;
+            self.releases
+                .challenge(&request, self.generation, configuration)?;
+        }
+        let BridgeOutcome::Exchange { reply } = self
+            .bridge
+            .exchange(
+                BridgeCommand::Exchange {
+                    request: Box::new(request.clone()),
+                },
+                Instant::now() + Duration::from_secs(2),
+            )
+            .map_err(bridge_error)?
+        else {
+            return Err(StoreError::InvalidState(
+                "bridge returned no protocol reply".into(),
+            ));
+        };
+        let mut store = lock(store)?;
+        installation::validate_store(&store.paths.root, &store.connection, store.store_uuid)?;
+        let tx = store.connection.transaction()?;
+        accept(&tx, &request, &reply)?;
+        if let crate::machine::Outcome::InventoryPage {
+            configuration_sha256,
+            ..
+        } = &reply.outcome
+        {
+            tx.execute(
+                "UPDATE attached_local_mode SET configuration_sha256=?1",
+                [configuration_sha256],
+            )?;
+        }
+        if let crate::machine::Outcome::Reconciled { .. } = &reply.outcome {
+            tx.execute("UPDATE attached_local_mode SET connected=1", [])?;
+        }
+        tx.commit()?;
+        // A durably accepted rejection proves THIS operation issued no Ticket.
+        // An unanswered operation or issued Ticket never gets a new clock.
+        self.releases.accepted_rejection(&request, &reply.outcome)?;
+        self.last_heartbeat = Instant::now();
+        Ok(true)
+    }
+}
+
+impl Drop for Driver {
+    fn drop(&mut self) {
+        // Stopping a pipe never manufactures a cleanup seal or releases tokens.
+        let _ = self.releases.disconnect();
+    }
+}
+
+FILE src/machine/bridge.rs
+//! Persistent, bounded stdin/stdout bridge. Its lifetime never releases a Grant.
+use super::*;
+
+#[cfg(target_os = "linux")]
+#[allow(dead_code)] // Connected by the attached-manager installation/runtime slice.
+pub(crate) mod linux;
+
+pub const BRIDGE_VERSION: u32 = 1;
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BridgeRequest {
+    pub version: u32,
+    pub protocol_version: u32,
+    pub request_id: Uuid,
+    pub deadline_millis: u32,
+    pub command: BridgeCommand,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum BridgeCommand {
+    ConnectBegin {
+        hello: ConnectHello,
+    },
+    ConnectFinish {
+        challenge: Box<ConnectChallenge>,
+        tag: [u8; 32],
+    },
+    Exchange {
+        request: Box<Request>,
+    },
+    Participant {
+        domain: ExecutionDomainId,
+    },
+    AuthorityStatus,
+    SchedulingStatus,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BridgeReply {
+    pub version: u32,
+    pub protocol_version: u32,
+    pub request_id: Uuid,
+    pub outcome: BridgeOutcome,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum BridgeOutcome {
+    Challenge {
+        challenge: Box<ConnectChallenge>,
+    },
+    Participant {
+        participant: ParticipantSnapshot,
+    },
+    Exchange {
+        reply: Box<Reply>,
+    },
+    Authority {
+        authority: Box<crate::AuthoritySnapshot>,
+    },
+    Scheduling {
+        snapshot: Option<crate::MachineSchedulingSnapshot>,
+    },
+    Error {
+        code: String,
+        detail: String,
+    },
+}
+
+/// One in-flight frame, no unbounded read-ahead or worker queue. EOF stops only
+/// the transport. A partial/malformed/oversized frame terminates the bridge.
+pub fn serve(
+    reader: &mut impl Read,
+    writer: &mut impl Write,
+    mut exchange: impl FnMut(BridgeCommand, std::time::Instant) -> crate::Result<BridgeOutcome>,
+) -> std::io::Result<()> {
+    loop {
+        let mut first = [0_u8; 1];
+        let count = loop {
+            match reader.read(&mut first) {
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                result => break result?,
+            }
+        };
+        if count == 0 {
+            return Ok(());
+        }
+        let mut input = first.as_slice().chain(&mut *reader);
+        let request: BridgeRequest = read_frame(&mut input)?;
+        if request.version != BRIDGE_VERSION
+            || request.protocol_version != crate::protocol::PROTOCOL_VERSION
+            || request.request_id.is_nil()
+            || !(1..=30_000).contains(&request.deadline_millis)
+        {
+            return Err(invalid("unsupported or invalid bridge frame"));
+        }
+        let deadline = std::time::Instant::now()
+            + std::time::Duration::from_millis(u64::from(request.deadline_millis));
+        let outcome = match exchange(request.command, deadline) {
+            Ok(outcome) => outcome,
+            Err(error) => BridgeOutcome::Error {
+                code: match &error {
+                    crate::Error::Rejected { code, .. } => code.clone(),
+                    crate::Error::DeadlineElapsed => "deadline_elapsed".into(),
+                    _ => "bridge_unavailable".into(),
+                },
+                detail: error.to_string().chars().take(4096).collect(),
+            },
+        };
+        write_frame(
+            writer,
+            &BridgeReply {
+                version: BRIDGE_VERSION,
+                protocol_version: crate::protocol::PROTOCOL_VERSION,
+                request_id: request.request_id,
+                outcome,
+            },
+        )?;
+    }
+}
+
+/// Called by the installed native CLI with a connect-only coordinator Client.
+#[cfg(windows)]
+pub fn run(client: &crate::Client) -> crate::Result<()> {
+    let stdin = std::io::stdin();
+    let stdout = std::io::stdout();
+    serve(
+        &mut stdin.lock(),
+        &mut stdout.lock(),
+        |command, deadline| {
+            Ok(match command {
+                BridgeCommand::ConnectBegin { hello } => BridgeOutcome::Challenge {
+                    challenge: Box::new(client.machine_connect_begin(hello, deadline)?),
+                },
+                BridgeCommand::ConnectFinish { challenge, tag } => BridgeOutcome::Participant {
+                    participant: client.machine_connect_finish(*challenge, tag, deadline)?,
+                },
+                BridgeCommand::Exchange { request } => BridgeOutcome::Exchange {
+                    reply: Box::new(client.machine_exchange(*request, deadline)?),
+                },
+                BridgeCommand::Participant { domain } => BridgeOutcome::Participant {
+                    participant: client.machine_participant(domain, deadline)?,
+                },
+                BridgeCommand::AuthorityStatus => BridgeOutcome::Authority {
+                    authority: Box::new(client.authority_status(deadline, None)?),
+                },
+                BridgeCommand::SchedulingStatus => BridgeOutcome::Scheduling {
+                    snapshot: client.daemon_status(deadline, None)?.machine_scheduling,
+                },
+            })
+        },
+    )
+    .map_err(|error| crate::Error::Unavailable(format!("machine bridge transport: {error}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn request() -> BridgeRequest {
+        BridgeRequest {
+            version: BRIDGE_VERSION,
+            protocol_version: crate::protocol::PROTOCOL_VERSION,
+            request_id: Uuid::now_v7(),
+            deadline_millis: 5000,
+            command: BridgeCommand::AuthorityStatus,
+        }
+    }
+
+    #[test]
+    fn bridge_preserves_multiple_correlations_and_eof_never_calls_cleanup() {
+        let a = request();
+        let b = request();
+        let mut input = Vec::new();
+        write_frame(&mut input, &a).unwrap();
+        write_frame(&mut input, &b).unwrap();
+        let mut output = Vec::new();
+        let mut calls = 0;
+        serve(&mut input.as_slice(), &mut output, |_, deadline| {
+            calls += 1;
+            assert!(deadline > std::time::Instant::now());
+            Err(crate::Error::DeadlineElapsed)
+        })
+        .unwrap();
+        assert_eq!(calls, 2);
+        let mut output = output.as_slice();
+        for expected in [a.request_id, b.request_id] {
+            let reply: BridgeReply = read_frame(&mut output).unwrap();
+            assert_eq!(reply.request_id, expected);
+            assert!(matches!(reply.outcome, BridgeOutcome::Error { .. }));
+        }
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn bridge_rejects_versions_truncation_and_oversize_before_dispatch() {
+        let mut bad = request();
+        bad.protocol_version += 1;
+        let mut encoded = Vec::new();
+        write_frame(&mut encoded, &bad).unwrap();
+        for input in [
+            encoded,
+            vec![1],
+            ((MAX_FRAME_BYTES + 1) as u32).to_le_bytes().to_vec(),
+        ] {
+            let mut output = Vec::new();
+            assert!(
+                serve(&mut input.as_slice(), &mut output, |_, _| panic!(
+                    "invalid bridge frame dispatched"
+                ))
+                .is_err()
+            );
+            assert!(output.is_empty());
+        }
+    }
+}
+
+FILE scripts/wsl-service.py
+#!/usr/bin/env python3
+"""Installed WSL lifetime/delegation helper, outside user Invocation namespaces.
+
+A Windows lifetime owner runs keepalive in a foreground wsl.exe session. It
+publishes only a transport alias, never resource or cleanup authority. The user
+service owns delegation and supervises the pinned daemon in a separate subgroup,
+so daemon crashes cannot make systemd remove unsealed executor boundaries.
+Neither operation invokes Cargo.
+"""
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import signal
+import selectors
+import stat
+import subprocess
+import time
+import uuid
+
+
+def private_directory(path):
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    metadata = path.lstat()
+    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077:
+        raise RuntimeError("service state directory must be owner-only")
+
+
+def keepalive(root):
+    private_directory(root)
+    descriptor = os.open(root / "keepalive.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    metadata = os.fstat(descriptor)
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077:
+        raise RuntimeError("unsafe keepalive singleton file")
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    socket = Path(os.environ["WSL_INTEROP"])
+    if not socket.is_absolute() or socket.parent != Path("/run/WSL"):
+        raise RuntimeError("keepalive must inherit an absolute WSL runtime socket")
+    metadata = socket.lstat()
+    if not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != 0:
+        raise RuntimeError("keepalive must inherit a real WSL interop server")
+    alias = root / "interop.sock"
+    if alias.exists() and not alias.is_symlink():
+        raise RuntimeError("refusing to replace a non-alias interop path")
+    # Block termination before publishing the alias or starting the service.
+    # Failed startup and pending signals share the same cleanup scope.
+    termination = {signal.SIGTERM, signal.SIGINT}
+    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, termination)
+    staging = root / (".interop-" + uuid.uuid4().hex)
+    try:
+        staging.symlink_to(socket)
+        staging.replace(alias)
+        print(json.dumps({"pid": os.getpid(), "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
+                          "interop_alias": str(alias), "interop_server": str(socket), "kind": "wsl_keepalive"}), flush=True)
+        environment = {"XDG_RUNTIME_DIR": f"/run/user/{os.geteuid()}",
+                       "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{os.geteuid()}/bus"}
+        subprocess.run(["/usr/bin/systemctl", "--user", "start", "--no-block", "stillyard.service"],
+                       env=environment, check=True, timeout=15)
+        signal.sigwait(termination)
+    finally:
+        if alias.is_symlink() and alias.readlink() == socket:
+            alias.unlink()
+        if staging.is_symlink():
+            staging.unlink()
+        os.close(descriptor)
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+
+
+def delegate(executors, ram_mb):
+    # DelegateSubgroup=manager keeps service processes out of the delegated
+    # parent, which must be empty before enabling domain controllers.
+    entry = Path("/proc/self/cgroup").read_text().strip()
+    if not entry.startswith("0::/") or "\n" in entry:
+        raise RuntimeError("unified cgroup identity is unavailable")
+    current = Path("/sys/fs/cgroup") / entry[4:]
+    parent = current.parent
+    if current.name not in ("manager", ".control") or parent.name != "stillyard.service" or executors != parent / "executors":
+        raise RuntimeError(f"service cgroup differs from installed delegation: current={current}, expected={executors}")
+    controllers = (parent / "cgroup.controllers").read_text().split()
+    if not {"memory", "pids", "cpu"}.issubset(controllers):
+        raise RuntimeError("required cgroup controllers were not delegated")
+    (parent / "cgroup.subtree_control").write_text("+memory +pids +cpu")
+    executors.mkdir(exist_ok=True)
+    (executors / "cgroup.subtree_control").write_text("+memory +pids +cpu")
+    if not 512 <= ram_mb <= 1048576:
+        raise RuntimeError("invalid executor RAM hard limit")
+    (executors / "memory.max").write_text(str(ram_mb * 1024 * 1024))
+    (executors / "pids.max").write_text("4096")
+    print(json.dumps({"kind": "wsl_delegation", "executors": str(executors),
+                      "memory_max": (executors / "memory.max").read_text().strip(),
+                      "controllers": (executors / "cgroup.subtree_control").read_text().strip()}), flush=True)
+
+
+def supervise(executors, daemon):
+    """Keep delegation alive across daemon crashes; never clean user cgroups.
+
+    systemd 259 may spawn a restarted unit into a non-leaf cgroup (EBUSY).
+    More importantly, stopping that unit can remove empty but unsealed cgroups.
+    Its persistent main process therefore owns delegation; the daemon alone is
+    restarted here and must reconcile its unchanged journal/boundary identities.
+    """
+    parent = executors.parent
+    control = parent / "manager"
+    keeper = parent / "supervisor"
+    keeper.mkdir(exist_ok=True)
+    (keeper / "cgroup.procs").write_text(str(os.getpid()))
+    closing = False
+    def stop(_number, _frame):
+        nonlocal closing
+        closing = True
+    read_fd, write_fd = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+    previous_wakeup = signal.set_wakeup_fd(write_fd)
+    previous_term = signal.signal(signal.SIGTERM, stop)
+    previous_int = signal.signal(signal.SIGINT, stop)
+    selector = selectors.DefaultSelector()
+    selector.register(read_fd, selectors.EVENT_READ)
+    def drain_signal():
+        try:
+            while os.read(read_fd, 4096):
+                pass
+        except BlockingIOError:
+            pass
+    def emit(value):
+        # A failed journal sink must not tear down the lifetime owner.
+        try:
+            print(json.dumps(value), flush=True)
+        except OSError:
+            pass
+    def clear_control():
+        # Only trusted daemon/bridge processes inherit manager. Invocations are
+        # born separately under executors and are cleaned ONLY by their journal.
+        if not control.exists():
+            return
+        (control / "cgroup.kill").write_text("1")
+        until = time.monotonic() + 5
+        while dict(line.split() for line in (control / "cgroup.events").read_text().splitlines())["populated"] != "0":
+            if time.monotonic() >= until:
+                raise RuntimeError("control-plane cgroup did not empty; executor history retained")
+            time.sleep(.01)
+    def place_child():
+        # This process must remain single-threaded: preexec_fn runs Python
+        # between fork and exec to place the trusted daemon before it can spawn.
+        (control / "cgroup.procs").write_text(str(os.getpid()))
+        signal.set_wakeup_fd(-1)
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+    delay = 1
+    child = None
+    try:
+        while True:
+            pidfd = None
+            registered = False
+            started = time.monotonic()
+            try:
+                # A prior failed teardown must complete before another spawn.
+                clear_control()
+                if child is not None:
+                    child.wait(timeout=1)
+                    child = None
+                if closing:
+                    break
+                control.mkdir(exist_ok=True)
+                child = subprocess.Popen([str(daemon), "daemon"], preexec_fn=place_child)
+                # Unreaped direct child: no PID reuse before pidfd_open.
+                pidfd = os.pidfd_open(child.pid)
+                selector.register(pidfd, selectors.EVENT_READ)
+                registered = True
+                emit({"kind": "wsl_daemon_started", "supervisor_pid": os.getpid(),
+                      "daemon_pid": child.pid, "executable": str(daemon)})
+                while child.poll() is None and not closing:
+                    for key, _ in selector.select():
+                        if key.fd == read_fd:
+                            drain_signal()
+                if closing and child.poll() is None:
+                    try:
+                        signal.pidfd_send_signal(pidfd, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        child.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        clear_control()
+                code = child.wait(timeout=1)
+                clear_control()
+                emit({"kind": "wsl_daemon_exited", "daemon_pid": child.pid,
+                      "exit_code": code, "service_stopping": closing})
+                child = None
+                if closing:
+                    break
+            except Exception as error:
+                # Retain the main process and delegated tree even when spawn,
+                # inspection or teardown fails. Never infer executor emptiness.
+                emit({"kind": "wsl_supervisor_retry", "error": str(error),
+                      "service_stopping": closing})
+            finally:
+                if registered:
+                    selector.unregister(pidfd)
+                if pidfd is not None:
+                    os.close(pidfd)
+            delay = 1 if time.monotonic() - started >= 10 else min(delay * 2, 30)
+            # No idle polling. Only failure backoff has a timer; stop wakes it.
+            for key, _ in selector.select(timeout=delay):
+                if key.fd == read_fd:
+                    drain_signal()
+    finally:
+        # Routine child failures are handled inside the loop. Always restore
+        # signal/fd state if an exceptional interpreter shutdown escapes it.
+        try:
+            if child is not None and child.poll() is None:
+                clear_control()
+                child.wait(timeout=1)
+        finally:
+            selector.close()
+            signal.set_wakeup_fd(previous_wakeup)
+            signal.signal(signal.SIGTERM, previous_term)
+            signal.signal(signal.SIGINT, previous_int)
+            os.close(read_fd)
+            os.close(write_fd)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+    p = sub.add_parser("keepalive")
+    p.add_argument("--root", type=Path, required=True)
+    p = sub.add_parser("delegate")
+    p.add_argument("--executors", type=Path, required=True)
+    p.add_argument("--ram-mb", type=int, required=True)
+    p = sub.add_parser("run")
+    p.add_argument("--executors", type=Path, required=True)
+    p.add_argument("--ram-mb", type=int, required=True)
+    p.add_argument("--daemon", type=Path, required=True)
+    args = parser.parse_args()
+    if args.command == "keepalive":
+        keepalive(args.root)
+    else:
+        delegate(args.executors, args.ram_mb)
+        if args.command == "run":
+            if not args.daemon.is_absolute():
+                raise RuntimeError("installed daemon path must be absolute")
+            supervise(args.executors, args.daemon)
+
+
+if __name__ == "__main__":
+    main()
+
+EVIDENCE docs/evidence/mr3-idle-20260910z7/result.json
+{
+  "duration_seconds": 300.7431860350043,
+  "processes": [
+    {
+      "side": "linux",
+      "pid": 608705,
+      "name": "python3",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 8.75,
+      "voluntary_switches": 0
+    },
+    {
+      "side": "linux",
+      "pid": 608712,
+      "name": "stillyard",
+      "cpu_percent_one_core": 0.006650192233340291,
+      "memory_mib": 3.0,
+      "voluntary_switches": 156
+    },
+    {
+      "side": "linux",
+      "pid": 608720,
+      "name": "stillyard.exe",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 0.0,
+      "voluntary_switches": 90
+    },
+    {
+      "side": "linux",
+      "pid": 3989858,
+      "name": "Relay(3989859)",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 0.0,
+      "voluntary_switches": 0
+    },
+    {
+      "side": "linux",
+      "pid": 3989859,
+      "name": "python3",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 8.25,
+      "voluntary_switches": 0
+    },
+    {
+      "side": "windows",
+      "pid": 9140,
+      "name": "stillyard",
+      "cpu_percent_one_core": 0.04156370145837682,
+      "memory_mib": 26.0390625
+    },
+    {
+      "side": "windows",
+      "pid": 51292,
+      "name": "stillyard",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 1.4609375
+    },
+    {
+      "side": "windows",
+      "pid": 32592,
+      "name": "wsl",
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 1.30859375
+    }
+  ],
+  "daemon_timer_expirations": {
+    "linux": {
+      "attached": 15,
+      "backoff": 0,
+      "reactor": 0,
+      "subscriber": 0,
+      "transport": 0
+    },
+    "windows": {
+      "attached": 0,
+      "backoff": 0,
+      "reactor": 0,
+      "subscriber": 0,
+      "transport": 0
+    }
+  },
+  "limits": {
+    "daemon_cpu_percent": 0.5,
+    "daemon_memory_mib": 40,
+    "bridge_cpu_percent": 0.1,
+    "bridge_memory_mib": 16,
+    "aggregate_cpu_percent": 1.1,
+    "aggregate_memory_mib": 96,
+    "aggregate_timer_expirations_per_minute": 6
+  },
+  "helper_timer_coverage": "Daemon counters cover application-owned timer expirations. Helper event-only waits require separate source audit; context switches are retained only as diagnostics, never relabeled as timer counts.",
+  "aggregate_cpu_percent": 0.04821389369171711,
+  "aggregate_memory_mib": 48.80859375,
+  "daemon_timer_expirations_per_minute": 2.992586505003131
+}

@@ -1,0 +1,13 @@
+{
+  "event_count": 506,
+  "selected_jobs": [
+    "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a0a-8854-77c1-a1f2-d0a66640cecc",
+    "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a0a-8363-72d0-be81-e3d8c75518fa"
+  ],
+  "maximum_cargo_debit_in_selected_window": 1,
+  "continuous_from_sequence": 1,
+  "last_cursor": {
+    "coordinator_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+    "sequence": 506
+  }
+}

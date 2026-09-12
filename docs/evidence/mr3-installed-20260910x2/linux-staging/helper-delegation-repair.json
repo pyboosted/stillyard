@@ -1,0 +1,5 @@
+{
+  "old_sha256": "9cb73243bc2b28a2c58803a80f18a079b944188724c0aeb679e5eb2e09494bdf",
+  "new_sha256": "2f25040c42f08ee23983bd2a69b8670b82e1d83eac766f1bb67271bab2b055ab",
+  "reason": "systemd runs ExecStartPre in .control when DelegateSubgroup is configured; exact parent and executor path still required"
+}

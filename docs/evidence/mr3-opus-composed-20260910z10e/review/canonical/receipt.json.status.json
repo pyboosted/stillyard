@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-fb45-7dd1-8caa-b6e84d013f25",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-fb43-7fc3-946c-0923d4586cc5",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-fb49-7840-8813-fa1f2040e8d0",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b0b-e2e8-7720-ae9a-4275ff75bd1d",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b0b-e2e8-7720-ae9a-42851391eaca",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789039016773,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789039017003,
+  "finished_unix_millis": 1789039207344,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/5365e01d71b84c4dbc85d09c73ee72ee/reviewer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/5365e01d71b84c4dbc85d09c73ee72ee/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/5365e01d71b84c4dbc85d09c73ee72ee/review.json",
+      "--model",
+      "opus",
+      "--effort",
+      "high"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/5365e01d71b84c4dbc85d09c73ee72ee",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/5365e01d71b84c4dbc85d09c73ee72ee/reviewer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-mr3-opus-composed-20260910z10e/5365e01d71b84c4dbc85d09c73ee72ee/review.json",
+          "--expected-model-prefix",
+          "claude-opus-"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr3-opus-composed-z10e"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-fb49-7840-8813-fa1f2040e8d0",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789039016776,
+      "started_unix_millis": 1789039016869,
+      "deadline_unix_millis": 1789040216869,
+      "finished_unix_millis": 1789039207344,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-fb45-7dd1-8caa-b6e84d013f25",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-fb49-7840-8813-fa1f2040e8d0",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-fb49-7840-8813-fa2629014f76",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789039017003,
+        "exited_unix_millis": 1789039207127,
+        "resolved_unix_millis": 1789039207141
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-fb49-7840-8813-fa2629014f76",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 1210224,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1210224,
+            "start_ticks": 8512361,
+            "pid_namespace_inode": 4026534279,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b05-aa0f-7f21-a411-4cae2a4d5a8b",
+          "started_unix_millis": 1789039017003,
+          "finished_unix_millis": 1789039207141,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-fb49-7840-8813-fa38e38622e8",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": ":0,\"costUSD\":1.0497835,\"contextWindow\":1000000,\"maxOutputTokens\":64000,\"thinkingTokens\":10581,\"canonicalModel\":\"claude-opus-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"fast_mode_disabled_reason\":\"sdk_opt_in_required\",\"subagent_stats\":{\"spawned\":0,\"requested\":{\"background\":0,\"foreground\":0,\"unset\":0},\"started_in_background\":0,\"max_depth\":0,\"spawned_by_subagents\":0,\"completed\":0,\"failed\":0,\"killed\":{\"parent\":0,\"user\":0,\"system\":0},\"refused\":{\"depth_limit\":0,\"concurrency_limit\":0,\"budget\":0},\"by_type\":{}},\"is_error\":false,\"num_turns\":2,\"subtype\":\"success\",\"api_error_status\":null,\"result\":\"{\\\"verdict\\\":\\\"findings\\\",\\\"summary\\\":\\\"Scoped re-review of M-A04 and M-A07 only. M-A04: accept. `crash.rs::linux_attached_runtime_crash_commit_boundaries` establishes with real controls \u2014 a real SIGKILL of the exact owned `Child` at a parked, pid-verified checkpoint (`test_support.rs::linux_runtime_checkpoint`), the real on-disk executor journal, real SQLite, and real cgroup teardown (`Boundary::reopen(...).is_err()` / `!Path::new(record[\\\\\\\"boundary\\\\\\\"][\\\\\\\"path\\\\\\\"]).exists()`) \u2014 one Invocation, user starts 0/0/0/1/1, `leases state='granted'` = 1 both before recovery and after kernel cleanup (\\\\\\\"kernel cleanup must not bypass coordinator acknowledgement\\\\\\\"), 0 only after acceptance, and `COUNT(*) FROM invocations` = 1. The two prior asks are implemented: exact cleanup bits/digests (`cleanup.boundary_sha256 == seals[0].1`, `cleanup.proof_sha256 == seals[0].2`, `cleanup.user_code_released == consumed`, empty `release.tickets` at `ready`) and post-Ticket TTL (5500 ms sleep after `Outcome::Ticket` with the canary still non-final and `!marker.exists()`, \\\\\\\"issued Ticket introduced a TTL release\\\\\\\"), which also runs in all four crash-stage variants since they pass `Some(InvocationRole::Primary)`. The executor/manager disagreement at the journal-intent-before-SQL gap is correctly two distinct asserted bits, not one: `seal.possibly_released == (stage != \\\\\\\"ready\\\\\\\")` from `release_intent`, and continuous manager SQL `consumed` proving the `child.release()` callback never ran; `Journal::open` enforces `seal.possibly_released == record.release_intent.is_some()`, and `release.rs` documents that a lost transient `NeverReleased` degrades to possibly-released, never to a second consumption. Note the acceptance side of crash.rs is modeled: `reply`/`accept` on the authenticated fixture (duplicate ack false, hand-built `Reply { coordinator_revision: 1, .. }`); the installed-coordinator analog is `machine_manager.rs` (lost Arm and Release replies, real daemon kill/restart, replayed request yields identical outcome, `apply` true then false, `SUM(starts)` = 1, `local_lease` = released) plus the native four-stage `before_journal/after_journal/after_sql/after_ack` faults with real exit code 86 and post-restart `pending_machine_operation`/`blocker` both none. M-A07: coverage is close but one enforcement assertion is missing. Actual controls are strong \u2014 real coordinator process fencing (abandoned challenge cannot consume its reserved epoch, epochs 1/2/3/4, old authenticated writer's `arm` rejected after reconnect, `retired_sequence_floor > 0`, reset `manager_store_uuid` refused at `connect-begin`, empty local store cannot `bind`), a real Linux executor keeping a live populated unsealed boundary across capacity reduction/restore, peer fence, guest store-reset rejection and coordinator SQLite reset, and a real seal whose `possibly_released`/`proof_sha256` feed the reconcile that finally clears the row. What is only *reported*, not *enforced*, is that the reconstructed/reconnected coordinator refuses a second Ticket for the already-ticketed intent under the new incarnation. Findings below; none of them contradicts an asserted fact, and none requires a new permutation matrix. Deliberately out of scope here: lifecycle VM/distro/logout/suspend, final consumer/idle and MR-3 exit review; z9 and z3 are cited but their sources were not supplied, so they carry no weight in this decision.\\\",\\\"findings\\\":[\\\"M-A07, material: no test asserts that a *new* executor incarnation is refused a second Ticket for an intent the *old* incarnation already holds. In the z8 fixture, after the epoch-3 reconnect with a fresh `executor_incarnation`, the only checks are that the old writer's `arm` fails and that `authority_status().machine_obligations[0].tickets == vec![reset_intent]`; the resumed epoch-4 session issues only `ReconcileBegin`/`ReconcilePage`/`ReconcileCommit`. Likewise `recovered.machine_obligations[0].tickets == vec![reset_intent]` after the SQLite wipe proves reconstruction, not enforcement. Add one assertion: under `second.session` (before the store reset, where no `authority_reconciliation_required` blocker can trivially mask the result) exchange `AuthorizeInvocation { key: reset_candidate.key, offer_nonce: reset_grant.offer_nonce, intent: reset_intent.clone() }` and assert `Outcome::Rejected` with the live boundary still `populated`/`unsealed`. Same-session duplicate rejection is already proven (`\\\\\\\"another operation reused an issued Invocation\\\\\\\"`), so this is the only cross-incarnation instance missing, not a new matrix.\\\",\\\"Evidence bundle, material for composed acceptance: `docs/evidence/mr3-crash-boundaries-20260910z10e/jobs.json` contains only 13 gate job outcomes, but both decisive tests are `#[ignore]`d \u2014 `crash.rs::linux_attached_runtime_crash_commit_boundaries` (\\\\\\\"requires protected nested cgroup delegation and prebuilt Linux stub\\\\\\\") and `machine_cross_os_reset_retains_live_linux_executor_and_guest_history` \u2014 so `test`/`wsl-test`/`msrv-test` succeeding does not evidence that either ran. Attach to the bundle, keyed to 838f56a3083cc41c4b1349eb8a08f367a65a2cb1474536932a9934932f829ecc: the five per-stage lines the matrix already prints (`{\\\\\\\"stage\\\\\\\",\\\\\\\"actual_process_killed\\\\\\\":true,\\\\\\\"user_starts\\\\\\\",\\\\\\\"consumed\\\\\\\",\\\\\\\"seal\\\\\\\",\\\\\\\"released_after_ack\\\\\\\":true}`) and the 13-file z8 set that `cross_os_reset.rs::finish` copies to `MR_WSL_FAULT_EVIDENCE` (`live.json`, `live-after-capacity-reduction.json`, `live-after-peer-fence.json`, `guest-reset-rejected.json`, `live-after-coordinator-reset.json`, `seal.json`, ...). Without these the two rows rest on the report rather than on the composed evidence.\\\",\\\"M-A04, residual liveness gap (safety unaffected, no defect): `journal.rs::create` commits the record, then calls `Boundary::create`, then commits the boundary identity. A crash inside that window leaves a record with `boundary == None`, for which `Journal::cleanup` permanently returns \\\\\\\"creation interrupted before boundary identity; cleanup unknown\\\\\\\", `Registry::install` classifies `Entry::Uninspectable`, and `Registry::reconcile` can therefore never return `ProvenEmpty` \u2014 the Lease is clearable only through an operator/manual `ClearanceOrigin` path not exercised by any supplied test, and a real cgroup may exist at the derivable `invocation.entity_uuid()` path with no recorded identity. No user code can have started in that window, so the M-A04 claims (one Invocation, starts 0/0/0/1/1, Lease retained until real cleanup) are untouched; the analogous post-removal gap is already covered by `linux_executor_journal_absence_after_seal_gap_retains_uncertainty`. Record this as a known unattended-recovery limitation or add the matching case there.\\\",\\\"Classification for the row write-up, so the accepted text does not overstate: in `crash.rs` the kernel/process/SQL facts are actual (real SIGKILL, real journal `state.json`, real `attached_tickets`/`leases` rows, real cgroup removal, real `reconciliation_candidates`/`commit_containment_resolution`), while the Release command shape, the authenticated reply and the duplicate-ack `false` come from the in-process model fixture. The installed-coordinator counterparts are `machine_manager.rs` (real daemon killed and restarted mid-flight, identical replayed outcome, `apply` true then false) and the four-stage native fault tests; a conservative `user_code_released: false` cleanup is separately proven acceptable to the real daemon in the `reset_after_ticket` recovery reconciliation. State the M-A04 acceptance as \\\\\\\"real process/kernel/SQL boundary plus modeled authenticated ack, with the real-coordinator ack covered by the native fixtures\\\\\\\" rather than as an end-to-end installed-Driver ack.\\\"]}\",\"structured_output\":{\"verdict\":\"findings\",\"summary\":\"Scoped re-review of M-A04 and M-A07 only. M-A04: accept. `crash.rs::linux_attached_runtime_crash_commit_boundaries` establishes with real controls \u2014 a real SIGKILL of the exact owned `Child` at a parked, pid-verified checkpoint (`test_support.rs::linux_runtime_checkpoint`), the real on-disk executor journal, real SQLite, and real cgroup teardown (`Boundary::reopen(...).is_err()` / `!Path::new(record[\\\"boundary\\\"][\\\"path\\\"]).exists()`) \u2014 one Invocation, user starts 0/0/0/1/1, `leases state='granted'` = 1 both before recovery and after kernel cleanup (\\\"kernel cleanup must not bypass coordinator acknowledgement\\\"), 0 only after acceptance, and `COUNT(*) FROM invocations` = 1. The two prior asks are implemented: exact cleanup bits/digests (`cleanup.boundary_sha256 == seals[0].1`, `cleanup.proof_sha256 == seals[0].2`, `cleanup.user_code_released == consumed`, empty `release.tickets` at `ready`) and post-Ticket TTL (5500 ms sleep after `Outcome::Ticket` with the canary still non-final and `!marker.exists()`, \\\"issued Ticket introduced a TTL release\\\"), which also runs in all four crash-stage variants since they pass `Some(InvocationRole::Primary)`. The executor/manager disagreement at the journal-intent-before-SQL gap is correctly two distinct asserted bits, not one: `seal.possibly_released == (stage != \\\"ready\\\")` from `release_intent`, and continuous manager SQL `consumed` proving the `child.release()` callback never ran; `Journal::open` enforces `seal.possibly_released == record.release_intent.is_some()`, and `release.rs` documents that a lost transient `NeverReleased` degrades to possibly-released, never to a second consumption. Note the acceptance side of crash.rs is modeled: `reply`/`accept` on the authenticated fixture (duplicate ack false, hand-built `Reply { coordinator_revision: 1, .. }`); the installed-coordinator analog is `machine_manager.rs` (lost Arm and Release replies, real daemon kill/restart, replayed request yields identical outcome, `apply` true then false, `SUM(starts)` = 1, `local_lease` = released) plus the native four-stage `before_journal/after_journal/after_sql/after_ack` faults with real exit code 86 and post-restart `pending_machine_operation`/`blocker` both none. M-A07: coverage is close but one enforcement assertion is missing. Actual controls are strong \u2014 real coordinator process fencing (abandoned challenge cannot consume its reserved epoch, epochs 1/2/3/4, old authenticated writer's `arm` rejected after reconnect, `retired_sequence_floor > 0`, reset `manager_store_uuid` refused at `connect-begin`, empty local store cannot `bind`), a real Linux executor keeping a live populated unsealed boundary across capacity reduction/restore, peer fence, guest store-reset rejection and coordinator SQLite reset, and a real seal whose `possibly_released`/`proof_sha256` feed the reconcile that finally clears the row. What is only *reported*, not *enforced*, is that the reconstructed/reconnected coordinator refuses a second Ticket for the already-ticketed intent under the new incarnation. Findings below; none of them contradicts an asserted fact, and none requires a new permutation matrix. Deliberately out of scope here: lifecycle VM/distro/logout/suspend, final consumer/idle and MR-3 exit review; z9 and z3 are cited but their sources were not supplied, so they carry no weight in this decision.\",\"findings\":[\"M-A07, material: no test asserts that a *new* executor incarnation is refused a second Ticket for an intent the *old* incarnation already holds. In the z8 fixture, after the epoch-3 reconnect with a fresh `executor_incarnation`, the only checks are that the old writer's `arm` fails and that `authority_status().machine_obligations[0].tickets == vec![reset_intent]`; the resumed epoch-4 session issues only `ReconcileBegin`/`ReconcilePage`/`ReconcileCommit`. Likewise `recovered.machine_obligations[0].tickets == vec![reset_intent]` after the SQLite wipe proves reconstruction, not enforcement. Add one assertion: under `second.session` (before the store reset, where no `authority_reconciliation_required` blocker can trivially mask the result) exchange `AuthorizeInvocation { key: reset_candidate.key, offer_nonce: reset_grant.offer_nonce, intent: reset_intent.clone() }` and assert `Outcome::Rejected` with the live boundary still `populated`/`unsealed`. Same-session duplicate rejection is already proven (`\\\"another operation reused an issued Invocation\\\"`), so this is the only cross-incarnation instance missing, not a new matrix.\",\"Evidence bundle, material for composed acceptance: `docs/evidence/mr3-crash-boundaries-20260910z10e/jobs.json` contains only 13 gate job outcomes, but both decisive tests are `#[ignore]`d \u2014 `crash.rs::linux_attached_runtime_crash_commit_boundaries` (\\\"requires protected nested cgroup delegation and prebuilt Linux stub\\\") and `machine_cross_os_reset_retains_live_linux_executor_and_guest_history` \u2014 so `test`/`wsl-test`/`msrv-test` succeeding does not evidence that either ran. Attach to the bundle, keyed to 838f56a3083cc41c4b1349eb8a08f367a65a2cb1474536932a9934932f829ecc: the five per-stage lines the matrix already prints (`{\\\"stage\\\",\\\"actual_process_killed\\\":true,\\\"user_starts\\\",\\\"consumed\\\",\\\"seal\\\",\\\"released_after_ack\\\":true}`) and the 13-file z8 set that `cross_os_reset.rs::finish` copies to `MR_WSL_FAULT_EVIDENCE` (`live.json`, `live-after-capacity-reduction.json`, `live-after-peer-fence.json`, `guest-reset-rejected.json`, `live-after-coordinator-reset.json`, `seal.json`, ...). Without these the two rows rest on the report rather than on the composed evidence.\",\"M-A04, residual liveness gap (safety unaffected, no defect): `journal.rs::create` commits the record, then calls `Boundary::create`, then commits the boundary identity. A crash inside that window leaves a record with `boundary == None`, for which `Journal::cleanup` permanently returns \\\"creation interrupted before boundary identity; cleanup unknown\\\", `Registry::install` classifies `Entry::Uninspectable`, and `Registry::reconcile` can therefore never return `ProvenEmpty` \u2014 the Lease is clearable only through an operator/manual `ClearanceOrigin` path not exercised by any supplied test, and a real cgroup may exist at the derivable `invocation.entity_uuid()` path with no recorded identity. No user code can have started in that window, so the M-A04 claims (one Invocation, starts 0/0/0/1/1, Lease retained until real cleanup) are untouched; the analogous post-removal gap is already covered by `linux_executor_journal_absence_after_seal_gap_retains_uncertainty`. Record this as a known unattended-recovery limitation or add the matching case there.\",\"Classification for the row write-up, so the accepted text does not overstate: in `crash.rs` the kernel/process/SQL facts are actual (real SIGKILL, real journal `state.json`, real `attached_tickets`/`leases` rows, real cgroup removal, real `reconciliation_candidates`/`commit_containment_resolution`), while the Release command shape, the authenticated reply and the duplicate-ack `false` come from the in-process model fixture. The installed-coordinator counterparts are `machine_manager.rs` (real daemon killed and restarted mid-flight, identical replayed outcome, `apply` true then false) and the four-stage native fault tests; a conservative `user_code_released: false` cleanup is separately proven acceptable to the real daemon in the `reset_after_ticket` recovery reconciliation. State the M-A04 acceptance as \\\"real process/kernel/SQL boundary plus modeled authenticated ack, with the real-coordinator ack covered by the native fixtures\\\" rather than as an end-to-end installed-Driver ack.\"]},\"ttft_ms\":147971,\"type\":\"result\",\"duration_ms\":188583,\"uuid\":\"ca673286-d490-405b-90b7-ab88f2441643\",\"ttft_stream_ms\":1941,\"time_to_request_ms\":38,\"first_content_frame_ms\":2424,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b0b-e2e8-7720-ae9a-4275ff75bd1d",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 1221339,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1221339,
+            "start_ticks": 8531389,
+            "pid_namespace_inode": 4026534279,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b05-aa0f-7f21-a411-4cae2a4d5a8b",
+          "started_unix_millis": 1789039207287,
+          "finished_unix_millis": 1789039207343,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b0b-e2e8-7720-ae9a-42851391eaca",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-opus-5\"], \"selected_family_models\": [\"claude-opus-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"verdict\": \"findings\", \"summary\": \"Scoped re-review of M-A04 and M-A07 only. M-A04: accept. `crash.rs::linux_attached_runtime_crash_commit_boundaries` establishes with real controls \\u2014 a real SIGKILL of the exact owned `Child` at a parked, pid-verified checkpoint (`test_support.rs::linux_runtime_checkpoint`), the real on-disk executor journal, real SQLite, and real cgroup teardown (`Boundary::reopen(...).is_err()` / `!Path::new(record[\\\"boundary\\\"][\\\"path\\\"]).exists()`) \\u2014 one Invocation, user starts 0/0/0/1/1, `leases state='granted'` = 1 both before recovery and after kernel cleanup (\\\"kernel cleanup must not bypass coordinator acknowledgement\\\"), 0 only after acceptance, and `COUNT(*) FROM invocations` = 1. The two prior asks are implemented: exact cleanup bits/digests (`cleanup.boundary_sha256 == seals[0].1`, `cleanup.proof_sha256 == seals[0].2`, `cleanup.user_code_released == consumed`, empty `release.tickets` at `ready`) and post-Ticket TTL (5500 ms sleep after `Outcome::Ticket` with the canary still non-final and `!marker.exists()`, \\\"issued Ticket introduced a TTL release\\\"), which also runs in all four crash-stage variants since they pass `Some(InvocationRole::Primary)`. The executor/manager disagreement at the journal-intent-before-SQL gap is correctly two distinct asserted bits, not one: `seal.possibly_released == (stage != \\\"ready\\\")` from `release_intent`, and continuous manager SQL `consumed` proving the `child.release()` callback never ran; `Journal::open` enforces `seal.possibly_released == record.release_intent.is_some()`, and `release.rs` documents that a lost transient `NeverReleased` degrades to possibly-released, never to a second consumption. Note the acceptance side of crash.rs is modeled: `reply`/`accept` on the authenticated fixture (duplicate ack false, hand-built `Reply { coordinator_revision: 1, .. }`); the installed-coordinator analog is `machine_manager.rs` (lost Arm and Release replies, real daemon kill/restart, replayed request yields identical outcome, `apply` true then false, `SUM(starts)` = 1, `local_lease` = released) plus the native four-stage `before_journal/after_journal/after_sql/after_ack` faults with real exit code 86 and post-restart `pending_machine_operation`/`blocker` both none. M-A07: coverage is close but one enforcement assertion is missing. Actual controls are strong \\u2014 real coordinator process fencing (abandoned challenge cannot consume its reserved epoch, epochs 1/2/3/4, old authenticated writer's `arm` rejected after reconnect, `retired_sequence_floor > 0`, reset `manager_store_uuid` refused at `connect-begin`, empty local store cannot `bind`), a real Linux executor keeping a live populated unsealed boundary across capacity reduction/restore, peer fence, guest store-reset rejection and coordinator SQLite reset, and a real seal whose `possibly_released`/`proof_sha256` feed the reconcile that finally clears the row. What is only *reported*, not *enforced*, is that the reconstructed/reconnected coordinator refuses a second Ticket for the already-ticketed intent under the new incarnation. Findings below; none of them contradicts an asserted fact, and none requires a new permutation matrix. Deliberately out of scope here: lifecycle VM/distro/logout/suspend, final consumer/idle and MR-3 exit review; z9 and z3 are cited but their sources were not supplied, so they carry no weight in this decision.\", \"findings\": [\"M-A07, material: no test asserts that a *new* executor incarnation is refused a second Ticket for an intent the *old* incarnation already holds. In the z8 fixture, after the epoch-3 reconnect with a fresh `executor_incarnation`, the only checks are that the old writer's `arm` fails and that `authority_status().machine_obligations[0].tickets == vec![reset_intent]`; the resumed epoch-4 session issues only `ReconcileBegin`/`ReconcilePage`/`ReconcileCommit`. Likewise `recovered.machine_obligations[0].tickets == vec![reset_intent]` after the SQLite wipe proves reconstruction, not enforcement. Add one assertion: under `second.session` (before the store reset, where no `authority_reconciliation_required` blocker can trivially mask the result) exchange `AuthorizeInvocation { key: reset_candidate.key, offer_nonce: reset_grant.offer_nonce, intent: reset_intent.clone() }` and assert `Outcome::Rejected` with the live boundary still `populated`/`unsealed`. Same-session duplicate rejection is already proven (`\\\"another operation reused an issued Invocation\\\"`), so this is the only cross-incarnation instance missing, not a new matrix.\", \"Evidence bundle, material for composed acceptance: `docs/evidence/mr3-crash-boundaries-20260910z10e/jobs.json` contains only 13 gate job outcomes, but both decisive tests are `#[ignore]`d \\u2014 `crash.rs::linux_attached_runtime_crash_commit_boundaries` (\\\"requires protected nested cgroup delegation and prebuilt Linux stub\\\") and `machine_cross_os_reset_retains_live_linux_executor_and_guest_history` \\u2014 so `test`/`wsl-test`/`msrv-test` succeeding does not evidence that either ran. Attach to the bundle, keyed to 838f56a3083cc41c4b1349eb8a08f367a65a2cb1474536932a9934932f829ecc: the five per-stage lines the matrix already prints (`{\\\"stage\\\",\\\"actual_process_killed\\\":true,\\\"user_starts\\\",\\\"consumed\\\",\\\"seal\\\",\\\"released_after_ack\\\":true}`) and the 13-file z8 set that `cross_os_reset.rs::finish` copies to `MR_WSL_FAULT_EVIDENCE` (`live.json`, `live-after-capacity-reduction.json`, `live-after-peer-fence.json`, `guest-reset-rejected.json`, `live-after-coordinator-reset.json`, `seal.json`, ...). Without these the two rows rest on the report rather than on the composed evidence.\", \"M-A04, residual liveness gap (safety unaffected, no defect): `journal.rs::create` commits the record, then calls `Boundary::create`, then commits the boundary identity. A crash inside that window leaves a record with `boundary == None`, for which `Journal::cleanup` permanently returns \\\"creation interrupted before boundary identity; cleanup unknown\\\", `Registry::install` classifies `Entry::Uninspectable`, and `Registry::reconcile` can therefore never return `ProvenEmpty` \\u2014 the Lease is clearable only through an operator/manual `ClearanceOrigin` path not exercised by any supplied test, and a real cgroup may exist at the derivable `invocation.entity_uuid()` path with no recorded identity. No user code can have started in that window, so the M-A04 claims (one Invocation, starts 0/0/0/1/1, Lease retained until real cleanup) are untouched; the analogous post-removal gap is already covered by `linux_executor_journal_absence_after_seal_gap_retains_uncertainty`. Record this as a known unattended-recovery limitation or add the matching case there.\", \"Classification for the row write-up, so the accepted text does not overstate: in `crash.rs` the kernel/process/SQL facts are actual (real SIGKILL, real journal `state.json`, real `attached_tickets`/`leases` rows, real cgroup removal, real `reconciliation_candidates`/`commit_containment_resolution`), while the Release command shape, the authenticated reply and the duplicate-ack `false` come from the in-process model fixture. The installed-coordinator counterparts are `machine_manager.rs` (real daemon killed and restarted mid-flight, identical replayed outcome, `apply` true then false) and the four-stage native fault tests; a conservative `user_code_released: false` cleanup is separately proven acceptable to the real daemon in the `reset_after_ticket` recovery reconciliation. State the M-A04 acceptance as \\\"real process/kernel/SQL boundary plus modeled authenticated ack, with the real-coordinator ack covered by the native fixtures\\\" rather than as an end-to-end installed-Driver ack.\"]}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b08-fb60-70e0-8adb-f5f5c87a9287",
+      "lease_id": "01a08b08-fb49-7840-8813-fa4e95f92750",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08b08-fb49-7840-8813-fa4e95f92750"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-fb45-7dd1-8caa-b6e84d013f25",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b08-fb49-7840-8813-fa1f2040e8d0"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08b05-aa0f-7f21-a411-4cae2a4d5a8b"
+}

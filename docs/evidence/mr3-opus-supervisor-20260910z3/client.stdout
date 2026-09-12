@@ -1,0 +1,272 @@
+{
+  "outcome": {
+    "outcome": "final",
+    "value": {
+      "receipt": {
+        "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a32-f419-7b20-91d3-cc692c9f30c2",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a32-f41b-7ec0-a6fc-8ab1eccf7a2f",
+        "submission_state": "accepted",
+        "job_state": "pending",
+        "reason_code": null,
+        "accepted_unix_millis": 1789024990235,
+        "priority": 0,
+        "effective_priority": 0,
+        "blockers": [],
+        "queue_rank": 1,
+        "reservation": null,
+        "conditions": [],
+        "estimate": {
+          "confidence": "estimated",
+          "start_in_millis": 0,
+          "assumptions": [
+            "currently admissible"
+          ]
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a08a25-c1ff-7e43-8a58-e60aa64cb655"
+      },
+      "snapshot": {
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a32-f41b-7ec0-a6fc-8ab1eccf7a2f",
+        "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a32-f419-7b20-91d3-cc692c9f30c2",
+        "batch_id": null,
+        "batch_member": null,
+        "state": "final",
+        "outcome": "succeeded",
+        "reason_code": null,
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a32-f421-7931-a908-fae48445c60d",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a38-e7ac-7081-8d95-13c68c10d064",
+        "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a38-e7ac-7081-8d95-13df7901f656",
+        "root_exit_code": 0,
+        "cancel_requested": false,
+        "accepted_unix_millis": 1789024990235,
+        "priority": 0,
+        "effective_priority": null,
+        "queue_rank": null,
+        "reservation": null,
+        "conditions": [],
+        "started_unix_millis": 1789024990421,
+        "finished_unix_millis": 1789025380773,
+        "spec": {
+          "spec_version": 4,
+          "priority": 0,
+          "executable": "/usr/bin/python3",
+          "args": [
+            "/home/pythonic/Development/stillyard-mr3-opus-supervisor-20260910z3/4b0571294bd840a686cb4e7614fd781e/reviewer.py",
+            "review",
+            "--cli",
+            "/home/pythonic/.local/bin/claude-current",
+            "--brief",
+            "/home/pythonic/Development/stillyard-mr3-opus-supervisor-20260910z3/4b0571294bd840a686cb4e7614fd781e/brief.txt",
+            "--output",
+            "/home/pythonic/Development/stillyard-mr3-opus-supervisor-20260910z3/4b0571294bd840a686cb4e7614fd781e/review.json",
+            "--model",
+            "opus",
+            "--effort",
+            "high"
+          ],
+          "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-supervisor-20260910z3/4b0571294bd840a686cb4e7614fd781e",
+          "stdin": {
+            "kind": "eof"
+          },
+          "environment": {
+            "set": {
+              "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+              "HOME": "/home/pythonic",
+              "LANG": "C.UTF-8",
+              "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+            },
+            "unset": []
+          },
+          "resources": {
+            "cpu_units": null,
+            "ram_mb": null,
+            "cargo_slots": null,
+            "gpu_slots": null,
+            "custom": {
+              "claude2_slots": 1
+            },
+            "shared_fences": [],
+            "exclusive_fences": [],
+            "impacts": []
+          },
+          "observed": null,
+          "conditions": [],
+          "retry": {
+            "max_attempts": 1,
+            "backoff_seconds": 0,
+            "retryable": []
+          },
+          "postconditions": [
+            {
+              "executable": "/usr/bin/python3",
+              "args": [
+                "/home/pythonic/Development/stillyard-mr3-opus-supervisor-20260910z3/4b0571294bd840a686cb4e7614fd781e/reviewer.py",
+                "validate-review",
+                "--input",
+                "/home/pythonic/Development/stillyard-mr3-opus-supervisor-20260910z3/4b0571294bd840a686cb4e7614fd781e/review.json",
+                "--expected-model-prefix",
+                "claude-opus-"
+              ],
+              "working_directory": null,
+              "accepted_exit_codes": [
+                0
+              ],
+              "retryable_exit_codes": []
+            }
+          ],
+          "labels": [
+            {
+              "key": "project",
+              "value": "stillyard"
+            },
+            {
+              "key": "gate",
+              "value": "mr3-opus-installed-recovery"
+            }
+          ],
+          "expected_duration_seconds": null,
+          "timeout_seconds": 1200,
+          "quiet": null,
+          "artifacts": [],
+          "child_submission_policy": null
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "blockers": [],
+        "attempts": [
+          {
+            "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a32-f421-7931-a908-fae48445c60d",
+            "attempt_index": 1,
+            "verdict": "succeeded",
+            "reason_code": null,
+            "created_unix_millis": 1789024990240,
+            "started_unix_millis": 1789024990301,
+            "deadline_unix_millis": 1789026190301,
+            "finished_unix_millis": 1789025380773,
+            "primary_result": {
+              "schema_version": 1,
+              "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a32-f41b-7ec0-a6fc-8ab1eccf7a2f",
+              "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a32-f421-7931-a908-fae48445c60d",
+              "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a32-f421-7931-a908-faf4892ebb6c",
+              "verdict": "succeeded",
+              "root_exit_code": 0,
+              "termination": "exited",
+              "containment": "empty",
+              "started_unix_millis": 1789024990421,
+              "exited_unix_millis": 1789025380176,
+              "resolved_unix_millis": 1789025380232
+            },
+            "admission": null,
+            "invocations": [
+              {
+                "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a32-f421-7931-a908-faf4892ebb6c",
+                "role": "primary",
+                "role_index": 0,
+                "state": "resolved",
+                "root_pid": 211064,
+                "root_identity": {
+                  "platform": "linux",
+                  "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+                  "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+                  "pid": 211064,
+                  "start_ticks": 7109703,
+                  "pid_namespace_inode": 4026534294,
+                  "uid": 1000
+                },
+                "root_exit_code": 0,
+                "exit_classification": null,
+                "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+                "daemon_generation": "01a08a25-c1ff-7e43-8a58-e60aa64cb655",
+                "started_unix_millis": 1789024990421,
+                "finished_unix_millis": 1789025380232,
+                "containment": {
+                  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a32-f421-7931-a908-fb0f3e0dca52",
+                  "state": "empty",
+                  "strength": "linux_cgroup_v2",
+                  "incident_id": null,
+                  "incident": null,
+                  "resolution": null,
+                  "resolution_audit": null
+                },
+                "stdout_tail": "expected value, and `[installed] wsl-install` is executed before any post-copy check. A candidate swapped in that window is installed, executed, and merely recorded. Copy from the fd opened at verification time, or re-digest `installed` and abort before executing it. The same gap applies to the helper (helper_sha256 is recorded twice but never compared).\\\",\\\"[LOW - install] shutil.copyfile creates `installed` with 0666 & ~umask before installed.chmod(0o700); this process never sets its own umask (the unit's UMask=0077 is irrelevant here), so there is a window where the binary is group/world-readable, mitigated only by the owner-only tree. Separately, installed.parent.mkdir(mode=0o700) has no exist_ok, so a pre-existing empty bin/ (which passes the `installed.exists()` guard) aborts the apply after evidence and possibly config writes have landed. Finally, file contents are fsync'd but the containing directories (bin, libexec, ~/.config/systemd/user) never are, so the directory entries are not crash-durable despite the explicit fsync effort.\\\",\\\"[LOW - keepalive] There is a window between publishing the interop alias / running `systemctl start` and pthread_sigmask(SIG_BLOCK): a SIGTERM there kills the process with default disposition and leaves interop.sock dangling, and if the systemctl call raises (check=True) the alias is likewise left behind with no try/finally. The next start only checks `alias.exists() and not alias.is_symlink()`, and a dangling symlink reports exists()==False, so the stale alias is silently replaced — correct outcome, but reached by accident rather than by the check. Block the termination signals before publishing the alias and put the systemctl call inside the existing cleanup scope.\\\",\\\"[LOW - keepalive] socket.lstat() is called before $WSL_INTEROP is validated as absolute, parented by /run/WSL, and root-owned. Harmless against the current threat model but the validation should precede any syscall on the untrusted path, since the ordering is what a future refactor will copy.\\\",\\\"[LOW - supervise semantics] clear_control() unconditionally cgroup.kills the entire `manager` subtree at loop top, after every daemon exit, and in the outer finally. Any trusted bridge/helper process resident in `manager` that holds state for a live Invocation is SIGKILLed on every daemon crash-restart, even though the point of the change is that live executors survive. UNCERTAIN from this slice — the comment claims only daemon/bridge processes inherit manager; the planned real crash test that checks child descendants and retained grants should explicitly cover a manager-resident helper, not just executor descendants.\\\",\\\"[LOW - portability/robustness] delegate() rejects anything but exact Path equality between --executors and parent/'executors', where --executors is a literal baked into the unit by the installer from os.geteuid() plus a hardcoded user@UID.service/app.slice shape. Any deviation (different slice, differing user-manager path shape, cgroup mount presented via a symlink, uid/euid divergence) fails the unit at start; combined with finding 1 that becomes a permanent restart loop rather than a single clear error. Derive the expected path from /proc/self/cgroup and compare only the final component, or at least fail with a non-restarting exit.\\\",\\\"[LOW - supervise] place_child runs Python (two signal.signal calls, set_wakeup_fd, and a cgroup.procs write) in the forked child via preexec_fn, which is async-signal-unsafe between fork and exec; it is safe only while the supervisor stays strictly single-threaded, and nothing in the file enforces or documents that constraint. Worth an explicit comment at minimum, since a future addition of any thread (metrics, health endpoint) turns this into an intermittent deadlock rather than a visible error.\\\"]}\",\"structured_output\":{\"verdict\":\"findings\",\"summary\":\"Read-only review of the supervisor slice. The core of supervise() is sound: the wakeup-pipe + pidfd wait has no lost-signal race (the pipe byte persists across the poll/select gap), the pipe is O_NONBLOCK|O_CLOEXEC as set_wakeup_fd requires, pidfds are unconditionally CLOEXEC so nothing leaks into the daemon, the pidfd is opened before any poll() so the PID-reuse claim holds, and moving the main process into a sibling `supervisor` subgroup keeps the delegated parent empty for subtree_control while MainPID-based KillMode=process tracking still works. The defects are on the failure edges. Dominant: the unit still carries Restart=on-failure with StartLimitIntervalSec=0, so every raising path in supervise exits the \\\"persistent\\\" main nonzero and hands systemd exactly the unit-stop this change exists to prevent (pruning empty, unsealed executor cgroups; re-entering the 259 clone3/EBUSY spawn path). The worst-case stop path is 30s against TimeoutStopSec=25, after which KillMode=process leaves a live daemon in the DelegateSubgroup with no unit. On the Rust side, the Linux probe collapses BoundaryNotEmpty and hard errors into BoundaryUninspectable, making the \\\"known nonempty\\\" rejection dead code on Linux and letting a prior-generation known-nonempty boundary reach ForcedRiskAcceptance on root-PID absence — precisely the child-descendants case the crash test targets. Items I could not verify from this slice are marked.\",\"findings\":[\"[HIGH - unit] Restart=on-failure with StartLimitIntervalSec=0 defeats the central invariant of this change. supervise() has several nonzero-exit paths: clear_control() raises RuntimeError on its 10s populated!=0 timeout (reachable at loop top, on the stop path, and again in the outer finally); the final `code = child.wait(timeout=10)` raises TimeoutExpired uncaught; delegate() raises if any cgroup precondition drifts; Popen raises if preexec_fn fails. Any of these terminates the persistent main, systemd stops the unit and prunes the unit cgroup tree, which removes empty-but-unsealed executor cgroups and re-enters the systemd 259 clone3/EBUSY spawn path on the restart. For the stated design the unit needs Restart=no, and the supervise loop must catch and log daemon-side failures instead of propagating them out of main().\",\"[HIGH - stop path timing] The stop sequence can take 10s (child.wait after pidfd SIGTERM) + up to 10s (clear_control polling cgroup.events) + 10s (the trailing child.wait) = 30s, exceeding TimeoutStopSec=25. systemd then SIGKILLs, and because KillMode=process only the main process dies: the daemon survives in `manager` after the unit is gone, so the next start faces a live daemon in its own DelegateSubgroup (duplicate daemon against the same Store/socket, and a non-empty target subgroup at spawn time). Give the stop path a single bounded budget well under TimeoutStopSec, or raise TimeoutStopSec above the true worst case.\",\"[MED - fd/signal lifetime] The outer `finally` is not exception-safe. If `clear_control()` raises (its 10s RuntimeError) or `child.wait(timeout=10)` raises TimeoutExpired inside that finally, the remaining cleanup is skipped: set_wakeup_fd(previous_wakeup) is never restored, the SIGTERM/SIGINT handlers are never restored, and read_fd/write_fd are never closed. It also masks the original exception with a less informative one. Wrap the child-teardown portion in its own try/except so restoration always runs, and re-raise afterwards.\",\"[MED - cgroup lifetime] `supervisor` is created defensively (`keeper.mkdir(exist_ok=True)`) but `manager` is assumed to exist. From the moment the main process moves itself to `supervisor` until the first daemon spawn, `manager` is empty; clear_control() then reads `control/cgroup.events` and place_child writes `control/cgroup.procs` with no ENOENT handling, so if the empty DelegateSubgroup is ever pruned both raise and feed finding 1. Add `control.mkdir(exist_ok=True)` before use and tolerate ENOENT in clear_control. UNCERTAIN whether systemd 259 prunes an empty delegate subgroup at runtime (I believe pruning is at unit stop), but the guard is free and the failure mode is a unit restart.\",\"[MED - fd lifetime] os.pidfd_open(), selector.register(pidfd) and the wsl_daemon_started print all sit outside the try/finally that unregisters and closes the pidfd. A BrokenPipeError/BlockingIOError from the print to journald (or any failure in register) leaks the pidfd and unwinds into the outer finally, which only does clear_control()/child.wait() — so the just-started daemon is killed without its exit ever being recorded, and per finding 1 the unit restarts. Move pidfd_open, register and the print inside the try.\",\"[MED - Rust, evidence loss] The Linux probe_reconciliation_candidate collapses everything that is not Ok(ProvenEmpty) — including Ok(BoundaryNotEmpty) and Err(_) — into BoundaryUninspectable via `_ =>`. In force_clear_containment this makes the `BoundaryNotEmpty` rejection arm unreachable on Linux, and the `BoundaryUninspectable if candidate.daemon_generation == Some(context.2)` guard only fires for the current generation. So a prior-generation boundary that is known nonempty (recorded root PID dead, descendants still alive — exactly the crash-test shape) falls through to the ForcedRiskAcceptance path and is cleared on IdentityAbsent evidence, with no signal that the cgroup was observed populated. Propagate the real ReconciliationResult from reconcile_linux instead of flattening it, and distinguish Err from BoundaryNotEmpty.\",\"[MED - Rust, missing identity gate] The Linux probe ignores `_context` entirely, unlike the Windows branch which gates on host_id and boot_id before trusting any inspection. The doc comment asserts a different boot cannot substitute for the seal, but nothing in this function enforces it, and executor cgroup paths are deterministic across boots (fixed unit path plus per-invocation child names). UNCERTAIN — this is only safe if reconcile_linux itself requires the durable exact-boundary seal to carry host+boot and never treats a merely-absent or merely-empty cgroup as proof; that function is not in this slice and must be confirmed. If it does not, add the host/boot/generation gate here.\",\"[MED - Rust, state ordering] In the automatic-resolution block, persist_linux_cleanup() runs before commit_containment_resolution(). If the commit returns Ok(None) (lost race / candidate changed), the Linux cleanup is already persisted, live_containments.clear() is skipped, and control falls through the `automatic_evidence` match — ProvenEmpty matches no arm and hits `_ => {}` — into the forced path. The result is that a containment with an actual emptiness proof can be committed as ForcedRiskAcceptance with a ForcedClearanceAudit naming the requester, misattributing operator risk acceptance. Re-read the candidate and retry the automatic commit, or at minimum treat ProvenEmpty as non-forced rather than letting it reach the forced branch.\",\"[LOW - Rust] force_clear_containment retry shape: at attempt 0, persisted_clearance(containment_id) is queried twice back-to-back (once directly after the commit, once again as the first statement inside `if attempt == 0`) — the second is dead. And because the `if attempt == 0` block is the only path with `continue`, attempt 1 falls out of the `for attempt in 0..2` loop into the generic containment_authorization_unavailable error, discarding the freshly recomputed target_evidence and the re-authorized peer. Either fold the duplicate query or make the loop shape explicit.\",\"[LOW - Rust] recover_machine_authority: `snapshot.native_obligations.iter().all(..)` is vacuously true on an empty list, so native_empty then rests entirely on the coordinator predicate. That is likely intended for a reset with no native obligations, but it should be explicit. Also `dead()` accepts PriorBoot as death evidence, which is only defensible because of the `boundary_kind == \\\"windows_job_object\\\"` filter — worth asserting that no Linux-backed obligation can ever be recorded with that boundary_kind, since that string is the sole thing keeping Linux generations out of this branch.\",\"[MED - install] The candidate is digested at the top of main(), then copied much later, after two subprocess round-trips (the Windows CLI status call and, on the apply path, other filesystem work). The installed copy is never re-verified against --candidate-sha256: staged.json records digest(installed) but nothing compares it to the expected value, and `[installed] wsl-install` is executed before any post-copy check. A candidate swapped in that window is installed, executed, and merely recorded. Copy from the fd opened at verification time, or re-digest `installed` and abort before executing it. The same gap applies to the helper (helper_sha256 is recorded twice but never compared).\",\"[LOW - install] shutil.copyfile creates `installed` with 0666 & ~umask before installed.chmod(0o700); this process never sets its own umask (the unit's UMask=0077 is irrelevant here), so there is a window where the binary is group/world-readable, mitigated only by the owner-only tree. Separately, installed.parent.mkdir(mode=0o700) has no exist_ok, so a pre-existing empty bin/ (which passes the `installed.exists()` guard) aborts the apply after evidence and possibly config writes have landed. Finally, file contents are fsync'd but the containing directories (bin, libexec, ~/.config/systemd/user) never are, so the directory entries are not crash-durable despite the explicit fsync effort.\",\"[LOW - keepalive] There is a window between publishing the interop alias / running `systemctl start` and pthread_sigmask(SIG_BLOCK): a SIGTERM there kills the process with default disposition and leaves interop.sock dangling, and if the systemctl call raises (check=True) the alias is likewise left behind with no try/finally. The next start only checks `alias.exists() and not alias.is_symlink()`, and a dangling symlink reports exists()==False, so the stale alias is silently replaced — correct outcome, but reached by accident rather than by the check. Block the termination signals before publishing the alias and put the systemctl call inside the existing cleanup scope.\",\"[LOW - keepalive] socket.lstat() is called before $WSL_INTEROP is validated as absolute, parented by /run/WSL, and root-owned. Harmless against the current threat model but the validation should precede any syscall on the untrusted path, since the ordering is what a future refactor will copy.\",\"[LOW - supervise semantics] clear_control() unconditionally cgroup.kills the entire `manager` subtree at loop top, after every daemon exit, and in the outer finally. Any trusted bridge/helper process resident in `manager` that holds state for a live Invocation is SIGKILLed on every daemon crash-restart, even though the point of the change is that live executors survive. UNCERTAIN from this slice — the comment claims only daemon/bridge processes inherit manager; the planned real crash test that checks child descendants and retained grants should explicitly cover a manager-resident helper, not just executor descendants.\",\"[LOW - portability/robustness] delegate() rejects anything but exact Path equality between --executors and parent/'executors', where --executors is a literal baked into the unit by the installer from os.geteuid() plus a hardcoded user@UID.service/app.slice shape. Any deviation (different slice, differing user-manager path shape, cgroup mount presented via a symlink, uid/euid divergence) fails the unit at start; combined with finding 1 that becomes a permanent restart loop rather than a single clear error. Derive the expected path from /proc/self/cgroup and compare only the final component, or at least fail with a non-restarting exit.\",\"[LOW - supervise] place_child runs Python (two signal.signal calls, set_wakeup_fd, and a cgroup.procs write) in the forked child via preexec_fn, which is async-signal-unsafe between fork and exec; it is safe only while the supervisor stays strictly single-threaded, and nothing in the file enforces or documents that constraint. Worth an explicit comment at minimum, since a future addition of any thread (metrics, health endpoint) turns this into an intermittent deadlock rather than a visible error.\"]},\"ttft_ms\":273604,\"type\":\"result\",\"duration_ms\":388246,\"uuid\":\"34a30614-de6b-44b2-9f41-734b9d87d7f6\",\"ttft_stream_ms\":1851,\"time_to_request_ms\":32,\"first_content_frame_ms\":2291,\"queued_turn_count\":0}\n",
+                "stderr_tail": ""
+              },
+              {
+                "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a38-e7ac-7081-8d95-13c68c10d064",
+                "role": "postcondition",
+                "role_index": 1,
+                "state": "resolved",
+                "root_pid": 260961,
+                "root_identity": {
+                  "platform": "linux",
+                  "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+                  "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+                  "pid": 260961,
+                  "start_ticks": 7148710,
+                  "pid_namespace_inode": 4026534294,
+                  "uid": 1000
+                },
+                "root_exit_code": 0,
+                "exit_classification": "accepted",
+                "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+                "daemon_generation": "01a08a25-c1ff-7e43-8a58-e60aa64cb655",
+                "started_unix_millis": 1789025380620,
+                "finished_unix_millis": 1789025380760,
+                "containment": {
+                  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a38-e7ac-7081-8d95-13df7901f656",
+                  "state": "empty",
+                  "strength": "linux_cgroup_v2",
+                  "incident_id": null,
+                  "incident": null,
+                  "resolution": null,
+                  "resolution_audit": null
+                },
+                "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-opus-5\"], \"selected_family_models\": [\"claude-opus-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"verdict\": \"findings\", \"summary\": \"Read-only review of the supervisor slice. The core of supervise() is sound: the wakeup-pipe + pidfd wait has no lost-signal race (the pipe byte persists across the poll/select gap), the pipe is O_NONBLOCK|O_CLOEXEC as set_wakeup_fd requires, pidfds are unconditionally CLOEXEC so nothing leaks into the daemon, the pidfd is opened before any poll() so the PID-reuse claim holds, and moving the main process into a sibling `supervisor` subgroup keeps the delegated parent empty for subtree_control while MainPID-based KillMode=process tracking still works. The defects are on the failure edges. Dominant: the unit still carries Restart=on-failure with StartLimitIntervalSec=0, so every raising path in supervise exits the \\\"persistent\\\" main nonzero and hands systemd exactly the unit-stop this change exists to prevent (pruning empty, unsealed executor cgroups; re-entering the 259 clone3/EBUSY spawn path). The worst-case stop path is 30s against TimeoutStopSec=25, after which KillMode=process leaves a live daemon in the DelegateSubgroup with no unit. On the Rust side, the Linux probe collapses BoundaryNotEmpty and hard errors into BoundaryUninspectable, making the \\\"known nonempty\\\" rejection dead code on Linux and letting a prior-generation known-nonempty boundary reach ForcedRiskAcceptance on root-PID absence \\u2014 precisely the child-descendants case the crash test targets. Items I could not verify from this slice are marked.\", \"findings\": [\"[HIGH - unit] Restart=on-failure with StartLimitIntervalSec=0 defeats the central invariant of this change. supervise() has several nonzero-exit paths: clear_control() raises RuntimeError on its 10s populated!=0 timeout (reachable at loop top, on the stop path, and again in the outer finally); the final `code = child.wait(timeout=10)` raises TimeoutExpired uncaught; delegate() raises if any cgroup precondition drifts; Popen raises if preexec_fn fails. Any of these terminates the persistent main, systemd stops the unit and prunes the unit cgroup tree, which removes empty-but-unsealed executor cgroups and re-enters the systemd 259 clone3/EBUSY spawn path on the restart. For the stated design the unit needs Restart=no, and the supervise loop must catch and log daemon-side failures instead of propagating them out of main().\", \"[HIGH - stop path timing] The stop sequence can take 10s (child.wait after pidfd SIGTERM) + up to 10s (clear_control polling cgroup.events) + 10s (the trailing child.wait) = 30s, exceeding TimeoutStopSec=25. systemd then SIGKILLs, and because KillMode=process only the main process dies: the daemon survives in `manager` after the unit is gone, so the next start faces a live daemon in its own DelegateSubgroup (duplicate daemon against the same Store/socket, and a non-empty target subgroup at spawn time). Give the stop path a single bounded budget well under TimeoutStopSec, or raise TimeoutStopSec above the true worst case.\", \"[MED - fd/signal lifetime] The outer `finally` is not exception-safe. If `clear_control()` raises (its 10s RuntimeError) or `child.wait(timeout=10)` raises TimeoutExpired inside that finally, the remaining cleanup is skipped: set_wakeup_fd(previous_wakeup) is never restored, the SIGTERM/SIGINT handlers are never restored, and read_fd/write_fd are never closed. It also masks the original exception with a less informative one. Wrap the child-teardown portion in its own try/except so restoration always runs, and re-raise afterwards.\", \"[MED - cgroup lifetime] `supervisor` is created defensively (`keeper.mkdir(exist_ok=True)`) but `manager` is assumed to exist. From the moment the main process moves itself to `supervisor` until the first daemon spawn, `manager` is empty; clear_control() then reads `control/cgroup.events` and place_child writes `control/cgroup.procs` with no ENOENT handling, so if the empty DelegateSubgroup is ever pruned both raise and feed finding 1. Add `control.mkdir(exist_ok=True)` before use and tolerate ENOENT in clear_control. UNCERTAIN whether systemd 259 prunes an empty delegate subgroup at runtime (I believe pruning is at unit stop), but the guard is free and the failure mode is a unit restart.\", \"[MED - fd lifetime] os.pidfd_open(), selector.register(pidfd) and the wsl_daemon_started print all sit outside the try/finally that unregisters and closes the pidfd. A BrokenPipeError/BlockingIOError from the print to journald (or any failure in register) leaks the pidfd and unwinds into the outer finally, which only does clear_control()/child.wait() \\u2014 so the just-started daemon is killed without its exit ever being recorded, and per finding 1 the unit restarts. Move pidfd_open, register and the print inside the try.\", \"[MED - Rust, evidence loss] The Linux probe_reconciliation_candidate collapses everything that is not Ok(ProvenEmpty) \\u2014 including Ok(BoundaryNotEmpty) and Err(_) \\u2014 into BoundaryUninspectable via `_ =>`. In force_clear_containment this makes the `BoundaryNotEmpty` rejection arm unreachable on Linux, and the `BoundaryUninspectable if candidate.daemon_generation == Some(context.2)` guard only fires for the current generation. So a prior-generation boundary that is known nonempty (recorded root PID dead, descendants still alive \\u2014 exactly the crash-test shape) falls through to the ForcedRiskAcceptance path and is cleared on IdentityAbsent evidence, with no signal that the cgroup was observed populated. Propagate the real ReconciliationResult from reconcile_linux instead of flattening it, and distinguish Err from BoundaryNotEmpty.\", \"[MED - Rust, missing identity gate] The Linux probe ignores `_context` entirely, unlike the Windows branch which gates on host_id and boot_id before trusting any inspection. The doc comment asserts a different boot cannot substitute for the seal, but nothing in this function enforces it, and executor cgroup paths are deterministic across boots (fixed unit path plus per-invocation child names). UNCERTAIN \\u2014 this is only safe if reconcile_linux itself requires the durable exact-boundary seal to carry host+boot and never treats a merely-absent or merely-empty cgroup as proof; that function is not in this slice and must be confirmed. If it does not, add the host/boot/generation gate here.\", \"[MED - Rust, state ordering] In the automatic-resolution block, persist_linux_cleanup() runs before commit_containment_resolution(). If the commit returns Ok(None) (lost race / candidate changed), the Linux cleanup is already persisted, live_containments.clear() is skipped, and control falls through the `automatic_evidence` match \\u2014 ProvenEmpty matches no arm and hits `_ => {}` \\u2014 into the forced path. The result is that a containment with an actual emptiness proof can be committed as ForcedRiskAcceptance with a ForcedClearanceAudit naming the requester, misattributing operator risk acceptance. Re-read the candidate and retry the automatic commit, or at minimum treat ProvenEmpty as non-forced rather than letting it reach the forced branch.\", \"[LOW - Rust] force_clear_containment retry shape: at attempt 0, persisted_clearance(containment_id) is queried twice back-to-back (once directly after the commit, once again as the first statement inside `if attempt == 0`) \\u2014 the second is dead. And because the `if attempt == 0` block is the only path with `continue`, attempt 1 falls out of the `for attempt in 0..2` loop into the generic containment_authorization_unavailable error, discarding the freshly recomputed target_evidence and the re-authorized peer. Either fold the duplicate query or make the loop shape explicit.\", \"[LOW - Rust] recover_machine_authority: `snapshot.native_obligations.iter().all(..)` is vacuously true on an empty list, so native_empty then rests entirely on the coordinator predicate. That is likely intended for a reset with no native obligations, but it should be explicit. Also `dead()` accepts PriorBoot as death evidence, which is only defensible because of the `boundary_kind == \\\"windows_job_object\\\"` filter \\u2014 worth asserting that no Linux-backed obligation can ever be recorded with that boundary_kind, since that string is the sole thing keeping Linux generations out of this branch.\", \"[MED - install] The candidate is digested at the top of main(), then copied much later, after two subprocess round-trips (the Windows CLI status call and, on the apply path, other filesystem work). The installed copy is never re-verified against --candidate-sha256: staged.json records digest(installed) but nothing compares it to the expected value, and `[installed] wsl-install` is executed before any post-copy check. A candidate swapped in that window is installed, executed, and merely recorded. Copy from the fd opened at verification time, or re-digest `installed` and abort before executing it. The same gap applies to the helper (helper_sha256 is recorded twice but never compared).\", \"[LOW - install] shutil.copyfile creates `installed` with 0666 & ~umask before installed.chmod(0o700); this process never sets its own umask (the unit's UMask=0077 is irrelevant here), so there is a window where the binary is group/world-readable, mitigated only by the owner-only tree. Separately, installed.parent.mkdir(mode=0o700) has no exist_ok, so a pre-existing empty bin/ (which passes the `installed.exists()` guard) aborts the apply after evidence and possibly config writes have landed. Finally, file contents are fsync'd but the containing directories (bin, libexec, ~/.config/systemd/user) never are, so the directory entries are not crash-durable despite the explicit fsync effort.\", \"[LOW - keepalive] There is a window between publishing the interop alias / running `systemctl start` and pthread_sigmask(SIG_BLOCK): a SIGTERM there kills the process with default disposition and leaves interop.sock dangling, and if the systemctl call raises (check=True) the alias is likewise left behind with no try/finally. The next start only checks `alias.exists() and not alias.is_symlink()`, and a dangling symlink reports exists()==False, so the stale alias is silently replaced \\u2014 correct outcome, but reached by accident rather than by the check. Block the termination signals before publishing the alias and put the systemctl call inside the existing cleanup scope.\", \"[LOW - keepalive] socket.lstat() is called before $WSL_INTEROP is validated as absolute, parented by /run/WSL, and root-owned. Harmless against the current threat model but the validation should precede any syscall on the untrusted path, since the ordering is what a future refactor will copy.\", \"[LOW - supervise semantics] clear_control() unconditionally cgroup.kills the entire `manager` subtree at loop top, after every daemon exit, and in the outer finally. Any trusted bridge/helper process resident in `manager` that holds state for a live Invocation is SIGKILLed on every daemon crash-restart, even though the point of the change is that live executors survive. UNCERTAIN from this slice \\u2014 the comment claims only daemon/bridge processes inherit manager; the planned real crash test that checks child descendants and retained grants should explicitly cover a manager-resident helper, not just executor descendants.\", \"[LOW - portability/robustness] delegate() rejects anything but exact Path equality between --executors and parent/'executors', where --executors is a literal baked into the unit by the installer from os.geteuid() plus a hardcoded user@UID.service/app.slice shape. Any deviation (different slice, differing user-manager path shape, cgroup mount presented via a symlink, uid/euid divergence) fails the unit at start; combined with finding 1 that becomes a permanent restart loop rather than a single clear error. Derive the expected path from /proc/self/cgroup and compare only the final component, or at least fail with a non-restarting exit.\", \"[LOW - supervise] place_child runs Python (two signal.signal calls, set_wakeup_fd, and a cgroup.procs write) in the forked child via preexec_fn, which is async-signal-unsafe between fork and exec; it is safe only while the supervisor stays strictly single-threaded, and nothing in the file enforces or documents that constraint. Worth an explicit comment at minimum, since a future addition of any thread (metrics, health endpoint) turns this into an intermittent deadlock rather than a visible error.\"]}}\n",
+                "stderr_tail": ""
+              }
+            ]
+          }
+        ],
+        "allocations": [
+          {
+            "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a32-f43a-7150-bc5e-0ee7f53fd165",
+            "lease_id": "01a08a32-f421-7931-a908-fb141f2bc346",
+            "key": {
+              "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+              "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+              "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+              "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+              "lease_id": "01a08a32-f421-7931-a908-fb141f2bc346"
+            },
+            "owner": {
+              "kind": "work",
+              "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a32-f41b-7ec0-a6fc-8ab1eccf7a2f",
+              "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a32-f421-7931-a908-fae48445c60d"
+            },
+            "state": "armed",
+            "claims": {
+              "scalars": {
+                "cargo_slots": 0,
+                "claude2_slots": 1,
+                "cpu_units": 0,
+                "gpu_slots": 0,
+                "ram_mb": 0
+              },
+              "shared_fences": [],
+              "exclusive_fences": [],
+              "impacts": []
+            }
+          }
+        ],
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a08a25-c1ff-7e43-8a58-e60aa64cb655"
+      }
+    }
+  },
+  "exit_source": "scheduler",
+  "exit_code": 0
+}

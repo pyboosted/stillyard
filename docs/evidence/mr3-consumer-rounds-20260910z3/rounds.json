@@ -1,0 +1,95 @@
+[
+  {
+    "round_label": 2,
+    "machine_cargo_slots": 2,
+    "windows_job": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a22-e553-79a1-9c77-ca5525b9eb19",
+    "linux_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-dfb1-7db0-a6b0-82f3dd319441",
+    "source_files_sha256": "005ed18d96eb8f5e14cf5b178308b9d7cbb8ec1eeeaef1f16d58b0ca5fffa10a",
+    "wc2_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3830-7a80-b3cb-973cfef7acdd",
+    "actual_models": [
+      "claude-haiku-4-5-20251001",
+      "claude-sonnet-5"
+    ],
+    "wc3_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-e38a-7652-800c-e55c2e7bc582",
+    "managed_child_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-fe5b-7701-8658-6b92bccb200c",
+    "wc4_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3ce0-76e3-a350-107922ca529a",
+    "measurement": {
+      "rounds": 256,
+      "bytes_per_round": 3906336,
+      "bytes_hashed": 1000022016,
+      "payload_sha256": "907024d28b8ceefff516b045ec3dc84df0f1d87271dbd7c494b2b575502154c4",
+      "source_files_sha256": "005ed18d96eb8f5e14cf5b178308b9d7cbb8ec1eeeaef1f16d58b0ca5fffa10a",
+      "wall_seconds": 0.9777510269923368,
+      "cpu_seconds": 0.9746962310000001,
+      "invocation": {
+        "STILLYARD_JOB_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3ce0-76e3-a350-107922ca529a",
+        "STILLYARD_ATTEMPT": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-3cea-7d03-a8da-cfcd12cd3de0",
+        "STILLYARD_INVOCATION_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a23-cf1d-7631-8070-66d5bfc43c03",
+        "STILLYARD_ENDPOINT": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock"
+      }
+    },
+    "measurement_exclusion_passed": true
+  },
+  {
+    "round_label": 3,
+    "machine_cargo_slots": 2,
+    "windows_job": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a26-a2c6-7433-a54e-920ee2438f02",
+    "linux_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-9c83-7662-b381-3d9d36a5a64e",
+    "source_files_sha256": "005ed18d96eb8f5e14cf5b178308b9d7cbb8ec1eeeaef1f16d58b0ca5fffa10a",
+    "wc2_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a0d8-7592-a7e7-82bb065eb797",
+    "actual_models": [
+      "claude-haiku-4-5-20251001",
+      "claude-sonnet-5"
+    ],
+    "wc3_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a094-74f1-9a98-eec636ed45dd",
+    "managed_child_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-b5d3-76a2-8272-bf8a735cc7a5",
+    "wc4_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a1a6-7071-b6fa-414cfe3ac858",
+    "measurement": {
+      "rounds": 256,
+      "bytes_per_round": 3906336,
+      "bytes_hashed": 1000022016,
+      "payload_sha256": "907024d28b8ceefff516b045ec3dc84df0f1d87271dbd7c494b2b575502154c4",
+      "source_files_sha256": "005ed18d96eb8f5e14cf5b178308b9d7cbb8ec1eeeaef1f16d58b0ca5fffa10a",
+      "wall_seconds": 0.958833547992981,
+      "cpu_seconds": 0.9574555059999998,
+      "invocation": {
+        "STILLYARD_JOB_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a1a6-7071-b6fa-414cfe3ac858",
+        "STILLYARD_ATTEMPT": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a26-a1c5-7f03-8ad6-0f9868ff988b",
+        "STILLYARD_INVOCATION_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a27-953f-7e50-8db8-5ebf5a21a9b8",
+        "STILLYARD_ENDPOINT": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock"
+      }
+    },
+    "measurement_exclusion_passed": true
+  },
+  {
+    "round_label": 4,
+    "machine_cargo_slots": 1,
+    "windows_job": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a2a-d319-7010-a8e0-9d0f517b5405",
+    "linux_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d1d6-75a2-805e-b5db972db36c",
+    "source_files_sha256": "005ed18d96eb8f5e14cf5b178308b9d7cbb8ec1eeeaef1f16d58b0ca5fffa10a",
+    "wc2_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d604-7cf2-bd8a-2fd01777468b",
+    "actual_models": [
+      "claude-haiku-4-5-20251001",
+      "claude-sonnet-5"
+    ],
+    "wc3_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d5ae-7d60-a5af-690b25281ce2",
+    "managed_child_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-ef85-7d52-a817-163a845cac40",
+    "wc4_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d6b8-7091-ab79-35d321fce8d8",
+    "measurement": {
+      "rounds": 256,
+      "bytes_per_round": 3906336,
+      "bytes_hashed": 1000022016,
+      "payload_sha256": "907024d28b8ceefff516b045ec3dc84df0f1d87271dbd7c494b2b575502154c4",
+      "source_files_sha256": "005ed18d96eb8f5e14cf5b178308b9d7cbb8ec1eeeaef1f16d58b0ca5fffa10a",
+      "wall_seconds": 0.9675943879992701,
+      "cpu_seconds": 0.9659320709999999,
+      "invocation": {
+        "STILLYARD_JOB_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d6b8-7091-ab79-35d321fce8d8",
+        "STILLYARD_ATTEMPT": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2a-d6c2-7cc0-9141-0000793d12d4",
+        "STILLYARD_INVOCATION_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a2c-c8e9-7c30-809a-139b12e646c3",
+        "STILLYARD_ENDPOINT": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock"
+      }
+    },
+    "measurement_exclusion_passed": true
+  }
+]

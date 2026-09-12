@@ -1,0 +1,285 @@
+{
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0870e-6dac-7200-acb5-374b76749ab3",
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0870e-6dad-7c53-8a6c-75656c0b5164",
+  "submission_state": "accepted",
+  "job_state": "pending",
+  "reason_code": null,
+  "accepted_unix_millis": 1788972264877,
+  "priority": 0,
+  "effective_priority": 0,
+  "blockers": [
+    {
+      "code": "resource_busy",
+      "detail": "cargo_slots: requested 1, available 0, configured 1"
+    }
+  ],
+  "queue_rank": 3,
+  "reservation": null,
+  "conditions": [],
+  "estimate": {
+    "confidence": "unknown",
+    "start_in_millis": null,
+    "assumptions": [
+      "an overlapping finite scalar reservation may convert or expire before this Job; priority aging makes a precise ETA unsafe"
+    ]
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a086e8-b524-70b1-b563-4b2eb76ce274"
+}
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.24
+   Compiling libc v0.2.189
+    Checking cfg-if v1.0.4
+   Compiling version_check v0.9.5
+   Compiling rustversion v1.0.23
+   Compiling generic-array v0.14.7
+    Checking bitflags v2.13.1
+   Compiling serde_core v1.0.229
+   Compiling find-msvc-tools v0.1.11
+    Checking smallvec v1.15.2
+   Compiling shlex v2.0.1
+   Compiling syn v3.0.4
+   Compiling syn v2.0.119
+    Checking errno v0.3.14
+   Compiling parking_lot_core v0.9.12
+    Checking foldhash v0.1.5
+    Checking allocator-api2 v0.2.21
+    Checking typenum v1.20.1
+   Compiling signal-hook v0.3.18
+   Compiling fnv v1.0.7
+   Compiling strsim v0.11.1
+   Compiling getrandom v0.4.3
+   Compiling ident_case v1.0.1
+   Compiling heck v0.5.0
+    Checking equivalent v1.0.2
+    Checking hashbrown v0.15.5
+    Checking signal-hook-registry v1.4.8
+   Compiling cc v1.4.4
+   Compiling darling_core v0.20.11
+   Compiling pkg-config v0.3.34
+   Compiling zmij v1.0.23
+    Checking scopeguard v1.2.0
+    Checking itoa v1.0.18
+    Checking utf8parse v0.2.2
+    Checking log v0.4.34
+   Compiling rustix v0.38.44
+   Compiling vcpkg v0.2.15
+    Checking mio v1.2.2
+    Checking anstyle-parse v1.0.0
+    Checking lock_api v0.4.14
+   Compiling libsqlite3-sys v0.35.0
+    Checking anstyle-query v1.1.5
+   Compiling serde v1.0.229
+   Compiling ref-cast v1.0.27
+    Checking is_terminal_polyfill v1.70.2
+    Checking linux-raw-sys v0.4.15
+    Checking anstyle v1.0.14
+   Compiling paste v1.0.15
+    Checking colorchoice v1.0.5
+    Checking either v1.18.0
+   Compiling instability v0.3.10
+   Compiling serde_json v1.0.151
+    Checking itertools v0.13.0
+    Checking anstream v1.0.0
+   Compiling darling_macro v0.20.11
+   Compiling darling v0.20.11
+    Checking parking_lot v0.12.5
+    Checking signal-hook-mio v0.2.5
+   Compiling strum_macros v0.26.4
+   Compiling ref-cast-impl v1.0.27
+   Compiling serde_derive v1.0.229
+   Compiling serde_derive_internals v0.30.0
+    Checking block-buffer v0.10.4
+    Checking crypto-common v0.1.7
+    Checking castaway v0.2.4
+   Compiling thiserror v2.0.20
+    Checking ryu v1.0.23
+    Checking option-ext v0.2.0
+    Checking unicode-width v0.1.14
+   Compiling indoc v2.0.7
+    Checking static_assertions v1.1.0
+    Checking clap_lex v1.1.0
+    Checking memchr v2.8.3
+    Checking unicode-segmentation v1.13.3
+    Checking unicode-truncate v1.1.0
+    Checking clap_builder v4.6.6
+    Checking compact_str v0.8.2
+    Checking dirs-sys v0.5.0
+    Checking strum v0.26.3
+    Checking digest v0.10.7
+   Compiling schemars_derive v1.2.2
+    Checking crossterm v0.28.1
+    Checking uuid v1.26.0
+   Compiling thiserror-impl v2.0.20
+   Compiling clap_derive v4.6.4
+    Checking hashlink v0.10.0
+    Checking lru v0.12.5
+    Checking cassowary v0.3.0
+   Compiling rustix v1.1.4
+    Checking dyn-clone v1.0.20
+    Checking fallible-iterator v0.3.0
+    Checking fallible-streaming-iterator v0.1.9
+    Checking unicode-width v0.2.0
+    Checking cpufeatures v0.2.17
+    Checking ratatui v0.29.0
+    Checking sha2 v0.10.9
+    Checking clap v4.6.6
+    Checking schemars v1.2.2
+    Checking directories v6.0.0
+    Checking fs2 v0.4.3
+    Checking linux-raw-sys v0.12.1
+    Checking once_cell v1.21.4
+    Checking fastrand v2.5.0
+    Checking rusqlite v0.37.0
+    Checking tempfile v3.27.0
+    Checking stillyard v0.1.0-alpha.16 (/home/pythonic/Development/stillyard-mr1-native-20260909c)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 11.87s
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0870e-6dad-7c53-8a6c-75656c0b5164",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0870e-6dac-7200-acb5-374b76749ab3",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08710-312c-7d00-b229-3263ed089237",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08710-312b-7fd2-93c1-028e640b374b",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08710-312b-7fd2-93c1-02998c79d816",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788972264877,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788972380472,
+  "finished_unix_millis": 1788972392733,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+    "args": [
+      "bootstrap",
+      "run",
+      "--spec",
+      "C:\\Development\\stillyard-mr1-native-linux-evidence-20260909\\wsl-check-0947991d153845a3a619fcc2a40dd0a6\\work.json"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr1-native-linux-evidence-20260909\\wsl-check-0947991d153845a3a619fcc2a40dd0a6",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-bootstrap-check"
+      },
+      {
+        "key": "source",
+        "value": "df6d59d649eb802401d57a34e5de4f17e0434668a2bc82956fe61d3ba4c0586a"
+      }
+    ],
+    "expected_duration_seconds": 180,
+    "timeout_seconds": 1830,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08710-312c-7d00-b229-3263ed089237",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1788972380459,
+      "started_unix_millis": 1788972380459,
+      "deadline_unix_millis": 1788974210459,
+      "finished_unix_millis": 1788972392733,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0870e-6dad-7c53-8a6c-75656c0b5164",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08710-312c-7d00-b229-3263ed089237",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08710-312b-7fd2-93c1-028e640b374b",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1788972380472,
+        "exited_unix_millis": 1788972392727,
+        "resolved_unix_millis": 1788972392731
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08710-312b-7fd2-93c1-028e640b374b",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 33376,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 33376,
+            "creation_filetime_100ns": 134334459804690496
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "868d089a7ae94445457b32b43e91a5d3c54e845535ec639fc9a8e4065c89c8e4",
+          "daemon_generation": "01a086e8-b524-70b1-b563-4b2eb76ce274",
+          "started_unix_millis": 1788972380472,
+          "finished_unix_millis": 1788972392731,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08710-312b-7fd2-93c1-02998c79d816",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": "   Compiling proc-macro2 v1.0.107\n   Compiling quote v1.0.47\n   Compiling unicode-ident v1.0.24\n   Compiling libc v0.2.189\n    Checking cfg-if v1.0.4\n   Compiling version_check v0.9.5\n   Compiling rustversion v1.0.23\n   Compiling generic-array v0.14.7\n    Checking bitflags v2.13.1\n   Compiling serde_core v1.0.229\n   Compiling find-msvc-tools v0.1.11\n    Checking smallvec v1.15.2\n   Compiling shlex v2.0.1\n   Compiling syn v3.0.4\n   Compiling syn v2.0.119\n    Checking errno v0.3.14\n   Compiling parking_lot_core v0.9.12\n    Checking foldhash v0.1.5\n    Checking allocator-api2 v0.2.21\n    Checking typenum v1.20.1\n   Compiling signal-hook v0.3.18\n   Compiling fnv v1.0.7\n   Compiling strsim v0.11.1\n   Compiling getrandom v0.4.3\n   Compiling ident_case v1.0.1\n   Compiling heck v0.5.0\n    Checking equivalent v1.0.2\n    Checking hashbrown v0.15.5\n    Checking signal-hook-registry v1.4.8\n   Compiling cc v1.4.4\n   Compiling darling_core v0.20.11\n   Compiling pkg-config v0.3.34\n   Compiling zmij v1.0.23\n    Checking scopeguard v1.2.0\n    Checking itoa v1.0.18\n    Checking utf8parse v0.2.2\n    Checking log v0.4.34\n   Compiling rustix v0.38.44\n   Compiling vcpkg v0.2.15\n    Checking mio v1.2.2\n    Checking anstyle-parse v1.0.0\n    Checking lock_api v0.4.14\n   Compiling libsqlite3-sys v0.35.0\n    Checking anstyle-query v1.1.5\n   Compiling serde v1.0.229\n   Compiling ref-cast v1.0.27\n    Checking is_terminal_polyfill v1.70.2\n    Checking linux-raw-sys v0.4.15\n    Checking anstyle v1.0.14\n   Compiling paste v1.0.15\n    Checking colorchoice v1.0.5\n    Checking either v1.18.0\n   Compiling instability v0.3.10\n   Compiling serde_json v1.0.151\n    Checking itertools v0.13.0\n    Checking anstream v1.0.0\n   Compiling darling_macro v0.20.11\n   Compiling darling v0.20.11\n    Checking parking_lot v0.12.5\n    Checking signal-hook-mio v0.2.5\n   Compiling strum_macros v0.26.4\n   Compiling ref-cast-impl v1.0.27\n   Compiling serde_derive v1.0.229\n   Compiling serde_derive_internals v0.30.0\n    Checking block-buffer v0.10.4\n    Checking crypto-common v0.1.7\n    Checking castaway v0.2.4\n   Compiling thiserror v2.0.20\n    Checking ryu v1.0.23\n    Checking option-ext v0.2.0\n    Checking unicode-width v0.1.14\n   Compiling indoc v2.0.7\n    Checking static_assertions v1.1.0\n    Checking clap_lex v1.1.0\n    Checking memchr v2.8.3\n    Checking unicode-segmentation v1.13.3\n    Checking unicode-truncate v1.1.0\n    Checking clap_builder v4.6.6\n    Checking compact_str v0.8.2\n    Checking dirs-sys v0.5.0\n    Checking strum v0.26.3\n    Checking digest v0.10.7\n   Compiling schemars_derive v1.2.2\n    Checking crossterm v0.28.1\n    Checking uuid v1.26.0\n   Compiling thiserror-impl v2.0.20\n   Compiling clap_derive v4.6.4\n    Checking hashlink v0.10.0\n    Checking lru v0.12.5\n    Checking cassowary v0.3.0\n   Compiling rustix v1.1.4\n    Checking dyn-clone v1.0.20\n    Checking fallible-iterator v0.3.0\n    Checking fallible-streaming-iterator v0.1.9\n    Checking unicode-width v0.2.0\n    Checking cpufeatures v0.2.17\n    Checking ratatui v0.29.0\n    Checking sha2 v0.10.9\n    Checking clap v4.6.6\n    Checking schemars v1.2.2\n    Checking directories v6.0.0\n    Checking fs2 v0.4.3\n    Checking linux-raw-sys v0.12.1\n    Checking once_cell v1.21.4\n    Checking fastrand v2.5.0\n    Checking rusqlite v0.37.0\n    Checking tempfile v3.27.0\n    Checking stillyard v0.1.0-alpha.16 (/home/pythonic/Development/stillyard-mr1-native-20260909c)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 11.87s\n"
+        }
+      ]
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a086e8-b524-70b1-b563-4b2eb76ce274"
+}

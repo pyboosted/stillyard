@@ -1,0 +1,43 @@
+{
+  "spec_version": 4,
+  "executable": "${CARGO_HOME}/bin/cargo",
+  "args": [
+    "clippy",
+    "--locked",
+    "--workspace",
+    "--all-features",
+    "--all-targets",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "working_directory": "${REPOSITORY_ROOT}",
+  "environment": {
+    "set": {
+      "HOME": "${USER_HOME}",
+      "CARGO_HOME": "${CARGO_HOME}",
+      "RUSTUP_HOME": "${RUSTUP_HOME}",
+      "RUSTUP_TOOLCHAIN": "${RUSTUP_TOOLCHAIN}",
+      "PATH": "${CARGO_HOME}/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR": "${REPOSITORY_ROOT}/target/scheduled-linux",
+      "CARGO_BUILD_JOBS": "4"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "timeout_seconds": 1800,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "wsl-clippy"
+    }
+  ]
+}

@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a75-5555-70e1-bf83-639953a80a97",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a75-5552-7152-a82d-7c5ea9d4d117",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a75-555b-76e1-9186-6f888f123938",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a79-78b9-7271-9e18-203c527577fc",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a79-78b9-7271-9e18-20449fc59cd3",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789029340501,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789029340717,
+  "finished_unix_millis": 1789029611929,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-mr3-opus-bootstrap-controller-20260910z6/ee57745398cd4516b97196410b8ddf9e/reviewer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-mr3-opus-bootstrap-controller-20260910z6/ee57745398cd4516b97196410b8ddf9e/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-mr3-opus-bootstrap-controller-20260910z6/ee57745398cd4516b97196410b8ddf9e/review.json",
+      "--model",
+      "opus",
+      "--effort",
+      "high"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-bootstrap-controller-20260910z6/ee57745398cd4516b97196410b8ddf9e",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-mr3-opus-bootstrap-controller-20260910z6/ee57745398cd4516b97196410b8ddf9e/reviewer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-mr3-opus-bootstrap-controller-20260910z6/ee57745398cd4516b97196410b8ddf9e/review.json",
+          "--expected-model-prefix",
+          "claude-opus-"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr3-opus-bootstrap-controller"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a75-555b-76e1-9186-6f888f123938",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789029340507,
+      "started_unix_millis": 1789029340595,
+      "deadline_unix_millis": 1789030540595,
+      "finished_unix_millis": 1789029611929,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a75-5555-70e1-bf83-639953a80a97",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a75-555b-76e1-9186-6f888f123938",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a75-555b-76e1-9186-6f99a5753ed7",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789029340717,
+        "exited_unix_millis": 1789029611681,
+        "resolved_unix_millis": 1789029611698
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a75-555b-76e1-9186-6f99a5753ed7",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 453732,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 453732,
+            "start_ticks": 7544733,
+            "pid_namespace_inode": 4026534429,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08a42-318c-7b21-9091-aa0de1d8b4b4",
+          "started_unix_millis": 1789029340717,
+          "finished_unix_millis": 1789029611698,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a75-555b-76e1-9186-6fa279e3f76c",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "a human log and consistent with \\\\\\\"no reading controller output as cleanup authority\\\\\\\", but state as a rule that neither side may carry machine-readable protocol on those streams, and give the controller its own log file in the mailbox so CI failure triage is not defeated by interleaving.\\\",\\\"Highest operational risk is the crash gap between Arm and Seal wedging the shared machine. If the CLI dies in that window the durable hold blocks all new admission and only `bootstrap reconcile <operation-id>` from an unmanaged installed bridge clears it; the registry also caps at 1024 obligations and blocks rather than evicting. The op-id remains discoverable via AuthorityStatus holds even if the result file was never written, so require launcher teardown to enumerate leftover bootstrap holds and reconcile them, and gate CI on AuthorityStatus being clean before and after each run. Related pre-existing exposure, not caused by this design: `seal_bootstrap` uses a 10s deadline after a 240s Linux run, and its failure path drops the proof, leaving reconcile as the only recovery.\\\",\\\"Treat the Drop-published abort as diagnostics only. Under Job termination the controller dies by TerminateProcess with no unwinding, so `abort.json` will not appear; the load-bearing mechanisms are the existing intermediary-loss to cgroup.kill path, the Linux subject's bounded 120s receives and the 240s descriptor timeout. Verify no test asserts that abort.json arrives, and keep every controller-side wait strictly under the bootstrap timeout.\\\",\\\"Tests that matter, in priority order: (1) regression that the fault test executable calling `Client::run_wsl_bootstrap` directly is still rejected by the image check \u2014 this is the guard the whole design exists to preserve and must never silently regress; (2) pre-spawn rejection outside a managed Job and when the CLI image is a copy, asserting via a controller start marker that no child was created; (3) crash matrix \u2014 controller hard-killed mid-protocol (Linux still killed, sealed, Job empties, no orphan cgroup), CLI killed after Arm (hold retained, admission blocked, reconcile clears it and yields a proof), Linux subject panics (root_exit_code non-zero, acceptance fails loudly rather than passing); (4) exit-status table over bootstrap Ok/Err by controller zero/non-zero; (5) proof cross-check between the authority-held proof and mailbox `seal.json`; (6) Job reaches empty and the invocation resolves without force-clear, catching leaked isolated daemons; (7) optionally a negative test where the controller submits an ordinary job pre-Arm, pinning the `authority_busy` rejection as clean and hold-free.\\\",\\\"Two exporters now exist and their responsibilities must be split cleanly. `bootstrap-proof.json` can no longer be routed through the mailbox, since the proof arrives only after the controller has exited; the launcher must export it directly while the controller exports the mailbox artifacts. Keep the explicit copy-by-name allowlist rather than a directory copy, so the fixture pairing secret in the configuration stays unexported, and ensure both writers create the evidence directory idempotently and use disjoint names.\\\",\\\"Surface-management: do not gate `--native-controller` behind a build feature. The installed binary is exactly what Arm authenticates, so a feature-gated build would be a different image and could not run the acceptance at all. Use a hidden/undocumented flag, document it as transitional alongside MR-0, and tie its removal to the removal of the whole-authority interlock, so it does not outlive the bootstrap path into the Grant-scoped protocol.\\\"]}\",\"structured_output\":{\"summary\":\"Design review only \u2014 no files were read or changed. Verdict: the CLI-only companion is sound in its core claim and is clearly preferable to weakening the bootstrap root identity check. Nothing in it touches the three Arm guards: the CLI is itself the installed daemon image and the Job primary root, so `bootstrap_bridge`'s canonicalized `current_exe` comparison and `arm_bootstrap`'s `root_identity`/`Primary`/sole-Lease predicates all still hold unmodified, and the spawned controller is *less* privileged than the status quo \u2014 being inside the Job makes it managed, so `authority_admin` rejects it from Initialize/ForceRelease/RetireDomain, and the image check rejects it from Arm/Seal, giving two independent guards. Spawning an ordinary child in one's own Job is a capability every primary already has, so no privilege is added. Weakening the root-identity check, by contrast, would erase the single binding that ties a durable machine-wide admission block to one authenticated process, and would have to be re-tightened before MR-2 Grants. Distinguishing design from code: the shown/implemented parts are `bootstrap_bridge`, `arm_bootstrap`, `validate_binding`/`validate_proof`, `invoke_supervisor` framing, `run_wsl_bootstrap`, `reconcile_wsl_bootstrap`, the thread-based `tests/support/cross_os_reset.rs`, and the Linux subject. Everything else \u2014 the `--native-controller` flag, pre-spawn validation, the result file, controller exit composition, the controller's Drop-abort, the bounded controller wait, the outer 600s Job timeout and the \\\"daemon recursively cleans Windows Job\\\" behavior \u2014 is design only and is not verifiable from what was provided. The findings below are gaps to close, not reasons to abandon the approach; most reduce, rather than expand, the new CLI surface.\",\"verdict\":\"findings\",\"findings\":[\"Success is under-defined and the two assertions that currently make the test meaningful would be silently dropped. `invoke_supervisor` checks the *supervisor's* exit, not the Linux root's: a subject that panics still yields a valid sealed proof, `validate_proof` accepts `termination` in {exited, canceled, timed_out, intermediary_lost}, and `run_wsl_bootstrap` returns Ok. The old `finish()` asserted `proof.phase == \\\"sealed_empty\\\"` and `proof.root_exit_code == 0`; under the new split the controller can no longer see the proof, so those assertions must be explicitly relocated to the launcher, not lost. Define acceptance success as Ok(proof) AND phase == sealed_empty AND root_exit_code == 0 AND termination == \\\"exited\\\", and state separately (and consistently) whether the CLI's own exit code mirrors the Linux root exit code or only the seal outcome.\",\"Root exit status must be a conjunction, with a stated precedence. The design only says \\\"if bootstrap succeeds, controller exit must also succeed\\\". Specify: root exits zero iff bootstrap succeeded AND controller exited zero; on mixed failure the bootstrap error dominates the reported diagnostic because it carries authority semantics, while the controller's status is still recorded. Also state explicitly that root exit status is never evidence of cleanup or seal \u2014 that remains solely the validated BootstrapProof \u2014 which is the same rule already correctly applied to controller stdout.\",\"The controller loses the liveness check that made the old harness fail fast. `Subject::receive` polled `!thread.is_finished()` and dumped `bootstrap-result.json` when bootstrap died early; a separate process cannot observe the bootstrap at all, so a dead bootstrap now degrades into a full mailbox timeout with no diagnostic. Minimal replacement: have the CLI write its result file the instant bootstrap completes (success or error) and *before* waiting on the controller, and have the controller treat the appearance of that file mid-protocol as immediate fail-fast with the recorded error. This costs nothing and restores the diagnostic.\",\"The controller wait is unbounded and is only backstopped by the outer Job kill. If bootstrap returns at 240s and the controller is wedged, the CLI blocks until the 600s Job timeout terminates everything, discarding the clean failure path and the result file flush. Bound the controller wait from the remaining budget (e.g. ~300s), and on expiry terminate the controller, exit non-zero with a distinct code, and record which side timed out.\",\"Proof provenance: a result file inside the controller-writable mailbox is written by the very process under test, so the acceptance would assert on an artifact its own subject could produce. This is an evidence-integrity issue, not an adversary claim. Prefer the launcher retrieving the proof from the daemon authority \u2014 the contract states BootstrapSeal retires the obligation but retains its proof, so AuthorityStatus is the authoritative source \u2014 and, if a file is also used, place it outside the mailbox at a launcher-supplied path. Keep both: the mailbox `seal.json` is subject evidence that should be cross-checked against the authoritative proof on operation_id, request_sha256 and cgroup_path.\",\"Drop the mailbox from the new CLI surface entirely. The design already says the controller inherits the root Job's environment, so the launcher can create the NTFS directory itself, put the `/mnt/<drive>/...` form in the BootstrapWork environment (exactly as `MR_WSL_FAULT_MAILBOX` is passed today) and the Windows form in the CLI's own environment, where it flows to the controller for free. In particular the shipped CLI must never synthesize Linux paths: the `linux_path` helper's drive-letter and `/mnt` automount assumptions are wsl.conf-dependent and belong in the harness, not in product code. This reduces the new flag set to `--native-controller <abs path> -- <args>` plus an optional result path.\",\"Spawning the controller before Arm couples the acceptance to the sole-Lease predicate. `arm_bootstrap` requires own == 1 and others == 0 over granted leases in the *installed* Store; the controller's own isolated daemons live in their own SQLite files and are invisible there, so the design is correct \u2014 but only as long as the controller performs zero submissions, probes or auto-starts against the installed daemon before Arm. Make that a stated precondition of `--native-controller`, since violating it produces a non-deterministic `authority_busy` rejection after the controller is already running.\",\"Nevertheless, keep the proposed spawn-first / bootstrap-then-controller ordering, and record *why*: waiting on both concurrently would tempt an early abandon of an armed obligation to get a faster failure, and there is no cancel path in `run_wsl_bootstrap` short of killing the wsl child, which loses the seal and wedges the hold. The sequential order also costs nothing on the happy path (the controller finishes before bootstrap returns) and avoids any overlap between the controller's spawn and the supervisor pipe's inheritable window.\",\"Validation order should be tightened to a fixed sequence, all before spawn: parse args and require an absolute existing controller path; resolve submission_context and reject when parent is None; verify the CLI's own canonicalized image equals the daemon's installed executable path (available via DaemonStatus/doctor per contract section 9) so the `bootstrap_bridge` mismatch surfaces as a clean early error rather than a stranded controller plus a late Arm rejection; build the descriptor, derive operation_id and run the local `validate_binding` equivalent so a malformed spec fails before any process exists. Only then spawn.\",\"The controller must reap or terminate its isolated daemons before it exits. They inherit the root Job, so if any survive the controller the Job never empties on root exit; the installed daemon then takes its forcible cleanup path and the containment-emptiness evidence that `reconcile_native_start_permissions` depends on (containment in empty/cleared AND invocation resolved) becomes noise. Require the controller to use distinct store roots and endpoint names so its coordinators cannot be mistaken for, or collide with, the installed daemon's singleton.\",\"Constrain handle inheritance explicitly. \\\"Inherited canonical stdout/stderr\\\" must mean only the three std handles \u2014 use `std::process::Command` rather than a raw CreateProcess with a broad inherit list, and confirm the Client's named-pipe handle is non-inheritable, so the controller cannot end up holding a daemon connection handle. Also assert CREATE_BREAKAWAY_FROM_JOB is absent (and ideally that the Job does not set JOB_OBJECT_LIMIT_BREAKAWAY_OK), since Job inheritance is what makes the controller managed and therefore un-privileged.\",\"Sharing one stdout handle between the controller and the decoded Linux bridge frames means interleaving, possibly mid-line, since `invoke_supervisor` writes forwarded bytes to the same stream. That is fine for a human log and consistent with \\\"no reading controller output as cleanup authority\\\", but state as a rule that neither side may carry machine-readable protocol on those streams, and give the controller its own log file in the mailbox so CI failure triage is not defeated by interleaving.\",\"Highest operational risk is the crash gap between Arm and Seal wedging the shared machine. If the CLI dies in that window the durable hold blocks all new admission and only `bootstrap reconcile <operation-id>` from an unmanaged installed bridge clears it; the registry also caps at 1024 obligations and blocks rather than evicting. The op-id remains discoverable via AuthorityStatus holds even if the result file was never written, so require launcher teardown to enumerate leftover bootstrap holds and reconcile them, and gate CI on AuthorityStatus being clean before and after each run. Related pre-existing exposure, not caused by this design: `seal_bootstrap` uses a 10s deadline after a 240s Linux run, and its failure path drops the proof, leaving reconcile as the only recovery.\",\"Treat the Drop-published abort as diagnostics only. Under Job termination the controller dies by TerminateProcess with no unwinding, so `abort.json` will not appear; the load-bearing mechanisms are the existing intermediary-loss to cgroup.kill path, the Linux subject's bounded 120s receives and the 240s descriptor timeout. Verify no test asserts that abort.json arrives, and keep every controller-side wait strictly under the bootstrap timeout.\",\"Tests that matter, in priority order: (1) regression that the fault test executable calling `Client::run_wsl_bootstrap` directly is still rejected by the image check \u2014 this is the guard the whole design exists to preserve and must never silently regress; (2) pre-spawn rejection outside a managed Job and when the CLI image is a copy, asserting via a controller start marker that no child was created; (3) crash matrix \u2014 controller hard-killed mid-protocol (Linux still killed, sealed, Job empties, no orphan cgroup), CLI killed after Arm (hold retained, admission blocked, reconcile clears it and yields a proof), Linux subject panics (root_exit_code non-zero, acceptance fails loudly rather than passing); (4) exit-status table over bootstrap Ok/Err by controller zero/non-zero; (5) proof cross-check between the authority-held proof and mailbox `seal.json`; (6) Job reaches empty and the invocation resolves without force-clear, catching leaked isolated daemons; (7) optionally a negative test where the controller submits an ordinary job pre-Arm, pinning the `authority_busy` rejection as clean and hold-free.\",\"Two exporters now exist and their responsibilities must be split cleanly. `bootstrap-proof.json` can no longer be routed through the mailbox, since the proof arrives only after the controller has exited; the launcher must export it directly while the controller exports the mailbox artifacts. Keep the explicit copy-by-name allowlist rather than a directory copy, so the fixture pairing secret in the configuration stays unexported, and ensure both writers create the evidence directory idempotently and use disjoint names.\",\"Surface-management: do not gate `--native-controller` behind a build feature. The installed binary is exactly what Arm authenticates, so a feature-gated build would be a different image and could not run the acceptance at all. Use a hidden/undocumented flag, document it as transitional alongside MR-0, and tie its removal to the removal of the whole-authority interlock, so it does not outlive the bootstrap path into the Grant-scoped protocol.\"]},\"ttft_ms\":212743,\"type\":\"result\",\"duration_ms\":269152,\"uuid\":\"5d4b582e-7312-4c11-8a0a-03df97b8b990\",\"ttft_stream_ms\":1663,\"time_to_request_ms\":35,\"first_content_frame_ms\":2073,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a79-78b9-7271-9e18-203c527577fc",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 462816,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 462816,
+            "start_ticks": 7571844,
+            "pid_namespace_inode": 4026534152,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08a42-318c-7b21-9091-aa0de1d8b4b4",
+          "started_unix_millis": 1789029611843,
+          "finished_unix_millis": 1789029611925,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a79-78b9-7271-9e18-20449fc59cd3",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-opus-5\"], \"selected_family_models\": [\"claude-opus-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"summary\": \"Design review only \\u2014 no files were read or changed. Verdict: the CLI-only companion is sound in its core claim and is clearly preferable to weakening the bootstrap root identity check. Nothing in it touches the three Arm guards: the CLI is itself the installed daemon image and the Job primary root, so `bootstrap_bridge`'s canonicalized `current_exe` comparison and `arm_bootstrap`'s `root_identity`/`Primary`/sole-Lease predicates all still hold unmodified, and the spawned controller is *less* privileged than the status quo \\u2014 being inside the Job makes it managed, so `authority_admin` rejects it from Initialize/ForceRelease/RetireDomain, and the image check rejects it from Arm/Seal, giving two independent guards. Spawning an ordinary child in one's own Job is a capability every primary already has, so no privilege is added. Weakening the root-identity check, by contrast, would erase the single binding that ties a durable machine-wide admission block to one authenticated process, and would have to be re-tightened before MR-2 Grants. Distinguishing design from code: the shown/implemented parts are `bootstrap_bridge`, `arm_bootstrap`, `validate_binding`/`validate_proof`, `invoke_supervisor` framing, `run_wsl_bootstrap`, `reconcile_wsl_bootstrap`, the thread-based `tests/support/cross_os_reset.rs`, and the Linux subject. Everything else \\u2014 the `--native-controller` flag, pre-spawn validation, the result file, controller exit composition, the controller's Drop-abort, the bounded controller wait, the outer 600s Job timeout and the \\\"daemon recursively cleans Windows Job\\\" behavior \\u2014 is design only and is not verifiable from what was provided. The findings below are gaps to close, not reasons to abandon the approach; most reduce, rather than expand, the new CLI surface.\", \"verdict\": \"findings\", \"findings\": [\"Success is under-defined and the two assertions that currently make the test meaningful would be silently dropped. `invoke_supervisor` checks the *supervisor's* exit, not the Linux root's: a subject that panics still yields a valid sealed proof, `validate_proof` accepts `termination` in {exited, canceled, timed_out, intermediary_lost}, and `run_wsl_bootstrap` returns Ok. The old `finish()` asserted `proof.phase == \\\"sealed_empty\\\"` and `proof.root_exit_code == 0`; under the new split the controller can no longer see the proof, so those assertions must be explicitly relocated to the launcher, not lost. Define acceptance success as Ok(proof) AND phase == sealed_empty AND root_exit_code == 0 AND termination == \\\"exited\\\", and state separately (and consistently) whether the CLI's own exit code mirrors the Linux root exit code or only the seal outcome.\", \"Root exit status must be a conjunction, with a stated precedence. The design only says \\\"if bootstrap succeeds, controller exit must also succeed\\\". Specify: root exits zero iff bootstrap succeeded AND controller exited zero; on mixed failure the bootstrap error dominates the reported diagnostic because it carries authority semantics, while the controller's status is still recorded. Also state explicitly that root exit status is never evidence of cleanup or seal \\u2014 that remains solely the validated BootstrapProof \\u2014 which is the same rule already correctly applied to controller stdout.\", \"The controller loses the liveness check that made the old harness fail fast. `Subject::receive` polled `!thread.is_finished()` and dumped `bootstrap-result.json` when bootstrap died early; a separate process cannot observe the bootstrap at all, so a dead bootstrap now degrades into a full mailbox timeout with no diagnostic. Minimal replacement: have the CLI write its result file the instant bootstrap completes (success or error) and *before* waiting on the controller, and have the controller treat the appearance of that file mid-protocol as immediate fail-fast with the recorded error. This costs nothing and restores the diagnostic.\", \"The controller wait is unbounded and is only backstopped by the outer Job kill. If bootstrap returns at 240s and the controller is wedged, the CLI blocks until the 600s Job timeout terminates everything, discarding the clean failure path and the result file flush. Bound the controller wait from the remaining budget (e.g. ~300s), and on expiry terminate the controller, exit non-zero with a distinct code, and record which side timed out.\", \"Proof provenance: a result file inside the controller-writable mailbox is written by the very process under test, so the acceptance would assert on an artifact its own subject could produce. This is an evidence-integrity issue, not an adversary claim. Prefer the launcher retrieving the proof from the daemon authority \\u2014 the contract states BootstrapSeal retires the obligation but retains its proof, so AuthorityStatus is the authoritative source \\u2014 and, if a file is also used, place it outside the mailbox at a launcher-supplied path. Keep both: the mailbox `seal.json` is subject evidence that should be cross-checked against the authoritative proof on operation_id, request_sha256 and cgroup_path.\", \"Drop the mailbox from the new CLI surface entirely. The design already says the controller inherits the root Job's environment, so the launcher can create the NTFS directory itself, put the `/mnt/<drive>/...` form in the BootstrapWork environment (exactly as `MR_WSL_FAULT_MAILBOX` is passed today) and the Windows form in the CLI's own environment, where it flows to the controller for free. In particular the shipped CLI must never synthesize Linux paths: the `linux_path` helper's drive-letter and `/mnt` automount assumptions are wsl.conf-dependent and belong in the harness, not in product code. This reduces the new flag set to `--native-controller <abs path> -- <args>` plus an optional result path.\", \"Spawning the controller before Arm couples the acceptance to the sole-Lease predicate. `arm_bootstrap` requires own == 1 and others == 0 over granted leases in the *installed* Store; the controller's own isolated daemons live in their own SQLite files and are invisible there, so the design is correct \\u2014 but only as long as the controller performs zero submissions, probes or auto-starts against the installed daemon before Arm. Make that a stated precondition of `--native-controller`, since violating it produces a non-deterministic `authority_busy` rejection after the controller is already running.\", \"Nevertheless, keep the proposed spawn-first / bootstrap-then-controller ordering, and record *why*: waiting on both concurrently would tempt an early abandon of an armed obligation to get a faster failure, and there is no cancel path in `run_wsl_bootstrap` short of killing the wsl child, which loses the seal and wedges the hold. The sequential order also costs nothing on the happy path (the controller finishes before bootstrap returns) and avoids any overlap between the controller's spawn and the supervisor pipe's inheritable window.\", \"Validation order should be tightened to a fixed sequence, all before spawn: parse args and require an absolute existing controller path; resolve submission_context and reject when parent is None; verify the CLI's own canonicalized image equals the daemon's installed executable path (available via DaemonStatus/doctor per contract section 9) so the `bootstrap_bridge` mismatch surfaces as a clean early error rather than a stranded controller plus a late Arm rejection; build the descriptor, derive operation_id and run the local `validate_binding` equivalent so a malformed spec fails before any process exists. Only then spawn.\", \"The controller must reap or terminate its isolated daemons before it exits. They inherit the root Job, so if any survive the controller the Job never empties on root exit; the installed daemon then takes its forcible cleanup path and the containment-emptiness evidence that `reconcile_native_start_permissions` depends on (containment in empty/cleared AND invocation resolved) becomes noise. Require the controller to use distinct store roots and endpoint names so its coordinators cannot be mistaken for, or collide with, the installed daemon's singleton.\", \"Constrain handle inheritance explicitly. \\\"Inherited canonical stdout/stderr\\\" must mean only the three std handles \\u2014 use `std::process::Command` rather than a raw CreateProcess with a broad inherit list, and confirm the Client's named-pipe handle is non-inheritable, so the controller cannot end up holding a daemon connection handle. Also assert CREATE_BREAKAWAY_FROM_JOB is absent (and ideally that the Job does not set JOB_OBJECT_LIMIT_BREAKAWAY_OK), since Job inheritance is what makes the controller managed and therefore un-privileged.\", \"Sharing one stdout handle between the controller and the decoded Linux bridge frames means interleaving, possibly mid-line, since `invoke_supervisor` writes forwarded bytes to the same stream. That is fine for a human log and consistent with \\\"no reading controller output as cleanup authority\\\", but state as a rule that neither side may carry machine-readable protocol on those streams, and give the controller its own log file in the mailbox so CI failure triage is not defeated by interleaving.\", \"Highest operational risk is the crash gap between Arm and Seal wedging the shared machine. If the CLI dies in that window the durable hold blocks all new admission and only `bootstrap reconcile <operation-id>` from an unmanaged installed bridge clears it; the registry also caps at 1024 obligations and blocks rather than evicting. The op-id remains discoverable via AuthorityStatus holds even if the result file was never written, so require launcher teardown to enumerate leftover bootstrap holds and reconcile them, and gate CI on AuthorityStatus being clean before and after each run. Related pre-existing exposure, not caused by this design: `seal_bootstrap` uses a 10s deadline after a 240s Linux run, and its failure path drops the proof, leaving reconcile as the only recovery.\", \"Treat the Drop-published abort as diagnostics only. Under Job termination the controller dies by TerminateProcess with no unwinding, so `abort.json` will not appear; the load-bearing mechanisms are the existing intermediary-loss to cgroup.kill path, the Linux subject's bounded 120s receives and the 240s descriptor timeout. Verify no test asserts that abort.json arrives, and keep every controller-side wait strictly under the bootstrap timeout.\", \"Tests that matter, in priority order: (1) regression that the fault test executable calling `Client::run_wsl_bootstrap` directly is still rejected by the image check \\u2014 this is the guard the whole design exists to preserve and must never silently regress; (2) pre-spawn rejection outside a managed Job and when the CLI image is a copy, asserting via a controller start marker that no child was created; (3) crash matrix \\u2014 controller hard-killed mid-protocol (Linux still killed, sealed, Job empties, no orphan cgroup), CLI killed after Arm (hold retained, admission blocked, reconcile clears it and yields a proof), Linux subject panics (root_exit_code non-zero, acceptance fails loudly rather than passing); (4) exit-status table over bootstrap Ok/Err by controller zero/non-zero; (5) proof cross-check between the authority-held proof and mailbox `seal.json`; (6) Job reaches empty and the invocation resolves without force-clear, catching leaked isolated daemons; (7) optionally a negative test where the controller submits an ordinary job pre-Arm, pinning the `authority_busy` rejection as clean and hold-free.\", \"Two exporters now exist and their responsibilities must be split cleanly. `bootstrap-proof.json` can no longer be routed through the mailbox, since the proof arrives only after the controller has exited; the launcher must export it directly while the controller exports the mailbox artifacts. Keep the explicit copy-by-name allowlist rather than a directory copy, so the fixture pairing secret in the configuration stays unexported, and ensure both writers create the evidence directory idempotently and use disjoint names.\", \"Surface-management: do not gate `--native-controller` behind a build feature. The installed binary is exactly what Arm authenticates, so a feature-gated build would be a different image and could not run the acceptance at all. Use a hidden/undocumented flag, document it as transitional alongside MR-0, and tie its removal to the removal of the whole-authority interlock, so it does not outlive the bootstrap path into the Grant-scoped protocol.\"]}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a75-5576-7a10-8178-78611246fa69",
+      "lease_id": "01a08a75-555b-76e1-9186-6fbc20b0d485",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08a75-555b-76e1-9186-6fbc20b0d485"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a75-5555-70e1-bf83-639953a80a97",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a75-555b-76e1-9186-6f888f123938"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08a42-318c-7b21-9091-aa0de1d8b4b4"
+}

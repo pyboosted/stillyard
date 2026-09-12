@@ -1,0 +1,195 @@
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a5f-d916-7fd2-b34b-e4b3c54ff82d",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a5f-d915-7b73-bb7f-c6a5d2f6982c",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a5f-d91c-7550-948b-fca4e74e1d38",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a5f-d91c-7550-948b-fcb4426d5664",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a5f-d91c-7550-948b-fcc43f47e7c0",
+  "root_exit_code": 101,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789027932438,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789027932460,
+  "finished_unix_millis": 1789027933058,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Development\\stillyard-mr3-cross-os-reset-20260910z4\\target\\scheduled\\debug\\deps\\isolated_daemon-1384df69d7746917.exe",
+    "args": [
+      "machine_cross_os_reset_retains_live_linux_executor_and_guest_history",
+      "--ignored",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "working_directory": "C:\\Development\\stillyard-mr3-cross-os-reset-20260910z4",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CARGO_HOME": "C:\\Users\\User\\.cargo",
+        "CARGO_TARGET_DIR": "C:\\Development\\stillyard-mr3-cross-os-reset-20260910z4\\target\\scheduled",
+        "COMSPEC": "C:\\WINDOWS\\System32\\cmd.exe",
+        "INCLUDE": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\include;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\VS\\include;C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.26100.0\\ucrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\um;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\shared;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\winrt;C:\\Program Files (x86)\\Windows Kits\\10\\\\include\\10.0.26100.0\\\\cppwinrt",
+        "LIB": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\lib\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\lib\\10.0.26100.0\\ucrt\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\\\lib\\10.0.26100.0\\\\um\\x64",
+        "MR_WSL_FAULT_EVIDENCE": "C:\\Development\\stillyard-mr3-cross-os-fault-evidence-20260910z4\\cross-os-reset-373ca06b0dd8480ebe4af059eae09744\\subject",
+        "MR_WSL_TEST_BINARY": "/home/pythonic/Development/stillyard-mr3-cross-os-reset-20260910z4/target/scheduled-linux/debug/deps/stillyard-8d19002362520820",
+        "MR_WSL_TEST_DISTRO": "Ubuntu-SSD",
+        "MR_WSL_TEST_EXECUTABLE": "/home/pythonic/Development/stillyard-mr3-cross-os-reset-20260910z4/target/scheduled-linux/debug/stillyard",
+        "MR_WSL_TEST_SOURCE": "/home/pythonic/Development/stillyard-mr3-cross-os-reset-20260910z4",
+        "MR_WSL_TEST_USER": "pythonic",
+        "PATH": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\VCPackages;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\TestWindow;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Current\\bin\\Roslyn;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Team Tools\\DiagnosticsHub\\Collector;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\Extensions\\Microsoft\\CodeCoverage.Console;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\\\x64;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\\\MSBuild\\Current\\Bin\\amd64;C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\Tools\\;C:\\WINDOWS\\System32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\Ninja;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\VC\\Linux\\bin\\ConnectionManagerExe;C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\vcpkg;C:\\Users\\User\\.cargo\\bin;C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Mozilla.sccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\sccache-v0.16.0-x86_64-pc-windows-msvc;C:\\Program Files\\Git\\cmd;C:\\Program Files\\CMake\\bin",
+        "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+        "RUSTUP_HOME": "C:\\Users\\User\\.rustup",
+        "SCCACHE_DIR": "C:\\Development\\.sccache",
+        "SYSTEMDRIVE": "C:",
+        "USERPROFILE": "C:\\Users\\User"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "cross-os-reset"
+      },
+      {
+        "key": "source",
+        "value": "c27a80bb5500416e5e6d6f665fb4299b27ea8b653dc3d1b5ae5d834e96a09ea7"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 600,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a5f-d91c-7550-948b-fca4e74e1d38",
+      "attempt_index": 1,
+      "verdict": "process_failed",
+      "reason_code": null,
+      "created_unix_millis": 1789027932443,
+      "started_unix_millis": 1789027932443,
+      "deadline_unix_millis": 1789028532443,
+      "finished_unix_millis": 1789027933058,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a5f-d916-7fd2-b34b-e4b3c54ff82d",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a5f-d91c-7550-948b-fca4e74e1d38",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a5f-d91c-7550-948b-fcb4426d5664",
+        "verdict": "process_failed",
+        "root_exit_code": 101,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789027932460,
+        "exited_unix_millis": 1789027933041,
+        "resolved_unix_millis": 1789027933050
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a5f-d91c-7550-948b-fcb4426d5664",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 39604,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 39604,
+            "creation_filetime_100ns": 134335015324552673
+          },
+          "root_exit_code": 101,
+          "exit_classification": null,
+          "executable_hash": "26a4089800b4e30e82a100c58ae1b9626ea86bccdf93afcf7acd94523d8fd919",
+          "daemon_generation": "01a08a29-e57b-7c90-a1a7-1c56e73cc496",
+          "started_unix_millis": 1789027932460,
+          "finished_unix_millis": 1789027933050,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a5f-d91c-7550-948b-fcc43f47e7c0",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "\nrunning 1 test\ntest machine_cross_os_reset_retains_live_linux_executor_and_guest_history ... FAILED\n\nfailures:\n\nfailures:\n    machine_cross_os_reset_retains_live_linux_executor_and_guest_history\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.55s\n\n",
+          "stderr_tail": "\nthread 'machine_cross_os_reset_retains_live_linux_executor_and_guest_history' (44204) panicked at tests\\support\\cross_os_reset.rs:49:14:\ncalled `Result::unwrap()` on an `Err` value: Protocol(\"named-pipe server image mismatch: expected \\\\\\\\?\\\\C:\\\\Development\\\\stillyard-mr3-cross-os-reset-20260910z4\\\\target\\\\scheduled\\\\debug\\\\deps\\\\stillyard.exe, found \\\\\\\\?\\\\C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\stillyard\\\\Stillyard\\\\bin\\\\stillyard.exe\")\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a5f-d91c-7550-948b-fcd959540312",
+      "lease_id": "01a08a5f-d91c-7550-948b-fcd959540312",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+        "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+        "lease_id": "01a08a5f-d91c-7550-948b-fcd959540312"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a5f-d916-7fd2-b34b-e4b3c54ff82d",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08a5f-d91c-7550-948b-fca4e74e1d38"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08a29-e57b-7c90-a1a7-1c56e73cc496"
+}

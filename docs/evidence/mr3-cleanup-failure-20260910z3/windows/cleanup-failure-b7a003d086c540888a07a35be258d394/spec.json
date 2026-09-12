@@ -1,0 +1,23 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+  "args": [
+    "-c",
+    "print(\"shared token released only after Linux cleanup\")"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr3-cleanup-failure-evidence-20260910z3\\cleanup-failure-b7a003d086c540888a07a35be258d394",
+  "resources": {
+    "cargo_slots": 1
+  },
+  "timeout_seconds": 30,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "installed-cleanup-failure"
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+[
+  {
+    "case": "review-evidence",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-de20-7192-877f-37f6d175c5b3",
+    "outcome": "failed",
+    "grants": [
+      {
+        "id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a09604-df16-7903-8c9e-2b5034ed67cc",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "case": "review-operations",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-de84-7d31-babc-83c444019492",
+    "outcome": "failed",
+    "grants": [
+      {
+        "id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a09604-df3e-77a2-81fc-15c992c2b182",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "case": "hello",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09605-46e9-7fe2-bd79-03e10601ecf6",
+    "outcome": "failed",
+    "grants": [
+      {
+        "id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a09605-4712-7793-b489-a4dc889adc1a",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "case": "hello-python",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09608-5ce8-7f22-a430-ec528e96d340",
+    "outcome": "succeeded",
+    "grants": [
+      {
+        "id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a09608-5d0b-77d0-b9bf-087ad512f052",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "case": "hello-final",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0960a-9c3f-7593-8f8a-113103d3ba56",
+    "outcome": "succeeded",
+    "grants": [
+      {
+        "id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0960a-9c60-7560-b3f5-eee1c3711f7b",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "case": "coreutils-control",
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09607-b0fc-7672-b1d6-d30ad8d2dd17",
+    "outcome": "succeeded",
+    "grants": [
+      {
+        "id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a09607-b125-78f3-81bd-d4e1eb34123f",
+        "state": "released"
+      }
+    ]
+  },
+  {
+    "case": "native-smoke",
+    "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a09609-aa84-74c3-a982-9c8ed06a3682",
+    "outcome": "succeeded",
+    "grants": [
+      {
+        "id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a09609-aa92-7d10-8850-c9c3ca09f35f",
+        "state": "released"
+      }
+    ]
+  }
+]

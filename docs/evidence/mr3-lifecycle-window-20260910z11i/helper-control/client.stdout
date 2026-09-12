@@ -1,0 +1,205 @@
+{
+  "outcome": {
+    "outcome": "final",
+    "value": {
+      "receipt": {
+        "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e190-7352-937d-8ba01bf8e5f8",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e191-7641-a606-c8e29ac8747e",
+        "submission_state": "accepted",
+        "job_state": "pending",
+        "reason_code": null,
+        "accepted_unix_millis": 1789045891473,
+        "priority": 0,
+        "effective_priority": 0,
+        "blockers": [],
+        "queue_rank": 1,
+        "reservation": null,
+        "conditions": [],
+        "estimate": {
+          "confidence": "estimated",
+          "start_in_millis": 0,
+          "assumptions": [
+            "currently admissible"
+          ]
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a08b65-9a4c-7111-ad59-a0825b917b7b"
+      },
+      "snapshot": {
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e191-7641-a606-c8e29ac8747e",
+        "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e190-7352-937d-8ba01bf8e5f8",
+        "batch_id": null,
+        "batch_member": null,
+        "state": "final",
+        "outcome": "succeeded",
+        "reason_code": null,
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e199-7053-9de5-d1c76d5e358a",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e199-7053-9de5-d1dbfed49fe8",
+        "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e199-7053-9de5-d1e65c8d04c0",
+        "root_exit_code": 0,
+        "cancel_requested": false,
+        "accepted_unix_millis": 1789045891473,
+        "priority": 0,
+        "effective_priority": null,
+        "queue_rank": null,
+        "reservation": null,
+        "conditions": [],
+        "started_unix_millis": 1789045891491,
+        "finished_unix_millis": 1789045891601,
+        "spec": {
+          "spec_version": 4,
+          "priority": 0,
+          "executable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+          "args": [
+            "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11i\\check-helper.py"
+          ],
+          "working_directory": "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11i",
+          "stdin": {
+            "kind": "eof"
+          },
+          "environment": {
+            "set": {
+              "PATH": "C:\\Windows\\System32;C:\\Windows",
+              "SystemRoot": "C:\\Windows",
+              "USERPROFILE": "C:\\Users\\User"
+            },
+            "unset": []
+          },
+          "resources": {
+            "cpu_units": null,
+            "ram_mb": null,
+            "cargo_slots": null,
+            "gpu_slots": null,
+            "custom": {},
+            "shared_fences": [],
+            "exclusive_fences": [],
+            "impacts": []
+          },
+          "observed": null,
+          "conditions": [],
+          "retry": {
+            "max_attempts": 1,
+            "backoff_seconds": 0,
+            "retryable": []
+          },
+          "postconditions": [],
+          "labels": [
+            {
+              "key": "project",
+              "value": "stillyard"
+            },
+            {
+              "key": "gate",
+              "value": "mr3-lifecycle-helper-control"
+            }
+          ],
+          "expected_duration_seconds": null,
+          "timeout_seconds": 120,
+          "quiet": null,
+          "artifacts": [],
+          "child_submission_policy": null
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "blockers": [],
+        "attempts": [
+          {
+            "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e199-7053-9de5-d1c76d5e358a",
+            "attempt_index": 1,
+            "verdict": "succeeded",
+            "reason_code": null,
+            "created_unix_millis": 1789045891480,
+            "started_unix_millis": 1789045891480,
+            "deadline_unix_millis": 1789046011480,
+            "finished_unix_millis": 1789045891601,
+            "primary_result": {
+              "schema_version": 1,
+              "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e191-7641-a606-c8e29ac8747e",
+              "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e199-7053-9de5-d1c76d5e358a",
+              "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e199-7053-9de5-d1dbfed49fe8",
+              "verdict": "succeeded",
+              "root_exit_code": 0,
+              "termination": "exited",
+              "containment": "empty",
+              "started_unix_millis": 1789045891491,
+              "exited_unix_millis": 1789045891588,
+              "resolved_unix_millis": 1789045891593
+            },
+            "admission": null,
+            "invocations": [
+              {
+                "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e199-7053-9de5-d1dbfed49fe8",
+                "role": "primary",
+                "role_index": 0,
+                "state": "resolved",
+                "root_pid": 36380,
+                "root_identity": {
+                  "platform": "windows",
+                  "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+                  "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+                  "pid": 36380,
+                  "creation_filetime_100ns": 134335194914845008
+                },
+                "root_exit_code": 0,
+                "exit_classification": null,
+                "executable_hash": "85b71d8c6ec1905935f74be0c9869aae198d00e98f39df699ec66f9c5a84cecd",
+                "daemon_generation": "01a08b65-9a4c-7111-ad59-a0825b917b7b",
+                "started_unix_millis": 1789045891491,
+                "finished_unix_millis": 1789045891593,
+                "containment": {
+                  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e199-7053-9de5-d1e65c8d04c0",
+                  "state": "empty",
+                  "strength": "windows_job_object",
+                  "incident_id": null,
+                  "incident": null,
+                  "resolution": null,
+                  "resolution_audit": null
+                },
+                "stdout_tail": "{\"exit_259_dead_process_rejected\": true, \"quiet_empty_and_bom_controls\": true, \"local_path_control\": true, \"wsl_share_rejected\": true}\r\n",
+                "stderr_tail": ""
+              }
+            ]
+          }
+        ],
+        "allocations": [
+          {
+            "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e199-7053-9de5-d1fa8a76cce4",
+            "lease_id": "01a08b71-e199-7053-9de5-d1fa8a76cce4",
+            "key": {
+              "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+              "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+              "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+              "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+              "lease_id": "01a08b71-e199-7053-9de5-d1fa8a76cce4"
+            },
+            "owner": {
+              "kind": "work",
+              "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e191-7641-a606-c8e29ac8747e",
+              "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b71-e199-7053-9de5-d1c76d5e358a"
+            },
+            "state": "released",
+            "claims": {
+              "scalars": {
+                "cargo_slots": 0,
+                "cpu_units": 0,
+                "gpu_slots": 0,
+                "ram_mb": 0
+              },
+              "shared_fences": [],
+              "exclusive_fences": [],
+              "impacts": []
+            }
+          }
+        ],
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a08b65-9a4c-7111-ad59-a0825b917b7b"
+      }
+    }
+  },
+  "exit_source": "scheduler",
+  "exit_code": 0
+}

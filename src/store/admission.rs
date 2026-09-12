@@ -195,6 +195,7 @@ impl Store {
             )));
         }
 
+        self.check_new_submission_during_repair()?;
         self.verify_staged_input(spec, stdin)?;
         let submission_id = SubmissionId::new(self.store_uuid);
         let received = self.connection.transaction()?;
@@ -388,6 +389,7 @@ impl Store {
             )));
         }
 
+        self.check_new_submission_during_repair()?;
         self.verify_staged_batch_inputs(spec, stdins)?;
         let submission_id = SubmissionId::new(self.store_uuid);
         let received = self.connection.transaction()?;
@@ -1036,10 +1038,49 @@ impl Store {
         })
     }
 
+    /// Transport identity is valid for every live Invocation role. It does not
+    /// confer the primary-only authority checked by managed submission/wait.
+    #[cfg(any(target_os = "linux", test))]
+    pub(crate) fn validate_attested_invocation(&self, caller: ManagedParent) -> StoreResult<()> {
+        if caller.job_id.store_uuid() != self.store_uuid
+            || caller.attempt_id.store_uuid() != self.store_uuid
+            || caller.invocation_id.store_uuid() != self.store_uuid
+        {
+            return Err(StoreError::Rejected(
+                "attested caller belongs to a foreign store".into(),
+            ));
+        }
+        let live: bool = self.connection.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM invocations
+                JOIN attempts ON attempts.id = invocations.attempt_id
+                JOIN containments ON containments.invocation_id = invocations.id
+                WHERE attempts.job_id = ?1 AND attempts.id = ?2 AND invocations.id = ?3
+                  AND invocations.daemon_generation = ?4
+                  AND invocations.state = 'started'
+                  AND invocations.root_pid IS NOT NULL
+                  AND invocations.root_exit_code IS NULL
+                  AND containments.state = 'live')",
+            params![
+                caller.job_id.entity_uuid().to_string(),
+                caller.attempt_id.entity_uuid().to_string(),
+                caller.invocation_id.entity_uuid().to_string(),
+                self.daemon_generation.to_string()
+            ],
+            |row| row.get(0),
+        )?;
+        if !live {
+            return Err(StoreError::Rejected(
+                "attested caller is not a live Invocation of this daemon".into(),
+            ));
+        }
+        Ok(())
+    }
+
     pub(crate) fn managed_containment_candidates(&self) -> StoreResult<Vec<ManagedCandidate>> {
         let current_generation = self.daemon_generation.to_string();
         let mut statement = self.connection.prepare(
-            "SELECT jobs.id, attempts.id, invocations.id, jobs.spec_json, jobs.parent_job_id,
+            "SELECT jobs.id, attempts.id, invocations.id, invocations.role, jobs.parent_job_id,
                     jobs.state, jobs.attempt_id, jobs.invocation_id, attempts.state,
                     invocations.state, invocations.root_pid, invocations.root_exit_code,
                     invocations.daemon_generation, containments.state
@@ -1047,8 +1088,7 @@ impl Store {
              JOIN attempts ON attempts.id = invocations.attempt_id
              JOIN jobs ON jobs.id = attempts.job_id
              JOIN containments ON containments.invocation_id = invocations.id
-             WHERE invocations.role = 'primary'
-               AND invocations.daemon_generation = ?1
+             WHERE invocations.daemon_generation = ?1
                AND containments.state = 'live'",
         )?;
         let rows = statement.query_map([&current_generation], |row| {
@@ -1075,7 +1115,7 @@ impl Store {
                 job,
                 attempt,
                 invocation,
-                _spec_json,
+                role,
                 parent_job,
                 job_state,
                 job_attempt,
@@ -1087,7 +1127,10 @@ impl Store {
                 daemon_generation,
                 containment_state,
             ) = row?;
-            let current = job_state == "active"
+            // Include non-primary boundaries so stripping role/context variables
+            // cannot downgrade a postcondition or probe to an unmanaged caller.
+            let current = role == "primary"
+                && job_state == "active"
                 && job_attempt.as_deref() == Some(attempt.as_str())
                 && job_invocation.as_deref() == Some(invocation.as_str())
                 && attempt_state == "running"
@@ -1996,10 +2039,9 @@ pub(super) fn dependency_blockers_tx(
 pub(super) fn active_claims_tx(
     transaction: &rusqlite::Transaction<'_>,
 ) -> StoreResult<Vec<ResolvedClaims>> {
-    let mut statement =
-        transaction.prepare("SELECT claims_json FROM leases WHERE state = 'granted'")?;
-    let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
-    rows.map(|row| Ok(serde_json::from_str(&row?)?)).collect()
+    let mut claims = super::machine_queue::native_debits(transaction)?;
+    claims.extend(super::machine_queue::remote_debits(transaction)?);
+    Ok(claims)
 }
 
 pub(super) fn dependency_kind(kind: crate::DependencyKind) -> &'static str {

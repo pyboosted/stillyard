@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "parent_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-e38a-7652-800c-e55c2e7bc582",
+  "child_job": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-fe5b-7701-8658-6b92bccb200c",
+  "completed_adapter_calls": 2,
+  "child_attempts": 1,
+  "parent": {
+    "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-e38a-7652-800c-e55c2e7bc582",
+    "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-e392-74e0-919e-4382ecf3b020",
+    "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08a22-e392-74e0-919e-4398a12da8a3"
+  }
+}

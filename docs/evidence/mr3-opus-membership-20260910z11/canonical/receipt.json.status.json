@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b10-229e-77b3-99cd-903489e9ff01",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b10-229c-79c2-a2a6-ae8ec9c00e29",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b10-22a4-7a51-9a03-023a0dabc4c2",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b13-b67d-7910-afe5-9ef07cec941f",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b13-b67d-7910-afe5-9f01911a34f9",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789039485598,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789039485953,
+  "finished_unix_millis": 1789039720311,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-mr3-opus-membership-20260910z11/eca72e8815254d44af869b6210966793/reviewer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-mr3-opus-membership-20260910z11/eca72e8815254d44af869b6210966793/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-mr3-opus-membership-20260910z11/eca72e8815254d44af869b6210966793/review.json",
+      "--model",
+      "opus",
+      "--effort",
+      "high"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-membership-20260910z11/eca72e8815254d44af869b6210966793",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-mr3-opus-membership-20260910z11/eca72e8815254d44af869b6210966793/reviewer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-mr3-opus-membership-20260910z11/eca72e8815254d44af869b6210966793/review.json",
+          "--expected-model-prefix",
+          "claude-opus-"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr3-opus-membership-z11"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b10-22a4-7a51-9a03-023a0dabc4c2",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789039485603,
+      "started_unix_millis": 1789039485680,
+      "deadline_unix_millis": 1789040685680,
+      "finished_unix_millis": 1789039720311,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b10-229e-77b3-99cd-903489e9ff01",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b10-22a4-7a51-9a03-023a0dabc4c2",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b10-22a4-7a51-9a03-024c0908ab98",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789039485953,
+        "exited_unix_millis": 1789039720013,
+        "resolved_unix_millis": 1789039720050
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b10-22a4-7a51-9a03-024c0908ab98",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 1237803,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1237803,
+            "start_ticks": 8559243,
+            "pid_namespace_inode": 4026534279,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b05-aa0f-7f21-a411-4cae2a4d5a8b",
+          "started_unix_millis": 1789039485953,
+          "finished_unix_millis": 1789039720050,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b10-22a4-7a51-9a03-025947342b91",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "correct and I found no deadlock, no authentication-safety regression, and no retained-seal false negative. Lock order is globally consistent: every site that takes both locks takes journal \u227a active (`install`, `register`, `cleanup`, `reconcile`, and now `contains`); `inspect`/`clear` take only `active`; and no path holds the journal mutex while acquiring the Store mutex (daemon paths are always store \u2192 journal, e.g. `persist_linux_cleanup`, and `submission_context` drops the store guard before `authenticate_managed_peer`), so no ABBA inversion is introduced. Because `Registry::cleanup`/`reconcile` hold the journal lock across `journal.cleanup` (cgroup removal + durable seal commit) and the subsequent `Entry::Sealed` insert, the removed-boundary/unpublished-seal window is no longer observable by `contains`; the checkpoint fires between those two steps, so the new test exercises exactly the reported hole and would fail on the old implementation with the observed `Ok(Err(NotFound))`, while the fixed version cannot send before resume. The retained-seal fallback is sound: it keys on the exact `InvocationId` and requires `record.seal.is_some()`, and `Journal::open` re-validates each seal (`seal.invocation`, `boundary_sha256`, `possibly_released`), so `Some(false)` is only returned when `kill_and_seal` provably emptied and removed that cgroup \u2014 including for prior-boot and `possibly_released` seals, where nonmembership still holds. Absent records, unsealed records, and a `Default` registry with no installed journal all still yield `None`, which `resolve_managed_membership` fails closed on. The checkpoint is `#[cfg(test)]` only and the test releases the cleaner before asserting. Findings below are non-blocking: one latency/blast-radius consequence of the widened critical section, and coverage/robustness gaps in the new regression.\\\",\\\"findings\\\":[\\\"Medium (latency, not deadlock): `Registry::contains` now takes the journal mutex, which is the same lock held for the entire duration of `journal.create` (cgroup creation, statvfs, two fsync'd commits) and `journal.cleanup` (`kill_and_seal`, which polls until the cgroup drains up to the caller's deadline \u2014 30s in `src/runner/linux/runtime.rs` `execute`, 100ms in the reactor's `reconcile`). Peer authentication is on the RPC path (`submission_context` -> `authenticate_managed_peer` -> `resolve_managed_membership`, one `contains` per candidate, each re-acquiring the lock), so an unrelated job's startup or slow cleanup can now stall managed-peer authentication and `authorize_force_peer` for seconds where it previously never touched the journal at all. This is inherent to the chosen serialization and fails safe, but the bound is the cleanup deadline and deserves an explicit note in the comment on `contains` so a future reader does not raise that deadline without considering the auth path. The widened critical section also widens poison blast radius: a panic inside `boundary.contains_process` (1 MiB cgroup.procs read plus /proc/self/fd stat under the lock) would now poison the journal mutex as well as `active`, bricking `with_journal`, `cleanup` and `reconcile` rather than just membership.\\\",\\\"Medium (missing material regression): no test pins the seal-only predicate in the `None` branch \u2014 i.e. a journal record that exists but has `seal.is_none()` must return `None`. Both fixtures only cover the absent-record case (`contains(unknown, 0) == None`). That predicate is the safety hinge, not just a tidiness detail: a mutation to `records().get(&id).is_some()` would return `Some(false)` for an unsealed (possibly live) boundary, `resolve_managed_membership` would `continue` past that candidate, and the peer would be classified `parent: None` \u2014 which `authority_admin` (rejects only when `parent.is_some()`) and `authorize_force_peer` (`Ok(Some(false))` => allowed to accept containment risk) both treat as privileged. Recommend an assertion on a second invocation that is registered/created but never sealed, cleared from `active`, asserting `None`.\\\",\\\"Low-Medium: the `None` branch calls `journal.records()`, which runs `Journal::check()` \u2014 re-reading and re-hashing `state.json` and `anchor.json` plus a directory dev/ino re-stat \u2014 on every membership miss, per candidate, per RPC, under the journal lock. Beyond cost, this changes the error shape on the auth path: a transient journal-integrity or post-failed-commit `poisoned` state now makes `contains` return `Err` where the old code returned `Ok(None)`. Both are rejected (`StoreError::Io` vs `\\\\\\\"a possibly live managed Containment has no daemon-held handle\\\\\\\"`), so there is no auth-safety regression, but the failure message a user sees for a stale-candidate lookup changes to a journal I/O error.\\\",\\\"Low (coverage): the identical remove-then-publish window in `Registry::reconcile` is not exercised. `AFTER_CLEANUP_SEAL` only fires inside `Registry::cleanup`; `reconcile` calls `journal.cleanup` directly and then inserts `Entry::Sealed`, still inside `with_journal`, so it is protected today by construction \u2014 but a future refactor that moves that insert outside the closure would reintroduce the exact bug with no failing test. Either hoist the checkpoint into a shared helper used by both, or assert the ordering property structurally.\\\",\\\"Low (test robustness): the 100ms `result_rx.recv_timeout` is a wall-clock proxy for \\\\\\\"blocked on the mutex\\\\\\\". It cannot produce a false failure against the fixed code (the send is impossible before resume), but it can produce a false pass against the old code if the old fast path (`check_identity` -> `ENOENT`) ever exceeds 100ms on a loaded machine \u2014 the guard is one-sided in the lenient direction. Separately, the hook's `resume_rx.recv_timeout(5s).unwrap()` panics *while holding the journal mutex*, and `resume_tx.send(()).unwrap()` panics if that 5s budget already expired; under scheduler starvation the failure surfaces as a poisoned-mutex unwrap panic downstream instead of the intended `\\\\\\\"membership observed the removed boundary before sealed publication\\\\\\\"` message. Consider ignoring the send error and letting the hook block without a timeout (the cleaner is always released before any assert).\\\",\\\"Low (pre-existing, no correctness impact): `clear` takes only the `active` lock, so it can interleave between `journal.cleanup` and the `Entry::Sealed` insert in both `cleanup` and `reconcile`, resurrecting an entry after the reactor has cleared it (e.g. reactor reconciles and clears, then the worker's `cleanup` hits the idempotent already-sealed early return and re-inserts `Sealed`). The answer is identical either way \u2014 `Some(false)` from the `Entry::Sealed` arm or from the retained-seal fallback \u2014 so this is not a membership bug, but such entries are never removed again and the `active` map grows for the daemon's lifetime.\\\",\\\"Low (new-incarnation assertion): the reinstall block at the end of `linux_registry_requires_durable_seal_and_matches_reconciliation_identity` (fresh `Registry::default()`, `Journal::open`, new generation Uuid) asserts only `inspect == Some(ProvenEmpty)`. The membership fallback depends on the same reconstruction \u2014 `install` mapping `record.seal.is_some()` to `Entry::Sealed` \u2014 so adding `contains(invocation, process.proc_handle()) == Some(false)` after the reinstall, and a `contains(unknown, 0) == None` on the fresh incarnation, would pin the negative membership proof across incarnations for the cost of two lines. Likewise, the claim that a `Default` registry with no installed journal preserves `None` is correct by inspection (`None => false`, `false.then_some(false)`) but is asserted nowhere. Note also that `inspect` was deliberately left unserialized: during the cleanup window it sees `Entry::Live` with a removed cgroup, `populated()` errors, and the `_ =>` arm yields `BoundaryUninspectable` \u2014 conservative and never a false `ProvenEmpty` \u2014 but that asymmetry with `contains` is not stated in the comment on `inspect`.\\\"],\\\"verdict\\\":\\\"findings\\\"}\",\"structured_output\":{\"summary\":\"The membership fix in `Registry::contains` (src/runner/linux/registry.rs) is correct and I found no deadlock, no authentication-safety regression, and no retained-seal false negative. Lock order is globally consistent: every site that takes both locks takes journal \u227a active (`install`, `register`, `cleanup`, `reconcile`, and now `contains`); `inspect`/`clear` take only `active`; and no path holds the journal mutex while acquiring the Store mutex (daemon paths are always store \u2192 journal, e.g. `persist_linux_cleanup`, and `submission_context` drops the store guard before `authenticate_managed_peer`), so no ABBA inversion is introduced. Because `Registry::cleanup`/`reconcile` hold the journal lock across `journal.cleanup` (cgroup removal + durable seal commit) and the subsequent `Entry::Sealed` insert, the removed-boundary/unpublished-seal window is no longer observable by `contains`; the checkpoint fires between those two steps, so the new test exercises exactly the reported hole and would fail on the old implementation with the observed `Ok(Err(NotFound))`, while the fixed version cannot send before resume. The retained-seal fallback is sound: it keys on the exact `InvocationId` and requires `record.seal.is_some()`, and `Journal::open` re-validates each seal (`seal.invocation`, `boundary_sha256`, `possibly_released`), so `Some(false)` is only returned when `kill_and_seal` provably emptied and removed that cgroup \u2014 including for prior-boot and `possibly_released` seals, where nonmembership still holds. Absent records, unsealed records, and a `Default` registry with no installed journal all still yield `None`, which `resolve_managed_membership` fails closed on. The checkpoint is `#[cfg(test)]` only and the test releases the cleaner before asserting. Findings below are non-blocking: one latency/blast-radius consequence of the widened critical section, and coverage/robustness gaps in the new regression.\",\"findings\":[\"Medium (latency, not deadlock): `Registry::contains` now takes the journal mutex, which is the same lock held for the entire duration of `journal.create` (cgroup creation, statvfs, two fsync'd commits) and `journal.cleanup` (`kill_and_seal`, which polls until the cgroup drains up to the caller's deadline \u2014 30s in `src/runner/linux/runtime.rs` `execute`, 100ms in the reactor's `reconcile`). Peer authentication is on the RPC path (`submission_context` -> `authenticate_managed_peer` -> `resolve_managed_membership`, one `contains` per candidate, each re-acquiring the lock), so an unrelated job's startup or slow cleanup can now stall managed-peer authentication and `authorize_force_peer` for seconds where it previously never touched the journal at all. This is inherent to the chosen serialization and fails safe, but the bound is the cleanup deadline and deserves an explicit note in the comment on `contains` so a future reader does not raise that deadline without considering the auth path. The widened critical section also widens poison blast radius: a panic inside `boundary.contains_process` (1 MiB cgroup.procs read plus /proc/self/fd stat under the lock) would now poison the journal mutex as well as `active`, bricking `with_journal`, `cleanup` and `reconcile` rather than just membership.\",\"Medium (missing material regression): no test pins the seal-only predicate in the `None` branch \u2014 i.e. a journal record that exists but has `seal.is_none()` must return `None`. Both fixtures only cover the absent-record case (`contains(unknown, 0) == None`). That predicate is the safety hinge, not just a tidiness detail: a mutation to `records().get(&id).is_some()` would return `Some(false)` for an unsealed (possibly live) boundary, `resolve_managed_membership` would `continue` past that candidate, and the peer would be classified `parent: None` \u2014 which `authority_admin` (rejects only when `parent.is_some()`) and `authorize_force_peer` (`Ok(Some(false))` => allowed to accept containment risk) both treat as privileged. Recommend an assertion on a second invocation that is registered/created but never sealed, cleared from `active`, asserting `None`.\",\"Low-Medium: the `None` branch calls `journal.records()`, which runs `Journal::check()` \u2014 re-reading and re-hashing `state.json` and `anchor.json` plus a directory dev/ino re-stat \u2014 on every membership miss, per candidate, per RPC, under the journal lock. Beyond cost, this changes the error shape on the auth path: a transient journal-integrity or post-failed-commit `poisoned` state now makes `contains` return `Err` where the old code returned `Ok(None)`. Both are rejected (`StoreError::Io` vs `\\\"a possibly live managed Containment has no daemon-held handle\\\"`), so there is no auth-safety regression, but the failure message a user sees for a stale-candidate lookup changes to a journal I/O error.\",\"Low (coverage): the identical remove-then-publish window in `Registry::reconcile` is not exercised. `AFTER_CLEANUP_SEAL` only fires inside `Registry::cleanup`; `reconcile` calls `journal.cleanup` directly and then inserts `Entry::Sealed`, still inside `with_journal`, so it is protected today by construction \u2014 but a future refactor that moves that insert outside the closure would reintroduce the exact bug with no failing test. Either hoist the checkpoint into a shared helper used by both, or assert the ordering property structurally.\",\"Low (test robustness): the 100ms `result_rx.recv_timeout` is a wall-clock proxy for \\\"blocked on the mutex\\\". It cannot produce a false failure against the fixed code (the send is impossible before resume), but it can produce a false pass against the old code if the old fast path (`check_identity` -> `ENOENT`) ever exceeds 100ms on a loaded machine \u2014 the guard is one-sided in the lenient direction. Separately, the hook's `resume_rx.recv_timeout(5s).unwrap()` panics *while holding the journal mutex*, and `resume_tx.send(()).unwrap()` panics if that 5s budget already expired; under scheduler starvation the failure surfaces as a poisoned-mutex unwrap panic downstream instead of the intended `\\\"membership observed the removed boundary before sealed publication\\\"` message. Consider ignoring the send error and letting the hook block without a timeout (the cleaner is always released before any assert).\",\"Low (pre-existing, no correctness impact): `clear` takes only the `active` lock, so it can interleave between `journal.cleanup` and the `Entry::Sealed` insert in both `cleanup` and `reconcile`, resurrecting an entry after the reactor has cleared it (e.g. reactor reconciles and clears, then the worker's `cleanup` hits the idempotent already-sealed early return and re-inserts `Sealed`). The answer is identical either way \u2014 `Some(false)` from the `Entry::Sealed` arm or from the retained-seal fallback \u2014 so this is not a membership bug, but such entries are never removed again and the `active` map grows for the daemon's lifetime.\",\"Low (new-incarnation assertion): the reinstall block at the end of `linux_registry_requires_durable_seal_and_matches_reconciliation_identity` (fresh `Registry::default()`, `Journal::open`, new generation Uuid) asserts only `inspect == Some(ProvenEmpty)`. The membership fallback depends on the same reconstruction \u2014 `install` mapping `record.seal.is_some()` to `Entry::Sealed` \u2014 so adding `contains(invocation, process.proc_handle()) == Some(false)` after the reinstall, and a `contains(unknown, 0) == None` on the fresh incarnation, would pin the negative membership proof across incarnations for the cost of two lines. Likewise, the claim that a `Default` registry with no installed journal preserves `None` is correct by inspection (`None => false`, `false.then_some(false)`) but is asserted nowhere. Note also that `inspect` was deliberately left unserialized: during the cleanup window it sees `Entry::Live` with a removed cgroup, `populated()` errors, and the `_ =>` arm yields `BoundaryUninspectable` \u2014 conservative and never a false `ProvenEmpty` \u2014 but that asymmetry with `contains` is not stated in the comment on `inspect`.\"],\"verdict\":\"findings\"},\"ttft_ms\":194938,\"type\":\"result\",\"duration_ms\":232034,\"uuid\":\"8cc22094-7a65-4909-995b-b05730a5682d\",\"ttft_stream_ms\":2047,\"time_to_request_ms\":39,\"first_content_frame_ms\":2378,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b13-b67d-7910-afe5-9ef07cec941f",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 1262349,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1262349,
+            "start_ticks": 8582682,
+            "pid_namespace_inode": 4026534297,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b05-aa0f-7f21-a411-4cae2a4d5a8b",
+          "started_unix_millis": 1789039720235,
+          "finished_unix_millis": 1789039720304,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b13-b67d-7910-afe5-9f01911a34f9",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-opus-5\"], \"selected_family_models\": [\"claude-opus-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"summary\": \"The membership fix in `Registry::contains` (src/runner/linux/registry.rs) is correct and I found no deadlock, no authentication-safety regression, and no retained-seal false negative. Lock order is globally consistent: every site that takes both locks takes journal \\u227a active (`install`, `register`, `cleanup`, `reconcile`, and now `contains`); `inspect`/`clear` take only `active`; and no path holds the journal mutex while acquiring the Store mutex (daemon paths are always store \\u2192 journal, e.g. `persist_linux_cleanup`, and `submission_context` drops the store guard before `authenticate_managed_peer`), so no ABBA inversion is introduced. Because `Registry::cleanup`/`reconcile` hold the journal lock across `journal.cleanup` (cgroup removal + durable seal commit) and the subsequent `Entry::Sealed` insert, the removed-boundary/unpublished-seal window is no longer observable by `contains`; the checkpoint fires between those two steps, so the new test exercises exactly the reported hole and would fail on the old implementation with the observed `Ok(Err(NotFound))`, while the fixed version cannot send before resume. The retained-seal fallback is sound: it keys on the exact `InvocationId` and requires `record.seal.is_some()`, and `Journal::open` re-validates each seal (`seal.invocation`, `boundary_sha256`, `possibly_released`), so `Some(false)` is only returned when `kill_and_seal` provably emptied and removed that cgroup \\u2014 including for prior-boot and `possibly_released` seals, where nonmembership still holds. Absent records, unsealed records, and a `Default` registry with no installed journal all still yield `None`, which `resolve_managed_membership` fails closed on. The checkpoint is `#[cfg(test)]` only and the test releases the cleaner before asserting. Findings below are non-blocking: one latency/blast-radius consequence of the widened critical section, and coverage/robustness gaps in the new regression.\", \"findings\": [\"Medium (latency, not deadlock): `Registry::contains` now takes the journal mutex, which is the same lock held for the entire duration of `journal.create` (cgroup creation, statvfs, two fsync'd commits) and `journal.cleanup` (`kill_and_seal`, which polls until the cgroup drains up to the caller's deadline \\u2014 30s in `src/runner/linux/runtime.rs` `execute`, 100ms in the reactor's `reconcile`). Peer authentication is on the RPC path (`submission_context` -> `authenticate_managed_peer` -> `resolve_managed_membership`, one `contains` per candidate, each re-acquiring the lock), so an unrelated job's startup or slow cleanup can now stall managed-peer authentication and `authorize_force_peer` for seconds where it previously never touched the journal at all. This is inherent to the chosen serialization and fails safe, but the bound is the cleanup deadline and deserves an explicit note in the comment on `contains` so a future reader does not raise that deadline without considering the auth path. The widened critical section also widens poison blast radius: a panic inside `boundary.contains_process` (1 MiB cgroup.procs read plus /proc/self/fd stat under the lock) would now poison the journal mutex as well as `active`, bricking `with_journal`, `cleanup` and `reconcile` rather than just membership.\", \"Medium (missing material regression): no test pins the seal-only predicate in the `None` branch \\u2014 i.e. a journal record that exists but has `seal.is_none()` must return `None`. Both fixtures only cover the absent-record case (`contains(unknown, 0) == None`). That predicate is the safety hinge, not just a tidiness detail: a mutation to `records().get(&id).is_some()` would return `Some(false)` for an unsealed (possibly live) boundary, `resolve_managed_membership` would `continue` past that candidate, and the peer would be classified `parent: None` \\u2014 which `authority_admin` (rejects only when `parent.is_some()`) and `authorize_force_peer` (`Ok(Some(false))` => allowed to accept containment risk) both treat as privileged. Recommend an assertion on a second invocation that is registered/created but never sealed, cleared from `active`, asserting `None`.\", \"Low-Medium: the `None` branch calls `journal.records()`, which runs `Journal::check()` \\u2014 re-reading and re-hashing `state.json` and `anchor.json` plus a directory dev/ino re-stat \\u2014 on every membership miss, per candidate, per RPC, under the journal lock. Beyond cost, this changes the error shape on the auth path: a transient journal-integrity or post-failed-commit `poisoned` state now makes `contains` return `Err` where the old code returned `Ok(None)`. Both are rejected (`StoreError::Io` vs `\\\"a possibly live managed Containment has no daemon-held handle\\\"`), so there is no auth-safety regression, but the failure message a user sees for a stale-candidate lookup changes to a journal I/O error.\", \"Low (coverage): the identical remove-then-publish window in `Registry::reconcile` is not exercised. `AFTER_CLEANUP_SEAL` only fires inside `Registry::cleanup`; `reconcile` calls `journal.cleanup` directly and then inserts `Entry::Sealed`, still inside `with_journal`, so it is protected today by construction \\u2014 but a future refactor that moves that insert outside the closure would reintroduce the exact bug with no failing test. Either hoist the checkpoint into a shared helper used by both, or assert the ordering property structurally.\", \"Low (test robustness): the 100ms `result_rx.recv_timeout` is a wall-clock proxy for \\\"blocked on the mutex\\\". It cannot produce a false failure against the fixed code (the send is impossible before resume), but it can produce a false pass against the old code if the old fast path (`check_identity` -> `ENOENT`) ever exceeds 100ms on a loaded machine \\u2014 the guard is one-sided in the lenient direction. Separately, the hook's `resume_rx.recv_timeout(5s).unwrap()` panics *while holding the journal mutex*, and `resume_tx.send(()).unwrap()` panics if that 5s budget already expired; under scheduler starvation the failure surfaces as a poisoned-mutex unwrap panic downstream instead of the intended `\\\"membership observed the removed boundary before sealed publication\\\"` message. Consider ignoring the send error and letting the hook block without a timeout (the cleaner is always released before any assert).\", \"Low (pre-existing, no correctness impact): `clear` takes only the `active` lock, so it can interleave between `journal.cleanup` and the `Entry::Sealed` insert in both `cleanup` and `reconcile`, resurrecting an entry after the reactor has cleared it (e.g. reactor reconciles and clears, then the worker's `cleanup` hits the idempotent already-sealed early return and re-inserts `Sealed`). The answer is identical either way \\u2014 `Some(false)` from the `Entry::Sealed` arm or from the retained-seal fallback \\u2014 so this is not a membership bug, but such entries are never removed again and the `active` map grows for the daemon's lifetime.\", \"Low (new-incarnation assertion): the reinstall block at the end of `linux_registry_requires_durable_seal_and_matches_reconciliation_identity` (fresh `Registry::default()`, `Journal::open`, new generation Uuid) asserts only `inspect == Some(ProvenEmpty)`. The membership fallback depends on the same reconstruction \\u2014 `install` mapping `record.seal.is_some()` to `Entry::Sealed` \\u2014 so adding `contains(invocation, process.proc_handle()) == Some(false)` after the reinstall, and a `contains(unknown, 0) == None` on the fresh incarnation, would pin the negative membership proof across incarnations for the cost of two lines. Likewise, the claim that a `Default` registry with no installed journal preserves `None` is correct by inspection (`None => false`, `false.then_some(false)`) but is asserted nowhere. Note also that `inspect` was deliberately left unserialized: during the cleanup window it sees `Entry::Live` with a removed cgroup, `populated()` errors, and the `_ =>` arm yields `BoundaryUninspectable` \\u2014 conservative and never a false `ProvenEmpty` \\u2014 but that asymmetry with `contains` is not stated in the comment on `inspect`.\"], \"verdict\": \"findings\"}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b10-22c2-70f1-8e32-5c1b7dff192d",
+      "lease_id": "01a08b10-22a4-7a51-9a03-026019e9b3bb",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08b10-22a4-7a51-9a03-026019e9b3bb"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b10-229e-77b3-99cd-903489e9ff01",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08b10-22a4-7a51-9a03-023a0dabc4c2"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08b05-aa0f-7f21-a411-4cae2a4d5a8b"
+}

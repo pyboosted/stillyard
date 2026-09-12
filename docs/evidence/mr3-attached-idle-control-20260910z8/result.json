@@ -1,0 +1,12 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aad-e725-7271-b1a6-f511afe26408",
+  "negative_control_pass": true,
+  "measurement": {
+    "control": "attached_wait_polling_mutant",
+    "duration_seconds": 0.080820617,
+    "expirations_per_minute": 5939.078638808214,
+    "idle_budget_pass": false,
+    "interval_ms": 10,
+    "timer_expirations": 8
+  }
+}

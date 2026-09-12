@@ -1,0 +1,43 @@
+{
+  "resources": {
+    "ram_mb": 32768,
+    "cargo_slots": 2,
+    "gpu_slots": 1,
+    "custom": {
+      "vram_mb:GPU-a1144c26-a15c-cba1-3b7a-870c755ef08a": 30000,
+      "claude1_slots": 4,
+      "claude2_slots": 4,
+      "codex1_slots": 4,
+      "codex2_slots": 4,
+      "grok_slots": 4,
+      "opencode_slots": 4
+    }
+  },
+  "impact_incompatibilities": {
+    "cpu_heavy": [],
+    "measurement": [
+      "cpu_heavy",
+      "gpu_heavy"
+    ]
+  },
+  "observation": {
+    "ram_safety_margin_mb": 1024,
+    "vram_safety_margin_mb": 1024,
+    "gpu_slot_uuid": "GPU-a1144c26-a15c-cba1-3b7a-870c755ef08a",
+    "process_rules": {
+      "block": [
+        "cargo.exe",
+        "rustc.exe",
+        "rust-analyzer.exe",
+        "obs*",
+        "nsight*",
+        "ngfx*",
+        "renderdoc*"
+      ],
+      "ignore": [
+        "dwm.exe",
+        "LogonUI.exe"
+      ]
+    }
+  }
+}

@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d166-7492-85ce-f54592d1a9cb",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d164-73b3-a09f-74e478e941b1",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d169-78a3-8b75-a42415491f9b",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089de-bb0e-7422-b4d1-b17040f8f2d6",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089de-bb0e-7422-b4d1-b185ebfe640e",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789019410790,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789019411014,
+  "finished_unix_millis": 1789019470808,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-retry-184d47b729bc43c990b2cc6150106a35/consumer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-retry-184d47b729bc43c990b2cc6150106a35/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-retry-184d47b729bc43c990b2cc6150106a35/review.json",
+      "--model",
+      "sonnet"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-retry-184d47b729bc43c990b2cc6150106a35",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-retry-184d47b729bc43c990b2cc6150106a35/consumer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-consumers-20260910/wc2-round1-retry-184d47b729bc43c990b2cc6150106a35/review.json"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "acceptance",
+        "value": "W-C2"
+      },
+      {
+        "key": "round",
+        "value": "1"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 600,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d169-78a3-8b75-a42415491f9b",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789019410793,
+      "started_unix_millis": 1789019410887,
+      "deadline_unix_millis": 1789020010887,
+      "finished_unix_millis": 1789019470808,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d166-7492-85ce-f54592d1a9cb",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d169-78a3-8b75-a42415491f9b",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d169-78a3-8b75-a4399e9a476c",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789019411014,
+        "exited_unix_millis": 1789019470591,
+        "resolved_unix_millis": 1789019470603
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d169-78a3-8b75-a4399e9a476c",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 4096986,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 4096986,
+            "start_ticks": 6551761,
+            "pid_namespace_inode": 4026533828,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608",
+          "started_unix_millis": 1789019411014,
+          "finished_unix_millis": 1789019470603,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d169-78a3-8b75-a4480a73d11c",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"duration_api_ms\":59542,\"stop_reason\":\"tool_use\",\"session_id\":\"d55996ca-0b03-42a2-af3f-216838f8a3dc\",\"total_cost_usd\":0.1445988,\"usage\":{\"input_tokens\":4,\"cache_creation_input_tokens\":18644,\"cache_read_input_tokens\":13309,\"output_tokens\":6037,\"output_tokens_details\":{\"thinking_tokens\":4402},\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":18644,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"not_available\",\"iterations\":[{\"input_tokens\":2,\"output_tokens\":827,\"cache_read_input_tokens\":13309,\"cache_creation_input_tokens\":5335,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":5335},\"type\":\"message\"}],\"speed\":\"standard\"},\"modelUsage\":{\"claude-haiku-4-5-20251001\":{\"inputTokens\":6908,\"outputTokens\":15,\"cacheReadInputTokens\":0,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.0069830000000000005,\"contextWindow\":200000,\"maxOutputTokens\":32000,\"thinkingTokens\":0,\"canonicalModel\":\"claude-haiku-4-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"},\"claude-sonnet-5\":{\"inputTokens\":4,\"outputTokens\":6037,\"cacheReadInputTokens\":13309,\"cacheCreationInputTokens\":18644,\"webSearchRequests\":0,\"costUSD\":0.13761579999999998,\"contextWindow\":1000000,\"maxOutputTokens\":64000,\"thinkingTokens\":4402,\"canonicalModel\":\"claude-sonnet-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"fast_mode_disabled_reason\":\"sdk_opt_in_required\",\"subagent_stats\":{\"spawned\":0,\"requested\":{\"background\":0,\"foreground\":0,\"unset\":0},\"started_in_background\":0,\"max_depth\":0,\"spawned_by_subagents\":0,\"completed\":0,\"failed\":0,\"killed\":{\"parent\":0,\"user\":0,\"system\":0},\"refused\":{\"depth_limit\":0,\"concurrency_limit\":0,\"budget\":0},\"by_type\":{}},\"is_error\":false,\"num_turns\":3,\"subtype\":\"success\",\"api_error_status\":null,\"result\":\"{\\\"verdict\\\":\\\"findings\\\",\\\"summary\\\":\\\"The Ticket-consumption verification query in `consume` fails to bind Grant retention (shared Work vs dedicated Probe) to the invocation's role, unlike the sibling lease-lookup queries which correctly do so.\\\",\\\"findings\\\":[\\\"In `consume`, the validation query's lease-ownership clause is `(l.invocation_id IS NULL OR l.invocation_id=i.id)` with no role-based branching. This accepts a match for ANY role as long as either condition holds, instead of enforcing that primary/postcondition invocations must use a shared Work Grant (`l.invocation_id IS NULL`) and probes must use their own dedicated Grant (`l.invocation_id=i.id`). Compare with `attached_launch_identity` and `request_attached_ticket`, both of which correctly gate on `role_text(job.role)` via `((?3='probe' AND l.invocation_id=?4) OR (?3!='probe' AND l.invocation_id IS NULL))`. The `consume` query omits the `?3='probe'`/`?3!='probe'` role discriminant entirely, so it would spuriously accept a probe invocation being satisfied by a shared Work Grant (invocation_id NULL, e.g. a Grant retained from an in-progress primary/postcondition sequence on the same allocation_key) or a primary/postcondition invocation being satisfied by a Grant scoped to a different, specific invocation_id \u2014 weakening the one-Grant-per-probe / shared-Grant-for-work-sequence invariant at exactly the point (Ticket consume) meant to be the final authorization check before commit.\\\",\\\"Secondary/lower-confidence concern: `validate_next`'s Postcondition\u2192Postcondition transition (with prior cleanup released) requires `last.role_index.checked_add(1) == Some(intent.role_index)`, i.e. strictly sequential, gap-free postcondition indices. If specification indices for postconditions are not guaranteed contiguous from zero (only stated to be 'their specification index'), a legitimate next postcondition whose spec index skips a value would be wrongly rejected as a role/order conflict. This is not as strongly corroborated as the first finding and should be checked against the postcondition indexing spec.\\\"]}\",\"structured_output\":{\"verdict\":\"findings\",\"summary\":\"The Ticket-consumption verification query in `consume` fails to bind Grant retention (shared Work vs dedicated Probe) to the invocation's role, unlike the sibling lease-lookup queries which correctly do so.\",\"findings\":[\"In `consume`, the validation query's lease-ownership clause is `(l.invocation_id IS NULL OR l.invocation_id=i.id)` with no role-based branching. This accepts a match for ANY role as long as either condition holds, instead of enforcing that primary/postcondition invocations must use a shared Work Grant (`l.invocation_id IS NULL`) and probes must use their own dedicated Grant (`l.invocation_id=i.id`). Compare with `attached_launch_identity` and `request_attached_ticket`, both of which correctly gate on `role_text(job.role)` via `((?3='probe' AND l.invocation_id=?4) OR (?3!='probe' AND l.invocation_id IS NULL))`. The `consume` query omits the `?3='probe'`/`?3!='probe'` role discriminant entirely, so it would spuriously accept a probe invocation being satisfied by a shared Work Grant (invocation_id NULL, e.g. a Grant retained from an in-progress primary/postcondition sequence on the same allocation_key) or a primary/postcondition invocation being satisfied by a Grant scoped to a different, specific invocation_id \u2014 weakening the one-Grant-per-probe / shared-Grant-for-work-sequence invariant at exactly the point (Ticket consume) meant to be the final authorization check before commit.\",\"Secondary/lower-confidence concern: `validate_next`'s Postcondition\u2192Postcondition transition (with prior cleanup released) requires `last.role_index.checked_add(1) == Some(intent.role_index)`, i.e. strictly sequential, gap-free postcondition indices. If specification indices for postconditions are not guaranteed contiguous from zero (only stated to be 'their specification index'), a legitimate next postcondition whose spec index skips a value would be wrongly rejected as a role/order conflict. This is not as strongly corroborated as the first finding and should be checked against the postcondition indexing spec.\"]},\"ttft_ms\":44498,\"type\":\"result\",\"duration_ms\":58295,\"uuid\":\"5be0d6ee-2566-4a6d-aa31-46d2b74bb2a6\",\"ttft_stream_ms\":1424,\"time_to_request_ms\":27,\"first_content_frame_ms\":1945,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089de-bb0e-7422-b4d1-b17040f8f2d6",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 4098994,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 4098994,
+            "start_ticks": 6557736,
+            "pid_namespace_inode": 4026533889,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608",
+          "started_unix_millis": 1789019470750,
+          "finished_unix_millis": 1789019470807,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089de-bb0e-7422-b4d1-b185ebfe640e",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-sonnet-5\"], \"selected_family_models\": [\"claude-sonnet-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"verdict\": \"findings\", \"summary\": \"The Ticket-consumption verification query in `consume` fails to bind Grant retention (shared Work vs dedicated Probe) to the invocation's role, unlike the sibling lease-lookup queries which correctly do so.\", \"findings\": [\"In `consume`, the validation query's lease-ownership clause is `(l.invocation_id IS NULL OR l.invocation_id=i.id)` with no role-based branching. This accepts a match for ANY role as long as either condition holds, instead of enforcing that primary/postcondition invocations must use a shared Work Grant (`l.invocation_id IS NULL`) and probes must use their own dedicated Grant (`l.invocation_id=i.id`). Compare with `attached_launch_identity` and `request_attached_ticket`, both of which correctly gate on `role_text(job.role)` via `((?3='probe' AND l.invocation_id=?4) OR (?3!='probe' AND l.invocation_id IS NULL))`. The `consume` query omits the `?3='probe'`/`?3!='probe'` role discriminant entirely, so it would spuriously accept a probe invocation being satisfied by a shared Work Grant (invocation_id NULL, e.g. a Grant retained from an in-progress primary/postcondition sequence on the same allocation_key) or a primary/postcondition invocation being satisfied by a Grant scoped to a different, specific invocation_id \\u2014 weakening the one-Grant-per-probe / shared-Grant-for-work-sequence invariant at exactly the point (Ticket consume) meant to be the final authorization check before commit.\", \"Secondary/lower-confidence concern: `validate_next`'s Postcondition\\u2192Postcondition transition (with prior cleanup released) requires `last.role_index.checked_add(1) == Some(intent.role_index)`, i.e. strictly sequential, gap-free postcondition indices. If specification indices for postconditions are not guaranteed contiguous from zero (only stated to be 'their specification index'), a legitimate next postcondition whose spec index skips a value would be wrongly rejected as a role/order conflict. This is not as strongly corroborated as the first finding and should be checked against the postcondition indexing spec.\"]}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a089dd-d189-7380-ac05-b538faa25a67",
+      "lease_id": "01a089dd-d169-78a3-8b75-a459c96ab6b1",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a089dd-d169-78a3-8b75-a459c96ab6b1"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d166-7492-85ce-f54592d1a9cb",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089dd-d169-78a3-8b75-a42415491f9b"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a089d1-0e2f-73e1-9454-bdf184281608"
+}

@@ -72,9 +72,18 @@ pub(crate) fn resolve_store_root(selected: Option<PathBuf>) -> Result<PathBuf> {
             ))
         })?;
     }
-    crate::filesystem::require_fixed_local_ntfs(existing)?;
+    crate::filesystem::require_durable_local_filesystem(existing)?;
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(&selected)?;
+    }
+    #[cfg(not(target_os = "linux"))]
     std::fs::create_dir_all(&selected)?;
-    crate::filesystem::require_fixed_local_ntfs(&selected)?;
+    crate::filesystem::require_durable_local_filesystem(&selected)?;
     Ok(std::fs::canonicalize(selected)?)
 }
 
@@ -89,6 +98,13 @@ pub(crate) fn validate_endpoint(endpoint: &str) -> Result<()> {
     if endpoint.is_empty() || endpoint.contains('\0') {
         return Err(Error::InvalidSpec(
             "daemon endpoint is empty or contains NUL".into(),
+        ));
+    }
+    #[cfg(target_os = "linux")]
+    if !std::path::Path::new(endpoint).is_absolute() || endpoint.len() >= 108 {
+        return Err(Error::InvalidSpec(
+            "Linux endpoint must be an absolute filesystem socket path shorter than 108 bytes"
+                .into(),
         ));
     }
     #[cfg(windows)]
@@ -124,14 +140,32 @@ pub(crate) fn endpoints_equal(left: &str, right: &str) -> bool {
     return left == right;
 }
 
+pub(crate) fn current_owner_principal() -> Result<String> {
+    #[cfg(windows)]
+    return current_user_sid_string();
+    #[cfg(target_os = "linux")]
+    // SAFETY: geteuid has no preconditions.
+    return Ok(format!("uid:{}", unsafe { libc::geteuid() }));
+    #[cfg(not(any(windows, target_os = "linux")))]
+    Err(Error::UnsupportedPlatform(std::env::consts::OS))
+}
+
 #[cfg(windows)]
 pub(crate) fn current_user_sid_string() -> Result<String> {
+    // SAFETY: the current process pseudo handle is valid for a token query.
+    process_user_sid_string(
+        unsafe { windows_sys::Win32::System::Threading::GetCurrentProcess() } as usize,
+    )
+}
+
+#[cfg(windows)]
+pub(crate) fn process_user_sid_string(process: usize) -> Result<String> {
     use std::ffi::c_void;
     use std::mem::size_of;
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, LocalFree};
     use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
     use windows_sys::Win32::Security::{GetTokenInformation, TOKEN_QUERY, TOKEN_USER, TokenUser};
-    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+    use windows_sys::Win32::System::Threading::OpenProcessToken;
 
     struct HandleGuard(HANDLE);
     impl Drop for HandleGuard {
@@ -151,8 +185,8 @@ pub(crate) fn current_user_sid_string() -> Result<String> {
     }
 
     let mut token = std::ptr::null_mut();
-    // SAFETY: the current-process pseudo handle is valid and token is writable.
-    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
+    // SAFETY: the caller holds the process query handle alive; token is writable.
+    if unsafe { OpenProcessToken(process as HANDLE, TOKEN_QUERY, &mut token) } == 0 {
         return Err(std::io::Error::last_os_error().into());
     }
     let token = HandleGuard(token);
@@ -162,8 +196,9 @@ pub(crate) fn current_user_sid_string() -> Result<String> {
     if required < size_of::<TOKEN_USER>() as u32 {
         return Err(std::io::Error::last_os_error().into());
     }
-    let mut buffer = vec![0_u8; required as usize];
-    // SAFETY: the buffer has the exact requested size and all outputs are writable.
+    let mut buffer = vec![0_usize; (required as usize).div_ceil(size_of::<usize>())];
+    // SAFETY: the buffer is pointer-aligned for TOKEN_USER, has at least the
+    // requested byte count, and all outputs are writable.
     if unsafe {
         GetTokenInformation(
             token.0,

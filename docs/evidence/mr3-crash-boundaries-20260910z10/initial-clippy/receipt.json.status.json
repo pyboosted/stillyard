@@ -1,0 +1,187 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae2-2617-7351-9c5e-af32f24290b1",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae2-2614-7322-b253-3d24fb029a55",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae2-261c-7581-b119-6e7b49a38023",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae2-261c-7581-b119-6e8782636ef4",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae2-261c-7581-b119-6e9ea7390820",
+  "root_exit_code": 101,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789036471831,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789036472079,
+  "finished_unix_millis": 1789036481070,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/home/pythonic/.cargo/bin/cargo",
+    "args": [
+      "clippy",
+      "--locked",
+      "--workspace",
+      "--all-features",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-crash-boundaries-20260910z10",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CARGO_BUILD_JOBS": "4",
+        "CARGO_HOME": "/home/pythonic/.cargo",
+        "CARGO_TARGET_DIR": "/home/pythonic/Development/stillyard-mr3-crash-boundaries-20260910z10/target/scheduled-linux",
+        "HOME": "/home/pythonic",
+        "PATH": "/home/pythonic/.cargo/bin:/usr/bin:/bin",
+        "RUSTUP_HOME": "/home/pythonic/.rustup",
+        "RUSTUP_TOOLCHAIN": "stable-x86_64-unknown-linux-gnu"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": [
+        "cpu_heavy"
+      ]
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "wsl-clippy"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1800,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae2-261c-7581-b119-6e7b49a38023",
+      "attempt_index": 1,
+      "verdict": "process_failed",
+      "reason_code": null,
+      "created_unix_millis": 1789036471835,
+      "started_unix_millis": 1789036471905,
+      "deadline_unix_millis": 1789038271905,
+      "finished_unix_millis": 1789036481070,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae2-2617-7351-9c5e-af32f24290b1",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae2-261c-7581-b119-6e7b49a38023",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae2-261c-7581-b119-6e8782636ef4",
+        "verdict": "process_failed",
+        "root_exit_code": 101,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789036472079,
+        "exited_unix_millis": 1789036481033,
+        "resolved_unix_millis": 1789036481059
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae2-261c-7581-b119-6e8782636ef4",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 1035723,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 1035723,
+            "start_ticks": 8257865,
+            "pid_namespace_inode": 4026534294,
+            "uid": 1000
+          },
+          "root_exit_code": 101,
+          "exit_classification": null,
+          "executable_hash": "dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71",
+          "daemon_generation": "01a08ade-f588-79e1-b441-a47c40c531b8",
+          "started_unix_millis": 1789036472079,
+          "finished_unix_millis": 1789036481059,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae2-261c-7581-b119-6e9ea7390820",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": "    Checking stillyard v0.1.0-alpha.20 (/home/pythonic/Development/stillyard-mr3-crash-boundaries-20260910z10)\nerror: unused import: `Stdio`\n --> src/store/attached/tests/crash.rs:6:54\n  |\n6 | use std::process::{Child, Command as ProcessCommand, Stdio};\n  |                                                      ^^^^^\n  |\n  = note: `-D unused-imports` implied by `-D warnings`\n  = help: to override `-D warnings` add `#[allow(unused_imports)]`\n\nerror: could not compile `stillyard` (lib test) due to 1 previous error\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08ae2-2634-7f71-bb7a-46ba502ed4ab",
+      "lease_id": "01a08ae2-261c-7581-b119-6ea5118dd499",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08ae2-261c-7581-b119-6ea5118dd499"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae2-2617-7351-9c5e-af32f24290b1",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08ae2-261c-7581-b119-6e7b49a38023"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": [
+          "cpu_heavy"
+        ]
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08ade-f588-79e1-b441-a47c40c531b8"
+}

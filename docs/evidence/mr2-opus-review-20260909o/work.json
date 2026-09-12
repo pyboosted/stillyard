@@ -1,0 +1,28 @@
+{
+  "distribution": "Ubuntu-SSD",
+  "user": "pythonic",
+  "executable": "/usr/bin/python3",
+  "args": [
+    "/home/pythonic/.codex-account-2/skills/opus-review/scripts/run_opus_review.py",
+    "--prompt-file",
+    "/mnt/c/Development/stillyard-mr2-opus-review-20260909o/brief.txt",
+    "--perspective",
+    "durable history, coordinator reset, fencing and crash atomicity",
+    "--perspective",
+    "manager outbox, single-use tickets, release and replay safety",
+    "--perspective",
+    "common scheduling, reservations, resource accounting, limits and recovery liveness",
+    "--cwd",
+    "/mnt/c/Development/stillyard-mr2-manager-20260909o",
+    "--timeout",
+    "1200",
+    "--output",
+    "/mnt/c/Development/stillyard-mr2-opus-review-20260909o/review-results.json"
+  ],
+  "working_directory": "/mnt/c/Development/stillyard-mr2-opus-review-20260909o",
+  "timeout_seconds": 1500,
+  "environment": {
+    "HOME": "/home/pythonic",
+    "PATH": "/home/pythonic/.local/bin:/usr/local/bin:/usr/bin:/bin"
+  }
+}

@@ -1,0 +1,485 @@
+{
+  "schema_version": 1,
+  "observed_unix_millis": 1789045304301,
+  "overall": "attention_required",
+  "daemon": {
+    "store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+    "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+    "version": "0.1.0-alpha.20",
+    "pid": 1929683,
+    "process_identity": {
+      "platform": "linux",
+      "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+      "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+      "pid": 1929683,
+      "start_ticks": 9119564,
+      "pid_namespace_inode": 4026532221,
+      "uid": 1000
+    },
+    "endpoint": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock",
+    "store_path": "/home/pythonic/.local/share/stillyard",
+    "config_path": "/home/pythonic/.local/share/stillyard/config.json",
+    "capacities": {
+      "cpu_units": 0,
+      "ram_mb": 16384,
+      "cargo_slots": 2,
+      "gpu_slots": 0,
+      "custom": {
+        "claude1_slots": 4,
+        "claude2_slots": 4,
+        "codex1_slots": 4,
+        "codex2_slots": 4,
+        "grok_slots": 4,
+        "opencode_slots": 4
+      }
+    },
+    "resources": {
+      "cpu_units": {
+        "capacity": 0,
+        "granted": 0,
+        "reserved": 0
+      },
+      "ram_mb": {
+        "capacity": 16384,
+        "granted": 0,
+        "reserved": 0
+      },
+      "cargo_slots": {
+        "capacity": 2,
+        "granted": 1,
+        "reserved": 0
+      },
+      "gpu_slots": {
+        "capacity": 0,
+        "granted": 0,
+        "reserved": 0
+      },
+      "custom": {
+        "claude1_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "claude2_slots": {
+          "capacity": 4,
+          "granted": 1,
+          "reserved": 0
+        },
+        "codex1_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "codex2_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "grok_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        },
+        "opencode_slots": {
+          "capacity": 4,
+          "granted": 0,
+          "reserved": 0
+        }
+      }
+    },
+    "machine_scheduling": {
+      "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+      "domains": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "machine_scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+        "native_domain": "01a08727-697d-7002-b4e5-c9c5feed5486"
+      },
+      "mode": "attached",
+      "observed_unix_millis": 1789045304291,
+      "configuration_sha256": "7f7e5f30303569fe1915450289161475ddf6e9cb5fe165341161228ce8e51978",
+      "resources": [
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "cargo_slots"
+          },
+          "capacity": 1,
+          "granted": 1,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "claude1_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "claude2_slots"
+          },
+          "capacity": 4,
+          "granted": 1,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "codex1_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "codex2_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "cpu_units"
+          },
+          "capacity": 0,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "gpu_slots"
+          },
+          "capacity": 1,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "grok_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "opencode_slots"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "ram_mb"
+          },
+          "capacity": 32768,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a08727-697d-7002-b4e5-c9bb9d5af41f",
+            "kind": "scalar",
+            "resource_id": "vram_mb:gpu-a1144c26-a15c-cba1-3b7a-870c755ef08a"
+          },
+          "capacity": 30000,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "05d9f444-6a6f-4027-9a2e-3f2803924245",
+            "kind": "scalar",
+            "resource_id": "ram_mb"
+          },
+          "capacity": 32768,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+            "kind": "scalar",
+            "resource_id": "cargo_slots"
+          },
+          "capacity": 2,
+          "granted": 1,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+            "kind": "scalar",
+            "resource_id": "ram_mb"
+          },
+          "capacity": 16384,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        }
+      ],
+      "blocker": null
+    },
+    "config_sha256": "46a518f4b6f3376422c0fe25e1c1f9ce6116dee32d1840177c23f1c07aa6d51b",
+    "queued_jobs": 1,
+    "running_jobs": 2
+  },
+  "host": {
+    "platform": "linux",
+    "host_name": "theserver",
+    "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+    "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+    "containment_strength": "linux_cgroup_v2",
+    "session_survival": "not_verified"
+  },
+  "store": {
+    "store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+    "schema_epoch": "stillyard-conditions-r3-2026-09-02",
+    "bound_host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+    "filesystem": "local_ext4",
+    "sqlite_journal_mode": "wal",
+    "sqlite_synchronous": "full",
+    "foreign_keys_enabled": true
+  },
+  "checks": [
+    {
+      "code": "configuration.loaded",
+      "status": "pass",
+      "summary": "loaded configuration evidence is available",
+      "remediation": null
+    },
+    {
+      "code": "containment.linux_cgroup_v2",
+      "status": "pass",
+      "summary": "born-contained cgroup v2 executor requires an installed attachment and delegated boundary",
+      "remediation": null
+    },
+    {
+      "code": "containment.unresolved",
+      "status": "pass",
+      "summary": "0 unresolved containment incident(s)",
+      "remediation": null
+    },
+    {
+      "code": "detector.commit_headroom",
+      "status": "warning",
+      "summary": "commit-limit headroom is temporarily unavailable",
+      "remediation": "Windows commit headroom is checked by the paired coordinator; guest availability is separate"
+    },
+    {
+      "code": "detector.cpu",
+      "status": "pass",
+      "summary": "total CPU utilization evidence is available",
+      "remediation": null
+    },
+    {
+      "code": "detector.disk",
+      "status": "pass",
+      "summary": "aggregate disk utilization evidence is available",
+      "remediation": null
+    },
+    {
+      "code": "detector.nvml",
+      "status": "warning",
+      "summary": "NVML GPU evidence is unavailable",
+      "remediation": "unsupported NVML provider"
+    },
+    {
+      "code": "detector.physical_memory",
+      "status": "pass",
+      "summary": "available physical memory evidence is available",
+      "remediation": null
+    },
+    {
+      "code": "detector.process_rules",
+      "status": "pass",
+      "summary": "process policy has 3 block and 0 ignore pattern(s)",
+      "remediation": null
+    },
+    {
+      "code": "detector.processes",
+      "status": "warning",
+      "summary": "bounded process inventory provider failed",
+      "remediation": "visible process executable unavailable; namespace-wide process coverage is incomplete"
+    },
+    {
+      "code": "detector.sampler_freshness",
+      "status": "pass",
+      "summary": "synchronous observation sample is fresh",
+      "remediation": null
+    },
+    {
+      "code": "host.boot_identity",
+      "status": "pass",
+      "summary": "startup-latched boot identity",
+      "remediation": null
+    },
+    {
+      "code": "host.machine_identity",
+      "status": "pass",
+      "summary": "current host matches the durable store binding",
+      "remediation": null
+    },
+    {
+      "code": "host.session_survival",
+      "status": "not_verified",
+      "summary": "WSL lifetime requires the installed external keepalive and runtime acceptance",
+      "remediation": null
+    },
+    {
+      "code": "ipc.owner_only",
+      "status": "pass",
+      "summary": "Unix socket uses owner credentials and pinned process identity",
+      "remediation": null
+    },
+    {
+      "code": "runtime_timer_expirations",
+      "status": "pass",
+      "summary": "{\"attached\":1166,\"backoff\":0,\"reactor\":14,\"subscriber\":495,\"transport\":0}",
+      "remediation": null
+    },
+    {
+      "code": "store.filesystem",
+      "status": "pass",
+      "summary": "store path was validated as local ext4 with owner-only access",
+      "remediation": null
+    },
+    {
+      "code": "store.schema",
+      "status": "pass",
+      "summary": "validated schema epoch stillyard-conditions-r3-2026-09-02",
+      "remediation": null
+    },
+    {
+      "code": "store.sqlite_durability",
+      "status": "pass",
+      "summary": "journal=wal, synchronous=2, foreign_keys=true",
+      "remediation": null
+    }
+  ],
+  "coverage": [
+    {
+      "provider": "linux_memavailable",
+      "detector": "physical_memory",
+      "status": "pass",
+      "observed_unix_millis": 1789045304302,
+      "observation_generation": "01a08b66-49d1-7652-8389-74f0dad35fe9",
+      "remediation": null
+    },
+    {
+      "provider": "linux_memavailable",
+      "detector": "commit_headroom",
+      "status": "warning",
+      "observed_unix_millis": 1789045304302,
+      "observation_generation": "01a08b66-49d1-7652-8389-74f0dad35fe9",
+      "remediation": "Windows commit headroom is checked by the paired coordinator; guest availability is separate"
+    },
+    {
+      "provider": "linux_proc_stat",
+      "detector": "cpu",
+      "status": "pass",
+      "observed_unix_millis": 1789045304302,
+      "observation_generation": "01a08b66-49d1-7652-8389-74f0dad35fe9",
+      "remediation": null
+    },
+    {
+      "provider": "linux_diskstats_pressure",
+      "detector": "disk",
+      "status": "pass",
+      "observed_unix_millis": 1789045304302,
+      "observation_generation": "01a08b66-49d1-7652-8389-74f0dad35fe9",
+      "remediation": null
+    },
+    {
+      "provider": "linux_visible_pid_namespace",
+      "detector": "processes",
+      "status": "warning",
+      "observed_unix_millis": 1789045304302,
+      "observation_generation": "01a08b66-49d1-7652-8389-74f0dad35fe9",
+      "remediation": "visible process executable unavailable; namespace-wide process coverage is incomplete"
+    },
+    {
+      "provider": "linux_visible_pid_namespace",
+      "detector": "process_rules",
+      "status": "pass",
+      "observed_unix_millis": 1789045304302,
+      "observation_generation": "01a08b66-49d1-7652-8389-74f0dad35fe9",
+      "remediation": null
+    },
+    {
+      "provider": "host_sampler",
+      "detector": "sampler_freshness",
+      "status": "pass",
+      "observed_unix_millis": 1789045304302,
+      "observation_generation": "01a08b66-49d1-7652-8389-74f0dad35fe9",
+      "remediation": null
+    },
+    {
+      "provider": "nvml",
+      "detector": "nvml",
+      "status": "warning",
+      "observed_unix_millis": 1789045304302,
+      "observation_generation": "01a08b66-49d1-7652-8389-74f0dad35fe9",
+      "remediation": "unsupported NVML provider"
+    }
+  ],
+  "incidents": {
+    "total_unresolved": 0,
+    "incidents": [],
+    "truncated": false,
+    "next_cursor": null
+  },
+  "boundaries": [
+    {
+      "code": "cloned_host_identity",
+      "statement": "simultaneous machine clones with the same MachineGuid cannot be distinguished"
+    },
+    {
+      "code": "no_hard_resource_partition",
+      "statement": "resource admission is not CPU, GPU, or RAM hard enforcement"
+    },
+    {
+      "code": "physical_power_loss_after_ack",
+      "statement": "physical power loss may exceed the acknowledged storage boundary"
+    },
+    {
+      "code": "same_owner_out_of_boundary_process",
+      "statement": "deliberate same-owner out-of-boundary process creation is outside the cooperative guarantee"
+    }
+  ]
+}

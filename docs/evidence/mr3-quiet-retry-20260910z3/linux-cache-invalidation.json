@@ -1,0 +1,31 @@
+{
+  "reason": "Rebuild workspace targets at new snapshot",
+  "fingerprints": [
+    "debug/.fingerprint/stillyard-5b1c4f6016f1a180",
+    "debug/.fingerprint/stillyard-ef1a60204084c61a",
+    "debug/.fingerprint/stillyard-94e21b3691a91b66",
+    "debug/.fingerprint/stillyard-c0058586f5285ef6",
+    "debug/.fingerprint/stillyard-0b0399be0e0146d0",
+    "debug/.fingerprint/stillyard-125648cbd9bb923c",
+    "debug/.fingerprint/stillyard-b8a6baf3fe614004",
+    "debug/.fingerprint/stillyard-4576eea97a6f6a2b",
+    "debug/.fingerprint/stillyard-87bc326e2a934425",
+    "debug/.fingerprint/stillyard-6d3d6096fdce1aa0",
+    "debug/.fingerprint/stillyard-52132f4d68e26f67",
+    "debug/.fingerprint/stillyard-151fb199ef6961b3",
+    "debug/.fingerprint/stillyard-10ad84632547b5e6",
+    "debug/.fingerprint/stillyard-99e3c9e0236d82ab",
+    "debug/.fingerprint/stillyard-5b44b5396d342aba",
+    "debug/.fingerprint/stillyard-8d19002362520820",
+    "debug/.fingerprint/stillyard-e7d53dea861bea8e",
+    "debug/.fingerprint/stillyard-e56fd9f10ebc7daf",
+    "debug/.fingerprint/stillyard-e5c0c73ffecd3fff",
+    "debug/.fingerprint/stillyard-4775657eb692cc51",
+    "debug/.fingerprint/stillyard-e4dae8d2a502fb94",
+    "debug/.fingerprint/stillyard-6446f034e56ab2de",
+    "debug/.fingerprint/stillyard-1d80906a2b1f8f31",
+    "debug/.fingerprint/stillyard-2df892134682a173",
+    "release/.fingerprint/stillyard-471428c01d5d6232",
+    "release/.fingerprint/stillyard-1b3ed9bf831eddfb"
+  ]
+}

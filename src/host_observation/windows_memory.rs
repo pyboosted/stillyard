@@ -41,7 +41,7 @@ pub(crate) fn probe_memory() -> std::io::Result<MemoryEvidence> {
         .ok_or_else(|| std::io::Error::other("commit headroom byte conversion overflow"))?;
     Ok(MemoryEvidence {
         available_physical_mb: status.ullAvailPhys / MIB,
-        commit_headroom_mb: commit_bytes / MIB,
+        commit_headroom_mb: Some(commit_bytes / MIB),
     })
 }
 
@@ -53,8 +53,8 @@ mod tests {
     fn live_windows_memory_contains_physical_and_commit_headroom() {
         let memory = probe_memory().unwrap();
         assert!(memory.available_physical_mb > 0);
-        assert!(memory.commit_headroom_mb > 0);
+        assert!(memory.commit_headroom_mb.unwrap() > 0);
         assert!(memory.headroom_mb() <= memory.available_physical_mb);
-        assert!(memory.headroom_mb() <= memory.commit_headroom_mb);
+        assert!(memory.headroom_mb() <= memory.commit_headroom_mb.unwrap());
     }
 }

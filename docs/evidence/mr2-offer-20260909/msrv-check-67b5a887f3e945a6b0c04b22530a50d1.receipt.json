@@ -1,0 +1,9 @@
+{
+  "version": 5,
+  "idempotency_key": "01a0874b-c91d-7aa0-91a0-125161b92079",
+  "payload_hash": "4e9cbde326c36003e6effdaf0f2c3bb7abfa8208b2ff8ac2113a95b07e259cf3",
+  "endpoint": "\\\\.\\pipe\\stillyard-v6-b0ec378232a865ea",
+  "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+  "parent": null,
+  "receipt": null
+}

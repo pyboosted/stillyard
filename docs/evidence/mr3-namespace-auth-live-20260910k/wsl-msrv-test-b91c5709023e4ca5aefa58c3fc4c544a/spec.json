@@ -1,0 +1,33 @@
+{
+  "spec_version": 4,
+  "executable": "C:\\Users\\User\\AppData\\Local\\stillyard\\Stillyard\\bin\\stillyard.exe",
+  "args": [
+    "bootstrap",
+    "run",
+    "--spec",
+    "C:\\Development\\stillyard-mr3-namespace-auth-live-evidence-20260910k\\wsl-msrv-test-b91c5709023e4ca5aefa58c3fc4c544a\\work.json"
+  ],
+  "working_directory": "C:\\Development\\stillyard-mr3-namespace-auth-live-evidence-20260910k\\wsl-msrv-test-b91c5709023e4ca5aefa58c3fc4c544a",
+  "resources": {
+    "cargo_slots": 1,
+    "impacts": [
+      "cpu_heavy"
+    ]
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "wsl-bootstrap-msrv-test"
+    },
+    {
+      "key": "source",
+      "value": "b32eae1a1b7b323e58b943d54260a539929b2e12cf7e05e65393fdc947a1f312"
+    }
+  ],
+  "expected_duration_seconds": 180,
+  "timeout_seconds": 1830
+}

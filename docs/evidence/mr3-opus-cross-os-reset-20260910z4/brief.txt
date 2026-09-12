@@ -1,0 +1,2319 @@
+Independent read-only Opus review of cross-OS reset acceptance harness. No tools. Return typed verdict/summary/findings. Distinguish actual safety bugs, test coverage limits and hypothetical concerns. No secret output. Installed default binaries z3 already passed 3 consumer rounds, active daemon crash, forced cleanup failure. New z4 Rust changes are tests only. Native ignored test runs on default Windows Cargo Job; uses default bootstrap API to contain a Linux prebuilt unit-test subject with nested delegation. Windows isolated coordinator protocol fixture issues actual Ticket matching Linux production PreparedLaunch+Journal boundary. Guest Store SQL reset, missing/corrupt anchor must be rejected while process remains alive; Windows coordinator reset then reconstruction must retain remote Grant until actual Linux seal. We do NOT claim this direct kernel subject measures production Driver transport freshness or runs full guest daemon: production Driver already has separate installed acceptance. Assess whether these tests faithfully cover fault requirements and any deadlock/cleanup/privacy hazards. Focus new tests and modifications, do not demand unrelated refactoring.
+
+FILE tests/support/cross_os_reset.rs
+//! Mailbox orchestration only; the Linux subject uses the real executor journal.
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+use stillyard::{BootstrapProof, Client};
+use uuid::Uuid;
+
+pub struct Subject {
+    mailbox: PathBuf,
+    thread: Option<std::thread::JoinHandle<stillyard::Result<BootstrapProof>>>,
+}
+fn linux_path(path: &Path) -> String {
+    let text = path.display().to_string().replace('\\', "/");
+    assert!(
+        text.as_bytes().get(1) == Some(&b':'),
+        "fixture needs a drive-backed mailbox"
+    );
+    format!("/mnt/{}/{}", text[..1].to_lowercase(), &text[3..])
+}
+impl Subject {
+    pub fn start(root: &Path) -> Self {
+        let mailbox = root.join("linux-mailbox");
+        std::fs::create_dir(&mailbox).unwrap();
+        let work = stillyard::BootstrapWork {
+            operation_id: Uuid::nil(),
+            distribution: std::env::var("MR_WSL_TEST_DISTRO").unwrap(),
+            user: std::env::var("MR_WSL_TEST_USER").unwrap(),
+            executable: std::env::var("MR_WSL_TEST_BINARY").unwrap(),
+            args: vec![
+                "linux_executor_cross_os_reset_subject".into(),
+                "--ignored".into(),
+                "--nocapture".into(),
+            ],
+            working_directory: std::env::var("MR_WSL_TEST_SOURCE").unwrap(),
+            environment: [
+                ("PATH".into(), "/usr/bin:/bin".into()),
+                (
+                    "STILLYARD_TEST_EXECUTABLE".into(),
+                    std::env::var("MR_WSL_TEST_EXECUTABLE").unwrap(),
+                ),
+                ("MR_WSL_FAULT_MAILBOX".into(), linux_path(&mailbox)),
+            ]
+            .into(),
+            timeout_seconds: 240,
+            delegate_test_cgroup: true,
+        };
+        let client = Client::builder()
+            .auto_start(false)
+            .connect(Instant::now() + Duration::from_secs(10), None)
+            .unwrap();
+        assert!(
+            client
+                .submission_context(Instant::now() + Duration::from_secs(10), None)
+                .unwrap()
+                .parent
+                .is_some(),
+            "cross-OS reset must be scheduled by the system daemon"
+        );
+        let thread = std::thread::spawn(move || client.run_wsl_bootstrap(work));
+        Self {
+            mailbox,
+            thread: Some(thread),
+        }
+    }
+    pub fn receive<T: serde::de::DeserializeOwned>(&self, name: &str) -> T {
+        let until = Instant::now() + Duration::from_secs(60);
+        loop {
+            match std::fs::read(self.mailbox.join(name)) {
+                Ok(bytes) => return serde_json::from_slice(&bytes).unwrap(),
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::NotFound && Instant::now() < until =>
+                {
+                    assert!(
+                        !self.thread.as_ref().unwrap().is_finished(),
+                        "Linux bootstrap ended before {name}"
+                    );
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => panic!("Linux subject {name}: {error}"),
+            }
+        }
+    }
+    pub fn publish(&self, name: &str, value: &impl serde::Serialize) {
+        let stage = self.mailbox.join(format!(".{}", Uuid::now_v7()));
+        std::fs::write(&stage, serde_json::to_vec(value).unwrap()).unwrap();
+        std::fs::rename(stage, self.mailbox.join(name)).unwrap();
+    }
+    pub fn finish(&mut self) {
+        let proof = self.thread.take().unwrap().join().unwrap().unwrap();
+        assert_eq!(proof.phase, "sealed_empty");
+        assert_eq!(proof.root_exit_code, 0);
+        self.publish("bootstrap-proof.json", &proof);
+        let destination = PathBuf::from(std::env::var_os("MR_WSL_FAULT_EVIDENCE").unwrap());
+        std::fs::create_dir_all(&destination).unwrap();
+        // Configuration includes a fixture pairing secret: never export it.
+        for name in [
+            "manager.json",
+            "allocation.json",
+            "intent.json",
+            "ticket.json",
+            "live.json",
+            "guest-reset-rejected.json",
+            "live-after-coordinator-reset.json",
+            "seal.json",
+            "bootstrap-proof.json",
+        ] {
+            std::fs::copy(self.mailbox.join(name), destination.join(name)).unwrap();
+        }
+    }
+}
+impl Drop for Subject {
+    fn drop(&mut self) {
+        if let Some(thread) = self.thread.take() {
+            // Unblock every phase on a native assertion failure. The protected
+            // supervisor still owns recursive cleanup if the subject panics.
+            for name in [
+                "reset-guest.json",
+                "coordinator-reset-observed.json",
+                "cleanup.json",
+            ] {
+                if !self.mailbox.join(name).exists() {
+                    self.publish(name, &true);
+                }
+            }
+            let _ = thread.join();
+        }
+    }
+}
+
+FILE src/runner/linux/journal/cross_os.rs
+//! Real Linux executor subject for the native coordinator reset acceptance.
+//! Runs only inside the default Windows Job's protected bootstrap delegation.
+use super::*;
+use crate::store::{Store, StorePaths};
+use std::os::unix::fs::PermissionsExt;
+use std::time::Duration;
+
+fn receive<T: serde::de::DeserializeOwned>(mailbox: &Path, name: &str) -> T {
+    let until = Instant::now() + Duration::from_secs(120);
+    loop {
+        match std::fs::read(mailbox.join(name)) {
+            Ok(bytes) => return serde_json::from_slice(&bytes).unwrap(),
+            Err(error) if error.kind() == io::ErrorKind::NotFound && Instant::now() < until => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => panic!("cross-OS mailbox {name}: {error}"),
+        }
+    }
+}
+fn publish(mailbox: &Path, name: &str, value: &impl Serialize) {
+    let temporary = mailbox.join(format!(".{}", Uuid::now_v7()));
+    std::fs::write(&temporary, serde_json::to_vec(value).unwrap()).unwrap();
+    std::fs::rename(temporary, mailbox.join(name)).unwrap();
+}
+
+#[test]
+#[ignore = "native system Job supplies mailbox and protected Linux delegation"]
+fn linux_executor_cross_os_reset_subject() {
+    let mailbox = PathBuf::from(std::env::var_os("MR_WSL_FAULT_MAILBOX").unwrap());
+    let parent = PathBuf::from(std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap());
+    let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+    std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+    let paths = StorePaths::new(temp.path().join("manager"));
+    let mut manager = Store::open(paths.clone()).unwrap();
+    std::fs::set_permissions(&paths.root, std::fs::Permissions::from_mode(0o700)).unwrap();
+    publish(
+        &mailbox,
+        "manager.json",
+        &serde_json::json!({"store_uuid":manager.store_uuid()}),
+    );
+    let configuration: serde_json::Value = receive(&mailbox, "configuration.json");
+    let configuration_path = temp.path().join("configuration.json");
+    std::fs::write(
+        &configuration_path,
+        serde_json::to_vec(&configuration).unwrap(),
+    )
+    .unwrap();
+    std::fs::set_permissions(&configuration_path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    manager
+        .install_attached_from_file(&configuration_path)
+        .unwrap();
+    let anchor = Anchor {
+        journal: serde_json::from_value(configuration["journal"].clone()).unwrap(),
+        store: manager.store_uuid(),
+        domain: serde_json::from_value(
+            configuration["pairing"]["installation"]["domain_id"].clone(),
+        )
+        .unwrap(),
+    };
+    let journal_path = paths.root.join("attachment/executor");
+    let mut journal = Journal::open(&journal_path, &anchor).unwrap();
+    let allocation: crate::machine::AllocationKey = receive(&mailbox, "allocation.json");
+    assert_eq!(allocation.manager_store_uuid, anchor.store);
+    assert_eq!(allocation.domain_id, anchor.domain);
+    let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+    let containment = ContainmentId::from_parts(anchor.store, Uuid::now_v7());
+    // SAFETY: geteuid has no preconditions.
+    let identity =
+        crate::identity::linux::Process::open(std::process::id(), unsafe { libc::geteuid() })
+            .unwrap();
+    let boundary = journal
+        .create(
+            &parent,
+            invocation,
+            containment,
+            allocation.lease_id,
+            Uuid::now_v7(),
+            identity.identity,
+        )
+        .unwrap();
+    let helper = temp.path().join("stillyard");
+    std::fs::copy(
+        std::env::var_os("STILLYARD_TEST_EXECUTABLE").unwrap(),
+        &helper,
+    )
+    .unwrap();
+    let marker = temp.path().join("user-started");
+    let code = format!(
+        "import pathlib,subprocess,time; subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(120)']); pathlib.Path({:?}).write_text('live'); time.sleep(120)",
+        marker.display().to_string()
+    );
+    let spec = super::super::launch::LaunchSpec {
+        executable: "/usr/bin/python3".into(),
+        args: vec!["-c".into(), code],
+        working_directory: temp.path().into(),
+        environment: BTreeMap::new(),
+    };
+    let mut launch = super::super::launch::PreparedLaunch::prepare(
+        &boundary,
+        &helper,
+        &spec,
+        File::open("/dev/null").unwrap(),
+        Instant::now() + Duration::from_secs(15),
+    )
+    .unwrap();
+    journal.ready(invocation, &launch).unwrap();
+    let intent = crate::machine::InvocationIntent {
+        invocation_id: invocation,
+        containment_id: containment,
+        role: crate::InvocationRole::Primary,
+        role_index: 0,
+        release_sequence: 1,
+        executable_sha256: launch.requested_sha256.clone(),
+        boundary_sha256: journal.records().unwrap()[&invocation]
+            .boundary_sha256()
+            .unwrap(),
+        readiness_challenge: Uuid::now_v7(),
+        previous_cleanup: None,
+    };
+    publish(&mailbox, "intent.json", &intent);
+    let ticket: crate::machine::InvocationTicket = receive(&mailbox, "ticket.json");
+    assert_eq!(ticket.intent, intent);
+    assert_eq!(ticket.key, allocation);
+    journal.release_intent(&ticket).unwrap();
+    launch.release().unwrap();
+    let until = Instant::now() + Duration::from_secs(10);
+    while !marker.exists() {
+        assert!(
+            Instant::now() < until,
+            "actual Linux user code did not start"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    publish(
+        &mailbox,
+        "live.json",
+        &serde_json::json!({"record":journal.records().unwrap()[&invocation],"populated":boundary.populated().unwrap(),"user_started":true}),
+    );
+    let _: bool = receive(&mailbox, "reset-guest.json");
+    assert!(boundary.populated().unwrap());
+    assert!(journal.records().unwrap()[&invocation].seal.is_none());
+    drop(manager);
+    for suffix in ["", "-wal", "-shm"] {
+        let source = paths.root.join(format!("stillyard.sqlite3{suffix}"));
+        if source.exists() {
+            std::fs::rename(&source, source.with_extension(format!("prior{suffix}"))).unwrap();
+        }
+    }
+    assert!(
+        Store::open(paths.clone()).is_err(),
+        "empty local Store bypassed retained pairing history"
+    );
+    let anchor_path = paths.root.join("attachment/anchor.json");
+    let saved_anchor = std::fs::read(&anchor_path).unwrap();
+    std::fs::remove_file(&anchor_path).unwrap();
+    assert!(
+        Store::open(paths.clone()).is_err(),
+        "lost anchor became standalone"
+    );
+    std::fs::write(&anchor_path, b"{corrupt").unwrap();
+    std::fs::set_permissions(&anchor_path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    assert!(
+        Store::open(paths.clone()).is_err(),
+        "corrupt anchor became standalone"
+    );
+    std::fs::write(&anchor_path, &saved_anchor).unwrap();
+    drop(journal);
+    journal = Journal::open(&journal_path, &anchor).unwrap();
+    assert!(journal.records().unwrap()[&invocation].seal.is_none());
+    assert!(boundary.populated().unwrap());
+    publish(
+        &mailbox,
+        "guest-reset-rejected.json",
+        &serde_json::json!({"populated":true,"unsealed":true,"store_reset_rejected":true,"missing_anchor_rejected":true,"corrupt_anchor_rejected":true,"record":journal.records().unwrap()[&invocation]}),
+    );
+    let _: bool = receive(&mailbox, "coordinator-reset-observed.json");
+    assert!(boundary.populated().unwrap());
+    publish(
+        &mailbox,
+        "live-after-coordinator-reset.json",
+        &serde_json::json!({"populated":true,"unsealed":journal.records().unwrap()[&invocation].seal.is_none()}),
+    );
+    let _: bool = receive(&mailbox, "cleanup.json");
+    let seal = journal
+        .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+        .unwrap();
+    assert!(seal.possibly_released);
+    assert!(!Path::new(&boundary.identity.path).exists());
+    publish(
+        &mailbox,
+        "seal.json",
+        &serde_json::json!({"seal":seal,"proof_sha256":seal.sha256().unwrap(),"record":journal.records().unwrap()[&invocation]}),
+    );
+}
+
+FILE src/runner/linux/journal.rs
+//! Reset-independent executor obligations. A missing cgroup is never a seal.
+use super::cgroup::{Boundary, Identity};
+use crate::{ContainmentId, InvocationId, ProcessIdentity};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
+use std::fs::{File, OpenOptions};
+use std::io::{self, Read, Write};
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
+use std::path::{Path, PathBuf};
+use std::time::Instant;
+use uuid::Uuid;
+
+const MAX_BYTES: usize = 16 * 1024 * 1024;
+const MAX_RECORDS: usize = 16_384;
+const MAX_ACTIVE: usize = 1024;
+
+#[cfg(test)]
+thread_local! {
+    static FAIL_BEFORE_SEAL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Anchor {
+    pub(super) journal: Uuid,
+    pub(super) store: Uuid,
+    pub(super) domain: crate::ExecutionDomainId,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct State {
+    version: u32,
+    anchor: Anchor,
+    records: BTreeMap<InvocationId, Record>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Record {
+    pub(super) containment: ContainmentId,
+    pub(super) lease: Uuid,
+    pub(super) daemon_generation: Uuid,
+    pub(super) creator: ProcessIdentity,
+    pub(super) boundary: Option<Identity>,
+    pub(super) root: Option<ProcessIdentity>,
+    pub(super) executable_sha256: Option<String>,
+    pub(super) release_intent: Option<crate::machine::InvocationTicket>,
+    pub(super) seal: Option<Seal>,
+}
+
+impl Record {
+    pub(super) fn boundary_sha256(&self) -> io::Result<String> {
+        let boundary = self
+            .boundary
+            .as_ref()
+            .ok_or_else(|| invalid("missing executor boundary"))?;
+        digest(&(
+            self.containment,
+            self.lease,
+            self.daemon_generation,
+            &self.creator,
+            boundary,
+            &self.root,
+            &self.executable_sha256,
+        ))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Seal {
+    pub(super) invocation: InvocationId,
+    pub(super) boundary_sha256: String,
+    pub(super) seal_id: Uuid,
+    pub(super) possibly_released: bool,
+}
+impl Seal {
+    pub(super) fn sha256(&self) -> io::Result<String> {
+        digest(self)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Envelope {
+    state: State,
+    sha256: String,
+}
+
+pub(super) struct Journal {
+    directory: PathBuf,
+    directory_guard: File,
+    _lock: File,
+    state: State,
+    poisoned: bool,
+}
+
+fn invalid(message: &str) -> io::Error {
+    io::Error::other(message)
+}
+pub(super) fn digest(value: &impl Serialize) -> io::Result<String> {
+    Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(value)?)))
+}
+fn owned(path: &Path, directory: bool) -> io::Result<File> {
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(
+            libc::O_NOFOLLOW | libc::O_CLOEXEC | if directory { libc::O_DIRECTORY } else { 0 },
+        )
+        .open(path)?;
+    let meta = file.metadata()?;
+    // SAFETY: geteuid has no preconditions.
+    if meta.uid() != unsafe { libc::geteuid() }
+        || meta.mode() & 0o077 != 0
+        || (directory && !meta.is_dir())
+        || (!directory && !meta.is_file())
+    {
+        return Err(invalid(
+            "executor history must be an owner-only regular file/directory",
+        ));
+    }
+    Ok(file)
+}
+fn read(path: &Path) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    owned(path, false)?
+        .take(MAX_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > MAX_BYTES {
+        return Err(invalid("executor history exceeds size bound"));
+    }
+    Ok(bytes)
+}
+fn publish(directory: &Path, name: &str, bytes: &[u8], replace: bool) -> io::Result<()> {
+    if bytes.len() > MAX_BYTES {
+        return Err(invalid("executor history exceeds size bound"));
+    }
+    let temporary = directory.join(format!(".publish-{}", Uuid::now_v7()));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&temporary)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    let target = directory.join(name);
+    if replace {
+        std::fs::rename(&temporary, &target)?;
+    } else {
+        std::fs::hard_link(&temporary, &target)?;
+        std::fs::remove_file(&temporary)?;
+    }
+    File::open(directory)?.sync_all()
+}
+
+impl Journal {
+    /// Called only by explicit installation after an empty-work inventory. An
+    /// existing, missing or damaged installation is never initialized on open.
+    pub(super) fn initialize(directory: &Path, anchor: Anchor) -> io::Result<Self> {
+        if anchor.journal.is_nil() || anchor.store.is_nil() || anchor.domain.0.is_nil() {
+            return Err(invalid("nil executor installation identity"));
+        }
+        let parent = directory
+            .parent()
+            .ok_or_else(|| invalid("executor journal has no parent"))?;
+        owned(parent, true)?;
+        crate::filesystem::require_durable_local_filesystem(parent)?;
+        std::fs::DirBuilder::new().mode(0o700).create(directory)?;
+        File::open(parent)?.sync_all()?;
+        let state = State {
+            version: 1,
+            anchor: anchor.clone(),
+            records: BTreeMap::new(),
+        };
+        publish(
+            directory,
+            "anchor.json",
+            &serde_json::to_vec(&anchor)?,
+            false,
+        )?;
+        let envelope = Envelope {
+            sha256: digest(&state)?,
+            state,
+        };
+        publish(
+            directory,
+            "state.json",
+            &serde_json::to_vec(&envelope)?,
+            false,
+        )?;
+        Self::open(directory, &anchor)
+    }
+
+    pub(super) fn open(directory: &Path, expected: &Anchor) -> io::Result<Self> {
+        let directory_guard = owned(directory, true)?;
+        crate::filesystem::require_durable_local_filesystem(directory)?;
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(directory.join("executor.lock"))?;
+        let guard = owned(&directory.join("executor.lock"), false)?;
+        if (guard.metadata()?.dev(), guard.metadata()?.ino())
+            != (lock.metadata()?.dev(), lock.metadata()?.ino())
+        {
+            return Err(invalid("executor lock was replaced"));
+        }
+        fs2::FileExt::try_lock_exclusive(&lock)?;
+        let anchor: Anchor = serde_json::from_slice(&read(&directory.join("anchor.json"))?)?;
+        let envelope: Envelope = serde_json::from_slice(&read(&directory.join("state.json"))?)?;
+        if &anchor != expected
+            || envelope.state.anchor != anchor
+            || envelope.state.version != 1
+            || digest(&envelope.state)? != envelope.sha256
+            || envelope.state.records.len() > MAX_RECORDS
+        {
+            return Err(invalid("executor history/anchor is unknown or mismatched"));
+        }
+        for (invocation, record) in &envelope.state.records {
+            if invocation.store_uuid() != anchor.store
+                || record.containment.store_uuid() != anchor.store
+                || record.lease.is_nil()
+                || record.daemon_generation.is_nil()
+            {
+                return Err(invalid("executor history contains a foreign obligation"));
+            }
+            if let Some(seal) = &record.seal {
+                if seal.invocation != *invocation
+                    || seal.seal_id.is_nil()
+                    || seal.boundary_sha256 != record.boundary_sha256()?
+                    || seal.possibly_released != record.release_intent.is_some()
+                {
+                    return Err(invalid("invalid executor seal"));
+                }
+            }
+        }
+        Ok(Self {
+            directory: directory.to_owned(),
+            directory_guard,
+            _lock: lock,
+            state: envelope.state,
+            poisoned: false,
+        })
+    }
+
+    fn check(&self) -> io::Result<()> {
+        if self.poisoned {
+            return Err(invalid(
+                "executor publication failed; history requires recovery",
+            ));
+        }
+        let meta = owned(&self.directory, true)?.metadata()?;
+        let pin = self.directory_guard.metadata()?;
+        if (meta.dev(), meta.ino()) != (pin.dev(), pin.ino()) || pin.nlink() == 0 {
+            return Err(invalid("executor journal directory was replaced"));
+        }
+        let anchor: Anchor = serde_json::from_slice(&read(&self.directory.join("anchor.json"))?)?;
+        let disk: Envelope = serde_json::from_slice(&read(&self.directory.join("state.json"))?)?;
+        if anchor != self.state.anchor
+            || disk.sha256 != digest(&disk.state)?
+            || digest(&self.state)? != disk.sha256
+        {
+            return Err(invalid("executor history changed outside its writer"));
+        }
+        Ok(())
+    }
+    fn commit(&mut self, state: State) -> io::Result<()> {
+        self.check()?;
+        let envelope = Envelope {
+            sha256: digest(&state)?,
+            state,
+        };
+        // Once publication is attempted, even an fsync error is an uncertain
+        // commit. This process must not continue from its old in-memory state.
+        self.poisoned = true;
+        publish(
+            &self.directory,
+            "state.json",
+            &serde_json::to_vec(&envelope)?,
+            true,
+        )?;
+        self.state = envelope.state;
+        self.poisoned = false;
+        Ok(())
+    }
+    pub(super) fn records(&self) -> io::Result<&BTreeMap<InvocationId, Record>> {
+        self.check()?;
+        Ok(&self.state.records)
+    }
+
+    pub(super) fn create(
+        &mut self,
+        parent: &Path,
+        invocation: InvocationId,
+        containment: ContainmentId,
+        lease: Uuid,
+        generation: Uuid,
+        creator: ProcessIdentity,
+    ) -> io::Result<Boundary> {
+        self.check()?;
+        let active = self
+            .state
+            .records
+            .values()
+            .filter(|r| r.seal.is_none())
+            .count();
+        // Reserve serialized space for every pending ticket and seal as well
+        // as disk space. Exhaustion rejects new obligations, never cleanup.
+        if serde_json::to_vec(&self.state)?
+            .len()
+            .saturating_add((active + 1) * 16_384)
+            > MAX_BYTES - 1024 * 1024
+        {
+            return Err(invalid("executor history cleanup headroom unavailable"));
+        }
+        if invocation.store_uuid() != self.state.anchor.store
+            || containment.store_uuid() != self.state.anchor.store
+            || lease.is_nil()
+            || generation.is_nil()
+            || self.state.records.contains_key(&invocation)
+            || self.state.records.len() >= MAX_RECORDS
+            || active >= MAX_ACTIVE
+            || !matches!(creator, ProcessIdentity::Linux { .. })
+        {
+            return Err(invalid(
+                "duplicate, foreign or over-budget executor creation intent",
+            ));
+        }
+        let mut space = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+        // SAFETY: pinned journal directory and writable statvfs storage.
+        if unsafe { libc::fstatvfs(self.directory_guard.as_raw_fd(), space.as_mut_ptr()) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: successful fstatvfs initialized the structure.
+        let space = unsafe { space.assume_init() };
+        if u128::from(space.f_bavail) * u128::from(space.f_frsize)
+            < (MAX_BYTES as u128 * 3 + (active as u128 + 1) * 65536)
+        {
+            return Err(invalid("executor cleanup publication headroom unavailable"));
+        }
+        let mut next = self.state.clone();
+        next.records.insert(
+            invocation,
+            Record {
+                containment,
+                lease,
+                daemon_generation: generation,
+                creator,
+                boundary: None,
+                root: None,
+                executable_sha256: None,
+                release_intent: None,
+                seal: None,
+            },
+        );
+        self.commit(next)?;
+        let boundary = Boundary::create(parent, invocation.entity_uuid())?;
+        let mut next = self.state.clone();
+        next.records.get_mut(&invocation).unwrap().boundary = Some(boundary.identity.clone());
+        self.commit(next)?;
+        Ok(boundary)
+    }
+
+    pub(super) fn ready(
+        &mut self,
+        invocation: InvocationId,
+        launch: &super::launch::PreparedLaunch,
+    ) -> io::Result<()> {
+        let mut next = self.state.clone();
+        let record = next
+            .records
+            .get_mut(&invocation)
+            .ok_or_else(|| invalid("unknown executor intent"))?;
+        if record.seal.is_some() || record.root.is_some() || record.release_intent.is_some() {
+            return Err(invalid("executor root was already prepared or sealed"));
+        }
+        let boundary = Boundary::reopen(
+            record
+                .boundary
+                .as_ref()
+                .ok_or_else(|| invalid("executor boundary not committed"))?,
+        )?;
+        if !boundary.contains_process(launch.root.proc_handle())? {
+            return Err(invalid("prepared root left the recorded boundary"));
+        }
+        record.root = Some(launch.root.identity.clone());
+        record.executable_sha256 = Some(launch.requested_sha256.clone());
+        self.commit(next)
+    }
+
+    /// Call before SQLite ticket consumption. A crash after this point is
+    /// possibly-released even if the kernel barrier was never actually resumed.
+    pub(super) fn release_intent(
+        &mut self,
+        ticket: &crate::machine::InvocationTicket,
+    ) -> io::Result<()> {
+        if serde_json::to_vec(ticket)?.len() > 8192 {
+            return Err(invalid("executor ticket exceeds reserved history bound"));
+        }
+        let mut next = self.state.clone();
+        let record = next
+            .records
+            .get_mut(&ticket.intent.invocation_id)
+            .ok_or_else(|| invalid("unknown executor ticket"))?;
+        if record.seal.is_some()
+            || record.release_intent.is_some()
+            || record.root.is_none()
+            || ticket.key.manager_store_uuid != next.anchor.store
+            || ticket.key.domain_id != next.anchor.domain
+            || ticket.key.lease_id != record.lease
+            || ticket.intent.containment_id != record.containment
+            || record.executable_sha256.as_deref() != Some(ticket.intent.executable_sha256.as_str())
+            || record.boundary_sha256()? != ticket.intent.boundary_sha256
+        {
+            return Err(invalid(
+                "ticket does not match an unreleased prepared executor intent",
+            ));
+        }
+        record.release_intent = Some(ticket.clone());
+        self.commit(next)
+    }
+
+    pub(super) fn cleanup(
+        &mut self,
+        invocation: InvocationId,
+        deadline: Instant,
+    ) -> io::Result<Seal> {
+        self.check()?;
+        let record = self
+            .state
+            .records
+            .get(&invocation)
+            .ok_or_else(|| invalid("unknown executor cleanup"))?;
+        if let Some(seal) = &record.seal {
+            return Ok(seal.clone());
+        }
+        let identity = record.boundary.as_ref().ok_or_else(|| {
+            invalid("creation interrupted before boundary identity; cleanup unknown")
+        })?;
+        Boundary::reopen(identity)?.kill_and_seal(deadline)?;
+        #[cfg(test)]
+        if FAIL_BEFORE_SEAL.replace(false) {
+            return Err(invalid("injected crash after removal before durable seal"));
+        }
+        let seal = Seal {
+            invocation,
+            boundary_sha256: record.boundary_sha256()?,
+            seal_id: Uuid::now_v7(),
+            possibly_released: record.release_intent.is_some(),
+        };
+        let mut next = self.state.clone();
+        next.records.get_mut(&invocation).unwrap().seal = Some(seal.clone());
+        self.commit(next)?;
+        Ok(seal)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    use std::time::Duration;
+
+    fn anchor() -> Anchor {
+        Anchor {
+            journal: Uuid::now_v7(),
+            store: Uuid::now_v7(),
+            domain: crate::ExecutionDomainId(Uuid::now_v7()),
+        }
+    }
+    fn current() -> ProcessIdentity {
+        // SAFETY: geteuid has no preconditions.
+        crate::identity::linux::Process::open(std::process::id(), unsafe { libc::geteuid() })
+            .unwrap()
+            .identity
+    }
+
+    #[test]
+    fn linux_executor_journal_never_reinitializes_missing_or_corrupt_history() {
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let anchor = anchor();
+        assert!(Journal::open(&path, &anchor).is_err());
+        let journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        assert!(
+            Journal::open(&path, &anchor).is_err(),
+            "duplicate writer acquired executor history"
+        );
+        drop(journal);
+        assert!(Journal::initialize(&path, anchor.clone()).is_err());
+        let mut wrong = anchor.clone();
+        wrong.store = Uuid::now_v7();
+        assert!(Journal::open(&path, &wrong).is_err());
+        let journal = Journal::open(&path, &anchor).unwrap();
+        let original = std::fs::read(path.join("state.json")).unwrap();
+        std::fs::write(path.join("state.json"), b"{}").unwrap();
+        assert!(
+            journal.records().is_err(),
+            "live writer accepted external history loss"
+        );
+        drop(journal);
+        assert!(Journal::open(&path, &anchor).is_err());
+        std::fs::write(path.join("state.json"), original).unwrap();
+        std::fs::remove_file(path.join("anchor.json")).unwrap();
+        assert!(Journal::open(&path, &anchor).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires delegated cgroup under a protected system bootstrap Job"]
+    fn linux_executor_journal_recovers_live_boundary_and_seals_once() {
+        let root = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap();
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let helper = temp.path().join("stillyard");
+        std::fs::copy(
+            std::env::var_os("STILLYARD_TEST_EXECUTABLE").unwrap(),
+            &helper,
+        )
+        .unwrap();
+        let anchor = anchor();
+        let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+        let containment = ContainmentId::from_parts(anchor.store, Uuid::now_v7());
+        let lease = Uuid::now_v7();
+        let generation = Uuid::now_v7();
+        let mut journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        let boundary = journal
+            .create(
+                Path::new(&root),
+                invocation,
+                containment,
+                lease,
+                generation,
+                current(),
+            )
+            .unwrap();
+        let spec=super::super::launch::LaunchSpec {executable:"/usr/bin/python3".into(),args:vec!["-c".into(),"import subprocess,time; subprocess.Popen(['/usr/bin/python3','-c','import time;time.sleep(60)']); time.sleep(60)".into()],working_directory:temp.path().into(),environment:BTreeMap::new()};
+        let mut launch = super::super::launch::PreparedLaunch::prepare(
+            &boundary,
+            &helper,
+            &spec,
+            File::open("/dev/null").unwrap(),
+            Instant::now() + Duration::from_secs(15),
+        )
+        .unwrap();
+        journal.ready(invocation, &launch).unwrap();
+        let session = crate::machine::SessionIdentity {
+            machine_id: Uuid::now_v7(),
+            authority_epoch: Uuid::now_v7(),
+            domain_id: anchor.domain,
+            manager_store_uuid: anchor.store,
+            executor_incarnation: Uuid::now_v7(),
+            connection_epoch: 1,
+        };
+        let ticket = crate::machine::InvocationTicket {
+            grant_id: crate::GrantId::from_parts(Uuid::now_v7(), Uuid::now_v7()),
+            key: crate::machine::AllocationKey {
+                machine_id: session.machine_id,
+                authority_epoch: session.authority_epoch,
+                domain_id: anchor.domain,
+                manager_store_uuid: anchor.store,
+                lease_id: lease,
+            },
+            offer_nonce: Uuid::now_v7(),
+            intent: crate::machine::InvocationIntent {
+                invocation_id: invocation,
+                containment_id: containment,
+                role: crate::InvocationRole::Primary,
+                role_index: 0,
+                release_sequence: 1,
+                executable_sha256: launch.requested_sha256.clone(),
+                boundary_sha256: journal.records().unwrap()[&invocation]
+                    .boundary_sha256()
+                    .unwrap(),
+                readiness_challenge: Uuid::now_v7(),
+                previous_cleanup: None,
+            },
+            configuration_sha256: "a".repeat(64),
+            issued_unix_millis: 1,
+            host_observation_generation: Uuid::now_v7(),
+            host_sample_unix_millis: 1,
+            session,
+        };
+        journal.release_intent(&ticket).unwrap();
+        assert!(
+            journal.release_intent(&ticket).is_err(),
+            "a release intent was reused"
+        );
+        launch.release().unwrap();
+        assert!(boundary.populated().unwrap(), "live boundary disappeared");
+        drop(journal);
+        let mut journal = Journal::open(&path, &anchor).unwrap();
+        assert!(journal.records().unwrap()[&invocation].seal.is_none());
+        let seal = journal
+            .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+            .unwrap();
+        assert!(seal.possibly_released);
+        drop(journal);
+        let mut journal = Journal::open(&path, &anchor).unwrap();
+        assert_eq!(journal.cleanup(invocation, Instant::now()).unwrap(), seal);
+        assert_eq!(seal.sha256().unwrap().len(), 64);
+        assert!(
+            journal
+                .create(
+                    Path::new(&root),
+                    invocation,
+                    containment,
+                    lease,
+                    generation,
+                    current()
+                )
+                .is_err()
+        );
+        assert!(Boundary::reopen(&boundary.identity).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires delegated cgroup under a protected system bootstrap Job"]
+    fn linux_executor_journal_absence_after_seal_gap_retains_uncertainty() {
+        let root = std::env::var_os("STILLYARD_TEST_CGROUP_ROOT").unwrap();
+        let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = temp.path().join("executor");
+        let anchor = anchor();
+        let invocation = InvocationId::from_parts(anchor.store, Uuid::now_v7());
+        let mut journal = Journal::initialize(&path, anchor.clone()).unwrap();
+        journal
+            .create(
+                Path::new(&root),
+                invocation,
+                ContainmentId::from_parts(anchor.store, Uuid::now_v7()),
+                Uuid::now_v7(),
+                Uuid::now_v7(),
+                current(),
+            )
+            .unwrap();
+        FAIL_BEFORE_SEAL.set(true);
+        assert!(
+            journal
+                .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+                .is_err()
+        );
+        drop(journal);
+        let mut recovered = Journal::open(&path, &anchor).unwrap();
+        assert!(recovered.records().unwrap()[&invocation].seal.is_none());
+        assert!(
+            recovered
+                .cleanup(invocation, Instant::now() + Duration::from_secs(5))
+                .is_err(),
+            "missing cgroup was accepted as a seal"
+        );
+    }
+}
+
+#[cfg(test)]
+mod cross_os;
+
+FILE src/store/attached/installation.rs
+//! The installed pairing survives SQLite replacement. Opening a daemon never
+//! creates or repairs this anchor, nor treats a missing anchor as standalone.
+use super::*;
+use std::io;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
+
+const MAX_ANCHOR_BYTES: u64 = 65_536;
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Configuration {
+    pub version: u32,
+    pub pairing: crate::machine::PairingRegistration,
+    pub coordinator_installation: Uuid,
+    pub machine_id: Uuid,
+    pub bridge_executable: PathBuf,
+    pub bridge_sha256: String,
+    pub coordinator_endpoint: String,
+    pub interop_socket: PathBuf,
+    pub executor_cgroup: PathBuf,
+    pub journal: Uuid,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Envelope {
+    configuration: Configuration,
+    sha256: String,
+}
+
+fn invalid(message: &str) -> io::Error {
+    io::Error::other(message)
+}
+pub(super) fn fingerprint(c: &Configuration) -> io::Result<String> {
+    Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(c)?)))
+}
+fn owned(path: &Path, directory: bool) -> io::Result<File> {
+    let f = OpenOptions::new()
+        .read(true)
+        .custom_flags(
+            libc::O_NOFOLLOW | libc::O_CLOEXEC | if directory { libc::O_DIRECTORY } else { 0 },
+        )
+        .open(path)?;
+    let m = f.metadata()?;
+    // SAFETY: geteuid has no preconditions.
+    if m.uid() != unsafe { libc::geteuid() }
+        || m.mode() & 0o077 != 0
+        || (directory && !m.is_dir())
+        || (!directory && !m.is_file())
+    {
+        return Err(invalid("attached installation must be owner-only"));
+    }
+    Ok(f)
+}
+impl Configuration {
+    fn validate(&self) -> io::Result<()> {
+        // This initial runtime profile explicitly binds WSL interop and cgroup
+        // delegation. It is not a generic container/standalone Linux profile.
+        if self.version != 1
+            || self.pairing.manager_store_uuid.is_nil()
+            || self.pairing.installation.installation_nonce.is_nil()
+            || self.pairing.installation.domain_id.0.is_nil()
+            || self.coordinator_installation.is_nil()
+            || self.machine_id.is_nil()
+            || self.journal.is_nil()
+            || self.pairing.installation.role != crate::machine::ParticipantRole::Executor
+            || self.pairing.secret == [0; 32]
+            || self.pairing.installation.runtime_registration.is_empty()
+            || !self.bridge_executable.is_absolute()
+            || !self.interop_socket.is_absolute()
+            || !self.executor_cgroup.is_absolute()
+            || [
+                &self.bridge_executable,
+                &self.interop_socket,
+                &self.executor_cgroup,
+            ]
+            .into_iter()
+            .any(|path| {
+                path.components().any(|part| {
+                    matches!(
+                        part,
+                        std::path::Component::ParentDir | std::path::Component::CurDir
+                    )
+                })
+            })
+            || !self.executor_cgroup.starts_with("/sys/fs/cgroup")
+            || self.executor_cgroup == Path::new("/sys/fs/cgroup")
+            || self.coordinator_endpoint.is_empty()
+            || self.coordinator_endpoint.contains('\0')
+            || self.bridge_sha256.len() != 64
+            || !self.bridge_sha256.bytes().all(|b| b.is_ascii_hexdigit())
+        {
+            return Err(invalid("invalid attached WSL installation configuration"));
+        }
+        // SAFETY: geteuid has no preconditions.
+        if self.pairing.installation.owner_uid != unsafe { libc::geteuid() } {
+            return Err(invalid("attached installation belongs to another owner"));
+        }
+        Ok(())
+    }
+}
+
+/// The open directory is pinned and the file is read through that descriptor,
+/// so replacing an intermediate path cannot swap a partially inspected anchor.
+pub(in crate::store) fn load(root: &Path) -> io::Result<Option<Configuration>> {
+    let path = root.join("attachment");
+    match std::fs::symlink_metadata(&path) {
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e),
+        Ok(_) => {}
+    }
+    let directory = owned(&path, true)?;
+    use std::os::fd::AsRawFd;
+    let selected = PathBuf::from(format!(
+        "/proc/self/fd/{}/anchor.json",
+        directory.as_raw_fd()
+    ));
+    let mut bytes = Vec::new();
+    owned(&selected, false)?
+        .take(MAX_ANCHOR_BYTES + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_ANCHOR_BYTES {
+        return Err(invalid("attached anchor exceeds byte bound"));
+    }
+    let envelope: Envelope = serde_json::from_slice(&bytes)?;
+    if fingerprint(&envelope.configuration)? != envelope.sha256 {
+        return Err(invalid("attached anchor checksum changed"));
+    }
+    envelope.configuration.validate()?;
+    Ok(Some(envelope.configuration))
+}
+
+/// Explicit installation only, after verifying no local obligations. A crash
+/// leaves an incomplete installation closed for inspection, never auto-repaired.
+pub(super) fn create(root: &Path, configuration: &Configuration) -> io::Result<()> {
+    configuration.validate()?;
+    owned(root, true)?;
+    crate::filesystem::require_durable_local_filesystem(root)?;
+    let directory = root.join("attachment");
+    std::fs::DirBuilder::new().mode(0o700).create(&directory)?;
+    File::open(root)?.sync_all()?;
+    let bytes = serde_json::to_vec(&Envelope {
+        configuration: configuration.clone(),
+        sha256: fingerprint(configuration)?,
+    })?;
+    if bytes.len() as u64 > MAX_ANCHOR_BYTES {
+        return Err(invalid("attached anchor exceeds byte bound"));
+    }
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(directory.join("anchor.json"))?;
+    file.write_all(&bytes)?;
+    file.sync_all()?;
+    File::open(directory)?.sync_all()
+}
+
+pub(crate) fn validate_store(root: &Path, c: &Connection, store: Uuid) -> StoreResult<()> {
+    let mode: Option<String> = c
+        .query_row(
+            "SELECT store_uuid FROM attached_local_mode WHERE singleton=1",
+            [],
+            |r| r.get(0),
+        )
+        .optional()?;
+    match (load(root)?,mode) {
+        (None,None) => Ok(()),
+        (Some(anchor),Some(mode)) if anchor.pairing.manager_store_uuid == store && mode == store.to_string() => {
+            let continuous: String = c.query_row("SELECT store_uuid FROM attached_peer WHERE singleton=1",[],|r|r.get(0))?;
+            if continuous != mode { return Err(StoreError::InvalidState("paired protocol history differs from installed store".into())); }
+            let pinned: String = c.query_row("SELECT value FROM attached_meta WHERE key='installation_sha256'",[],|r|r.get(0))?;
+            if pinned != fingerprint(&anchor)? { return Err(StoreError::InvalidState("installed pairing configuration changed".into())); }
+            Ok(())
+        }
+        _ => Err(StoreError::InvalidState("attached installation or paired store history is missing or replaced; admission remains fenced".into())),
+    }
+}
+
+impl Store {
+    /// The command takes the same exclusive Store lock as the daemon before
+    /// calling this. Never accept a pairing secret from argv or print it.
+    pub(crate) fn install_attached_from_file(&mut self, path: &Path) -> StoreResult<()> {
+        let mut bytes = Vec::new();
+        owned(path, false)?
+            .take(MAX_ANCHOR_BYTES + 1)
+            .read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > MAX_ANCHOR_BYTES {
+            return Err(StoreError::Io(invalid(
+                "attachment configuration exceeds byte bound",
+            )));
+        }
+        let configuration: Configuration = serde_json::from_slice(&bytes)?;
+        self.install_attached_configuration(&configuration)
+    }
+
+    /// Caller owns the stopped daemon's exclusive Store lease. This is an
+    /// explicit installation transaction; recovery never invokes it.
+    pub(crate) fn install_attached_configuration(
+        &mut self,
+        configuration: &Configuration,
+    ) -> StoreResult<()> {
+        configuration.validate()?;
+        if configuration.pairing.manager_store_uuid != self.store_uuid {
+            return Err(StoreError::InvalidState(
+                "installation names another manager store".into(),
+            ));
+        }
+        let occupied: bool = self.connection.query_row(
+            "SELECT
+            EXISTS(SELECT 1 FROM attached_local_mode) OR
+            EXISTS(SELECT 1 FROM leases WHERE state='granted') OR
+            EXISTS(SELECT 1 FROM containments WHERE state NOT IN ('empty','cleared'))",
+            [],
+            |r| r.get(0),
+        )?;
+        if occupied || self.authority.is_some() {
+            return Err(StoreError::InvalidState(
+                "installation requires a stopped unpaired manager without outstanding obligations"
+                    .into(),
+            ));
+        }
+        create(&self.paths.root, configuration)?;
+        crate::runner::linux::initialize_history(
+            &self.paths.root.join("attachment/executor"),
+            configuration.journal,
+            self.store_uuid,
+            configuration.pairing.installation.domain_id,
+        )?;
+        let tx = self.connection.transaction()?;
+        crate::machine::manager::initialize(&tx, self.store_uuid).map_err(protocol_error)?;
+        tx.execute(
+            "INSERT INTO attached_meta VALUES ('installation_sha256',?1)",
+            [fingerprint(configuration)?],
+        )?;
+        tx.execute(
+            "INSERT INTO attached_local_mode(singleton,store_uuid) VALUES (1,?1)",
+            [self.store_uuid.to_string()],
+        )?;
+        tx.commit()?;
+        validate_store(&self.paths.root, &self.connection, self.store_uuid)
+    }
+}
+
+FILE src/bootstrap.rs
+//! Transitional bootstrap path. The final attached-domain protocol replaces this
+//! whole-authority interlock with scoped Grants; neither path frees on bridge EOF.
+
+use crate::{BootstrapBinding, BootstrapProof, BootstrapWork, Client, Error, Result};
+use sha2::{Digest, Sha256};
+
+pub(crate) fn validate_binding(binding: &BootstrapBinding) -> std::io::Result<()> {
+    let work = &binding.work;
+    let serialized = serde_json::to_vec(work)?;
+    if serialized.len() > 8192
+        || !(1..=86400).contains(&work.timeout_seconds)
+        || work.operation_id != binding.parent.invocation_id.entity_uuid()
+        || work.distribution.is_empty()
+        || work.user.is_empty()
+        || !work.executable.starts_with('/')
+        || !work.working_directory.starts_with('/')
+        || [
+            &work.distribution,
+            &work.user,
+            &work.executable,
+            &work.working_directory,
+        ]
+        .into_iter()
+        .chain(work.args.iter())
+        .chain(work.environment.values())
+        .any(|value| value.contains('\0'))
+        || work
+            .environment
+            .keys()
+            .any(|key| key.is_empty() || key.contains(['=', '\0']))
+        || format!("{:x}", Sha256::digest(&serialized)) != binding.request_sha256
+    {
+        return Err(std::io::Error::other(
+            "invalid bootstrap descriptor, identity, or payload hash",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_proof(
+    binding: &BootstrapBinding,
+    proof: &BootstrapProof,
+) -> std::io::Result<()> {
+    if proof.operation_id != binding.work.operation_id
+        || proof.request_sha256 != binding.request_sha256
+        || proof.phase != "sealed_empty"
+        || uuid::Uuid::parse_str(&proof.boot_id).is_err()
+        || !proof.cgroup_path.starts_with("/sys/fs/cgroup/")
+        || !proof.cgroup_path.ends_with("/work")
+        || proof.cgroup_path.len() > 4096
+        || proof.cgroup_path.contains('\0')
+        || proof.cgroup_inode == 0
+        || !["exited", "canceled", "timed_out", "intermediary_lost"]
+            .contains(&proof.termination.as_str())
+    {
+        return Err(std::io::Error::other(
+            "bootstrap proof identity or seal is invalid",
+        ));
+    }
+    Ok(())
+}
+
+impl Client {
+    /// Execute transitional WSL bootstrap work from this daemon's authenticated
+    /// native primary. A durable obligation is acknowledged before Linux is called.
+    #[cfg(windows)]
+    pub fn run_wsl_bootstrap(&self, mut work: BootstrapWork) -> Result<BootstrapProof> {
+        use std::time::{Duration, Instant};
+        let parent = self
+            .submission_context(Instant::now() + Duration::from_secs(10), None)?
+            .parent
+            .ok_or_else(|| {
+                Error::InvalidSpec("bootstrap run requires a native Stillyard Job".into())
+            })?;
+        if !work.operation_id.is_nil() && work.operation_id != parent.invocation_id.entity_uuid() {
+            return Err(Error::InvalidSpec(
+                "bootstrap operation identity is daemon-derived".into(),
+            ));
+        }
+        work.operation_id = parent.invocation_id.entity_uuid();
+        let request = serde_json::to_string(&work)?;
+        let binding = BootstrapBinding {
+            parent,
+            work,
+            request_sha256: format!("{:x}", Sha256::digest(request.as_bytes())),
+        };
+        validate_binding(&binding)?;
+        let state =
+            self.arm_bootstrap(binding.clone(), Instant::now() + Duration::from_secs(10))?;
+        if !state.holds.iter().any(|hold| {
+            hold.id == binding.work.operation_id
+                && !hold.released
+                && hold.bootstrap.as_ref() == Some(&binding)
+        }) {
+            return Err(Error::Unavailable(
+                "bootstrap was retired or not durably armed; no Linux launch".into(),
+            ));
+        }
+        let proof = invoke_supervisor(&binding, "run", &request, true)?;
+        self.seal_bootstrap(proof.clone(), Instant::now() + Duration::from_secs(10))?;
+        Ok(proof)
+    }
+
+    /// Reconcile a retained obligation using the same embedded trusted inspector.
+    /// A missing local record remains uncertain; this never launches user work.
+    #[cfg(windows)]
+    pub fn reconcile_wsl_bootstrap(&self, operation_id: uuid::Uuid) -> Result<BootstrapProof> {
+        use std::time::{Duration, Instant};
+        let state = self.authority_status(Instant::now() + Duration::from_secs(10), None)?;
+        let hold = state
+            .holds
+            .iter()
+            .find(|hold| hold.id == operation_id)
+            .ok_or_else(|| Error::InvalidSpec("unknown bootstrap obligation".into()))?;
+        let binding = hold
+            .bootstrap
+            .as_ref()
+            .ok_or_else(|| Error::InvalidSpec("hold is not bootstrap work".into()))?;
+        let proof = invoke_supervisor(binding, "inspect", &binding.request_sha256, false)?;
+        self.seal_bootstrap(proof.clone(), Instant::now() + Duration::from_secs(10))?;
+        Ok(proof)
+    }
+
+    #[cfg(not(windows))]
+    pub fn run_wsl_bootstrap(&self, _work: BootstrapWork) -> Result<BootstrapProof> {
+        Err(Error::UnsupportedPlatform(std::env::consts::OS))
+    }
+
+    #[cfg(not(windows))]
+    pub fn reconcile_wsl_bootstrap(&self, _operation_id: uuid::Uuid) -> Result<BootstrapProof> {
+        Err(Error::UnsupportedPlatform(std::env::consts::OS))
+    }
+}
+
+#[cfg(windows)]
+fn invoke_supervisor(
+    binding: &BootstrapBinding,
+    mode: &str,
+    argument: &str,
+    forward_output: bool,
+) -> Result<BootstrapProof> {
+    use std::io::{BufRead, BufReader, Write};
+    use std::process::{Command, Stdio};
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Frame {
+        stream: Option<String>,
+        bytes: Option<Vec<u8>>,
+        proof: Option<BootstrapProof>,
+        heartbeat: Option<bool>,
+    }
+    const SOURCE: &str = include_str!("../scripts/wsl-bootstrap-supervisor.py");
+    let code = format!(
+        "s={};n={{'__name__':'stillyard_embedded'}};exec(compile(s,'stillyard-bootstrap','exec'),n);n['main'](s)",
+        serde_json::to_string(SOURCE)?
+    );
+    let executable = std::path::PathBuf::from(
+        std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into()),
+    )
+    .join("System32/wsl.exe");
+    let mut child = Command::new(executable)
+        .args([
+            "--distribution",
+            &binding.work.distribution,
+            "--user",
+            &binding.work.user,
+            "--cd",
+            "/tmp",
+            "--exec",
+            "/usr/bin/python3",
+            "-c",
+            &code,
+            mode,
+            &binding.work.operation_id.to_string(),
+            argument,
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()?;
+    let mut stream = BufReader::new(
+        child
+            .stdout
+            .take()
+            .ok_or_else(|| Error::Unavailable("bootstrap stdout missing".into()))?,
+    );
+    let mut proof = None;
+    loop {
+        let mut line = Vec::new();
+        // Each embedded-helper frame has at most 4096 bytes of output. Bound the
+        // receive buffer even when a broken or replaced helper violates framing.
+        let mut limited = std::io::Read::take(&mut stream, 32769);
+        let count = limited.read_until(b'\n', &mut line)?;
+        if count == 0 {
+            break;
+        }
+        if count > 32768 || line.last() != Some(&b'\n') {
+            return Err(Error::Protocol(
+                "bootstrap frame exceeds limit or is truncated; authority retained".into(),
+            ));
+        }
+        let frame: Frame = serde_json::from_slice(&line)?;
+        if let Some(value) = frame.proof {
+            validate_proof(binding, &value)?;
+            if proof.replace(value).is_some() {
+                return Err(Error::Protocol("duplicate bootstrap proof".into()));
+            }
+        } else if let (Some(name), Some(bytes)) = (frame.stream, frame.bytes) {
+            if forward_output {
+                match name.as_str() {
+                    "stdout" => {
+                        std::io::stdout().write_all(&bytes)?;
+                        std::io::stdout().flush()?;
+                    }
+                    "stderr" => {
+                        std::io::stderr().write_all(&bytes)?;
+                        std::io::stderr().flush()?;
+                    }
+                    _ => return Err(Error::Protocol("unknown bootstrap log stream".into())),
+                }
+            }
+        } else if frame.heartbeat != Some(true) {
+            return Err(Error::Protocol("invalid bootstrap frame".into()));
+        }
+    }
+    if !child.wait()?.success() {
+        return Err(Error::Unavailable(
+            "Linux bootstrap outcome uncertain; authority retained for reconciliation".into(),
+        ));
+    }
+    proof.ok_or_else(|| {
+        Error::Unavailable("Linux bootstrap returned no sealed proof; authority retained".into())
+    })
+}
+
+FILE scripts/wsl-bootstrap-supervisor.py
+#!/usr/bin/env python3
+"""Trusted, one-shot MR-0 Linux supervisor embedded by the Windows bootstrap CLI.
+
+The Windows authority must durably hold admission BEFORE invoking `run` here.
+This helper never treats a dead intermediary, missing unit, or missing directory
+as proof of cleanup. `inspect` can only return a previously sealed durable proof.
+"""
+
+import hashlib
+import json
+import os
+from pathlib import Path
+import pwd
+import select
+import subprocess
+import sys
+import time
+import uuid
+
+
+def publish(path, document, exclusive=False):
+    data = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
+    temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".pending")
+    with temporary.open("xb") as stream:
+        stream.write(data)
+        stream.flush()
+        os.fsync(stream.fileno())
+    if exclusive:
+        os.link(temporary, path)  # Atomic create-if-absent; never overwrite intent.
+        temporary.unlink()
+    else:
+        os.replace(temporary, path)
+    descriptor = os.open(path.parent, os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def emit(document):
+    print(json.dumps(document, separators=(",", ":")), flush=True)
+
+
+def boot():
+    return Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+
+
+def load(path):
+    if path.stat().st_size > 1024 * 1024:
+        raise RuntimeError("bootstrap record exceeds byte limit")
+    return json.loads(path.read_text())
+
+
+def operation_directory(operation_id):
+    operation_id = str(uuid.UUID(operation_id))
+    base = Path.home() / ".local/state/stillyard/bootstrap"
+    base.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if base.is_symlink() or base.stat().st_uid != os.getuid():
+        raise RuntimeError("bootstrap state root must belong to this owner")
+    os.chmod(base, 0o700)
+    return base / operation_id
+
+
+def inspect(directory, expected_hash):
+    intent = load(directory / "intent.json")
+    if intent["request_sha256"] != expected_hash:
+        raise RuntimeError("bootstrap operation payload conflict")
+    record = load(directory / "proof.json")
+    proof = record["proof"]
+    encoded = json.dumps(proof, sort_keys=True, separators=(",", ":")).encode()
+    if hashlib.sha256(encoded).hexdigest() != record["sha256"]:
+        raise RuntimeError("bootstrap proof checksum mismatch")
+    boundary = load(directory / "boundary.json")
+    claimed = load(directory / "claimed.json")
+    if (proof["request_sha256"] != expected_hash or proof["operation_id"] != directory.name
+            or proof["phase"] != "sealed_empty"):
+        raise RuntimeError("bootstrap proof does not match the durable operation")
+    if claimed["boot_id"] != proof["boot_id"] or any(
+            boundary[key] != proof[key] for key in
+            ("operation_id", "request_sha256", "boot_id", "uid", "cgroup_path", "cgroup_inode")):
+        raise RuntimeError("bootstrap boundary history is not continuous")
+    return proof
+
+
+def supervise(directory):
+    intent = load(directory / "intent.json")
+    request = json.loads(intent["request"])
+    # A second supervisor, even after a crash, has no right to release user code.
+    publish(directory / "claimed.json", {"boot_id": boot()}, exclusive=True)
+    cgroup_relative = Path("/proc/self/cgroup").read_text().strip()
+    if not cgroup_relative.startswith("0::/") or "\n" in cgroup_relative:
+        raise RuntimeError("unified delegated cgroup is required")
+    parent = Path("/sys/fs/cgroup") / cgroup_relative[4:]
+    boundary = parent / "work"
+    boundary.mkdir()  # Exclusive creation, before any untrusted child exists.
+    identity = {"operation_id": directory.name, "request_sha256": intent["request_sha256"],
+                "boot_id": boot(), "uid": os.getuid(), "cgroup_path": str(boundary),
+                "cgroup_inode": boundary.stat().st_ino, "phase": "prepared"}
+    publish(directory / "boundary.json", identity, exclusive=True)
+    if not (boundary / "cgroup.kill").exists():
+        raise RuntimeError("cgroup.kill capability is required")
+    test_cgroup_mount = None
+    if request.get("delegate_test_cgroup", False):
+        # The only writable delegation is INSIDE the already held outer Job.
+        # Limit the sub-hierarchy so cleanup remains a bounded supervisor operation.
+        (boundary / "cgroup.max.depth").write_text("16")
+        (boundary / "cgroup.max.descendants").write_text("1024")
+        test_cgroup_mount = directory / "test-cgroup"
+        test_cgroup_mount.mkdir(mode=0o700)
+    output = (directory / "stdout.bin").open("xb", buffering=0)
+    errors = (directory / "stderr.bin").open("xb", buffering=0)
+    barrier_read, barrier_write = os.pipe()
+    child = os.fork()
+    if child == 0:
+        try:
+            os.close(barrier_write)
+            # Trusted child stub is already inside the supervisor unit boundary.
+            # No user instruction runs before the parent's cgroup attachment and
+            # durable release intent. Parent death closes this one-shot barrier.
+            permission = os.read(barrier_read, 1)
+            os.close(barrier_read)
+            if permission != b"R":
+                os._exit(125)
+            os.dup2(output.fileno(), 1)
+            os.dup2(errors.fileno(), 2)
+            stdin = os.open("/dev/null", os.O_RDONLY)
+            os.dup2(stdin, 0)
+            os.close(stdin)
+            environment = dict(request["environment"])
+            environment.pop("STILLYARD_TEST_CGROUP_ROOT", None)
+            command = ["/usr/bin/bwrap", "--bind", "/", "/", "--dev", "/dev",
+                       "--proc", "/proc", "--unshare-user", "--unshare-pid",
+                       "--unshare-uts", "--unshare-cgroup", "--new-session",
+                       "--die-with-parent", "--ro-bind", "/dev/null", "/init",
+                       "--tmpfs", "/run", "--ro-bind", "/sys/fs/cgroup", "/sys/fs/cgroup"]
+            if test_cgroup_mount is not None:
+                command.extend(["--bind", str(boundary), str(test_cgroup_mount)])
+                environment["STILLYARD_TEST_CGROUP_ROOT"] = str(test_cgroup_mount)
+            command.extend(["--chdir", request["working_directory"], "--", request["executable"], *request["args"]])
+            os.execve(command[0], command, environment)
+        except BaseException:
+            os._exit(126)
+    os.close(barrier_read)
+    root_exit = None
+    pidfd = None
+    termination = "exited"
+    try:
+        pidfd = os.pidfd_open(child)
+        tail = Path("/proc", str(child), "stat").read_text().rsplit(")", 1)[1].split()
+        publish(directory / "root.json", {"pid": child, "start_ticks": tail[19],
+                                          "boot_id": identity["boot_id"]}, exclusive=True)
+        (boundary / "cgroup.procs").write_text(str(child))
+        # Verify attachment before the only release byte. A fork failure or
+        # attachment error never reaches the requested executable.
+        if child not in {int(pid) for pid in (boundary / "cgroup.procs").read_text().split()}:
+            raise RuntimeError("child did not enter its recorded cgroup")
+        publish(directory / "release-intent.json", identity, exclusive=True)
+        os.write(barrier_write, b"R")
+        os.close(barrier_write)
+        barrier_write = None
+        deadline = time.monotonic() + request["timeout_seconds"]
+        while True:
+            reaped, status = os.waitpid(child, os.WNOHANG)
+            if reaped:
+                root_exit = os.waitstatus_to_exitcode(status)
+                break
+            if (directory / "cancel").exists():
+                termination = "canceled"
+                break
+            if time.monotonic() >= deadline:
+                termination = "timed_out"
+                break
+            # Loss of liveness is only a reason to kill; it never frees authority.
+            if time.time() - (directory / "heartbeat").stat().st_mtime > 5:
+                termination = "intermediary_lost"
+                break
+            select.select([pidfd], [], [], 0.05)
+    finally:
+        if barrier_write is not None:
+            os.close(barrier_write)
+        (boundary / "cgroup.kill").write_text("1")
+        cleanup_deadline = time.monotonic() + 10
+        while "populated 1" in (boundary / "cgroup.events").read_text():
+            if time.monotonic() >= cleanup_deadline:
+                raise RuntimeError("cgroup cleanup remains uncertain; no proof published")
+            time.sleep(0.02)
+        if root_exit is None:
+            _, status = os.waitpid(child, 0)
+            root_exit = os.waitstatus_to_exitcode(status)
+        if boundary.stat().st_ino != identity["cgroup_inode"]:
+            raise RuntimeError("cgroup identity changed; no proof published")
+        if test_cgroup_mount is not None:
+            # populated=0 is recursive. Remove only empty cgroup directories;
+            # any race/failure leaves the outer obligation unsealed and retained.
+            descendants = []
+            for current, children, _ in os.walk(boundary, followlinks=False):
+                descendants.extend(Path(current) / name for name in children)
+                if len(descendants) > 1024:
+                    raise RuntimeError("nested cgroup count exceeds cleanup bound")
+            for nested in sorted(descendants, key=lambda p: len(p.parts), reverse=True):
+                nested.rmdir()
+        boundary.rmdir()  # Seal: the recorded boundary cannot receive another task.
+        for stream in (output, errors):
+            os.fsync(stream.fileno())
+            stream.close()
+        proof = dict(identity, phase="sealed_empty", root_exit_code=root_exit,
+                     termination=termination)
+        encoded = json.dumps(proof, sort_keys=True, separators=(",", ":")).encode()
+        publish(directory / "proof.json", {"proof": proof, "sha256": hashlib.sha256(encoded).hexdigest()}, exclusive=True)
+        if pidfd is not None:
+            os.close(pidfd)
+
+
+def run(directory, request_text, source):
+    request = json.loads(request_text)
+    if pwd.getpwnam(request["user"]).pw_uid != os.getuid():
+        raise RuntimeError("selected WSL owner does not match the executing UID")
+    if request["operation_id"] != directory.name or not 1 <= request["timeout_seconds"] <= 86400:
+        raise RuntimeError("invalid bootstrap operation or timeout")
+    if not Path(request["executable"]).is_absolute() or not Path(request["working_directory"]).is_absolute():
+        raise RuntimeError("bootstrap executable and working directory must be absolute")
+    directory.mkdir(mode=0o700)  # Never replay a possibly started operation.
+    request_hash = hashlib.sha256(request_text.encode()).hexdigest()
+    publish(directory / "intent.json", {"request": request_text, "request_sha256": request_hash}, exclusive=True)
+    helper = directory / "supervisor.py"
+    with helper.open("x") as stream:
+        stream.write(source)
+        stream.flush()
+        os.fsync(stream.fileno())
+    (directory / "heartbeat").touch()
+    started = subprocess.run([
+        "/usr/bin/systemd-run", "--user", "--quiet", "--collect",
+        "--unit=stillyard-bootstrap-" + directory.name, "--property=Delegate=yes",
+        "--property=KillMode=control-group", "--property=TimeoutStopSec=10",
+        "--property=RuntimeMaxSec=" + str(request["timeout_seconds"] + 30),
+        "/usr/bin/python3", str(helper), "supervise", directory.name,
+    ], stdin=subprocess.DEVNULL, capture_output=True, timeout=15)
+    if started.returncode:
+        raise RuntimeError("supervisor start uncertain: " + started.stderr.decode(errors="replace"))
+    offsets = {"stdout": 0, "stderr": 0}
+    deadline = time.monotonic() + request["timeout_seconds"] + 30
+    complete = False
+    try:
+        while time.monotonic() < deadline:
+            (directory / "heartbeat").touch()
+            complete = (directory / "proof.json").exists()
+            for name in offsets:
+                path = directory / (name + ".bin")
+                if not path.exists():
+                    continue
+                with path.open("rb") as stream:
+                    stream.seek(offsets[name])
+                    while data := stream.read(4096):
+                        emit({"stream": name, "bytes": list(data)})
+                        offsets[name] += len(data)
+            if complete:
+                emit({"proof": inspect(directory, request_hash)})
+                return
+            emit({"heartbeat": True})  # Broken Windows output triggers cancellation.
+            time.sleep(0.1)
+        raise RuntimeError("supervisor outcome unknown; retain Windows authority")
+    finally:
+        if not complete:
+            (directory / "cancel").touch()
+
+
+def main(source):
+    # Source is supplied from the installed native executable, not an arbitrary
+    # helper path selected by a Job. The supervisor receives an exact durable copy.
+    mode, operation_id = sys.argv[1:3]
+    runtime = "/run/user/" + str(os.getuid())
+    os.environ.setdefault("XDG_RUNTIME_DIR", runtime)
+    os.environ.setdefault("DBUS_SESSION_BUS_ADDRESS", "unix:path=" + runtime + "/bus")
+    directory = operation_directory(operation_id)
+    if mode == "supervise":
+        supervise(directory)
+    elif mode == "inspect":
+        emit({"proof": inspect(directory, sys.argv[3])})
+    elif mode == "run":
+        run(directory, sys.argv[3], source)
+    else:
+        raise RuntimeError("unknown bootstrap helper operation")
+
+
+if __name__ == "__main__":
+    main(Path(__file__).read_text())
+
+NATIVE FIXTURE SELECTED SLICES
+    std::fs::remove_file(store.join("authority/anchor.json")).unwrap();
+    let _daemon = spawn_daemon(&pinned, &store, &endpoint);
+    let client = connect_uninitialized(&pinned, &endpoint);
+    assert_closed(&client, submit(&client));
+}
+
+#[test]
+fn machine_pairing_reconnect_fences_challenge_replay_and_store_reset() {
+    machine_allocation_fixture(None, None, false);
+}
+
+#[test]
+#[cfg(debug_assertions)]
+fn machine_arm_release_crash_boundaries_recover_without_freeing_live_rights() {
+    for stage in ["before_journal", "after_journal", "after_sql", "after_ack"] {
+        machine_allocation_fixture(Some(stage), Some(InvocationRole::Primary), false);
+    }
+}
+
+#[test]
+fn machine_probe_ticket_cannot_borrow_work_or_postcondition_authority() {
+    machine_allocation_fixture(None, Some(InvocationRole::Probe), false);
+}
+
+#[test]
+#[ignore = "requires native system Job and prebuilt protected Linux executor subject"]
+fn machine_cross_os_reset_retains_live_linux_executor_and_guest_history() {
+    machine_allocation_fixture(None, None, true);
+}
+
+fn machine_allocation_fixture(
+    fault_stage: Option<&str>,
+    ticket_role: Option<InvocationRole>,
+    live_linux: bool,
+) {
+    use stillyard::machine::{
+        AllocationKey, AllocationOwner, Candidate, Claims, Command as MachineOperation,
+        ConnectChallenge, ConnectHello, InstallationIdentity, Outcome, PairingRegistration,
+        PairingSecret, ParticipantRole, ParticipantSnapshot, Reply, Request as MachineRequest,
+    };
+    let temp = tempfile::tempdir().unwrap();
+    let pinned = copied_daemon(temp.path());
+    let store = temp.path().join("machine-store");
+    std::fs::create_dir_all(&store).unwrap();
+    let mut config = HostConfig::default();
+    config.resources.cargo_slots = 1;
+    config.resources.custom.insert("side_lane".into(), 1);
+    config
+        .impact_incompatibilities
+        .insert("cpu_heavy".into(), vec!["measurement".into()]);
+    std::fs::write(
+        store.join("config.json"),
+        serde_json::to_vec(&config).unwrap(),
+    )
+    .unwrap();
+    let endpoint = format!(r"\\.\pipe\stillyard-machine-{}", Uuid::now_v7());
+    let spawn = || {
+        let mut command = Command::new(&pinned);
+        command
+            .args(["--endpoint", &endpoint, "daemon", "--store"])
+            .arg(&store)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        if fault_stage.is_some() {
+            command.env("STILLYARD_ISOLATED_MACHINE_FAULT_ROOT", &store);
+        }
+        ChildGuard::new(command.spawn().unwrap())
+    };
+    let mut daemon = spawn();
+    let client = connect(&pinned, &endpoint);
+    let deadline = || Instant::now() + Duration::from_secs(10);
+    let topology = client
+        .authority_status(deadline(), None)
+        .unwrap()
+        .domains
+        .unwrap();
+    let mut linux = live_linux.then(|| cross_os_reset::Subject::start(temp.path()));
+    let linux_manager = linux.as_ref().map(|subject| {
+        let value: serde_json::Value = subject.receive("manager.json");
+        serde_json::from_value::<Uuid>(value["store_uuid"].clone()).unwrap()
+    });
+    let secret = PairingSecret::generate().unwrap();
+    let registration = PairingRegistration {
+        installation: InstallationIdentity {
+            installation_nonce: Uuid::now_v7(),
+            domain_id: stillyard::ExecutionDomainId(Uuid::now_v7()),
+            owner_uid: 1000,
+            runtime_registration: "isolated-protocol-fixture".into(),
+            role: ParticipantRole::Executor,
+        },
+        manager_store_uuid: linux_manager.unwrap_or_else(Uuid::now_v7),
+        parent_domain: topology.machine_scope,
+        budgets: Default::default(),
+        aliases: Default::default(),
+        secret: *secret.anchor_bytes(),
+    };
+    if let Some(subject) = &linux {
+        subject.publish(
+            "configuration.json",
+            &serde_json::json!({
+                "version":1,"pairing":registration,"coordinator_installation":topology.machine_id,
+                "machine_id":topology.machine_id,"bridge_executable":"/isolated-test/unused-bridge",
+                "bridge_sha256":"a".repeat(64),"coordinator_endpoint":endpoint,
+                "interop_socket":"/run/WSL/unused-test-socket",
+                "executor_cgroup":"/sys/fs/cgroup/isolated-reset-profile",
+                "journal":Uuid::now_v7()
+            }),
+        );
+    }
+    let paired = client
+        .pair_machine_domain(registration.clone(), deadline())
+        .unwrap();
+    assert_eq!(paired.connection_epoch, 0);
+    assert!(paired.reconciliation_required);
+    assert_eq!(
+        client
+            .pair_machine_domain(registration.clone(), deadline())
+            .unwrap(),
+        paired
+    );
+    let mut conflict = registration.clone();
+    conflict.secret[0] ^= 1;
+    assert!(client.pair_machine_domain(conflict, deadline()).is_err());
+    let hello = ConnectHello {
+        installation_nonce: registration.installation.installation_nonce,
+        manager_store_uuid: registration.manager_store_uuid,
+        executor_incarnation: Uuid::now_v7(),
+        executor_protocol: 25,
+        executor_nonce: [3; 32],
+    };
+    // Knowing the public hello does not make an arbitrary client the installed bridge.
+    assert!(
+        client
+            .machine_connect_begin(hello.clone(), deadline())
+            .is_err()
+    );
+    let call = |command: &str, input: serde_json::Value| {
+        let path = temp.path().join(format!("machine-{}.json", Uuid::now_v7()));
+        std::fs::write(&path, serde_json::to_vec(&input).unwrap()).unwrap();
+        Command::new(&pinned)
+            .args(["--endpoint", &endpoint, "machine", command, "--spec"])
+            .arg(path)
+            .output()
+            .unwrap()
+    };
+    let begin = call("connect-begin", serde_json::to_value(&hello).unwrap());
+    assert!(
+        begin.status.success(),
+        "{}",
+        String::from_utf8_lossy(&begin.stderr)
+    );
+    let challenge: ConnectChallenge = serde_json::from_slice(&begin.stdout).unwrap();
+    let tag = secret.sign_challenge(&challenge).unwrap();
+    let mut wrong = tag;
+    wrong[0] ^= 1;
+    assert!(
+        !call(
+            "connect-finish",
+            serde_json::json!({"challenge":challenge, "tag":wrong})
+        )
+        .status
+        .success()
+    );
+    let authenticated = call(
+        "connect-finish",
+        serde_json::json!({"challenge":challenge, "tag":tag}),
+    );
+    assert!(
+        authenticated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&authenticated.stderr)
+    );
+    let authenticated: ParticipantSnapshot = serde_json::from_slice(&authenticated.stdout).unwrap();
+    assert_eq!(authenticated.connection_epoch, 1);
+                    key: measurement.key,
+                    offer_nonce: grant.offer_nonce,
+                    sealed_sequence: 1,
+                    tickets: vec![proof(&intent)],
+                }
+            }))
+            .outcome,
+            Outcome::Released { .. }
+        ));
+    }
+
+    // Retain an independently armed fake executor alongside the native reset
+    // canary. Reconstructing an empty coordinator must preserve BOTH inventories.
+    let mut reset_candidate = candidate.clone();
+    reset_candidate.key.lease_id = Uuid::now_v7();
+    reset_candidate.owner = AllocationOwner::Work {
+        job_id: durable_id(manager),
+        attempt_id: durable_id(manager),
+    };
+    reset_candidate.claims.scalars = [("side_lane".into(), 1)].into();
+    reset_candidate.configuration_sha256 = client
+        .daemon_status(deadline(), None)
+        .unwrap()
+        .config_sha256;
+    assert!(matches!(
+        exchange(&next(MachineOperation::CandidateUpsert {
+            candidate: reset_candidate.clone()
+        }))
+        .outcome,
+        Outcome::Accepted { .. }
+    ));
+    let limit = deadline();
+    let reset_grant = loop {
+        let reply = exchange(&next(MachineOperation::Inspect {
+            key: Some(reset_candidate.key.clone()),
+        }));
+        if let Outcome::Inspection { mut grants, .. } = reply.outcome {
+            if grants
+                .first()
+                .is_some_and(|g| g.state == stillyard::machine::GrantState::Offered)
+            {
+                break grants.remove(0);
+            }
+        }
+        assert!(Instant::now() < limit, "reset participant was not offered");
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    assert!(matches!(
+        exchange(&next(MachineOperation::Arm {
+            key: reset_candidate.key.clone(),
+            offer_nonce: reset_grant.offer_nonce
+        }))
+        .outcome,
+        Outcome::Grant { .. }
+    ));
+    let mut reset_intent = stillyard::machine::InvocationIntent {
+        invocation_id: durable_id(manager),
+        containment_id: durable_id(manager),
+        role: InvocationRole::Primary,
+        role_index: 0,
+        release_sequence: 1,
+        executable_sha256: "e".repeat(64),
+        boundary_sha256: "f".repeat(64),
+        readiness_challenge: Uuid::now_v7(),
+        previous_cleanup: None,
+    };
+    if let Some(subject) = &linux {
+        subject.publish("allocation.json", &reset_candidate.key);
+        reset_intent = subject.receive("intent.json");
+    }
+    let reset_ticket = match exchange(&next(MachineOperation::AuthorizeInvocation {
+        key: reset_candidate.key.clone(),
+        offer_nonce: reset_grant.offer_nonce,
+        intent: reset_intent.clone(),
+    }))
+    .outcome
+    {
+        Outcome::Ticket { ticket } => ticket,
+        other => panic!("reset Invocation was not authorized: {other:?}"),
+    };
+    if let Some(subject) = &linux {
+        subject.publish("ticket.json", &reset_ticket);
+        let live: serde_json::Value = subject.receive("live.json");
+        assert_eq!(live["populated"], true);
+        assert_eq!(live["user_started"], true);
+        subject.publish("reset-guest.json", &true);
+        let reset: serde_json::Value = subject.receive("guest-reset-rejected.json");
+        assert_eq!(reset["populated"], true);
+        assert_eq!(reset["unsealed"], true);
+        assert_eq!(reset["store_reset_rejected"], true);
+        assert_eq!(reset["missing_anchor_rejected"], true);
+        assert_eq!(reset["corrupt_anchor_rejected"], true);
+    }
+
+    let abandoned = call("connect-begin", serde_json::to_value(&hello).unwrap());
+    assert!(abandoned.status.success());
+    let abandoned: ConnectChallenge = serde_json::from_slice(&abandoned.stdout).unwrap();
+    let abandoned_tag = secret.sign_challenge(&abandoned).unwrap();
+    let begin = call("connect-begin", serde_json::to_value(&hello).unwrap());
+    assert!(begin.status.success());
+    let second: ConnectChallenge = serde_json::from_slice(&begin.stdout).unwrap();
+    assert_ne!(second.coordinator_nonce, challenge.coordinator_nonce);
+    assert_eq!(abandoned.session.connection_epoch, 2);
+    assert_eq!(second.session.connection_epoch, 3);
+    assert!(
+        !call(
+            "connect-finish",
+            serde_json::json!({"challenge":abandoned, "tag":abandoned_tag})
+        )
+        .status
+        .success(),
+        "abandoned challenge reused its reserved connection epoch"
+    );
+    let second_tag = secret.sign_challenge(&second).unwrap();
+    assert!(
+        call(
+            "connect-finish",
+            serde_json::json!({"challenge":second, "tag":second_tag})
+        )
+        .status
+        .success()
+    );
+    assert!(
+        !call(
+            "connect-finish",
+            serde_json::json!({"challenge":challenge, "tag":tag})
+        )
+        .status
+        .success()
+    );
+
+    assert!(
+        !call("exchange", serde_json::to_value(&arm).unwrap())
+            .status
+            .success(),
+        "new connection left the old authenticated writer active"
+    );
+    daemon.kill_and_wait();
+    daemon = spawn_daemon(&pinned, &store, &endpoint);
+    let restarted = connect_uninitialized(&pinned, &endpoint);
+    assert_eq!(
+        restarted
+            .machine_participant(registration.installation.domain_id, deadline())
+            .unwrap()
+            .connection_epoch,
+        3
+    );
+    let mut live = command_spec(
+        temp.path(),
+        "echo started>before-native-reset.txt & C:\\Windows\\System32\\ping.exe -n 30 127.0.0.1 >nul",
+    );
+    live.resources.cargo_slots = Some(1);
+    let live = restarted
+        .submit(live, &SubmitOptions::new(Uuid::now_v7()), deadline(), None)
+        .unwrap()
+        .job_id;
+    let limit = deadline();
+    while !temp.path().join("before-native-reset.txt").exists() {
+        assert!(Instant::now() < limit, "native reset canary did not start");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let native_before_reset = restarted
+        .authority_status(deadline(), None)
+        .unwrap()
+        .native_obligations;
+    assert_eq!(native_before_reset.len(), 1);
+    assert!(
+        matches!(native_before_reset[0].allocation.owner, AllocationOwner::Work { job_id, .. } if job_id == live)
+    );
+    daemon.kill_and_wait();
+    for suffix in ["", "-wal", "-shm"] {
+        let path = store.join(format!("stillyard.sqlite3{suffix}"));
+        if path.exists() {
+            std::fs::remove_file(path).unwrap();
+        }
+    }
+    let mut replacement = spawn_daemon(&pinned, &store, &endpoint);
+    let reset = connect_uninitialized(&pinned, &endpoint);
+    assert_eq!(
+        reset
+            .authority_status(deadline(), None)
+            .unwrap()
+            .native_obligations,
+        native_before_reset,
+        "SQLite reset erased the native process inventory"
+    );
+    assert!(
+        reset.machine_events(cursor, 2, deadline()).is_err(),
+        "replacement event history accepted an old store cursor"
+    );
+    assert_eq!(
+        reset
+            .authority_status(deadline(), None)
+            .unwrap()
+            .blocker
+            .as_deref(),
+        Some("authority_reconciliation_required")
+    );
+    assert!(
+        reset
+            .pair_machine_domain(registration.clone(), deadline())
+            .is_err()
+    );
+    let recovered = reset.machine_recover(deadline()).unwrap();
+    assert_eq!(recovered.machine_obligations.len(), 1);
+    assert_eq!(
+        recovered.machine_obligations[0].grant_id,
+        reset_grant.grant_id
+    );
+    assert_eq!(
+        recovered.machine_obligations[0].tickets,
+        vec![reset_intent.clone()]
+    );
+    assert_eq!(recovered.native_obligations, native_before_reset);
+    assert_eq!(
+        recovered.blocker.as_deref(),
+        Some("authority_reconciliation_required")
+    );
+    // Repeating recovery is harmless; disappearance of the native process alone
+    // cannot release the executor's possibly consumed ticket.
+    assert_eq!(reset.machine_recover(deadline()).unwrap(), recovered);
+    if let Some(subject) = &linux {
+        subject.publish("coordinator-reset-observed.json", &true);
+        let live: serde_json::Value = subject.receive("live-after-coordinator-reset.json");
+        assert_eq!(live["populated"], true);
+        assert_eq!(live["unsealed"], true);
+    }
+    let mut after_reset = command_spec(temp.path(), "echo admitted>after-coordinator-reset.txt");
+    after_reset.resources.cargo_slots = Some(1);
+    let after_reset = reset
+        .submit(
+            after_reset,
+            &SubmitOptions::new(Uuid::now_v7()),
+            deadline(),
+            None,
+        )
+        .unwrap()
+        .job_id;
+    assert!(!temp.path().join("after-coordinator-reset.txt").exists());
+    let begin = call("connect-begin", serde_json::to_value(&hello).unwrap());
+    assert!(
+        begin.status.success(),
+        "{}",
+        String::from_utf8_lossy(&begin.stderr)
+    );
+    let resumed: ConnectChallenge = serde_json::from_slice(&begin.stdout).unwrap();
+    assert_eq!(resumed.session.connection_epoch, 4);
+    let resumed_tag = secret.sign_challenge(&resumed).unwrap();
+    let finish = call(
+        "connect-finish",
+        serde_json::json!({"challenge":resumed,"tag":resumed_tag}),
+    );
+    assert!(finish.status.success());
+    let participant: ParticipantSnapshot = serde_json::from_slice(&finish.stdout).unwrap();
+    assert!(participant.retired_sequence_floor > 0);
+    let sequence = std::cell::Cell::new(participant.accepted_sequence + 1);
+    let resumed_next = |command| {
+        let n = sequence.get();
+        sequence.set(n + 1);
+        let mut r =
+            MachineRequest::new(resumed.session.clone(), n, Uuid::now_v7(), command).unwrap();
+        secret.sign_request(&mut r).unwrap();
+        r
+    };
+    let missing = Uuid::now_v7();
+    let end = sequence.get() - 1;
+    let empty_pages = Vec::<Vec<stillyard::machine::ReconcileAllocation>>::new();
+    assert!(matches!(
+        exchange(&resumed_next(MachineOperation::ReconcileBegin {
+            snapshot_id: missing,
+            begin_sequence: 0,
+            end_sequence: end,
+            page_count: 0,
+            digest: stillyard::machine::payload_hash(&empty_pages).unwrap(),
+            configuration_sha256: reset_candidate.configuration_sha256.clone(),
+        }))
+        .outcome,
+        Outcome::Accepted { .. }
+    ));
+    assert!(matches!(
+        exchange(&resumed_next(MachineOperation::ReconcileCommit {
+            snapshot_id: missing
+        }))
+        .outcome,
+        Outcome::Rejected { .. }
+    ));
+    assert!(reset.machine_recover(deadline()).unwrap().blocker.is_some());
+    assert!(!temp.path().join("after-coordinator-reset.txt").exists());
+    let reset_cleanup = if let Some(subject) = &mut linux {
+        subject.publish("cleanup.json", &true);
+        let sealed: serde_json::Value = subject.receive("seal.json");
+        let cleanup = stillyard::machine::TicketCleanup {
+            invocation_id: reset_intent.invocation_id,
+            release_sequence: reset_intent.release_sequence,
+            boundary_sha256: reset_intent.boundary_sha256.clone(),
+            proof_sha256: sealed["proof_sha256"].as_str().unwrap().to_owned(),
+            user_code_released: true,
+        };
+        assert_eq!(
+            sealed["seal"]["boundary_sha256"],
+            reset_intent.boundary_sha256
+        );
+        subject.finish();
+        cleanup
+    } else {
+        proof(&reset_intent)
+    };
+    let pages = vec![vec![stillyard::machine::ReconcileAllocation {
+        key: reset_candidate.key.clone(),
+        offer_nonce: reset_grant.offer_nonce,
+        tickets: vec![reset_intent.clone()],
+        sealed_release: Some(stillyard::machine::SealedRelease {
+            key: reset_candidate.key.clone(),
+            offer_nonce: reset_grant.offer_nonce,
+            sealed_sequence: 1,
+            tickets: vec![reset_cleanup],
+        }),
+    }]];
+    let complete = Uuid::now_v7();
+    let end = sequence.get() - 1;
+    assert!(matches!(
+        exchange(&resumed_next(MachineOperation::ReconcileBegin {
+            snapshot_id: complete,
+            begin_sequence: 0,
+            end_sequence: end,
+            page_count: 1,
+            digest: stillyard::machine::payload_hash(&pages).unwrap(),
+            configuration_sha256: reset_candidate.configuration_sha256.clone(),
+        }))
+        .outcome,
+        Outcome::Accepted { .. }
+    ));
+    assert!(matches!(
+        exchange(&resumed_next(MachineOperation::ReconcilePage {
+            snapshot_id: complete,
+            index: 0,
+            allocations: pages[0].clone(),
+        }))
+        .outcome,
+        Outcome::Accepted { .. }
+    ));
+    assert!(matches!(
+        exchange(&resumed_next(MachineOperation::ReconcileCommit {
+            snapshot_id: complete
+        }))
+        .outcome,
+        Outcome::Reconciled { .. }
+    ));
+    let cleared = reset.machine_recover(deadline()).unwrap();
+    assert!(
+        cleared.blocker.is_none(),
+        "recovery did not converge: {:?}",
+        cleared.blocker
+    );
+    assert_ne!(cleared.epoch, recovered.epoch);
+    assert!(cleared.native_obligations.is_empty());
+    assert!(cleared.machine_obligations.is_empty());
+    assert!(
+        !call(
+            "exchange",
+            serde_json::to_value(resumed_next(MachineOperation::Inspect { key: None })).unwrap()
+        )
+        .status
+        .success(),
+        "retired authority epoch accepted an old writer"
+    );
+    assert_eq!(
+        reset.wait(after_reset, deadline(), None).unwrap().outcome,
+        Some(stillyard::JobOutcome::Succeeded)
+    );
+    assert!(temp.path().join("after-coordinator-reset.txt").exists());
+    let rollback_pending = if fault_stage.is_none() && ticket_role.is_none() {
+        let hold = Uuid::now_v7();
+        reset
+            .hold_authority(hold, "queue before rollback".into(), deadline(), None)
+            .unwrap();
+        let options = SubmitOptions::new(Uuid::now_v7());
+        let spec = command_spec(temp.path(), "echo forbidden>rollback-queued.txt");
+        let id = reset
+            .submit(spec.clone(), &options, deadline(), None)

@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aaa-988f-7712-b4ec-59b6bc62f2db",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aaa-988c-7e21-a1f7-1a2c6c05bf8e",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aaa-9896-7b20-96a1-cee90bce9d29",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aad-df00-70b0-92d3-060b36ae43bc",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aad-df00-70b0-92d3-061b015f4bdf",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789032831119,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789032831339,
+  "finished_unix_millis": 1789033046017,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-mr3-opus-idle-controls-20260910z8/3b1cdcf582594d80b6c50f78e159117f/reviewer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-mr3-opus-idle-controls-20260910z8/3b1cdcf582594d80b6c50f78e159117f/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-mr3-opus-idle-controls-20260910z8/3b1cdcf582594d80b6c50f78e159117f/review.json",
+      "--model",
+      "opus",
+      "--effort",
+      "high"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-mr3-opus-idle-controls-20260910z8/3b1cdcf582594d80b6c50f78e159117f",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-mr3-opus-idle-controls-20260910z8/3b1cdcf582594d80b6c50f78e159117f/reviewer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-mr3-opus-idle-controls-20260910z8/3b1cdcf582594d80b6c50f78e159117f/review.json",
+          "--expected-model-prefix",
+          "claude-opus-"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr3-opus-idle-controls"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aaa-9896-7b20-96a1-cee90bce9d29",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789032831125,
+      "started_unix_millis": 1789032831189,
+      "deadline_unix_millis": 1789034031189,
+      "finished_unix_millis": 1789033046017,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aaa-988f-7712-b4ec-59b6bc62f2db",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aaa-9896-7b20-96a1-cee90bce9d29",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aaa-9897-7541-8bb3-70af7a3aa1bd",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789032831339,
+        "exited_unix_millis": 1789033045736,
+        "resolved_unix_millis": 1789033045754
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aaa-9897-7541-8bb3-70af7a3aa1bd",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 705553,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 705553,
+            "start_ticks": 7893794,
+            "pid_namespace_inode": 4026534421,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08a93-d32a-75b2-9081-1ca4f270fd10",
+          "started_unix_millis": 1789032831339,
+          "finished_unix_millis": 1789033045754,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aaa-9897-7541-8bb3-70b0e2c61894",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "itself, so it cannot detect a change to the production call site's wait duration (that is covered instead by the end-to-end count of 15), it is not a full-daemon configuration mutation, and it covers one of five buckets. Overall the daemon half of the aggregate claim is credibly established; the helper/bridge half rests on source audit plus zero context-switch deltas on Linux and on a CPU metric that is demonstrably insensitive on Windows. The remedies below are additive instrumentation to the existing harness and one test pattern already present in-tree, not a rewrite. Root controls remain pending gate validation and were not assessed.\\\",\\\"findings\\\":[\\\"[Medium] Two of the five Windows buckets are compile-time zeros presented as measured zeros. Evidence: src/runtime_metrics.rs gates `Timer::Attached` and `Timer::Transport` behind `#[cfg(target_os = \\\\\\\"linux\\\\\\\")]`, so on Windows no `waited()` call can reach the ATTACHED/TRANSPORT statics, yet `doctor_check()` projects both keys unconditionally and result.json records `\\\\\\\"windows\\\\\\\": {\\\\\\\"attached\\\\\\\": 0, ..., \\\\\\\"transport\\\\\\\": 0}`. Those two zeros carry no information about the Windows image; the genuinely observed Windows evidence is only reactor/subscriber/backoff = 0. As written, the record cannot distinguish \\\\\\\"not applicable on this platform\\\\\\\" from \\\\\\\"timer exists and stayed quiet\\\\\\\". Remedy: omit platform-inapplicable buckets from `doctor_check()` (or emit them as null) and/or record an `applicable_timers` list per side in result.json, then restate the Windows claim as covering the three reachable buckets.\\\",\\\"[Medium] Only one of five counter call sites has an executable wiring control, and it is the only bucket that is nonzero. Evidence: `attached_wait_polling_mutant_exceeds_idle_budget` exercises the product `ReleaseState::wait` (src/store/attached/driver.rs) and the `\\\\\\\"attached\\\\\\\"` projection; nothing exercises Reactor, Subscriber, Backoff or Transport. If any of those `runtime_metrics::waited(...)` call sites were absent, or passed a constant `false`, the artifact would read exactly as it does now. This is load-bearing: the attached bucket alone consumes 2.99 of the 6/min budget, so the acceptance conclusion depends on the other four zeros being measurements rather than silence. The in-file `polling_control_is_counted_and_event_notification_is_not_a_timer` test does not close this, since it uses a local `Counter` \u2014 the very construction the review already deemed insufficient. Remedy: replicate the ignored-test pattern for at least `Backoff` (the one timer the design says fires in normal operation) and `Reactor`: drive the product wait with a short timeout and read the value back through `doctor_check()`, so an unwired call site fails a test instead of reading as an idle zero.\\\",\\\"[Medium] wsl.exe and the Windows bridge have no wake-rate evidence at all; the 0.0% CPU standing in for it is below the metric's noise floor. Evidence: the three `\\\\\\\"side\\\\\\\": \\\\\\\"windows\\\\\\\"` rows in result.json carry no `voluntary_switches` field, only `cpu_percent_one_core`. Windows pid 51292 (bridge) reports exactly 0.0 over 300.7 s, while its Linux-side interop stub `stillyard.exe` pid 608720 records 90 voluntary switches in the same window \u2014 i.e. the bridge demonstrably serviced real IPC while reporting zero CPU. A metric that reads 0.0 for a process performing dozens of RPC round trips cannot bound that process's wakes at 6/min, so wsl.exe pid 32592's 0.0 is not a negative control for its timer contribution. Remedy (minimal): sample `Win32_PerfRawData_PerfProc_Process.ContextSwitchesPersec` and raw 100 ns kernel+user times at window start and end for all three Windows processes and record the deltas alongside the Linux `voluntary_switches`, so a 6/min wake is visible rather than rounded away. Alternative for the bridge image specifically: since counters are process-local and unreachable through the daemon's doctor, have `bridge::run` print `runtime_metrics::doctor_check()` to stderr on the EOF return path of `serve` and capture it.\\\",\\\"[Low-Medium] The artifact records no helper-chain component, and the field it computes is not the contracted aggregate. Evidence: `limits.aggregate_timer_expirations_per_minute = 6` is compared against a field named `daemon_timer_expirations_per_minute = 2.9926`; `helper_timer_coverage` honestly states helper waits are covered by \\\\\\\"separate source audit\\\\\\\" only. The audited zero is not a rounding term \u2014 the daemon already consumes 2.99 of 6/min, so the unrecorded helper contribution must stay under ~3/min for the contract to hold, yet no field in result.json would change if, say, `selector.select()` in `supervise` acquired an idle timeout or the keepalive `signal.sigwait` were replaced by a polling loop. Remedy: add an explicit `helper_timer_expirations_per_minute: 0` field carrying the evidence that supports it (the zero voluntary-switch deltas for pids 608705, 3989858, 3989859 plus the audited call sites: untimed `selector.select()` in supervise's inner loop, `select(timeout=delay)` reachable only after a child exit, blocking `signal.sigwait` in keepalive, blocking stdin reads in `bridge::serve` with per-request deadlines only), and compute a true `aggregate_timer_expirations_per_minute` = daemon + helper for comparison against the limit.\\\",\\\"[Low] The counters' own stated validity precondition is not recorded, and the failure mode biases toward pass. Evidence: the src/runtime_metrics.rs header requires comparing \\\\\\\"two doctor snapshots from the same daemon generation\\\\\\\", and `supervise()` in scripts/wsl-service.py is explicitly built to restart the daemon on crash; a restart zeroes the process-local statics and lowers the reported rate. result.json records no daemon generation, process start time, or restart count, and no positive assertion of the idle preconditions (the `subscriber` field is a timer bucket, not a subscriber count; there is no job count). Stable pids across the window are only an implicit and unstated proxy \u2014 reasonable here, since Linux pid allocation had advanced to ~3.99M while the daemon sits at 608712, but it is inference, not recorded evidence. Remedy: capture `daemon_generation` (and the Windows equivalent) plus process start times in both snapshots, fail the run if either changes, record the supervisor's `wsl_daemon_started` event count for the window, and record job/subscriber counts from daemon status at both ends.\\\",\\\"[Low] Per-image limits are not attributable from the artifact. Evidence: `limits` distinguishes `daemon_cpu_percent`/`daemon_memory_mib` from `bridge_cpu_percent`/`bridge_memory_mib`, but Windows pids 9140 and 51292 both have `name: \\\\\\\"stillyard\\\\\\\"` and there is no role field, so daemon-vs-bridge enforcement cannot be performed mechanically from result.json; the two Python helpers (8.75 + 8.25 MiB) map to no per-image limit at all and appear only in the aggregate, and the 0.0 MiB rows (pids 608720, 3989858, 3989859) are interop stubs whose real footprint is counted on the Windows side \u2014 correct, but undocumented in the artifact. Remedy: add a `role` field per process row (coordinator_daemon, executor_daemon, bridge, interop_stub, keepalive, supervisor), and either give the helper roles an explicit budget or state in `limits` that they are aggregate-only by design.\\\"],\\\"verdict\\\":\\\"findings\\\"}\",\"structured_output\":{\"summary\":\"Verdict: findings (no blocking defect; five/six measurement-coverage gaps). The run is arithmetically sound and internally consistent: CPU 0.006650+0.041564=0.048214% and memory 8.75+3.0+0+0+8.25+26.039+1.461+1.309=48.809 MiB reproduce the aggregates exactly, 15 expirations/300.743186 s = 2.9926/min, and every per-image and aggregate limit is met. The daemon-side number is well corroborated: attached=15 matches a 20 s idle wait over a 300.7 s window (300.7/20 = 15.0), and the 90 voluntary switches on the Linux interop stub plus 156 on the Linux daemon are consistent with ~3 bridge round trips per 20 s wake (heartbeat >=5 s and observation >=20 s in driver.rs step/refresh_observation), so the Windows daemon's 0.0416% CPU is explained by servicing that traffic rather than by uncounted local timers. What the new ignored test demonstrates, precisely: it kills three specific mutants for the Attached bucket only \u2014 (a) instrumentation removed from the product ReleaseState::wait in src/store/attached/driver.rs (the test calls the real wait, not a local Counter), (b) the doctor_check JSON projection dropping or mis-keying \\\"attached\\\", and (c) counting notified wakes as timeouts (wake() then wait(1 s) must not increment; a broken notify would time out and fail the assert). It also shows the 6/min threshold has discriminating power: 8 waits at 10 ms yields ~4800/min, far above budget. What it does not demonstrate: it supplies the interval itself, so it cannot detect a change to the production call site's wait duration (that is covered instead by the end-to-end count of 15), it is not a full-daemon configuration mutation, and it covers one of five buckets. Overall the daemon half of the aggregate claim is credibly established; the helper/bridge half rests on source audit plus zero context-switch deltas on Linux and on a CPU metric that is demonstrably insensitive on Windows. The remedies below are additive instrumentation to the existing harness and one test pattern already present in-tree, not a rewrite. Root controls remain pending gate validation and were not assessed.\",\"findings\":[\"[Medium] Two of the five Windows buckets are compile-time zeros presented as measured zeros. Evidence: src/runtime_metrics.rs gates `Timer::Attached` and `Timer::Transport` behind `#[cfg(target_os = \\\"linux\\\")]`, so on Windows no `waited()` call can reach the ATTACHED/TRANSPORT statics, yet `doctor_check()` projects both keys unconditionally and result.json records `\\\"windows\\\": {\\\"attached\\\": 0, ..., \\\"transport\\\": 0}`. Those two zeros carry no information about the Windows image; the genuinely observed Windows evidence is only reactor/subscriber/backoff = 0. As written, the record cannot distinguish \\\"not applicable on this platform\\\" from \\\"timer exists and stayed quiet\\\". Remedy: omit platform-inapplicable buckets from `doctor_check()` (or emit them as null) and/or record an `applicable_timers` list per side in result.json, then restate the Windows claim as covering the three reachable buckets.\",\"[Medium] Only one of five counter call sites has an executable wiring control, and it is the only bucket that is nonzero. Evidence: `attached_wait_polling_mutant_exceeds_idle_budget` exercises the product `ReleaseState::wait` (src/store/attached/driver.rs) and the `\\\"attached\\\"` projection; nothing exercises Reactor, Subscriber, Backoff or Transport. If any of those `runtime_metrics::waited(...)` call sites were absent, or passed a constant `false`, the artifact would read exactly as it does now. This is load-bearing: the attached bucket alone consumes 2.99 of the 6/min budget, so the acceptance conclusion depends on the other four zeros being measurements rather than silence. The in-file `polling_control_is_counted_and_event_notification_is_not_a_timer` test does not close this, since it uses a local `Counter` \u2014 the very construction the review already deemed insufficient. Remedy: replicate the ignored-test pattern for at least `Backoff` (the one timer the design says fires in normal operation) and `Reactor`: drive the product wait with a short timeout and read the value back through `doctor_check()`, so an unwired call site fails a test instead of reading as an idle zero.\",\"[Medium] wsl.exe and the Windows bridge have no wake-rate evidence at all; the 0.0% CPU standing in for it is below the metric's noise floor. Evidence: the three `\\\"side\\\": \\\"windows\\\"` rows in result.json carry no `voluntary_switches` field, only `cpu_percent_one_core`. Windows pid 51292 (bridge) reports exactly 0.0 over 300.7 s, while its Linux-side interop stub `stillyard.exe` pid 608720 records 90 voluntary switches in the same window \u2014 i.e. the bridge demonstrably serviced real IPC while reporting zero CPU. A metric that reads 0.0 for a process performing dozens of RPC round trips cannot bound that process's wakes at 6/min, so wsl.exe pid 32592's 0.0 is not a negative control for its timer contribution. Remedy (minimal): sample `Win32_PerfRawData_PerfProc_Process.ContextSwitchesPersec` and raw 100 ns kernel+user times at window start and end for all three Windows processes and record the deltas alongside the Linux `voluntary_switches`, so a 6/min wake is visible rather than rounded away. Alternative for the bridge image specifically: since counters are process-local and unreachable through the daemon's doctor, have `bridge::run` print `runtime_metrics::doctor_check()` to stderr on the EOF return path of `serve` and capture it.\",\"[Low-Medium] The artifact records no helper-chain component, and the field it computes is not the contracted aggregate. Evidence: `limits.aggregate_timer_expirations_per_minute = 6` is compared against a field named `daemon_timer_expirations_per_minute = 2.9926`; `helper_timer_coverage` honestly states helper waits are covered by \\\"separate source audit\\\" only. The audited zero is not a rounding term \u2014 the daemon already consumes 2.99 of 6/min, so the unrecorded helper contribution must stay under ~3/min for the contract to hold, yet no field in result.json would change if, say, `selector.select()` in `supervise` acquired an idle timeout or the keepalive `signal.sigwait` were replaced by a polling loop. Remedy: add an explicit `helper_timer_expirations_per_minute: 0` field carrying the evidence that supports it (the zero voluntary-switch deltas for pids 608705, 3989858, 3989859 plus the audited call sites: untimed `selector.select()` in supervise's inner loop, `select(timeout=delay)` reachable only after a child exit, blocking `signal.sigwait` in keepalive, blocking stdin reads in `bridge::serve` with per-request deadlines only), and compute a true `aggregate_timer_expirations_per_minute` = daemon + helper for comparison against the limit.\",\"[Low] The counters' own stated validity precondition is not recorded, and the failure mode biases toward pass. Evidence: the src/runtime_metrics.rs header requires comparing \\\"two doctor snapshots from the same daemon generation\\\", and `supervise()` in scripts/wsl-service.py is explicitly built to restart the daemon on crash; a restart zeroes the process-local statics and lowers the reported rate. result.json records no daemon generation, process start time, or restart count, and no positive assertion of the idle preconditions (the `subscriber` field is a timer bucket, not a subscriber count; there is no job count). Stable pids across the window are only an implicit and unstated proxy \u2014 reasonable here, since Linux pid allocation had advanced to ~3.99M while the daemon sits at 608712, but it is inference, not recorded evidence. Remedy: capture `daemon_generation` (and the Windows equivalent) plus process start times in both snapshots, fail the run if either changes, record the supervisor's `wsl_daemon_started` event count for the window, and record job/subscriber counts from daemon status at both ends.\",\"[Low] Per-image limits are not attributable from the artifact. Evidence: `limits` distinguishes `daemon_cpu_percent`/`daemon_memory_mib` from `bridge_cpu_percent`/`bridge_memory_mib`, but Windows pids 9140 and 51292 both have `name: \\\"stillyard\\\"` and there is no role field, so daemon-vs-bridge enforcement cannot be performed mechanically from result.json; the two Python helpers (8.75 + 8.25 MiB) map to no per-image limit at all and appear only in the aggregate, and the 0.0 MiB rows (pids 608720, 3989858, 3989859) are interop stubs whose real footprint is counted on the Windows side \u2014 correct, but undocumented in the artifact. Remedy: add a `role` field per process row (coordinator_daemon, executor_daemon, bridge, interop_stub, keepalive, supervisor), and either give the helper roles an explicit budget or state in `limits` that they are aggregate-only by design.\"],\"verdict\":\"findings\"},\"ttft_ms\":175876,\"type\":\"result\",\"duration_ms\":212435,\"uuid\":\"62f8e56a-9259-44a7-b3b0-8e7cd210a424\",\"ttft_stream_ms\":1583,\"time_to_request_ms\":37,\"first_content_frame_ms\":2008,\"queued_turn_count\":0}\n",
+          "stderr_tail": ""
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aad-df00-70b0-92d3-060b36ae43bc",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 738311,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 738311,
+            "start_ticks": 7915250,
+            "pid_namespace_inode": 4026534152,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": "accepted",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08a93-d32a-75b2-9081-1ca4f270fd10",
+          "started_unix_millis": 1789033045928,
+          "finished_unix_millis": 1789033046009,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aad-df00-70b0-92d3-061b015f4bdf",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "{\"actual_models\": [\"claude-haiku-4-5-20251001\", \"claude-opus-5\"], \"selected_family_models\": [\"claude-opus-5\"], \"other_reported_models\": [\"claude-haiku-4-5-20251001\"], \"verdict\": {\"summary\": \"Verdict: findings (no blocking defect; five/six measurement-coverage gaps). The run is arithmetically sound and internally consistent: CPU 0.006650+0.041564=0.048214% and memory 8.75+3.0+0+0+8.25+26.039+1.461+1.309=48.809 MiB reproduce the aggregates exactly, 15 expirations/300.743186 s = 2.9926/min, and every per-image and aggregate limit is met. The daemon-side number is well corroborated: attached=15 matches a 20 s idle wait over a 300.7 s window (300.7/20 = 15.0), and the 90 voluntary switches on the Linux interop stub plus 156 on the Linux daemon are consistent with ~3 bridge round trips per 20 s wake (heartbeat >=5 s and observation >=20 s in driver.rs step/refresh_observation), so the Windows daemon's 0.0416% CPU is explained by servicing that traffic rather than by uncounted local timers. What the new ignored test demonstrates, precisely: it kills three specific mutants for the Attached bucket only \\u2014 (a) instrumentation removed from the product ReleaseState::wait in src/store/attached/driver.rs (the test calls the real wait, not a local Counter), (b) the doctor_check JSON projection dropping or mis-keying \\\"attached\\\", and (c) counting notified wakes as timeouts (wake() then wait(1 s) must not increment; a broken notify would time out and fail the assert). It also shows the 6/min threshold has discriminating power: 8 waits at 10 ms yields ~4800/min, far above budget. What it does not demonstrate: it supplies the interval itself, so it cannot detect a change to the production call site's wait duration (that is covered instead by the end-to-end count of 15), it is not a full-daemon configuration mutation, and it covers one of five buckets. Overall the daemon half of the aggregate claim is credibly established; the helper/bridge half rests on source audit plus zero context-switch deltas on Linux and on a CPU metric that is demonstrably insensitive on Windows. The remedies below are additive instrumentation to the existing harness and one test pattern already present in-tree, not a rewrite. Root controls remain pending gate validation and were not assessed.\", \"findings\": [\"[Medium] Two of the five Windows buckets are compile-time zeros presented as measured zeros. Evidence: src/runtime_metrics.rs gates `Timer::Attached` and `Timer::Transport` behind `#[cfg(target_os = \\\"linux\\\")]`, so on Windows no `waited()` call can reach the ATTACHED/TRANSPORT statics, yet `doctor_check()` projects both keys unconditionally and result.json records `\\\"windows\\\": {\\\"attached\\\": 0, ..., \\\"transport\\\": 0}`. Those two zeros carry no information about the Windows image; the genuinely observed Windows evidence is only reactor/subscriber/backoff = 0. As written, the record cannot distinguish \\\"not applicable on this platform\\\" from \\\"timer exists and stayed quiet\\\". Remedy: omit platform-inapplicable buckets from `doctor_check()` (or emit them as null) and/or record an `applicable_timers` list per side in result.json, then restate the Windows claim as covering the three reachable buckets.\", \"[Medium] Only one of five counter call sites has an executable wiring control, and it is the only bucket that is nonzero. Evidence: `attached_wait_polling_mutant_exceeds_idle_budget` exercises the product `ReleaseState::wait` (src/store/attached/driver.rs) and the `\\\"attached\\\"` projection; nothing exercises Reactor, Subscriber, Backoff or Transport. If any of those `runtime_metrics::waited(...)` call sites were absent, or passed a constant `false`, the artifact would read exactly as it does now. This is load-bearing: the attached bucket alone consumes 2.99 of the 6/min budget, so the acceptance conclusion depends on the other four zeros being measurements rather than silence. The in-file `polling_control_is_counted_and_event_notification_is_not_a_timer` test does not close this, since it uses a local `Counter` \\u2014 the very construction the review already deemed insufficient. Remedy: replicate the ignored-test pattern for at least `Backoff` (the one timer the design says fires in normal operation) and `Reactor`: drive the product wait with a short timeout and read the value back through `doctor_check()`, so an unwired call site fails a test instead of reading as an idle zero.\", \"[Medium] wsl.exe and the Windows bridge have no wake-rate evidence at all; the 0.0% CPU standing in for it is below the metric's noise floor. Evidence: the three `\\\"side\\\": \\\"windows\\\"` rows in result.json carry no `voluntary_switches` field, only `cpu_percent_one_core`. Windows pid 51292 (bridge) reports exactly 0.0 over 300.7 s, while its Linux-side interop stub `stillyard.exe` pid 608720 records 90 voluntary switches in the same window \\u2014 i.e. the bridge demonstrably serviced real IPC while reporting zero CPU. A metric that reads 0.0 for a process performing dozens of RPC round trips cannot bound that process's wakes at 6/min, so wsl.exe pid 32592's 0.0 is not a negative control for its timer contribution. Remedy (minimal): sample `Win32_PerfRawData_PerfProc_Process.ContextSwitchesPersec` and raw 100 ns kernel+user times at window start and end for all three Windows processes and record the deltas alongside the Linux `voluntary_switches`, so a 6/min wake is visible rather than rounded away. Alternative for the bridge image specifically: since counters are process-local and unreachable through the daemon's doctor, have `bridge::run` print `runtime_metrics::doctor_check()` to stderr on the EOF return path of `serve` and capture it.\", \"[Low-Medium] The artifact records no helper-chain component, and the field it computes is not the contracted aggregate. Evidence: `limits.aggregate_timer_expirations_per_minute = 6` is compared against a field named `daemon_timer_expirations_per_minute = 2.9926`; `helper_timer_coverage` honestly states helper waits are covered by \\\"separate source audit\\\" only. The audited zero is not a rounding term \\u2014 the daemon already consumes 2.99 of 6/min, so the unrecorded helper contribution must stay under ~3/min for the contract to hold, yet no field in result.json would change if, say, `selector.select()` in `supervise` acquired an idle timeout or the keepalive `signal.sigwait` were replaced by a polling loop. Remedy: add an explicit `helper_timer_expirations_per_minute: 0` field carrying the evidence that supports it (the zero voluntary-switch deltas for pids 608705, 3989858, 3989859 plus the audited call sites: untimed `selector.select()` in supervise's inner loop, `select(timeout=delay)` reachable only after a child exit, blocking `signal.sigwait` in keepalive, blocking stdin reads in `bridge::serve` with per-request deadlines only), and compute a true `aggregate_timer_expirations_per_minute` = daemon + helper for comparison against the limit.\", \"[Low] The counters' own stated validity precondition is not recorded, and the failure mode biases toward pass. Evidence: the src/runtime_metrics.rs header requires comparing \\\"two doctor snapshots from the same daemon generation\\\", and `supervise()` in scripts/wsl-service.py is explicitly built to restart the daemon on crash; a restart zeroes the process-local statics and lowers the reported rate. result.json records no daemon generation, process start time, or restart count, and no positive assertion of the idle preconditions (the `subscriber` field is a timer bucket, not a subscriber count; there is no job count). Stable pids across the window are only an implicit and unstated proxy \\u2014 reasonable here, since Linux pid allocation had advanced to ~3.99M while the daemon sits at 608712, but it is inference, not recorded evidence. Remedy: capture `daemon_generation` (and the Windows equivalent) plus process start times in both snapshots, fail the run if either changes, record the supervisor's `wsl_daemon_started` event count for the window, and record job/subscriber counts from daemon status at both ends.\", \"[Low] Per-image limits are not attributable from the artifact. Evidence: `limits` distinguishes `daemon_cpu_percent`/`daemon_memory_mib` from `bridge_cpu_percent`/`bridge_memory_mib`, but Windows pids 9140 and 51292 both have `name: \\\"stillyard\\\"` and there is no role field, so daemon-vs-bridge enforcement cannot be performed mechanically from result.json; the two Python helpers (8.75 + 8.25 MiB) map to no per-image limit at all and appear only in the aggregate, and the 0.0 MiB rows (pids 608720, 3989858, 3989859) are interop stubs whose real footprint is counted on the Windows side \\u2014 correct, but undocumented in the artifact. Remedy: add a `role` field per process row (coordinator_daemon, executor_daemon, bridge, interop_stub, keepalive, supervisor), and either give the helper roles an explicit budget or state in `limits` that they are aggregate-only by design.\"], \"verdict\": \"findings\"}}\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08aaa-98ad-7112-a0c6-3efb85bfee5f",
+      "lease_id": "01a08aaa-9897-7541-8bb3-70c017151193",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a08aaa-9897-7541-8bb3-70c017151193"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aaa-988f-7712-b4ec-59b6bc62f2db",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aaa-9896-7b20-96a1-cee90bce9d29"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08a93-d32a-75b2-9081-1ca4f270fd10"
+}

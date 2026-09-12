@@ -1,0 +1,65 @@
+{
+  "duration_seconds": 300.2623472940031,
+  "processes": [
+    {
+      "side": "linux",
+      "pid": 301650,
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 8.75,
+      "voluntary_switches": 0
+    },
+    {
+      "side": "linux",
+      "pid": 301964,
+      "cpu_percent_one_core": 0.006660841820575298,
+      "memory_mib": 4.3203125,
+      "voluntary_switches": 150
+    },
+    {
+      "side": "linux",
+      "pid": 301973,
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 0.0,
+      "voluntary_switches": 90
+    },
+    {
+      "side": "linux",
+      "pid": 3989858,
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 0.0,
+      "voluntary_switches": 0
+    },
+    {
+      "side": "linux",
+      "pid": 3989859,
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 8.5,
+      "voluntary_switches": 0
+    },
+    {
+      "side": "windows",
+      "pid": 22556,
+      "cpu_percent_one_core": 0.015611348016973354,
+      "memory_mib": 1.515625
+    },
+    {
+      "side": "windows",
+      "pid": 44288,
+      "cpu_percent_one_core": 0.020815130689297804,
+      "memory_mib": 28.5859375
+    },
+    {
+      "side": "windows",
+      "pid": 32592,
+      "cpu_percent_one_core": 0.0,
+      "memory_mib": 1.30859375
+    }
+  ],
+  "timer_wakes": "not measured: context-switch deltas are upper-bound diagnostics only",
+  "aggregate_cpu_percent": 0.043087320526846454,
+  "aggregate_memory_mib": 52.98046875,
+  "scope_correction": {
+    "excluded_pid": 46556,
+    "reason": "foreign chequer private Stillyard instance; identified by installed image and explicit endpoint, left untouched"
+  }
+}

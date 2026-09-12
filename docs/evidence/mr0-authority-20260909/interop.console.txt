@@ -1,0 +1,171 @@
+{
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085e9-b3a8-7253-87a2-fe8bb1f3b617",
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085e9-b3a9-7902-9dbd-183849e27f50",
+  "submission_state": "accepted",
+  "job_state": "pending",
+  "reason_code": null,
+  "accepted_unix_millis": 1788953080745,
+  "priority": 0,
+  "effective_priority": 0,
+  "blockers": [],
+  "queue_rank": 1,
+  "reservation": null,
+  "conditions": [],
+  "estimate": {
+    "confidence": "estimated",
+    "start_in_millis": 0,
+    "assumptions": [
+      "currently admissible"
+    ]
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a082ce-ae5d-72d3-84e5-5579ad17b6da"
+}
+{
+  "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085e9-b3a9-7902-9dbd-183849e27f50",
+  "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085e9-b3a8-7253-87a2-fe8bb1f3b617",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085e9-b3ac-7021-af8d-90d28e86c8db",
+  "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085e9-b3ab-7eb0-86b1-809b9b4def4b",
+  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085e9-b3ab-7eb0-86b1-80a92d1a2595",
+  "root_exit_code": 1,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1788953080745,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1788953080754,
+  "finished_unix_millis": 1788953080959,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "C:\\Windows\\System32\\wsl.exe",
+    "args": [
+      "--distribution",
+      "Ubuntu-SSD",
+      "--user",
+      "pythonic",
+      "--cd",
+      "/tmp",
+      "--exec",
+      "/usr/bin/python3",
+      "/home/pythonic/Development/stillyard/scripts/probe-wsl-interop.py",
+      "/mnt/c/Development/stillyard-mr0-authority-evidence-20260909/interop-82cb981ea9514c93a26859691ba9d2e2"
+    ],
+    "working_directory": "C:\\Development",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr0-interop-boundary"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 30,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085e9-b3ac-7021-af8d-90d28e86c8db",
+      "attempt_index": 1,
+      "verdict": "process_failed",
+      "reason_code": null,
+      "created_unix_millis": 1788953080747,
+      "started_unix_millis": 1788953080747,
+      "deadline_unix_millis": 1788953110747,
+      "finished_unix_millis": 1788953080959,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085e9-b3a9-7902-9dbd-183849e27f50",
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085e9-b3ac-7021-af8d-90d28e86c8db",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085e9-b3ab-7eb0-86b1-809b9b4def4b",
+        "verdict": "process_failed",
+        "root_exit_code": 1,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1788953080754,
+        "exited_unix_millis": 1788953080950,
+        "resolved_unix_millis": 1788953080956
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085e9-b3ab-7eb0-86b1-809b9b4def4b",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 30732,
+          "root_identity": {
+            "platform": "windows",
+            "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+            "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+            "pid": 30732,
+            "creation_filetime_100ns": 134334266807515980
+          },
+          "root_exit_code": 1,
+          "exit_classification": null,
+          "executable_hash": "27cc8dd52be326e138a89f8889241b1d8c51dd1978b22eb70be77036ccdee3c2",
+          "daemon_generation": "01a082ce-ae5d-72d3-84e5-5579ad17b6da",
+          "started_unix_millis": 1788953080754,
+          "finished_unix_millis": 1788953080956,
+          "containment": {
+            "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a085e9-b3ab-7eb0-86b1-80a92d1a2595",
+            "state": "empty",
+            "strength": "windows_job_object",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": "Traceback (most recent call last):\n  File \"/home/pythonic/Development/stillyard/scripts/probe-wsl-interop.py\", line 76, in <module>\n    raise SystemExit(main())\n                     ~~~~^^\n  File \"/home/pythonic/Development/stillyard/scripts/probe-wsl-interop.py\", line 53, in main\n    raise RuntimeError(\"Outside control did not exercise functioning WSL interop\")\nRuntimeError: Outside control did not exercise functioning WSL interop\n"
+        }
+      ]
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a082ce-ae5d-72d3-84e5-5579ad17b6da"
+}

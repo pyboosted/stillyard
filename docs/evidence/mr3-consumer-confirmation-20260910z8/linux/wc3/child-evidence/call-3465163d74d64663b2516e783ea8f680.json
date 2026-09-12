@@ -1,0 +1,13 @@
+{
+  "invocation": {
+    "STILLYARD_JOB_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f5f2-7d40-adba-877947e79052",
+    "STILLYARD_ATTEMPT": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f5fb-7443-9c0f-a8bf1b716665",
+    "STILLYARD_INVOCATION_ID": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a08aba-f5fc-7e03-8e1d-4c2597cc6139",
+    "STILLYARD_ENDPOINT": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock"
+  },
+  "idempotency_key": "69225687-b2a1-5ebb-84be-03f206813fed",
+  "spec_sha256": "23b205a9ac18bd92866a27b966d826ea7600394eaff3eea2ebda58425aac584b",
+  "pid": 624,
+  "started_unix_ns": 1789033908732482736,
+  "completed": false
+}

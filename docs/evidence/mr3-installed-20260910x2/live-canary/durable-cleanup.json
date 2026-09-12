@@ -1,0 +1,11 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089b7-50f5-7810-ac45-bc01c194ebd6",
+  "invocation": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089b7-50fd-7283-bbac-74bfcb1d2c94",
+  "cleanup_rows": [
+    [
+      "01a089b1-9a6a-7711-a600-39e2b74e495d~01a089b7-50fd-7283-bbac-74bfcb1d2c94",
+      "4ead1b008fe80e7c035c50f1816ba71a23a58b582440b49275f490f8fd90aafc",
+      "07a0033631712800964b8e3fdfac9bd97eaf17a1c5e6ee4ea1a3bfef7fed54c8"
+    ]
+  ]
+}

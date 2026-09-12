@@ -1,0 +1,6 @@
+{
+  "reason": "enable controllers only after systemd has placed the main service process in the delegated manager subgroup; then exec the installed binary without a second systemd spawn",
+  "unit_text": "[Unit]\nDescription=Stillyard attached Windows/WSL scheduler\n\n[Service]\nType=simple\nExecStart=/usr/bin/python3 \"/home/pythonic/.local/share/stillyard/libexec/wsl-service.py\" run --executors \"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/stillyard.service/executors\" --ram-mb 16384 --daemon \"/home/pythonic/.local/share/stillyard/bin/stillyard\"\nWorkingDirectory=/home/pythonic/.local/share/stillyard\nDelegate=cpu memory pids\nDelegateSubgroup=manager\nSlice=app.slice\nKillMode=process\nRestart=on-failure\nRestartSec=2\nUMask=0077\nUnsetEnvironment=STILLYARD_STORE STILLYARD_ENDPOINT STILLYARD_JOB_ID STILLYARD_ATTEMPT STILLYARD_INVOCATION_ID STILLYARD_ROLE\n\n[Install]\nWantedBy=default.target\n",
+  "unit_sha256": "055600012d42be9add4c8d82a6eca573d032106358eaf570404b5de5e19e9279",
+  "helper_sha256": "06455b14475615308595a292f3e48f77110816f857dcad69b0e50c85b257e5b5"
+}

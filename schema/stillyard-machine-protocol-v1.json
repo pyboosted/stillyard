@@ -1,0 +1,2768 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProtocolRecord",
+  "description": "Schema root for the versioned participant protocol and allocation views.",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/BridgeRequest"
+    },
+    {
+      "$ref": "#/$defs/BridgeReply"
+    },
+    {
+      "$ref": "#/$defs/DomainClearancePreview"
+    },
+    {
+      "$ref": "#/$defs/DomainRetirementRequest"
+    },
+    {
+      "$ref": "#/$defs/DomainRetirementReceipt"
+    },
+    {
+      "$ref": "#/$defs/DomainRetirementAudit"
+    },
+    {
+      "$ref": "#/$defs/Request"
+    },
+    {
+      "$ref": "#/$defs/Reply"
+    },
+    {
+      "$ref": "#/$defs/ConnectHello"
+    },
+    {
+      "$ref": "#/$defs/ConnectChallenge"
+    },
+    {
+      "$ref": "#/$defs/ParticipantSnapshot"
+    },
+    {
+      "$ref": "#/$defs/NativeAllocationSnapshot"
+    },
+    {
+      "$ref": "#/$defs/EventPage"
+    },
+    {
+      "$ref": "#/$defs/AuthoritySnapshot"
+    }
+  ],
+  "$defs": {
+    "AllocationEvent": {
+      "type": "object",
+      "properties": {
+        "claims": {
+          "$ref": "#/$defs/Claims"
+        },
+        "committed_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "cursor": {
+          "$ref": "#/$defs/EventCursor"
+        },
+        "grant_id": {
+          "type": "string"
+        },
+        "key": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllocationKey"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "native": {
+          "type": "boolean"
+        },
+        "owner": {
+          "$ref": "#/$defs/AllocationOwner"
+        },
+        "risk_clearance": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "state": {
+          "$ref": "#/$defs/GrantState"
+        },
+        "tickets_issued": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "cursor",
+        "native",
+        "grant_id",
+        "owner",
+        "state",
+        "tickets_issued",
+        "claims",
+        "committed_unix_millis"
+      ]
+    },
+    "AllocationKey": {
+      "type": "object",
+      "properties": {
+        "authority_epoch": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "domain_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "lease_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "machine_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "manager_store_uuid": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "machine_id",
+        "authority_epoch",
+        "domain_id",
+        "manager_store_uuid",
+        "lease_id"
+      ]
+    },
+    "AllocationOwner": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "attempt_id": {
+              "type": "string"
+            },
+            "job_id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "work"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "job_id",
+            "attempt_id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "invocation_id": {
+              "type": "string"
+            },
+            "job_id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "probe"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "job_id",
+            "invocation_id"
+          ]
+        }
+      ]
+    },
+    "AuthorityDomains": {
+      "description": "Persistent identities outside resettable job history. The machine resource\nscope and its native execution child are different domains.",
+      "type": "object",
+      "properties": {
+        "machine_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "machine_scope": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "native_domain": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "machine_id",
+        "machine_scope",
+        "native_domain"
+      ]
+    },
+    "AuthorityHold": {
+      "description": "A durable whole-authority admission hold. Process exit does not release it.",
+      "type": "object",
+      "properties": {
+        "bootstrap": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BootstrapBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cleanup_proof": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BootstrapProof"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "release_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "released": {
+          "type": "boolean"
+        },
+        "released_by": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        },
+        "requester": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "reason",
+        "requester",
+        "released"
+      ]
+    },
+    "AuthoritySnapshot": {
+      "description": "Bootstrap/maintenance interlock, separate from resettable Job history.",
+      "type": "object",
+      "properties": {
+        "blocker": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "coordinator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CoordinatorHistory"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "detail": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "domains": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuthorityDomains"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "epoch": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "holds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AuthorityHold"
+          }
+        },
+        "machine_obligations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GrantSnapshot"
+          }
+        },
+        "native_coverage_store": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "native_obligations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NativeStartPermission"
+          }
+        },
+        "pending_machine_operation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "retired_domains": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DomainRetirementReceipt"
+          }
+        },
+        "storage_budget": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuthorityStorageBudget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "machine_obligations",
+        "native_obligations",
+        "retired_domains",
+        "holds"
+      ]
+    },
+    "AuthorityStorageBudget": {
+      "description": "Durable metadata capacity, separate from machine resource claims.",
+      "type": "object",
+      "properties": {
+        "new_admission_headroom_bytes": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "registry_bytes": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "registry_limit_bytes": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "reserved_recovery_bytes": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "registry_bytes",
+        "registry_limit_bytes",
+        "reserved_recovery_bytes",
+        "new_admission_headroom_bytes"
+      ]
+    },
+    "Blocker": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "detail"
+      ]
+    },
+    "BootstrapBinding": {
+      "type": "object",
+      "properties": {
+        "parent": {
+          "$ref": "#/$defs/ManagedParent"
+        },
+        "request_sha256": {
+          "type": "string"
+        },
+        "work": {
+          "$ref": "#/$defs/BootstrapWork"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "parent",
+        "work",
+        "request_sha256"
+      ]
+    },
+    "BootstrapProof": {
+      "description": "Sealed Linux leaf evidence; only the trusted bridge may attest this record.",
+      "type": "object",
+      "properties": {
+        "boot_id": {
+          "type": "string"
+        },
+        "cgroup_inode": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "cgroup_path": {
+          "type": "string"
+        },
+        "operation_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "request_sha256": {
+          "type": "string"
+        },
+        "root_exit_code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "termination": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation_id",
+        "request_sha256",
+        "boot_id",
+        "uid",
+        "cgroup_path",
+        "cgroup_inode",
+        "phase",
+        "root_exit_code",
+        "termination"
+      ]
+    },
+    "BootstrapWork": {
+      "description": "Transitional MR-0 Linux work descriptor, executed only by the installed bridge.",
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "delegate_test_cgroup": {
+          "description": "Test-only nested delegation, contained by the outer bootstrap obligation.\nThe supervisor supplies STILLYARD_TEST_CGROUP_ROOT; no host subtree is writable.",
+          "type": "boolean"
+        },
+        "distribution": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "executable": {
+          "type": "string"
+        },
+        "operation_id": {
+          "type": "string",
+          "format": "uuid",
+          "default": "00000000-0000-0000-0000-000000000000"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "user": {
+          "type": "string"
+        },
+        "working_directory": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "distribution",
+        "user",
+        "executable",
+        "args",
+        "working_directory",
+        "environment",
+        "timeout_seconds"
+      ]
+    },
+    "BridgeCommand": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "hello": {
+              "$ref": "#/$defs/ConnectHello"
+            },
+            "kind": {
+              "type": "string",
+              "const": "connect_begin"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "hello"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "challenge": {
+              "$ref": "#/$defs/ConnectChallenge"
+            },
+            "kind": {
+              "type": "string",
+              "const": "connect_finish"
+            },
+            "tag": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0
+              },
+              "maxItems": 32,
+              "minItems": 32
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "challenge",
+            "tag"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "exchange"
+            },
+            "request": {
+              "$ref": "#/$defs/Request"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "request"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "domain": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "kind": {
+              "type": "string",
+              "const": "participant"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "domain"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "authority_status"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "scheduling_status"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "BridgeOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "challenge": {
+              "$ref": "#/$defs/ConnectChallenge"
+            },
+            "kind": {
+              "type": "string",
+              "const": "challenge"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "challenge"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "participant"
+            },
+            "participant": {
+              "$ref": "#/$defs/ParticipantSnapshot"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "participant"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "exchange"
+            },
+            "reply": {
+              "$ref": "#/$defs/Reply"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "reply"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "authority": {
+              "$ref": "#/$defs/AuthoritySnapshot"
+            },
+            "kind": {
+              "type": "string",
+              "const": "authority"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "authority"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "scheduling"
+            },
+            "snapshot": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MachineSchedulingSnapshot"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "error"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "code",
+            "detail"
+          ]
+        }
+      ]
+    },
+    "BridgeReply": {
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "$ref": "#/$defs/BridgeOutcome"
+        },
+        "protocol_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "request_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "protocol_version",
+        "request_id",
+        "outcome"
+      ]
+    },
+    "BridgeRequest": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/BridgeCommand"
+        },
+        "deadline_millis": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "protocol_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "request_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "protocol_version",
+        "request_id",
+        "deadline_millis",
+        "command"
+      ]
+    },
+    "Candidate": {
+      "type": "object",
+      "properties": {
+        "claims": {
+          "$ref": "#/$defs/Claims"
+        },
+        "configuration_sha256": {
+          "type": "string"
+        },
+        "key": {
+          "$ref": "#/$defs/AllocationKey"
+        },
+        "observed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ObservedResourcePolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "owner": {
+          "$ref": "#/$defs/AllocationOwner"
+        },
+        "priority": {
+          "type": "integer",
+          "format": "int8",
+          "maximum": 127,
+          "minimum": -128
+        },
+        "quiet": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuietPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "owner",
+        "revision",
+        "priority",
+        "claims",
+        "configuration_sha256"
+      ]
+    },
+    "Claims": {
+      "type": "object",
+      "properties": {
+        "exclusive_fences": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "impacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scalars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          }
+        },
+        "shared_fences": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "scalars",
+        "shared_fences",
+        "exclusive_fences",
+        "impacts"
+      ]
+    },
+    "Command": {
+      "oneOf": [
+        {
+          "description": "Retain the full debit while local containment/lifetime proof is unknown.",
+          "type": "object",
+          "properties": {
+            "key": {
+              "$ref": "#/$defs/AllocationKey"
+            },
+            "offer_nonce": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "operation": {
+              "type": "string",
+              "const": "report_uncertain"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "key",
+            "offer_nonce",
+            "reason"
+          ]
+        },
+        {
+          "description": "Enumerate every outstanding allocation in bounded pages.",
+          "type": "object",
+          "properties": {
+            "after": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllocationKey"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "limit": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "operation": {
+              "type": "string",
+              "const": "inspect_page"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "limit"
+          ]
+        },
+        {
+          "description": "The manager has durably applied every reply through this sequence.",
+          "type": "object",
+          "properties": {
+            "operation": {
+              "type": "string",
+              "const": "acknowledge"
+            },
+            "through_sequence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "through_sequence"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "candidate": {
+              "$ref": "#/$defs/Candidate"
+            },
+            "operation": {
+              "type": "string",
+              "const": "candidate_upsert"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "candidate"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "key": {
+              "$ref": "#/$defs/AllocationKey"
+            },
+            "operation": {
+              "type": "string",
+              "const": "withdraw"
+            },
+            "revision": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "key",
+            "revision"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "key": {
+              "$ref": "#/$defs/AllocationKey"
+            },
+            "offer_nonce": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "operation": {
+              "type": "string",
+              "const": "arm"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "key",
+            "offer_nonce"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "intent": {
+              "$ref": "#/$defs/InvocationIntent"
+            },
+            "key": {
+              "$ref": "#/$defs/AllocationKey"
+            },
+            "offer_nonce": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "operation": {
+              "type": "string",
+              "const": "authorize_invocation"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "key",
+            "offer_nonce",
+            "intent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "key": {
+              "$ref": "#/$defs/AllocationKey"
+            },
+            "operation": {
+              "type": "string",
+              "const": "cancel_candidate"
+            },
+            "revision": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "key",
+            "revision"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "type": "string",
+              "const": "release"
+            },
+            "release": {
+              "$ref": "#/$defs/SealedRelease"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "release"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "key": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllocationKey"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "operation": {
+              "type": "string",
+              "const": "inspect"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "operation"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "begin_sequence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "configuration_sha256": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string"
+            },
+            "end_sequence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "operation": {
+              "type": "string",
+              "const": "reconcile_begin"
+            },
+            "page_count": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "snapshot_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "snapshot_id",
+            "begin_sequence",
+            "end_sequence",
+            "page_count",
+            "digest",
+            "configuration_sha256"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "allocations": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReconcileAllocation"
+              }
+            },
+            "index": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "operation": {
+              "type": "string",
+              "const": "reconcile_page"
+            },
+            "snapshot_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "snapshot_id",
+            "index",
+            "allocations"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "type": "string",
+              "const": "reconcile_commit"
+            },
+            "snapshot_id": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "snapshot_id"
+          ]
+        }
+      ]
+    },
+    "ConnectChallenge": {
+      "description": "Every identity, nonce and version participates in the authentication tag.\nThe receiving coordinator must also match its pending, single-use challenge.",
+      "type": "object",
+      "properties": {
+        "coordinator_installation": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "coordinator_nonce": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0
+          },
+          "maxItems": 32,
+          "minItems": 32
+        },
+        "coordinator_protocol": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "executor_nonce": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0
+          },
+          "maxItems": 32,
+          "minItems": 32
+        },
+        "executor_protocol": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "installation": {
+          "$ref": "#/$defs/InstallationIdentity"
+        },
+        "session": {
+          "$ref": "#/$defs/SessionIdentity"
+        },
+        "wire_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "wire_version",
+        "coordinator_protocol",
+        "executor_protocol",
+        "coordinator_installation",
+        "installation",
+        "session",
+        "coordinator_nonce",
+        "executor_nonce"
+      ]
+    },
+    "ConnectHello": {
+      "type": "object",
+      "properties": {
+        "executor_incarnation": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "executor_nonce": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0
+          },
+          "maxItems": 32,
+          "minItems": 32
+        },
+        "executor_protocol": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "installation_nonce": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "manager_store_uuid": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "installation_nonce",
+        "manager_store_uuid",
+        "executor_incarnation",
+        "executor_protocol",
+        "executor_nonce"
+      ]
+    },
+    "CoordinatorHistory": {
+      "type": "object",
+      "properties": {
+        "daemon_generation": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "pending_reset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResetGate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "process_identity": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "store_uuid": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "store_uuid",
+        "daemon_generation",
+        "process_identity"
+      ]
+    },
+    "DomainClearanceInventory": {
+      "type": "object",
+      "properties": {
+        "authority_epoch": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "committed": {
+          "type": "boolean"
+        },
+        "grants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GrantSnapshot"
+          }
+        },
+        "installation": {
+          "$ref": "#/$defs/InstallationIdentity"
+        },
+        "machine_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "manager_store_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "machine_id",
+        "authority_epoch",
+        "installation",
+        "manager_store_uuid",
+        "committed",
+        "grants"
+      ]
+    },
+    "DomainClearancePreview": {
+      "type": "object",
+      "properties": {
+        "inventory": {
+          "$ref": "#/$defs/DomainClearanceInventory"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "inventory",
+        "sha256"
+      ]
+    },
+    "DomainRetirementAudit": {
+      "type": "object",
+      "properties": {
+        "preview": {
+          "$ref": "#/$defs/DomainClearancePreview"
+        },
+        "request": {
+          "$ref": "#/$defs/DomainRetirementRequest"
+        },
+        "requester": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "requester_principal": {
+          "type": "string"
+        },
+        "retired_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "preview",
+        "request",
+        "requester",
+        "requester_principal",
+        "retired_unix_millis"
+      ]
+    },
+    "DomainRetirementReceipt": {
+      "type": "object",
+      "properties": {
+        "audit_sha256": {
+          "type": "string"
+        },
+        "domain_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "grants_retired": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "inventory_sha256": {
+          "type": "string"
+        },
+        "manager_store_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "operation_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "requester": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "requester_principal": {
+          "type": "string"
+        },
+        "retired_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "risk_accepted": {
+          "type": "boolean"
+        },
+        "tickets_retired": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation_id",
+        "domain_id",
+        "manager_store_uuid",
+        "inventory_sha256",
+        "audit_sha256",
+        "requester",
+        "requester_principal",
+        "reason",
+        "risk_accepted",
+        "retired_unix_millis",
+        "grants_retired",
+        "tickets_retired"
+      ]
+    },
+    "DomainRetirementRequest": {
+      "type": "object",
+      "properties": {
+        "accept_risk": {
+          "type": "boolean"
+        },
+        "domain_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "expected_inventory_sha256": {
+          "type": "string"
+        },
+        "operation_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operation_id",
+        "domain_id",
+        "expected_inventory_sha256",
+        "reason",
+        "accept_risk"
+      ]
+    },
+    "EventCursor": {
+      "type": "object",
+      "properties": {
+        "coordinator_store_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sequence": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "coordinator_store_uuid",
+        "sequence"
+      ]
+    },
+    "EventPage": {
+      "description": "Events are bounded observations, never cleanup or authority proofs. A gap\nrequires refreshing allocation/accounting snapshots before applying deltas.",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "$ref": "#/$defs/EventCursor"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AllocationEvent"
+          }
+        },
+        "gap": {
+          "type": "boolean"
+        },
+        "more": {
+          "type": "boolean"
+        },
+        "oldest_available": {
+          "$ref": "#/$defs/EventCursor"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "events",
+        "cursor",
+        "oldest_available",
+        "gap",
+        "more"
+      ]
+    },
+    "GrantSnapshot": {
+      "type": "object",
+      "properties": {
+        "armed_unix_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "candidate": {
+          "$ref": "#/$defs/Candidate"
+        },
+        "grant_id": {
+          "type": "string"
+        },
+        "offer_deadline_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "offer_nonce": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "offered_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "queue_accepted_unix_millis": {
+          "description": "Original coordinator queue identity/time, retained independently of SQL.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "queue_sequence": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "released_unix_millis": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "risk_clearance": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "sealed_release": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SealedRelease"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/GrantState"
+        },
+        "tickets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InvocationIntent"
+          }
+        },
+        "uncertainty_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "queue_accepted_unix_millis",
+        "queue_sequence",
+        "grant_id",
+        "candidate",
+        "offer_nonce",
+        "state",
+        "offered_unix_millis",
+        "offer_deadline_unix_millis",
+        "tickets"
+      ]
+    },
+    "GrantState": {
+      "type": "string",
+      "enum": [
+        "offered",
+        "expired",
+        "armed",
+        "uncertain",
+        "released"
+      ]
+    },
+    "InstallationIdentity": {
+      "type": "object",
+      "properties": {
+        "domain_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "installation_nonce": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "owner_uid": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "role": {
+          "$ref": "#/$defs/ParticipantRole"
+        },
+        "runtime_registration": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "installation_nonce",
+        "domain_id",
+        "owner_uid",
+        "runtime_registration",
+        "role"
+      ]
+    },
+    "InvocationIntent": {
+      "type": "object",
+      "properties": {
+        "boundary_sha256": {
+          "description": "Digest of the manager's durable platform boundary/root identity record.",
+          "type": "string"
+        },
+        "containment_id": {
+          "type": "string"
+        },
+        "executable_sha256": {
+          "type": "string"
+        },
+        "invocation_id": {
+          "type": "string"
+        },
+        "previous_cleanup": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TicketCleanup"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "readiness_challenge": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "release_sequence": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "role": {
+          "$ref": "#/$defs/InvocationRole"
+        },
+        "role_index": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "invocation_id",
+        "containment_id",
+        "role",
+        "role_index",
+        "release_sequence",
+        "executable_sha256",
+        "boundary_sha256",
+        "readiness_challenge"
+      ]
+    },
+    "InvocationRole": {
+      "type": "string",
+      "enum": [
+        "primary",
+        "probe",
+        "postcondition"
+      ]
+    },
+    "InvocationTicket": {
+      "type": "object",
+      "properties": {
+        "configuration_sha256": {
+          "type": "string"
+        },
+        "grant_id": {
+          "type": "string"
+        },
+        "host_observation_generation": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "host_sample_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "intent": {
+          "$ref": "#/$defs/InvocationIntent"
+        },
+        "issued_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "key": {
+          "$ref": "#/$defs/AllocationKey"
+        },
+        "offer_nonce": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "session": {
+          "$ref": "#/$defs/SessionIdentity"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "grant_id",
+        "key",
+        "offer_nonce",
+        "intent",
+        "configuration_sha256",
+        "issued_unix_millis",
+        "host_observation_generation",
+        "host_sample_unix_millis",
+        "session"
+      ]
+    },
+    "MachineSchedulingMode": {
+      "type": "string",
+      "enum": [
+        "standalone",
+        "coordinator",
+        "attached"
+      ]
+    },
+    "MachineSchedulingSnapshot": {
+      "type": "object",
+      "properties": {
+        "authority_epoch": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "blocker": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Blocker"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "configuration_sha256": {
+          "type": "string"
+        },
+        "domains": {
+          "$ref": "#/$defs/AuthorityDomains"
+        },
+        "mode": {
+          "$ref": "#/$defs/MachineSchedulingMode"
+        },
+        "observed_unix_millis": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScopedResourceSnapshot"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "authority_epoch",
+        "domains",
+        "mode",
+        "observed_unix_millis",
+        "configuration_sha256",
+        "resources"
+      ]
+    },
+    "ManagedParent": {
+      "description": "Server-authenticated identity of the primary Invocation that submitted child work.",
+      "type": "object",
+      "properties": {
+        "attempt_id": {
+          "type": "string"
+        },
+        "invocation_id": {
+          "type": "string"
+        },
+        "job_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "job_id",
+        "attempt_id",
+        "invocation_id"
+      ]
+    },
+    "NativeAllocationSnapshot": {
+      "description": "Allocation/Lease association. The historical Rust type name is retained.\nNative admission shares the Grant and Lease UUID; an attached allocation\nreports its actual coordinator Grant ID and separately bound local Lease ID.\nThis observation introduces no second resource counter.",
+      "type": "object",
+      "properties": {
+        "claims": {
+          "$ref": "#/$defs/Claims"
+        },
+        "grant_id": {
+          "type": "string"
+        },
+        "key": {
+          "description": "Absent when authority identity/history cannot be established.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllocationKey"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lease_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "owner": {
+          "$ref": "#/$defs/AllocationOwner"
+        },
+        "state": {
+          "$ref": "#/$defs/GrantState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "grant_id",
+        "lease_id",
+        "owner",
+        "state",
+        "claims"
+      ]
+    },
+    "NativeStartPermission": {
+      "description": "Reset-independent coverage of a born-contained native root before it can\nexecute user code. Native SQL and this record describe the same allocation.",
+      "type": "object",
+      "properties": {
+        "allocation": {
+          "$ref": "#/$defs/NativeAllocationSnapshot"
+        },
+        "boundary_kind": {
+          "type": "string"
+        },
+        "containment_id": {
+          "type": "string"
+        },
+        "creator_identity": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "daemon_generation": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "executable_sha256": {
+          "type": "string"
+        },
+        "invocation_id": {
+          "type": "string"
+        },
+        "root_identity": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "allocation",
+        "invocation_id",
+        "containment_id",
+        "root_identity",
+        "creator_identity",
+        "daemon_generation",
+        "executable_sha256",
+        "boundary_kind"
+      ]
+    },
+    "ObservedResourcePolicy": {
+      "type": "object",
+      "properties": {
+        "cpu_utilization_percent_at_most": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "gpu_utilization_percent_at_most": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0
+          },
+          "default": {}
+        },
+        "max_sample_age_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "max_sample_age_seconds"
+      ]
+    },
+    "Outcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "configuration_sha256": {
+              "type": "string"
+            },
+            "grants": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/GrantSnapshot"
+              }
+            },
+            "next": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllocationKey"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result": {
+              "type": "string",
+              "const": "inventory_page"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "grants",
+            "configuration_sha256"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "result": {
+              "type": "string",
+              "const": "acknowledged"
+            },
+            "through_sequence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "through_sequence"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "result": {
+              "type": "string",
+              "const": "accepted"
+            },
+            "revision": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "revision"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "grant": {
+              "$ref": "#/$defs/GrantSnapshot"
+            },
+            "result": {
+              "type": "string",
+              "const": "grant"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "grant"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "result": {
+              "type": "string",
+              "const": "ticket"
+            },
+            "ticket": {
+              "$ref": "#/$defs/InvocationTicket"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "ticket"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "grant_id": {
+              "type": "string"
+            },
+            "result": {
+              "type": "string",
+              "const": "released"
+            },
+            "sealed_sequence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "grant_id",
+            "sealed_sequence"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "grants": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/GrantSnapshot"
+              }
+            },
+            "result": {
+              "type": "string",
+              "const": "inspection"
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "grants",
+            "truncated"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "end_sequence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "released": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AllocationKey"
+              }
+            },
+            "result": {
+              "type": "string",
+              "const": "reconciled"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "end_sequence",
+            "released"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            },
+            "result": {
+              "type": "string",
+              "const": "rejected"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "result",
+            "code",
+            "detail"
+          ]
+        }
+      ]
+    },
+    "ParticipantRole": {
+      "type": "string",
+      "enum": [
+        "executor",
+        "runtime_adapter"
+      ]
+    },
+    "ParticipantSnapshot": {
+      "type": "object",
+      "properties": {
+        "accepted_sequence": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "connection_epoch": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "executor_incarnation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "installation": {
+          "$ref": "#/$defs/InstallationIdentity"
+        },
+        "manager_store_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "reconciliation_required": {
+          "type": "boolean"
+        },
+        "retired_sequence_floor": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "installation",
+        "manager_store_uuid",
+        "connection_epoch",
+        "reconciliation_required",
+        "retired_sequence_floor",
+        "accepted_sequence"
+      ]
+    },
+    "QuietDetector": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "cpu_utilization"
+            },
+            "max_percent": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "max_percent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "gpu_uuid": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "gpu_utilization"
+            },
+            "max_percent": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "gpu_uuid",
+            "max_percent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "disk_utilization"
+            },
+            "max_percent": {
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "max_percent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "gpu_uuid": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "foreign_gpu_compute"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "gpu_uuid"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "blocked_processes"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "QuietPolicy": {
+      "type": "object",
+      "properties": {
+        "detectors": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/QuietDetector"
+          }
+        },
+        "max_sample_age_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "stable_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "wait_budget_seconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "stable_seconds",
+        "max_sample_age_seconds",
+        "wait_budget_seconds"
+      ]
+    },
+    "ReconcileAllocation": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/AllocationKey"
+        },
+        "offer_nonce": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sealed_release": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SealedRelease"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tickets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InvocationIntent"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "offer_nonce",
+        "tickets"
+      ]
+    },
+    "Reply": {
+      "type": "object",
+      "properties": {
+        "coordinator_revision": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "operation_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "outcome": {
+          "$ref": "#/$defs/Outcome"
+        },
+        "request_sequence": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "session": {
+          "$ref": "#/$defs/SessionIdentity"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "session",
+        "request_sequence",
+        "operation_id",
+        "coordinator_revision",
+        "outcome"
+      ]
+    },
+    "Request": {
+      "type": "object",
+      "properties": {
+        "authentication": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0
+          },
+          "maxItems": 32,
+          "minItems": 32
+        },
+        "command": {
+          "$ref": "#/$defs/Command"
+        },
+        "operation_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "payload_sha256": {
+          "type": "string"
+        },
+        "request_sequence": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "session": {
+          "$ref": "#/$defs/SessionIdentity"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "session",
+        "request_sequence",
+        "operation_id",
+        "payload_sha256",
+        "command",
+        "authentication"
+      ]
+    },
+    "ResetGate": {
+      "type": "object",
+      "properties": {
+        "displaced_store_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "reset_id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "reset_id",
+        "displaced_store_uuid",
+        "reason"
+      ]
+    },
+    "ResourceKind": {
+      "type": "string",
+      "enum": [
+        "scalar",
+        "filesystem_fence",
+        "impact"
+      ]
+    },
+    "ScopedResourceId": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ResourceKind"
+        },
+        "resource_id": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "kind",
+        "resource_id"
+      ]
+    },
+    "ScopedResourceSnapshot": {
+      "type": "object",
+      "properties": {
+        "capacity": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "granted": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "offered": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "reserved": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "resource": {
+          "$ref": "#/$defs/ScopedResourceId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "resource",
+        "capacity",
+        "granted",
+        "offered",
+        "reserved"
+      ]
+    },
+    "SealedRelease": {
+      "description": "This is a domain-scoped manager attestation, accepted only from its paired\nexecutor. The platform manager must seal all start rights before sending it.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/AllocationKey"
+        },
+        "offer_nonce": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sealed_sequence": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "tickets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TicketCleanup"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "offer_nonce",
+        "sealed_sequence",
+        "tickets"
+      ]
+    },
+    "SessionIdentity": {
+      "type": "object",
+      "properties": {
+        "authority_epoch": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "connection_epoch": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "domain_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "executor_incarnation": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "machine_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "manager_store_uuid": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "machine_id",
+        "authority_epoch",
+        "domain_id",
+        "manager_store_uuid",
+        "executor_incarnation",
+        "connection_epoch"
+      ]
+    },
+    "TicketCleanup": {
+      "type": "object",
+      "properties": {
+        "boundary_sha256": {
+          "type": "string"
+        },
+        "invocation_id": {
+          "type": "string"
+        },
+        "proof_sha256": {
+          "type": "string"
+        },
+        "release_sequence": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "user_code_released": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "invocation_id",
+        "release_sequence",
+        "boundary_sha256",
+        "proof_sha256",
+        "user_code_released"
+      ]
+    }
+  }
+}

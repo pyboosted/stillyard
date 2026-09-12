@@ -1,0 +1,26 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "/home/pythonic/Development/stillyard-handoff-20260912/coreutils-control/control.py"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard-handoff-20260912/coreutils-control",
+  "environment": {
+    "set": {
+      "HOME": "/home/pythonic",
+      "PATH": "/usr/bin:/bin"
+    }
+  },
+  "resources": {},
+  "timeout_seconds": 30,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "mr3-coreutils-fd-control"
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/true",
+  "args": [],
+  "working_directory": "/home/pythonic/Development/stillyard-mr3-attestation-control-20260910z11e",
+  "timeout_seconds": 90,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "acceptance",
+      "value": "non-primary-attestation-control"
+    }
+  ],
+  "child_submission_policy": {
+    "min_priority": 0,
+    "max_priority": 0,
+    "max_claims": {},
+    "allowed_impacts": [],
+    "required_labels": [],
+    "fences": {},
+    "allow_observed": false,
+    "allow_quiet": false,
+    "allow_delegation": false
+  },
+  "postconditions": [
+    {
+      "executable": "/usr/bin/python3",
+      "args": [
+        "/home/pythonic/Development/stillyard-mr3-attestation-control-20260910z11e/control.py"
+      ]
+    }
+  ],
+  "conditions": [
+    {
+      "predicate": {
+        "kind": "probe",
+        "probe": {
+          "executable": "/usr/bin/python3",
+          "args": [
+            "/home/pythonic/Development/stillyard-mr3-attestation-control-20260910z11e/control.py"
+          ],
+          "working_directory": "/home/pythonic/Development/stillyard-mr3-attestation-control-20260910z11e",
+          "resources": {},
+          "timeout_seconds": 30,
+          "interval_seconds": 1,
+          "accepted_exit_codes": [
+            0
+          ]
+        }
+      },
+      "deadline": {
+        "kind": "relative",
+        "seconds": 120
+      }
+    }
+  ]
+}

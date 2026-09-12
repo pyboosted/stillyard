@@ -1,0 +1,209 @@
+{
+  "outcome": {
+    "outcome": "final",
+    "value": {
+      "receipt": {
+        "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52f0-7862-a675-ef728cbd7e66",
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52f1-7113-9ddd-64091d95999d",
+        "submission_state": "accepted",
+        "job_state": "pending",
+        "reason_code": null,
+        "accepted_unix_millis": 1789044478705,
+        "priority": 0,
+        "effective_priority": 0,
+        "blockers": [],
+        "queue_rank": 1,
+        "reservation": null,
+        "conditions": [],
+        "estimate": {
+          "confidence": "estimated",
+          "start_in_millis": 0,
+          "assumptions": [
+            "currently admissible"
+          ]
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a08b4a-cfab-7740-aef2-bcf946f2f918"
+      },
+      "snapshot": {
+        "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52f1-7113-9ddd-64091d95999d",
+        "submission_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52f0-7862-a675-ef728cbd7e66",
+        "batch_id": null,
+        "batch_member": null,
+        "state": "final",
+        "outcome": "succeeded",
+        "reason_code": null,
+        "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52ff-7992-8252-0acee5fa4858",
+        "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52ff-7992-8252-0ad07c3b9ee2",
+        "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52ff-7992-8252-0aec3100381f",
+        "root_exit_code": 0,
+        "cancel_requested": false,
+        "accepted_unix_millis": 1789044478705,
+        "priority": 0,
+        "effective_priority": null,
+        "queue_rank": null,
+        "reservation": null,
+        "conditions": [],
+        "started_unix_millis": 1789044478737,
+        "finished_unix_millis": 1789044478887,
+        "spec": {
+          "spec_version": 4,
+          "priority": 0,
+          "executable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+          "args": [
+            "-c",
+            "import os,subprocess,sys; from pathlib import Path; env={k:v for k,v in os.environ.items() if not k.startswith(\"STILLYARD_\")}; p=subprocess.run([sys.executable,sys.argv[1],\"--exchange-directory\",sys.argv[2],\"--approval-file\",sys.argv[3]],env=env,capture_output=True,text=True); print(p.stderr); assert p.returncode!=0 and \"external starter must not belong to a Windows Job\" in p.stderr; assert not Path(sys.argv[2]).exists(); print(\"ACTUAL WINDOWS JOB MEMBERSHIP REJECTED WITHOUT ENVIRONMENT HINTS\")",
+            "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11g\\starter.py",
+            "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11g\\starter-rejects-job\\must-not-exist",
+            "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11g\\starter-rejects-job\\absent-approval.json"
+          ],
+          "working_directory": "C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11g",
+          "stdin": {
+            "kind": "eof"
+          },
+          "environment": {
+            "set": {
+              "PATH": "C:\\Windows\\System32;C:\\Windows",
+              "SystemRoot": "C:\\Windows",
+              "USERPROFILE": "C:\\Users\\User"
+            },
+            "unset": []
+          },
+          "resources": {
+            "cpu_units": null,
+            "ram_mb": null,
+            "cargo_slots": null,
+            "gpu_slots": null,
+            "custom": {},
+            "shared_fences": [],
+            "exclusive_fences": [],
+            "impacts": []
+          },
+          "observed": null,
+          "conditions": [],
+          "retry": {
+            "max_attempts": 1,
+            "backoff_seconds": 0,
+            "retryable": []
+          },
+          "postconditions": [],
+          "labels": [
+            {
+              "key": "project",
+              "value": "stillyard"
+            },
+            {
+              "key": "gate",
+              "value": "mr3-external-starter-job-rejection"
+            }
+          ],
+          "expected_duration_seconds": null,
+          "timeout_seconds": 40,
+          "quiet": null,
+          "artifacts": [],
+          "child_submission_policy": null
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "blockers": [],
+        "attempts": [
+          {
+            "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52ff-7992-8252-0acee5fa4858",
+            "attempt_index": 1,
+            "verdict": "succeeded",
+            "reason_code": null,
+            "created_unix_millis": 1789044478718,
+            "started_unix_millis": 1789044478718,
+            "deadline_unix_millis": 1789044518718,
+            "finished_unix_millis": 1789044478887,
+            "primary_result": {
+              "schema_version": 1,
+              "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52f1-7113-9ddd-64091d95999d",
+              "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52ff-7992-8252-0acee5fa4858",
+              "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52ff-7992-8252-0ad07c3b9ee2",
+              "verdict": "succeeded",
+              "root_exit_code": 0,
+              "termination": "exited",
+              "containment": "empty",
+              "started_unix_millis": 1789044478737,
+              "exited_unix_millis": 1789044478875,
+              "resolved_unix_millis": 1789044478879
+            },
+            "admission": null,
+            "invocations": [
+              {
+                "invocation_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52ff-7992-8252-0ad07c3b9ee2",
+                "role": "primary",
+                "role_index": 0,
+                "state": "resolved",
+                "root_pid": 44912,
+                "root_identity": {
+                  "platform": "windows",
+                  "host_id": "sha256:c5771be90fd3fa7878770beb5691d14fd45d077de00c34493f5e8e22e04535a4",
+                  "boot_id": "3472a414-3353-11f1-8eac-b29d069fdb29",
+                  "pid": 44912,
+                  "creation_filetime_100ns": 134335180787236945
+                },
+                "root_exit_code": 0,
+                "exit_classification": null,
+                "executable_hash": "85b71d8c6ec1905935f74be0c9869aae198d00e98f39df699ec66f9c5a84cecd",
+                "daemon_generation": "01a08b4a-cfab-7740-aef2-bcf946f2f918",
+                "started_unix_millis": 1789044478737,
+                "finished_unix_millis": 1789044478879,
+                "containment": {
+                  "containment_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52ff-7992-8252-0aec3100381f",
+                  "state": "empty",
+                  "strength": "windows_job_object",
+                  "incident_id": null,
+                  "incident": null,
+                  "resolution": null,
+                  "resolution_audit": null
+                },
+                "stdout_tail": "Traceback (most recent call last):\r\n  File \"C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11g\\starter.py\", line 42, in <module>\r\n    if __name__=='__main__':sys.exit(main())\r\n                                     ~~~~^^\r\n  File \"C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11g\\starter.py\", line 16, in main\r\n    identity=process(os.getpid());require(not identity['in_job'],'external starter must not belong to a Windows Job')\r\n                                  ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"C:\\Development\\stillyard-mr3-lifecycle-window-20260910z11g\\common.py\", line 13, in require\r\n    raise RuntimeError(message)\r\nRuntimeError: external starter must not belong to a Windows Job\r\n\r\nACTUAL WINDOWS JOB MEMBERSHIP REJECTED WITHOUT ENVIRONMENT HINTS\r\n",
+                "stderr_tail": ""
+              }
+            ]
+          }
+        ],
+        "allocations": [
+          {
+            "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52ff-7992-8252-0af1e7f9189e",
+            "lease_id": "01a08b5c-52ff-7992-8252-0af1e7f9189e",
+            "key": {
+              "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+              "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+              "domain_id": "01a08727-697d-7002-b4e5-c9c5feed5486",
+              "manager_store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+              "lease_id": "01a08b5c-52ff-7992-8252-0af1e7f9189e"
+            },
+            "owner": {
+              "kind": "work",
+              "job_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52f1-7113-9ddd-64091d95999d",
+              "attempt_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a08b5c-52ff-7992-8252-0acee5fa4858"
+            },
+            "state": "released",
+            "claims": {
+              "scalars": {
+                "cargo_slots": 0,
+                "cpu_units": 0,
+                "gpu_slots": 0,
+                "ram_mb": 0
+              },
+              "shared_fences": [],
+              "exclusive_fences": [],
+              "impacts": []
+            }
+          }
+        ],
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a08b4a-cfab-7740-aef2-bcf946f2f918"
+      }
+    }
+  },
+  "exit_source": "scheduler",
+  "exit_code": 0
+}
