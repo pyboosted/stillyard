@@ -1449,11 +1449,6 @@ mod tests {
             .join("System32")
             .join("cmd.exe");
         let marker = temp.path().join("validator-seen.marker");
-        let powershell = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
-            .join("System32")
-            .join("WindowsPowerShell")
-            .join("v1.0")
-            .join("powershell.exe");
         let mut spec = job_spec(
             temp.path(),
             command.clone(),
@@ -1464,25 +1459,24 @@ mod tests {
             backoff_seconds: 0,
             retryable: vec!["postcondition_retryable".into()],
         };
-        // This tests retry semantics, not PowerShell startup speed on a busy host.
+        // Keep the isolated managed helper bounded while testing retry semantics.
         spec.timeout_seconds = Some(60);
         spec.environment.set.insert(
             "STY_VALIDATOR_MARKER".into(),
             marker.to_string_lossy().into_owned(),
         );
         spec.postconditions.push(PostconditionSpec {
-                executable: powershell,
-                args: vec![
-                    "-NoLogo".into(),
-                    "-NoProfile".into(),
-                    "-NonInteractive".into(),
-                    "-Command".into(),
-                    "if (Test-Path -LiteralPath $env:STY_VALIDATOR_MARKER) { exit 0 } else { New-Item -ItemType File -Path $env:STY_VALIDATOR_MARKER | Out-Null; exit 10 }".into(),
-                ],
-                working_directory: None,
-                accepted_exit_codes: vec![0],
-                retryable_exit_codes: vec![10],
-            });
+            executable: std::env::current_exe().unwrap(),
+            args: vec![
+                "--ignored".into(),
+                "--exact".into(),
+                "runner::windows::tests::postcondition_retry_helper".into(),
+                "--nocapture".into(),
+            ],
+            working_directory: None,
+            accepted_exit_codes: vec![0],
+            retryable_exit_codes: vec![10],
+        });
         let (first, store) = prepared(&spec, temp.path());
         run(&first, &store, TEST_ENDPOINT);
         let second = {
@@ -1523,6 +1517,21 @@ mod tests {
             snapshot.attempts[1].invocations[1].exit_classification,
             Some(ExitClassification::Accepted)
         );
+    }
+
+    #[test]
+    #[ignore = "launched only as an isolated managed postcondition retry probe"]
+    fn postcondition_retry_helper() {
+        assert_eq!(std::env::var("STILLYARD_ROLE").unwrap(), "postcondition");
+        let marker = PathBuf::from(std::env::var_os("STY_VALIDATOR_MARKER").unwrap());
+        match OpenOptions::new().write(true).create_new(true).open(marker) {
+            Ok(file) => {
+                drop(file);
+                std::process::exit(10);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => panic!("cannot create postcondition retry marker: {error}"),
+        }
     }
 
     #[test]
@@ -1635,18 +1644,8 @@ mod tests {
     #[test]
     fn primary_tree_is_empty_before_postcondition_receives_immutable_result() {
         let temp = tempfile::tempdir().unwrap();
-        let powershell = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
-            .join("System32")
-            .join("WindowsPowerShell")
-            .join("v1.0")
-            .join("powershell.exe");
         let pid_path = temp.path().join("grandchild.pid");
         let result_path = temp.path().join("primary-result.json");
-        let postcondition_script = format!(
-            "$result = $env:STILLYARD_PRIMARY_RESULT | ConvertFrom-Json; $childPid = [int](Get-Content -LiteralPath '{}'); if (Get-Process -Id $childPid -ErrorAction SilentlyContinue) {{ exit 91 }}; $result | ConvertTo-Json -Compress | Set-Content -LiteralPath '{}'; if ($result.root_exit_code -ne 25 -or $result.verdict -ne 'process_failed' -or $result.containment -ne 'empty') {{ exit 92 }}; exit 0",
-            pid_path.display(),
-            result_path.display(),
-        );
         let mut spec = job_spec(
             temp.path(),
             std::env::current_exe().unwrap(),
@@ -1660,17 +1659,20 @@ mod tests {
             "STY_TEST_PID_FILE".into(),
             pid_path.to_string_lossy().into_owned(),
         );
-        // Allow PowerShell postcondition startup; the child cannot exit naturally and
-        // falsely satisfy the cleanup assertion while this budget elapses.
+        spec.environment.set.insert(
+            "STY_TEST_RESULT_FILE".into(),
+            result_path.to_string_lossy().into_owned(),
+        );
+        // Both isolated managed helpers are bounded; the child cannot exit naturally
+        // and falsely satisfy the cleanup assertion while this budget elapses.
         spec.timeout_seconds = Some(60);
         spec.postconditions.push(PostconditionSpec {
-            executable: powershell,
+            executable: std::env::current_exe().unwrap(),
             args: vec![
-                "-NoLogo".into(),
-                "-NoProfile".into(),
-                "-NonInteractive".into(),
-                "-Command".into(),
-                postcondition_script,
+                "--ignored".into(),
+                "--exact".into(),
+                "runner::windows::tests::postcondition_result_helper".into(),
+                "--nocapture".into(),
             ],
             working_directory: None,
             accepted_exit_codes: vec![0],
@@ -1701,6 +1703,46 @@ mod tests {
             snapshot.attempts[0].invocations[1].exit_classification,
             Some(ExitClassification::Accepted)
         );
+    }
+
+    #[test]
+    #[ignore = "launched only as an isolated managed primary-result probe"]
+    fn postcondition_result_helper() {
+        use windows_sys::Win32::Foundation::ERROR_INVALID_PARAMETER;
+        use windows_sys::Win32::System::Threading::OpenProcess;
+
+        assert_eq!(std::env::var("STILLYARD_ROLE").unwrap(), "postcondition");
+        let pid_path = PathBuf::from(std::env::var_os("STY_TEST_PID_FILE").unwrap());
+        let pid = std::fs::read_to_string(pid_path)
+            .unwrap()
+            .parse::<u32>()
+            .unwrap();
+        assert!(pid > 0);
+        const SYNCHRONIZE_ACCESS: u32 = 0x0010_0000;
+        // SAFETY: request only synchronization access to the recorded descendant.
+        let process = unsafe { OpenProcess(SYNCHRONIZE_ACCESS, 0, pid) };
+        if process.is_null() {
+            assert_eq!(
+                std::io::Error::last_os_error().raw_os_error(),
+                Some(ERROR_INVALID_PARAMETER as i32),
+                "only a missing PID proves the descendant is gone"
+            );
+        } else {
+            let process = OwnedHandle::new(process).unwrap();
+            // SAFETY: process owns a live synchronization handle; this never waits.
+            assert_eq!(
+                unsafe { WaitForSingleObject(process.raw(), 0) },
+                WAIT_OBJECT_0,
+                "primary descendant must be dead before postcondition user code"
+            );
+        }
+        let raw_result = std::env::var("STILLYARD_PRIMARY_RESULT").unwrap();
+        let result: crate::PrimaryInvocationResult = serde_json::from_str(&raw_result).unwrap();
+        assert_eq!(result.root_exit_code, Some(25));
+        assert_eq!(result.verdict, InvocationVerdict::ProcessFailed);
+        assert_eq!(result.containment, crate::ContainmentState::Empty);
+        let result_path = PathBuf::from(std::env::var_os("STY_TEST_RESULT_FILE").unwrap());
+        std::fs::write(result_path, raw_result).unwrap();
     }
 
     #[test]

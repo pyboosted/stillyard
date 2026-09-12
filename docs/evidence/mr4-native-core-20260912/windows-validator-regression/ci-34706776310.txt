@@ -1,0 +1,1072 @@
+test (windows-latest)	Run cargo test --all-features	﻿2026-09-12T16:59:04.7858897Z ##[group]Run cargo test --all-features
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:04.7859298Z ^[[36;1mcargo test --all-features^[[0m
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:04.7928683Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:04.7929102Z env:
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:04.7929300Z   CARGO_HOME: C:\Users\runneradmin\.cargo
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:04.7929561Z   CARGO_INCREMENTAL: 0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:04.7929773Z   CARGO_TERM_COLOR: always
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:04.7931969Z   INCLUDE: C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\include;C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\ATLMFC\include;C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\VS\include;C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt;C:\Program Files (x86)\Windows Kits\10\\include\10.0.26100.0\\um;C:\Program Files (x86)\Windows Kits\10\\include\10.0.26100.0\\shared;C:\Program Files (x86)\Windows Kits\10\\include\10.0.26100.0\\winrt;C:\Program Files (x86)\Windows Kits\10\\include\10.0.26100.0\\cppwinrt;C:\Program Files (x86)\Windows Kits\NETFXSDK\4.8.1\include\um
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:04.7935450Z   LIB: C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\ATLMFC\lib\x64;C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\lib\x64;C:\Program Files (x86)\Windows Kits\NETFXSDK\4.8.1\lib\um\x64;C:\Program Files (x86)\Windows Kits\10\lib\10.0.26100.0\ucrt\x64;C:\Program Files (x86)\Windows Kits\10\\lib\10.0.26100.0\\um\x64
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:04.7938105Z   LIBPATH: C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\ATLMFC\lib\x64;C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\lib\x64;C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\lib\x86\store\references;C:\Program Files (x86)\Windows Kits\10\UnionMetadata\10.0.26100.0;C:\Program Files (x86)\Windows Kits\10\References\10.0.26100.0;C:\Windows\Microsoft.NET\Framework64\v4.0.30319
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:04.7954290Z   Path: C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64;C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\IDE\VC\VCPackages;C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\IDE\CommonExtensions\Microsoft\TestWindow;C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer;C:\Program Files\Microsoft Visual Studio\18\Enterprise\MSBuild\Current\bin\Roslyn;C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8.1 Tools\x64\;C:\Program Files (x86)\HTML Help Workshop;C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\IDE\CommonExtensions\Microsoft\FSharp\Tools;C:\Program Files\Microsoft Visual Studio\18\Enterprise\Team Tools\DiagnosticsHub\Collector;C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\IDE\Extensions\Microsoft\CodeCoverage.Console;C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\\x64;C:\Program Files (x86)\Windows Kits\10\bin\\x64;C:\Program Files\Microsoft Visual Studio\18\Enterprise\\MSBuild\Current\Bin\amd64;C:\Windows\Microsoft.NET\Framework64\v4.0.30319;C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\IDE\;C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\;C:\Program Files\PowerShell\7;C:\Program Files\MongoDB\Server\7.0\bin;C:\vcpkg;C:\tools\zstd;C:\hostedtoolcache\windows\stack\3.11.1\x64;C:\cabal\bin;C:\\ghcup\bin;C:\mingw64\bin;C:\Program Files\dotnet;C:\Program Files\MySQL\MySQL Server 8.0\bin;C:\Program Files\R\R-4.6.1\bin\x64;C:\SeleniumWebDrivers\GeckoDriver;C:\SeleniumWebDrivers\EdgeDriver\;C:\SeleniumWebDrivers\ChromeDriver;C:\Program Files (x86)\sbt\bin;C:\Program Files (x86)\GitHub CLI;C:\Program Files\Git\bin;C:\Program Files (x86)\pipx_bin;C:\npm\prefix;C:\hostedtoolcache\windows\go\1.24.13\x64\bin;C:\hostedtoolcache\windows\Python\3.12.10\x64\Scripts;C:\hostedtoolcache\windows\Python\3.12.10\x64;C:\hostedtoolcache\windows\Ruby\3.3.12\x64\bin;C:\Program Files\OpenSSL\bin;C:\tools\kotlinc\bin;C:\hostedtoolcache\windows\Java_Temurin-Hotspot_jdk\17.0.20-101\x64\bin;C:\Program Files\ImageMagick-7.1.2-Q16-HDRI;C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin;C:\ProgramData\kind;C:\ProgramData\Chocolatey\bin;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\PowerShell\7\;C:\Program Files\Microsoft\Web Platform Installer\;C:\Program Files\Microsoft SQL Server\170\Tools\Binn\;C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\;C:\Program Files\dotnet\;C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\;C:\Program Files (x86)\WiX Toolset v3.14\bin;C:\Program Files\Microsoft SQL Server\130\DTS\Binn\;C:\Program Files\Microsoft SQL Server\140\DTS\Binn\;C:\Program Files\Microsoft SQL Server\150\DTS\Binn\;C:\Program Files\Microsoft SQL Server\160\DTS\Binn\;C:\Program Files\Microsoft SQL Server\170\DTS\Binn\;C:\ProgramData\chocolatey\lib\pulumi\tools\Pulumi\bin;C:\Program Files\CMake\bin;C:\Strawberry\c\bin;C:\Strawberry\perl\site\bin;C:\Strawberry\perl\bin;C:\ProgramData\chocolatey\lib\maven\apache-maven-3.9.16\bin;C:\Program Files\Microsoft Service Fabric\bin\Fabric\Fabric.Code;C:\Program Files\Microsoft SDKs\Service Fabric\Tools\ServiceFabricLocalClusterManager;C:\Program Files\nodejs\;C:\Program Files\Git\cmd;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Program Files\GitHub CLI\;c:\tools\php;C:\Program Files (x86)\sbt\bin;C:\Program Files\Amazon\AWSCLIV2\;C:\Program Files\Amazon\SessionManagerPlugin\bin\;C:\Program Files\Amazon\AWSSAMCLI\bin\;C:\Program Files\Microsoft SQL Server\130\Tools\Binn\;C:\Program Files\mongosh\;C:\Program Files\LLVM\bin;C:\Program Files (x86)\LLVM\bin;C:\Users\runneradmin\.dotnet\tools;C:\Users\runneradmin\.cargo\bin;C:\Users\runneradmin\AppData\Local\Microsoft\WindowsApps;C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\Llvm\x64\bin;C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja;C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\IDE\VC\Linux\bin\ConnectionManagerExe;C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\vcpkg
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:04.7971304Z ##[endgroup]
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:05.3213972Z ^[[1m^[[92m   Compiling^[[0m windows-link v0.2.1
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:05.3216988Z ^[[1m^[[92m   Compiling^[[0m cfg-if v1.0.4
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:05.3224505Z ^[[1m^[[92m   Compiling^[[0m strsim v0.11.1
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:05.3230221Z ^[[1m^[[92m   Compiling^[[0m typenum v1.20.1
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:05.4479586Z ^[[1m^[[92m   Compiling^[[0m windows-sys v0.61.2
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:05.4489863Z ^[[1m^[[92m   Compiling^[[0m equivalent v1.0.2
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:05.5191946Z ^[[1m^[[92m   Compiling^[[0m allocator-api2 v0.2.21
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:06.0095423Z ^[[1m^[[92m   Compiling^[[0m smallvec v1.15.2
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:06.0828921Z ^[[1m^[[92m   Compiling^[[0m foldhash v0.1.5
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:06.2755954Z ^[[1m^[[92m   Compiling^[[0m hashbrown v0.15.5
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:06.3380497Z ^[[1m^[[92m   Compiling^[[0m darling_core v0.20.11
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:06.5290812Z ^[[1m^[[92m   Compiling^[[0m generic-array v0.14.7
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:07.1459335Z ^[[1m^[[92m   Compiling^[[0m winapi v0.3.9
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:07.4338373Z ^[[1m^[[92m   Compiling^[[0m serde_core v1.0.229
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:10.2587029Z ^[[1m^[[92m   Compiling^[[0m once_cell_polyfill v1.70.2
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:10.3553537Z ^[[1m^[[92m   Compiling^[[0m utf8parse v0.2.2
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:10.4525068Z ^[[1m^[[92m   Compiling^[[0m scopeguard v1.2.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:10.5848274Z ^[[1m^[[92m   Compiling^[[0m itoa v1.0.18
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:10.8257064Z ^[[1m^[[92m   Compiling^[[0m anstyle v1.0.14
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:10.8503633Z ^[[1m^[[92m   Compiling^[[0m darling_macro v0.20.11
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:11.1237098Z ^[[1m^[[92m   Compiling^[[0m lock_api v0.4.14
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:11.1495757Z ^[[1m^[[92m   Compiling^[[0m anstyle-parse v1.0.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:11.3753368Z ^[[1m^[[92m   Compiling^[[0m block-buffer v0.10.4
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:11.4124664Z ^[[1m^[[92m   Compiling^[[0m crypto-common v0.1.7
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:11.4552837Z ^[[1m^[[92m   Compiling^[[0m parking_lot_core v0.9.12
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:11.5212724Z ^[[1m^[[92m   Compiling^[[0m getrandom v0.4.3
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:11.5268075Z ^[[1m^[[92m   Compiling^[[0m subtle v2.6.1
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:11.6968034Z ^[[1m^[[92m   Compiling^[[0m either v1.18.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:11.7530439Z ^[[1m^[[92m   Compiling^[[0m is_terminal_polyfill v1.70.2
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:11.8369500Z ^[[1m^[[92m   Compiling^[[0m bitflags v2.13.1
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:11.9234243Z ^[[1m^[[92m   Compiling^[[0m colorchoice v1.0.5
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:11.9851929Z ^[[1m^[[92m   Compiling^[[0m itertools v0.13.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:12.0309861Z ^[[1m^[[92m   Compiling^[[0m parking_lot v0.12.5
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:12.1433781Z ^[[1m^[[92m   Compiling^[[0m digest v0.10.7
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:12.4575355Z ^[[1m^[[92m   Compiling^[[0m darling v0.20.11
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:12.5331901Z ^[[1m^[[92m   Compiling^[[0m zmij v1.0.23
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:12.9312407Z ^[[1m^[[92m   Compiling^[[0m crossterm_winapi v0.9.1
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:13.0203611Z ^[[1m^[[92m   Compiling^[[0m castaway v0.2.4
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:13.1202035Z ^[[1m^[[92m   Compiling^[[0m option-ext v0.2.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:13.1981883Z ^[[1m^[[92m   Compiling^[[0m ryu v1.0.23
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:13.4495199Z ^[[1m^[[92m   Compiling^[[0m unicode-width v0.1.14
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:13.4730058Z ^[[1m^[[92m   Compiling^[[0m clap_lex v1.1.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:13.7730853Z ^[[1m^[[92m   Compiling^[[0m anstyle-query v1.1.5
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:13.8784509Z ^[[1m^[[92m   Compiling^[[0m anstyle-wincon v3.0.11
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:13.9626720Z ^[[1m^[[92m   Compiling^[[0m unicode-segmentation v1.13.3
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:14.1839633Z ^[[1m^[[92m   Compiling^[[0m anstream v1.0.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:14.2460625Z ^[[1m^[[92m   Compiling^[[0m memchr v2.8.3
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:14.6916869Z ^[[1m^[[92m   Compiling^[[0m static_assertions v1.1.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:14.7501005Z ^[[1m^[[92m   Compiling^[[0m compact_str v0.8.2
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:14.7666372Z ^[[1m^[[92m   Compiling^[[0m unicode-truncate v1.1.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:14.9188945Z ^[[1m^[[92m   Compiling^[[0m clap_builder v4.6.6
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:15.3118106Z ^[[1m^[[92m   Compiling^[[0m serde_json v1.0.151
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:15.6876491Z ^[[1m^[[92m   Compiling^[[0m dirs-sys v0.5.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:15.8342136Z ^[[1m^[[92m   Compiling^[[0m crossterm v0.28.1
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:15.8354826Z ^[[1m^[[92m   Compiling^[[0m instability v0.3.10
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:16.7508027Z ^[[1m^[[92m   Compiling^[[0m serde v1.0.229
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:17.6965823Z ^[[1m^[[92m   Compiling^[[0m ref-cast v1.0.27
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:17.7282843Z ^[[1m^[[92m   Compiling^[[0m strum v0.26.3
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:17.7819535Z ^[[1m^[[92m   Compiling^[[0m libsqlite3-sys v0.35.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:17.8351843Z ^[[1m^[[92m   Compiling^[[0m uuid v1.26.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:17.8906585Z ^[[1m^[[92m   Compiling^[[0m hashlink v0.10.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:18.0955577Z ^[[1m^[[92m   Compiling^[[0m lru v0.12.5
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:18.2914586Z ^[[1m^[[92m   Compiling^[[0m fallible-iterator v0.3.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:18.3040514Z ^[[1m^[[92m   Compiling^[[0m unicode-width v0.2.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:18.6233070Z ^[[1m^[[92m   Compiling^[[0m dyn-clone v1.0.20
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:18.7044717Z ^[[1m^[[92m   Compiling^[[0m cassowary v0.3.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:18.7567200Z ^[[1m^[[92m   Compiling^[[0m fallible-streaming-iterator v0.1.9
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:18.7695845Z ^[[1m^[[92m   Compiling^[[0m cpufeatures v0.2.17
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:18.8428944Z ^[[1m^[[92m   Compiling^[[0m sha2 v0.10.9
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:18.9255425Z ^[[1m^[[92m   Compiling^[[0m rusqlite v0.37.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:19.5161897Z ^[[1m^[[92m   Compiling^[[0m ratatui v0.29.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:19.8329098Z ^[[1m^[[92m   Compiling^[[0m schemars v1.2.2
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:21.8014969Z ^[[1m^[[92m   Compiling^[[0m thiserror v2.0.20
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:21.8980266Z ^[[1m^[[92m   Compiling^[[0m clap v4.6.6
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:21.9761899Z ^[[1m^[[92m   Compiling^[[0m directories v6.0.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:22.2225961Z ^[[1m^[[92m   Compiling^[[0m hmac v0.12.1
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:22.3628678Z ^[[1m^[[92m   Compiling^[[0m fs2 v0.4.3
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:22.6476621Z ^[[1m^[[92m   Compiling^[[0m libloading v0.8.9
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:22.9837312Z ^[[1m^[[92m   Compiling^[[0m fastrand v2.5.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:23.2994228Z ^[[1m^[[92m   Compiling^[[0m once_cell v1.21.4
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:23.4511030Z ^[[1m^[[92m   Compiling^[[0m stillyard v0.1.0-alpha.20 (D:\a\stillyard\stillyard)
+test (windows-latest)	Run cargo test --all-features	2026-09-12T16:59:23.5126185Z ^[[1m^[[92m   Compiling^[[0m tempfile v3.27.0
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:25.9484373Z ^[[1m^[[92m    Finished^[[0m `test` profile [unoptimized + debuginfo] target(s) in 1m 20s
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:25.9586975Z ^[[1m^[[92m     Running^[[0m unittests src\lib.rs (target\debug\deps\stillyard-7ae8bffc447c6658.exe)
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:25.9770037Z 
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:25.9770479Z running 304 tests
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:25.9821412Z test admission::scoped::tests::missing_budget_is_not_zero_and_cycles_never_expand ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:25.9823188Z test admission::scoped::tests::aliases_share_physical_capacity_but_fences_are_domain_local ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:25.9824680Z test admission::scoped::tests::hierarchy_counts_each_constraint_once_and_rejects_full_vector ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:25.9825917Z test admission::scoped::tests::scoped_reservations_convert_whole_vectors_and_accounting_rejects_overflow ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:25.9828711Z test api::tests::cursors_have_stable_cli_round_trips ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:25.9829892Z test api::tests::managed_execution_value_constructors_use_safe_defaults ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:25.9830997Z test api::tests::linux_process_identity_is_typed_and_requires_complete_kernel_evidence ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:25.9834389Z test api::tests::incident_cursor_is_store_scoped_and_stable ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:25.9835783Z test api::tests::scheduler_events_accept_additive_wire_evolution ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:25.9840245Z test api::tests::unknown_safety_values_round_trip_without_authority ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:26.2420588Z test authority::tests::legacy_hold_inventory_reports_missing_cleanup_reservation_before_release ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:26.2989272Z test authority::tests::exact_replay_never_rearms_a_retired_hold_and_conflict_rejects ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:26.4691959Z test authority::tests::missing_and_lost_history_never_implies_free_capacity ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:26.5007831Z test authority::retirement::tests::missing_or_changed_pending_retirement_audit_keeps_authority_closed ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:26.6672845Z test authority::tests::syntactically_valid_corruption_and_failed_publication_close_admission ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:26.7495268Z test authority::topology_tests::continuous_legacy_registry_gets_stable_domains_without_releasing_obligations ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:26.8790208Z test authority::topology_tests::missing_database_uuid_cannot_rebind_continuous_authority_as_empty ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:26.9556166Z test authority::topology_tests::reset_gate_survives_both_crash_sides_and_preserves_predecessor_identity ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.0045700Z test client::tests::accepted_batch_refresh_pins_the_complete_member_identity ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.0369111Z test client::tests::accepted_refresh_uses_stable_identity_and_keeps_the_durable_receipt ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.0372427Z test client::tests::doctor_complete_distinguishes_deadline_and_cancellation_before_connecting ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.1166817Z test client::tests::ensure_result_file_claim_is_atomic_and_reports_payload_conflict_without_overwrite ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.1317632Z 
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.1318226Z running 1 test
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.1766678Z test client::tests::ensure_result_file_lock_obeys_the_client_deadline ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.1829735Z test client::tests::ensure_unknown_is_a_typed_fail_closed_outcome_without_transport_replay ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.1833955Z test client::tests::every_result_file_identity_discriminant_blocks_replay ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.1836580Z test client::tests::explicit_and_inherited_client_endpoints_are_connect_only ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.1840056Z test client::tests::explicit_windows_endpoints_are_local_single_component_pipe_names ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.1842550Z test client::tests::incomplete_managed_environment_fails_even_for_another_endpoint ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.1844851Z test client::tests::interrupted_passthrough_stops_at_a_quiescent_unclaimed_prefix ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.1848582Z test client::tests::managed_coordinates_are_scoped_to_the_inherited_endpoint ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.8577694Z test client::tests::only_exact_managed_not_received_receipt_authorizes_result_file_reuse ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.8659252Z test client::tests::recover_missing_result_file_does_not_create_it ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.8932798Z test client::tests::recovery_accepts_a_case_variant_of_the_same_windows_endpoint ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.9405151Z test client::tests::recovery_rejects_a_foreign_endpoint_without_touching_the_receipt ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:27.9409792Z test client::tests::response_errors_preserve_known_wire_rejections ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.0523565Z test client::tests::result_file_fresh_create_is_atomic_and_never_overwrites ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.0524918Z test client::tests::result_file_lock_holder_helper ... ignored, launched as a cross-process result-file lock holder
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.1763324Z test client::tests::stale_recovery_cannot_overwrite_a_concurrent_accepted_receipt ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2305301Z test client::tests::unknown_recovery_preserves_the_last_durable_receipt ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2352882Z test client::tests::unmanaged_client_selects_the_public_default_endpoint ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2355427Z test client::tests::wait_aggregate_uses_the_worst_terminal_outcome ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2359185Z test daemon::tests::boot_change_is_proof_only_for_a_prior_generation ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2663910Z test client::tests::busy_native_pipe_waits_once_until_deadline_without_polling ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2676863Z test daemon::tests::endpoint_lease_is_exclusive_and_released_with_its_handle ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2679939Z test daemon::tests::explicit_instance_tuple_accepts_only_both_coordinates_or_neither ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2685708Z test daemon::tests::first_pipe_instance_is_exclusive_and_released_with_its_handle ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2690563Z test daemon::tests::force_authorization_fails_closed_for_roots_and_missing_handles ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2693884Z test daemon::tests::missing_handle_never_downgrades_a_possible_managed_peer_to_unmanaged ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2697498Z test daemon::tests::nested_membership_selects_the_unique_immediate_containment ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2700879Z test daemon::tests::peer_inside_disabled_primary_is_authenticated_not_downgraded_to_unmanaged ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2704226Z test daemon::tests::peer_inside_root_exited_or_uncertain_containment_is_rejected ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2707478Z test daemon::tests::peer_membership_derives_one_enabled_parent_and_rejects_ambiguity ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.2712051Z test daemon::tests::prior_generation_requires_absent_daemon_and_exact_root_evidence ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:28.5414257Z test daemon::tests::singleton_lock_is_acquired_before_destructive_store_open ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5392955Z test daemon::tests::commit_at_wait_boundary_wakes_from_durable_event ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5395967Z test filesystem::tests::only_fixed_ntfs_is_accepted ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5404168Z test host_observation::policy::tests::debrix_process_patterns_are_case_insensitive_and_wildcard_aware ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5407534Z test host_observation::policy::tests::stale_memory_and_blocked_process_fail_closed ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5411837Z test host_observation::policy::tests::standalone_observed_thresholds_block_without_creating_quiet_policy ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5415955Z test host_observation::policy::tests::strict_admission_uses_commit_vram_margins_and_ignores_shell_processes ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5419244Z test host_observation::policy::tests::unavailable_quiet_detector_is_not_treated_as_a_clean_sample ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5423195Z test host_observation::policy::tests::unresolved_nvml_compute_process_fails_closed_but_shell_processes_do_not ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5426237Z test host_observation::service::tests::cadence_and_suspend_discontinuities_change_generation ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5512076Z test host_observation::service::tests::doctor_coverage_names_every_strict_provider_with_fresh_provenance ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5516534Z test host_observation::service::tests::doctor_fails_closed_only_when_unavailable_coverage_is_required ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5522248Z test host_observation::service::tests::doctor_gpu_coverage_requires_the_exact_configured_device ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5528568Z test host_observation::windows_disk::tests::first_disk_delta_is_warming_up_or_honestly_unavailable ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5533020Z test host_observation::windows_memory::tests::live_windows_memory_contains_physical_and_commit_headroom ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5626661Z test host_observation::windows_process::tests::live_process_inventory_contains_the_test_process ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5630723Z test host_observation::windows_utilization::tests::first_cpu_delta_is_warming_up ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5737722Z test identity::tests::exact_process_probe_distinguishes_match_reuse_and_exit ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5744986Z test machine::bridge::tests::bridge_preserves_multiple_correlations_and_eof_never_calls_cleanup ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5749462Z test machine::bridge::tests::bridge_rejects_versions_truncation_and_oversize_before_dispatch ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5757777Z test machine::manager::release::tests::delay_in_final_local_check_is_rechecked_before_os_release ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5761301Z test machine::manager::release::tests::local_send_age_detects_delay_suspend_and_clock_discontinuity ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5768795Z test machine::manager::release::tests::loss_of_readiness_after_commit_proves_no_release_without_replaying_consumption ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5777806Z test machine::manager::release::tests::retry_cannot_rejuvenate_a_delayed_ticket_and_cancel_fences_release ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.5843669Z test machine::manager::release::tests::unused_after_commit_keeps_consumption_and_requires_exact_cleanup_before_sealing ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:29.7291537Z test daemon::tests::wait_snapshot_includes_daemon_reconciliation_evidence ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:30.8168287Z test machine::manager::tests::local_outbox_and_start_intent_survive_commit_gaps_without_relaunch ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0023697Z test machine::manager::tests::lost_ticket_then_coordinator_reset_and_epoch_rotation_recover_without_launch ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0699186Z test machine::tests::framing_rejects_oversize_before_reading_body_and_strictly_decodes ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0716776Z test machine::tests::operation_authentication_binds_session_sequence_identity_and_payload ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0738848Z test machine::tests::pairing_tag_binds_both_nonces_session_role_owner_and_versions ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0743578Z test machine::tests::request_rejects_version_hash_sequence_and_unknown_identity ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0747715Z test model::tests::durable_id_round_trip_carries_store_identity ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0751590Z test model::tests::unscoped_uuid_is_not_a_public_durable_id ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0759264Z test protocol::tests::daemon_resource_accounting_is_additive_with_an_explicit_legacy_absence ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0763873Z test protocol::tests::frame_round_trip ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0768601Z test protocol::tests::responses_are_additive_but_requests_remain_strict ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0772873Z test resources::tests::child_policy_vram_claim_names_are_canonicalized ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0777960Z test resources::tests::complete_scalar_lease_never_partially_fits ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0794870Z test resources::tests::different_missing_children_under_one_ancestor_do_not_alias ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0844014Z test resources::tests::existing_policy_root_replacement_does_not_inherit_object_authority ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0849082Z test resources::tests::granted_debit_overflow_blocks_instead_of_wrapping_capacity ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0853714Z test resources::tests::impact_rules_are_symmetric_self_compatibility_is_explicit_and_ancestors_block ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0857177Z test resources::tests::managed_wait_checks_only_components_retained_by_ancestors ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0890246Z test resources::tests::missing_policy_root_retains_component_authority_after_creation ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0892892Z test resources::tests::observed_headroom_is_checked_and_excludes_only_the_supplied_debit ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:31.0896660Z test resources::tests::shared_fences_overlap_but_exclusive_conflicts ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:32.6429744Z test machine::manager::tests::outbox_counts_utf8_bytes_and_reserves_room_for_acknowledgement ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:33.5080468Z test runner::windows::tests::cancel_before_postcondition_release_never_runs_validator_code ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:34.8563829Z test runner::windows::tests::attempt_timeout_covers_postconditions ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:35.1817469Z stillyard runner for 01a09690-49be-7690-9c69-985cd6f1f57c~01a09690-4b40-70a2-96d8-71947931b4ae failed: forced pre-start failure
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:35.2820329Z test runner::windows::tests::clean_prestart_failure_keeps_condition_deadline_precedence ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:35.5753430Z stillyard runner for 01a09690-4f06-7932-97a5-432fee85cebc~01a09690-50ab-7800-ac80-7ad4653f5ded failed: The operation completed successfully. (os error 0)
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:35.6993031Z test runner::windows::tests::condition_resume_failure_clears_never_started_timestamps ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:35.6996485Z test runner::windows::tests::containment_registry_is_instance_owned_and_transfer_does_not_leak_ownership ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:35.6997822Z test runner::windows::tests::descendant_sleeper ... ignored, launched only as a descendant containment probe
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:35.7002673Z test runner::windows::tests::empty_owned_boundary_is_proven_and_notifies_reconciliation ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:36.3435545Z test runner::windows::tests::contained_process_publishes_output_after_success ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:36.4594819Z test runner::windows::tests::environment_block_has_exact_path_and_no_daemon_ambient_user_environment ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:37.1014449Z stillyard runner for 01a09690-553b-72a0-bb5d-2ae792ddd2a7~01a09690-5738-7d50-88d3-59c779a5ba9b failed: created image C:\Windows\System32\cmd.exe differs from requested executable C:\Windows\System32\cmd.exe
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:37.1633977Z test runner::windows::tests::image_mismatch_with_unproven_cleanup_transfers_boundary_to_reconciler ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:37.8902780Z test runner::windows::tests::plain_cancel_during_postcondition_remains_canceled ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:38.1564259Z stillyard runner for 01a09690-54eb-7551-a7bd-ea07f10edc58~01a09690-56d8-7c33-ae3f-3a20e6b7f8eb failed: stopped suspended root did not exit within cleanup bound
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:38.2250732Z test runner::windows::tests::first_terminal_cleanup_wait_failure_keeps_condition_deadline_outcome ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:38.7116585Z test runner::windows::tests::plain_cancel_terminates_a_running_containment_and_suppresses_retry ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:39.1122564Z stillyard runner for 01a09690-5c49-7e40-8c54-f7096f62f56d~01a09690-5eb8-7f12-8051-50b5f7fec33b failed: forced pre-start failure
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:39.1763433Z test runner::windows::tests::post_create_pre_resume_failure_proves_empty_and_is_start_failed ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:00:39.1764842Z test runner::windows::tests::postcondition_tree_helper ... ignored, launched only as a managed postcondition tree probe
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:26.0012721Z test authority::retirement::tests::pairing_budget_reserves_every_admitted_retirement_after_hold_and_session_growth has been running for over 60 seconds
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:26.3247273Z test authority::tests::saturated_registry_still_journals_large_release_and_detects_missing_blob has been running for over 60 seconds
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:38.7262578Z test runner::windows::tests::postcondition_retry_runs_a_second_attempt_under_the_same_job has been running for over 60 seconds
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:39.1855666Z test runner::windows::tests::primary_tree_is_empty_before_postcondition_receives_immutable_result has been running for over 60 seconds
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:39.5978858Z test runner::windows::tests::postcondition_retry_runs_a_second_attempt_under_the_same_job ... FAILED
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:40.1770560Z test runner::windows::tests::primary_tree_is_empty_before_postcondition_receives_immutable_result ... FAILED
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:40.1775449Z test runner::windows::tests::released_user_code_runner_failure_is_interrupted_not_failed ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:40.1780005Z test runner::windows::tests::retired_registration_is_negative_until_durable_state_catches_up ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:40.1781780Z test runner::windows::tests::spawn_descendant_helper ... ignored, launched only as a managed root by timeout_kills_descendant_not_only_root
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:41.5861501Z stillyard runner for 01a09691-4deb-7293-95c0-0cf54f43fe41~01a09691-4eb2-7252-be8d-9cd2a6c187ea failed: staged stdin hash changed before launch
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:41.6512841Z test runner::windows::tests::staged_stdin_changed_after_acceptance_fails_before_user_code ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:41.6603199Z stillyard runner for 01a09691-4be5-7222-9664-ec56e0fc6072~01a09691-4db4-7800-bc3c-395a1bd61411 failed: The system cannot find the file specified. (os error 2)
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:41.7417287Z test runner::windows::tests::quiet_resume_failure_after_durable_authorization_is_start_failed ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:41.7422161Z test runner::windows::tests::stdin_echo_helper ... ignored, launched only as a managed staged-stdin probe
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:43.9421203Z test runner::windows::tests::staged_stdin_handle_reaches_the_contained_process ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:45.4582501Z test runner::windows::tests::timeout_kills_containment_and_releases_lease ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:45.4899350Z test runner::windows::tests::windows_quoting_handles_spaces_quotes_and_trailing_slashes ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:45.5752067Z test runtime_metrics::tests::polling_control_is_counted_and_event_notification_is_not_a_timer ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:45.5757616Z test spec::tests::child_policy_unknown_fields_are_rejected_during_decode ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:45.5762547Z test spec::tests::daemon_environment_presets_are_not_accepted ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:45.5768544Z test spec::tests::host_deferral_bound_applies_only_to_jobs_that_request_quiet ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:45.5773316Z test spec::tests::lifecycle_history_has_a_finite_snapshot_bound ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:45.5777185Z test spec::tests::retry_verdicts_must_be_unique ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:45.6050708Z test spec::tests::schema_is_stable_within_one_build ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:45.6055215Z test spec::tests::supported_claim_and_impact_validate ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:45.6059489Z test spec::tests::unknown_job_field_rejects ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:45.6064253Z test spec::tests::version_four_rejects_duplicate_label_keys_and_invalid_policy_shapes ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:45.7101826Z test store::attached::tests::attached_admission_persists_candidates_and_holds_lease_until_release_ack ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:45.7937258Z test store::machine_allocation::inventory_tests::expired_candidate_history_does_not_exhaust_ready_budget_but_armed_still_counts ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:46.4382814Z test store::machine_allocation::inventory_tests::inventory_pages_cover_large_unicode_records_without_exceeding_wire_bytes ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:48.6094428Z test authority::retirement::tests::pairing_budget_reserves_every_admitted_retirement_after_hold_and_session_growth ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:48.6099529Z test store::observation::command_preview_tests::preview_is_bounded_single_line_and_identifies_the_command ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:48.6111276Z test store::process_records::tests::typed_linux_identity_never_uses_filetime_and_cannot_be_replaced ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:48.8388942Z test store::tests::admission_safety::cancel_that_wins_during_contaminated_cleanup_cannot_replan_or_release_code ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:49.0794671Z test store::tests::admission_safety::clean_deferral_exhaustion_uses_the_job_retry_policy ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:49.3654221Z test store::tests::admission_safety::condition_release_rechecks_observed_evidence_before_resume ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:49.3681513Z test runner::windows::tests::timeout_kills_descendant_not_only_root ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:50.1806476Z test store::tests::admission_safety::condition_scan_time_ages_host_evidence_before_probe_grant ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:50.3771022Z test store::tests::admission_safety::condition_scan_time_ages_host_evidence_before_observed_grant ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:50.5727184Z test store::tests::admission_safety::direct_observed_admission_remains_released_without_a_final_barrier ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:51.0839851Z test store::tests::admission_safety::final_observed_ram_check_excludes_only_its_own_granted_lease ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:51.3003616Z test store::tests::admission_safety::incompatible_impact_consumes_the_admission_wall_clock_and_fails_finitely ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:51.6793514Z test store::tests::admission_safety::missing_observation_pauses_quiet_budget_and_rebuilds_stability ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:52.0239283Z test store::tests::admission_safety::quiet_only_deferral_exhaustion_still_uses_the_job_retry_policy ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:52.2579005Z test store::tests::admission_safety::quiet_stability_resets_on_sample_gap_and_observation_generation_change ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:52.8084435Z test store::tests::admission_safety::quiet_wait_holds_no_lease_and_final_recheck_reuses_the_attempt_without_running_code ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:53.0076346Z test store::tests::admission_safety::observed_condition_runtime_timeout_starts_at_release ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:53.5033460Z test store::tests::admission_safety::restart_preserves_admitting_attempt_budget_resets_stability_and_allows_cancel ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:53.6577107Z test store::tests::admission_safety::restart_refuses_gpu_placement_change_for_a_retained_job ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:54.0789056Z test store::tests::admission_safety::restart_refuses_host_policy_that_invalidates_a_retained_job ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:54.3206801Z test store::tests::admission_safety::sidecar_gpu_and_vram_claims_fail_closed_then_preserve_grant_provenance ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:54.6483172Z test store::tests::admission_safety::stale_memory_and_low_commit_headroom_never_create_a_lease_or_invocation ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:54.9489715Z test store::tests::admission_safety::starting_strict_job_keeps_sampler_demand_until_release ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:55.3080128Z test store::tests::admission_safety::static_contention_pauses_quiet_budget_and_rebuilds_stability ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:55.5807564Z test store::tests::admission_safety::uncertain_pre_release_cleanup_is_final_and_retains_the_lease ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:56.2273821Z test store::tests::admission_safety::uncertain_pre_release_cleanup_preserves_explicit_cancellation ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:56.5881069Z test store::tests::admission_safety::uncertain_pre_release_cleanup_preserves_condition_deadline_outcome ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:56.9035554Z test store::tests::attempt_lifecycle::expired_blocked_retry_does_not_spin_and_backoff_cancel_is_terminal ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:57.1396372Z test store::tests::attempt_lifecycle::impact_rules_block_admission_and_ancestor_waits_symmetrically ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:57.5900201Z test store::tests::attempt_lifecycle::plain_cancel_covers_queued_active_and_backoff_without_successors ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:57.9771718Z test store::tests::attempt_lifecycle::postcondition_release_requires_immutable_empty_primary_result_and_granted_lease ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:58.3341507Z test store::tests::attempt_lifecycle::postcondition_retry_keeps_one_job_and_exposes_ordered_attempts ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:58.5085642Z test store::tests::attempt_lifecycle::receipt_preserves_accepting_generation_across_daemon_restart ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:58.5090229Z test store::tests::attempt_lifecycle::snapshot_diagnostic_budget_keeps_newest_utf8_suffixes ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:58.8680146Z test store::tests::attempt_lifecycle::root_exit_is_visible_before_containment_resolution ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:59.0561238Z test store::tests::attempt_lifecycle::worker_start_failure_preserves_an_active_cancel_and_suppresses_retry ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:59.4200244Z test store::tests::conditions::cancel_waits_for_live_probe_boundary_before_publishing_final ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:59.7120501Z test store::tests::conditions::already_stale_refresh_blocks_once_then_yields_instead_of_replanning ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:01:59.7733650Z test store::tests::conditions::condition_release_is_publicly_released_while_running_and_after_success ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:00.3807263Z test store::tests::conditions::deadline_is_enforced_before_retry_backoff_and_dependency_filters ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:00.6350235Z test store::tests::conditions::deadline_that_wins_during_a_probe_remains_terminal_after_probe_cleanup ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:00.6749178Z test store::tests::conditions::deadline_crossing_during_scan_wins_over_impossible_dependency ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:00.7340616Z test store::machine_events::tests::event_retention_bounds_rows_and_bytes_without_touching_grant_history ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:01.3606126Z test store::tests::conditions::eta_is_unknown_for_external_predicates_and_lower_bound_for_not_before ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:01.4953209Z test store::tests::conditions::expired_monotonic_evidence_does_not_create_a_zero_delay_retry_spin ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:02.1034758Z test store::tests::conditions::due_deadline_wins_over_cancel_before_and_during_probe_cleanup ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:02.1956638Z test store::tests::conditions::failed_deadline_latch_survives_refresh_until_probe_cleanup ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:02.3964501Z test store::tests::conditions::first_pre_release_deferral_replans_the_same_attempt_and_preserves_budget ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:02.8641336Z test store::tests::conditions::freshness_that_expires_during_a_long_pass_yields_before_rescan ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:03.1763194Z test store::tests::conditions::monotonic_expiry_yields_despite_a_future_wall_deadline ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:03.5412468Z test store::tests::conditions::monotonic_expiry_forces_rescan_despite_a_future_wall_freshness_and_history_is_bounded ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:03.6453439Z test store::tests::conditions::path_absent_waits_for_authoritative_absence ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:04.0577992Z test store::tests::conditions::path_transition_is_anchored_at_acceptance_and_rescanned_before_lease ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:04.5846338Z test store::tests::conditions::post_commit_freshness_expiry_replans_the_never_resumed_attempt ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:05.0141011Z test store::tests::conditions::postcondition_does_not_inherit_primary_conditions_after_release ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:05.5148803Z test store::tests::conditions::postcondition_start_failure_preserves_primary_start_and_ignores_condition_deadline ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:06.1103684Z test store::tests::conditions::post_commit_cancel_and_deadline_are_ordered_before_primary_resume ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:06.2923114Z test store::tests::conditions::pre_release_path_change_replans_same_attempt_then_exhausts_as_readiness_unstable ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:06.6101979Z test store::tests::conditions::pre_release_cancellation_is_never_projected_as_released ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:06.9454202Z test store::tests::conditions::prepared_probe_start_failure_atomically_releases_its_lease_and_requeues ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:07.8673900Z test store::tests::conditions::probe_uses_its_own_lease_and_releases_it_before_primary_work ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:09.2316819Z test store::tests::conditions::relative_deadline_is_durable_and_does_not_create_an_attempt ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:10.6616020Z test store::tests::conditions::restart_invalidates_generation_local_path_evidence_and_rescans ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:12.5942352Z test store::tests::conditions::restart_finalizes_cancel_and_deadline_after_probe_becomes_uncertain ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:13.9428983Z test store::tests::conditions::restart_repairs_the_legacy_split_probe_settlement_window ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:14.7886862Z test store::tests::conditions::restart_retains_only_the_unresolved_probe_claims_and_blocks_reprobe_until_clearance ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:15.8205406Z test store::tests::conditions::terminal_intent_waits_for_every_live_probe_and_cancel_never_starts_another ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:16.6721173Z test store::tests::conditions::worker_start_failure_keeps_condition_deadline_precedence ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:17.2328242Z test store::tests::conditions::restart_preserves_the_durable_pre_resume_terminal_latch ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:17.5192145Z test store::tests::containment_safety::attempt_wide_predicate_waits_for_every_containment ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:18.0711313Z test store::tests::containment_safety::clearance_is_idempotent_and_audited_through_status ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:18.3611477Z test store::tests::containment_safety::creating_and_started_records_capture_exact_identity ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:18.8410569Z test store::tests::containment_safety::doctor_incidents_are_frozen_across_pages ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:19.0201981Z test store::tests::containment_safety::doctor_default_page_is_bounded_below_protocol_limit ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:19.0383206Z test store::tests::conditions::probe_history_is_pruned_after_its_pinning_events_leave_the_ring ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:19.6986412Z test store::tests::containment_safety::doctor_reports_loaded_config_evidence ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:19.8313053Z test store::tests::containment_safety::doctor_rejects_cursor_from_previous_daemon_generation ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:19.8351233Z test store::tests::containment_safety::doctor_rejects_foreign_unknown_tampered_and_expired_cursors ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:20.7850156Z test store::tests::containment_safety::force_commit_rejects_a_changed_authorization_set ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:21.2449999Z test store::tests::containment_safety::foreign_host_binding_resets_the_whole_store ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:21.2840039Z test store::tests::containment_safety::typed_linux_root_roundtrips_all_containment_views_without_filetime_aliasing ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:21.4558008Z test store::tests::containment_safety::missing_host_capability_blocks_before_lease_grant ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:22.2044670Z test store::tests::containment_safety::unbound_pending_store_binds_without_reset ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:22.9094159Z test store::tests::containment_safety::unbound_store_with_containment_is_replaced ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:23.0492576Z test store::tests::input_submission::batch_is_atomic_and_dependencies_use_final_outcomes ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:23.6582817Z test store::tests::input_submission::child_policy_resolution_failure_is_a_durable_typed_rejection ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:24.0027158Z test store::tests::input_submission::complete_leases_serialize_conflicts_but_allow_orthogonal_work ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:24.4187206Z test store::tests::input_submission::corrupt_staged_input_rejects_before_received ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:24.8651479Z test store::tests::input_submission::daemon_status_reports_exact_durable_reservations ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:25.1676377Z test store::tests::input_submission::dependency_outside_fifo_prefix_is_unknown ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:25.5825342Z test store::tests::input_submission::explicit_environment_is_preserved_at_acceptance ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:26.1056307Z test store::tests::input_submission::missing_path_fence_identity_survives_later_creation ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:26.4087222Z test store::tests::input_submission::partial_batch_input_map_is_atomic ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:26.9445754Z test store::tests::input_submission::receipt_reports_rank_blocker_and_honest_estimate ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:27.2360441Z test store::tests::input_submission::received_batch_revalidates_staged_inputs_before_acceptance ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:27.7435410Z test store::tests::input_submission::restart_collects_partial_upload_without_submission ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:28.1329308Z test store::tests::input_submission::reverse_order_skip_closure_reaches_terminal_state ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:28.5265221Z test store::tests::input_submission::sqlite_failure_rolls_back_every_batch_member ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:28.5752025Z test store::tests::containment_safety::doctor_snapshot_stress_resists_parallel_incident_turnover ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:28.9696909Z test store::tests::input_submission::staged_stdin_is_pre_received_immutable_and_idempotent ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:29.4817359Z test store::tests::managed_submission::delegated_policy_is_intersected_across_the_full_ancestor_chain ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:29.7008185Z test store::tests::managed_submission::child_policy_negative_axes_are_durable_contextual_and_create_no_work ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:29.9142252Z test store::tests::managed_submission::managed_acceptance_rechecks_parent_and_disabled_primary_proves_only_absence ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:30.2572561Z test store::tests::managed_submission::managed_batch_wait_rejects_atomically_when_one_member_conflicts ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:30.3783856Z test authority::tests::saturated_registry_still_journals_large_release_and_detects_missing_blob ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:30.5089161Z test store::tests::managed_submission::managed_batch_with_one_forbidden_priority_is_atomically_rejected ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:30.8405079Z test store::tests::managed_submission::managed_combined_wait_rejects_ancestor_scalar_but_detached_submit_survives ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:31.3470368Z test store::tests::managed_submission::managed_exact_replay_is_idempotent_and_commits_parentage ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:31.4911774Z test store::tests::managed_submission::managed_not_received_is_provable_only_for_the_live_current_parent ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:31.6196412Z test store::tests::managed_submission::managed_policy_applies_claim_impact_and_fence_limits_to_probes ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:32.1231051Z test store::tests::managed_submission::managed_wait_allows_orthogonal_child_and_checks_the_full_ancestor_chain ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:32.5053446Z test store::tests::managed_submission::managed_wait_rejects_a_claim_that_exceeds_host_capacity ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:32.6972378Z test store::tests::managed_submission::managed_wait_walks_unfinished_predecessors_and_rejects_self_or_foreign_targets ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:32.8505316Z test store::tests::managed_submission::neutral_only_parent_does_not_inherit_priority_and_rejects_escalation_durably ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:33.3569749Z test store::tests::managed_submission::non_primary_transport_identity_does_not_confer_child_authority ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:33.5915726Z test store::tests::managed_submission::policy_invalid_batch_names_the_member_and_is_atomic ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:33.8792590Z test store::tests::managed_submission::received_wait_intent_survives_resume_and_cannot_accept_an_unsafe_child ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:34.2804655Z test store::tests::managed_submission::restart_rejects_managed_received_work_from_the_previous_daemon_generation ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:34.4577657Z test store::tests::managed_submission::vram_policy_claims_compare_and_persist_in_canonical_form ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:34.8359388Z test store::tests::observation::invocation_event_identity_is_atomic_and_required ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:35.2116280Z test store::tests::observation::lifecycle_and_cancellation_transitions_emit_named_events ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:35.3258235Z test store::tests::observation::list_cursor_is_stable_and_store_scoped ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:35.6074370Z test store::tests::observation::list_events_and_cursor_are_one_public_observation_path ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:36.1696343Z test store::tests::observation::event_ring_reports_gap_and_resynchronizes ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:36.4810102Z test store::tests::priority_reservations::priority_is_bounded_neutral_immutable_and_hashed_per_batch_member ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:37.1080873Z test store::tests::priority_reservations::blocked_and_impossible_high_priority_jobs_do_not_head_of_line_block ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:37.6844720Z test store::tests::priority_reservations::reservations_are_full_vector_bounded_observable_and_protect_only_claimed_scalars ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:37.9203388Z test store::tests::priority_reservations::reservation_deadline_survives_restart_expiry_yields_and_cancellation_cleans_up ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:38.6373910Z test store::tests::priority_reservations::effective_priority_ages_monotonically_and_orders_by_original_acceptance ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:39.2539889Z test store::tests::priority_reservations::retry_and_restart_preserve_acceptance_and_aging_history ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:40.3608503Z test store::tests::store_recovery::corrupt_or_empty_database_is_replaced_with_current_schema ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:40.7730215Z test store::tests::priority_reservations::restart_capacity_shrink_keeps_only_the_scheduler_ordered_reservation_prefix ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:40.9820977Z test store::tests::store_recovery::corruption_discovered_during_recovery_resets_once ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:41.1841084Z test store::tests::priority_reservations::reservations_sum_to_capacity_and_non_scalar_changes_release_them ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:41.3583087Z test store::tests::store_recovery::current_schema_reopens_without_changing_store_identity ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:41.9942714Z test store::tests::store_recovery::diagnostic_tail_io_failure_cannot_block_invocation_resolution ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:42.0887180Z test store::tests::store_recovery::duplicate_key_returns_one_job ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:42.0890555Z test store::tests::store_recovery::only_corruption_errors_authorize_destructive_reset ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:43.0370462Z test store::tests::store_recovery::recovery_never_creates_work_and_distinguishes_conflict ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:43.0475538Z test store::tests::store_recovery::logs_publish_only_flushed_committed_prefix ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:43.0675672Z test store::tests::store_recovery::foreign_store_id_rejects_even_if_entity_uuid_collides ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:43.1065768Z test store::tests::store_recovery::damaged_schema_and_identity_each_reset_the_whole_database ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:43.9127237Z test store::tests::store_recovery::rejected_idempotency_decision_replays_as_rejected ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:44.3510698Z test store::tests::store_recovery::restart_before_root_retains_boundary_until_reconciled ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:44.3687755Z test store::tests::store_recovery::restart_after_empty_proof_before_primary_result_is_fail_closed ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:44.6222965Z test store::tests::store_recovery::restart_after_resolved_postcondition_releases_empty_attempt_lease ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:45.2785052Z test store::tests::store_recovery::restart_during_prepared_postcondition_retains_attempt_lease ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:45.4894748Z test store::tests::store_recovery::same_key_different_payload_conflicts ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:45.5144049Z test store::tests::store_recovery::restart_never_uses_pid_only_root_disappearance_as_proof ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:45.6969134Z test store::tests::store_recovery::restart_interrupts_active_job_without_requeueing_it ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:46.4761139Z test store::tests::store_recovery::uncertain_settlement_retains_lease_and_is_terminal ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:46.6540037Z test store::tests::store_recovery::startup_resumes_durable_received_submission ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:46.9541104Z test store::tests::tree::depth_cut_before_a_connector_keeps_an_inclusive_child_continuation ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:47.0876344Z test store::tests::store_recovery::schema_epoch_mismatch_resets_database_and_preserves_other_files ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:47.8411276Z test store::tests::tree::filtered_tree_retains_only_connecting_ancestors_and_selector_bound_expansion ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:48.7619001Z test store::tests::tree::root_cursor_survives_logs_but_fails_closed_when_attention_order_changes ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:49.0914971Z test store::tests::tree::orphan_is_explicit_and_a_parent_cycle_fails_closed ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:49.7569772Z test store::tests::tree::schema_rejects_a_noncanonical_tree_order_trigger ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:49.8692780Z test store::tests::tree::encoded_budget_truncates_with_a_root_continuation_and_makes_progress ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:51.1404207Z test store::tests::tree::tree_depth_cursor_and_for_job_preserve_the_complete_ancestor_path ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:51.7680654Z test store::tests::tree::row_sixteen_thousand_three_hundred_eighty_five_fails_before_classification ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:52.2087290Z test store::tests::tree::tree_observation_includes_future_descendants_and_wrong_store_gap_snapshot ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:52.3861970Z test store::tests::tree::schema_requires_tree_query_indexes ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4205026Z test store::tests::tree::managed_ancestry_accepts_sixty_four_jobs_and_rejects_the_sixty_fifth ... ok
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4205757Z 
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4206001Z failures:
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4206218Z 
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4206890Z ---- runner::windows::tests::postcondition_retry_runs_a_second_attempt_under_the_same_job stdout ----
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4207863Z 
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4209461Z thread 'runner::windows::tests::postcondition_retry_runs_a_second_attempt_under_the_same_job' (5580) panicked at src\runner\windows.rs:1491:13:
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4210972Z assertion `left == right` failed: JobSnapshot {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4211531Z     job_id: JobId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4211979Z         store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4212586Z         entity_uuid: 01a09690-6031-7691-87ee-4b764dbd81cb,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4213203Z     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4213896Z     submission_id: SubmissionId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4214488Z         store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4215298Z         entity_uuid: 01a09690-6014-7063-82e0-a27c32a20c4e,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4215850Z     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4216236Z     batch_id: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4216521Z     batch_member: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4216812Z     state: Final,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4217083Z     outcome: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4217358Z         TimedOut,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4217637Z     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4217898Z     reason_code: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4218173Z     attempt_id: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4218444Z         AttemptId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4218758Z             store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4219186Z             entity_uuid: 01a09690-6060-7ca0-8770-0d06c3a0c4d7,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4219571Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4219823Z     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4220070Z     invocation_id: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4220348Z         InvocationId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4220652Z             store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4221071Z             entity_uuid: 01a09690-60fe-7dd1-929e-85814a747718,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4221405Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4221623Z     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4221852Z     containment_id: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4222127Z         ContainmentId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4222422Z             store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4222797Z             entity_uuid: 01a09690-60fe-7dd1-929e-8599b0ebd179,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4223128Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4223348Z     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4223572Z     root_exit_code: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4223827Z         0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4224037Z     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4224293Z     cancel_requested: false,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4225060Z     accepted_unix_millis: 1789232439345,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4225574Z     priority: 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4225837Z     effective_priority: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4226112Z     queue_rank: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4226364Z     reservation: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4226614Z     conditions: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4226864Z     started_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4227142Z         1789232439428,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4227380Z     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4227610Z     finished_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4227915Z         1789232499503,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4228402Z     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4228623Z     spec: JobSpec {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4228880Z         spec_version: 4,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4229145Z         priority: 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4229439Z         executable: "C:\\Windows\\System32\\cmd.exe",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4229771Z         args: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4230000Z             "/D",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4230225Z             "/C",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4230461Z             "echo primary",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4230727Z         ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4231084Z         working_directory: "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\.tmpNsffM6",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4231544Z         stdin: Eof,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4231855Z         environment: EnvironmentSpec {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4232227Z             set: {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4232715Z                 "STY_VALIDATOR_MARKER": "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\.tmpNsffM6\\validator-seen.marker",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4233248Z             },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4233485Z             unset: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4233728Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4233994Z         resources: ResourceClaims {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4234428Z             cpu_units: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4234699Z             ram_mb: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4234965Z             cargo_slots: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4235242Z             gpu_slots: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4235509Z             custom: {},
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4235770Z             shared_fences: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4236058Z             exclusive_fences: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4236346Z             impacts: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4236990Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4237360Z         observed: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4237788Z         conditions: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4238260Z         retry: RetryPolicy {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4238713Z             max_attempts: 2,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4239186Z             backoff_seconds: 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4239557Z             retryable: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4239839Z                 "postcondition_retryable",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4240158Z             ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4240387Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4240624Z         postconditions: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4240904Z             PostconditionSpec {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4241339Z                 executable: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4241826Z                 args: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4242079Z                     "-NoLogo",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4242348Z                     "-NoProfile",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4242634Z                     "-NonInteractive",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4242933Z                     "-Command",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4243635Z                     "if (Test-Path -LiteralPath $env:STY_VALIDATOR_MARKER) { exit 0 } else { New-Item -ItemType File -Path $env:STY_VALIDATOR_MARKER | Out-Null; exit 10 }",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4244355Z                 ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4244614Z                 working_directory: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4245394Z                 accepted_exit_codes: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4245694Z                     0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4245970Z                 ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4246223Z                 retryable_exit_codes: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4246520Z                     10,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4246762Z                 ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4246994Z             },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4247196Z         ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4247352Z         labels: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4247547Z         expected_duration_seconds: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4247782Z             1,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4247941Z         ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4248108Z         timeout_seconds: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4248312Z             60,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4248479Z         ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4248633Z         quiet: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4248812Z         artifacts: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4249013Z         child_submission_policy: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4249243Z     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4249402Z     parent: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4249983Z     managed_policy_admission: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4250306Z     blockers: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4250562Z     attempts: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4250861Z         AttemptSnapshot {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4251162Z             attempt_id: AttemptId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4251512Z                 store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4251950Z                 entity_uuid: 01a09690-6060-7ca0-8770-0d06c3a0c4d7,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4252315Z             },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4268981Z             attempt_index: 1,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4269301Z             verdict: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4269596Z                 TimedOut,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4270106Z             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4270524Z             reason_code: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4270987Z             created_unix_millis: 1789232439390,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4271522Z             started_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4271993Z                 1789232439390,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4272410Z             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4272786Z             deadline_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4273490Z                 1789232499390,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4273884Z             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4274232Z             finished_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4274697Z                 1789232499503,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4275145Z             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4275540Z             primary_result: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4276014Z                 PrimaryInvocationResult {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4276490Z                     schema_version: 1,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4276949Z                     job_id: JobId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4277446Z                         store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4278070Z                         entity_uuid: 01a09690-6031-7691-87ee-4b764dbd81cb,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4278606Z                     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4279013Z                     attempt_id: AttemptId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4279573Z                         store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4280253Z                         entity_uuid: 01a09690-6060-7ca0-8770-0d06c3a0c4d7,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4280814Z                     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4281222Z                     invocation_id: InvocationId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4281806Z                         store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4282469Z                         entity_uuid: 01a09690-6060-7ca0-8770-0d18b2ca038a,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4283399Z                     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4283815Z                     verdict: Succeeded,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4284304Z                     root_exit_code: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4284813Z                         0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4285273Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4285692Z                     termination: Exited,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4286209Z                     containment: Empty,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4286752Z                     started_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4287321Z                         1789232439428,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4287813Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4288294Z                     exited_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4289136Z                         1789232439467,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4289482Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4289802Z                     resolved_unix_millis: 1789232439518,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4290137Z                 },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4290412Z             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4290651Z             admission: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4290904Z             invocations: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4291186Z                 InvocationSnapshot {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4291496Z                     invocation_id: InvocationId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4291821Z                         store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4292176Z                         entity_uuid: 01a09690-6060-7ca0-8770-0d18b2ca038a,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4292467Z                     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4292891Z                     role: Primary,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4293122Z                     role_index: 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4293355Z                     state: Resolved,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4293586Z                     root_pid: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4293806Z                         9132,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4294007Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4294205Z                     root_identity: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4294442Z                         Windows {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4294665Z                             host_id: HostId(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4295068Z                                 "sha256:4b1385ee2e4629b0eb6289edd498c9eecc63da45dfa24349f3e6a645beddc8db",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4295476Z                             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4295685Z                             boot_id: BootId(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4295976Z                                 "780fd440-93d2-11f1-990e-3833c5d60e55",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4296255Z                             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4296463Z                             pid: 9132,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4296732Z                             creation_filetime_100ns: 134337060394260095,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4297123Z                         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4297304Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4297495Z                     root_exit_code: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4297718Z                         0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4297895Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4298092Z                     exit_classification: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4298350Z                     executable_hash: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4298714Z                         "64afc6db3aad1289533662e2d79e27dd55c7dcdb8cd918b08e145ad82ad5acb4",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4299073Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4299259Z                     daemon_generation: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4299526Z                         01a09690-5ff2-76d3-a3b8-1fb66582198e,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4299786Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4299985Z                     started_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4300231Z                         1789232439428,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4300446Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4300853Z                     finished_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4301286Z                         1789232439518,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4301503Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4301716Z                     containment: ContainmentSnapshot {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4302021Z                         containment_id: ContainmentId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4302339Z                             store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4302695Z                             entity_uuid: 01a09690-6060-7ca0-8770-0d289115e629,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4302986Z                         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4303183Z                         state: Empty,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4303427Z                         strength: "windows_job_object",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4303687Z                         incident_id: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4303926Z                         incident: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4304164Z                         resolution: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4304406Z                         resolution_audit: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4304637Z                     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4304839Z                     stdout_tail: "primary\r\n",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4305095Z                     stderr_tail: "",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4305308Z                 },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4305492Z                 InvocationSnapshot {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4305737Z                     invocation_id: InvocationId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4306038Z                         store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4306381Z                         entity_uuid: 01a09690-60fe-7dd1-929e-85814a747718,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4306663Z                     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4306854Z                     role: Postcondition,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4307092Z                     role_index: 1,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4308052Z                     state: Resolved,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4308286Z                     root_pid: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4308503Z                         8364,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4308697Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4308888Z                     root_identity: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4309118Z                         Windows {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4309473Z                             host_id: HostId(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4309969Z                                 "sha256:4b1385ee2e4629b0eb6289edd498c9eecc63da45dfa24349f3e6a645beddc8db",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4311073Z                             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4311522Z                             boot_id: BootId(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4312003Z                                 "780fd440-93d2-11f1-990e-3833c5d60e55",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4312481Z                             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4312825Z                             pid: 8364,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4313271Z                             creation_filetime_100ns: 134337060395809266,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4313750Z                         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4314307Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4314647Z                     root_exit_code: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4315033Z                         21,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4315343Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4315674Z                     exit_classification: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4316109Z                     executable_hash: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4316714Z                         "f1f0ba58b157a1e4509d67f49266be9c94c463636c76d368e375a235cbaeee1d",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4317323Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4317659Z                     daemon_generation: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4318149Z                         01a09690-5ff2-76d3-a3b8-1fb66582198e,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4318588Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4318933Z                     started_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4319349Z                         1789232439582,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4319723Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4320091Z                     finished_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4320539Z                         1789232499499,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4320933Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4321326Z                     containment: ContainmentSnapshot {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4321883Z                         containment_id: ContainmentId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4322322Z                             store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4322699Z                             entity_uuid: 01a09690-60fe-7dd1-929e-8599b0ebd179,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4323000Z                         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4323572Z                         state: Empty,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4323836Z                         strength: "windows_job_object",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4324108Z                         incident_id: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4324360Z                         incident: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4324604Z                         resolution: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4324858Z                         resolution_audit: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4325108Z                     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4325299Z                     stdout_tail: "",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4325526Z                     stderr_tail: "",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4325736Z                 },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4325902Z             ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4326060Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4326211Z     ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4326366Z     allocations: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4326571Z         NativeAllocationSnapshot {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4326806Z             grant_id: GrantId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4327064Z                 store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4327386Z                 entity_uuid: 01a09690-6060-7ca0-8770-0d33c4ea3219,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4327654Z             },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4327855Z             lease_id: 01a09690-6060-7ca0-8770-0d33c4ea3219,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4328319Z             key: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4328504Z             owner: Work {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4328700Z                 job_id: JobId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4328949Z                     store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4329283Z                     entity_uuid: 01a09690-6031-7691-87ee-4b764dbd81cb,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4329559Z                 },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4329741Z                 attempt_id: AttemptId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4330014Z                     store_uuid: 01a09690-5e29-7762-83b7-b03663a0d119,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4330329Z                     entity_uuid: 01a09690-6060-7ca0-8770-0d06c3a0c4d7,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4330595Z                 },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4330750Z             },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4330916Z             state: Released,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4331118Z             claims: Claims {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4331316Z                 scalars: {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4331517Z                     "cargo_slots": 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4331746Z                     "cpu_units": 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4331957Z                     "gpu_slots": 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4332377Z                     "ram_mb": 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4332667Z                 },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4332846Z                 shared_fences: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4333068Z                 exclusive_fences: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4333289Z                 impacts: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4333475Z             },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4333633Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4333783Z     ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4333945Z     gpu_provenance: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4334152Z     admission: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4334505Z     daemon_generation: 01a09690-5ff2-76d3-a3b8-1fb66582198e,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4334980Z }
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4335232Z   left: Final
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4335538Z  right: Pending
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4336030Z note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4336494Z 
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4337020Z ---- runner::windows::tests::primary_tree_is_empty_before_postcondition_receives_immutable_result stdout ----
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4337515Z 
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4337966Z thread 'runner::windows::tests::primary_tree_is_empty_before_postcondition_receives_immutable_result' (6116) panicked at src\runner\windows.rs:1683:9:
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4338605Z missing validator result: JobSnapshot {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4338849Z     job_id: JobId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4339073Z         store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4339402Z         entity_uuid: 01a09690-617c-7ee0-8629-886379990135,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4339666Z     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4339835Z     submission_id: SubmissionId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4340100Z         store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4340397Z         entity_uuid: 01a09690-6176-7711-967d-90cf9c37c5ae,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4340650Z     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4340801Z     batch_id: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4340989Z     batch_member: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4341193Z     state: Final,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4341370Z     outcome: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4341543Z         TimedOut,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4341719Z     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4341878Z     reason_code: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4342069Z     attempt_id: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4342253Z         AttemptId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4342474Z             store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4342799Z             entity_uuid: 01a09690-6185-7472-816f-0d69c8e6b34e,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4343066Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4343215Z     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4343735Z     invocation_id: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4343938Z         InvocationId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4344168Z             store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4344492Z             entity_uuid: 01a09690-65f7-71e1-a597-9bc909b47485,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4344757Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4344906Z     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4345252Z     containment_id: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4345455Z         ContainmentId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4345688Z             store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4346006Z             entity_uuid: 01a09690-65f7-71e1-a597-9bdc403d5b0b,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4346277Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4346428Z     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4346591Z     root_exit_code: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4346790Z         25,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4346947Z     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4347108Z     cancel_requested: false,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4347341Z     accepted_unix_millis: 1789232439676,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4347582Z     priority: 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4347776Z     effective_priority: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4347993Z     queue_rank: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4348198Z     reservation: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4348548Z     conditions: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4348902Z     started_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4349123Z         1789232440613,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4349296Z     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4349472Z     finished_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4349691Z         1789232500108,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4350553Z     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4350716Z     spec: JobSpec {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4350899Z         spec_version: 4,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4351095Z         priority: 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4351476Z         executable: "D:\\a\\stillyard\\stillyard\\target\\debug\\deps\\stillyard-7ae8bffc447c6658.exe",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4351908Z         args: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4352079Z             "--ignored",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4352270Z             "--exact",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4352519Z             "runner::windows::tests::postcondition_tree_helper",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4352814Z         ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4353102Z         working_directory: "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\.tmpe2qWNz",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4353464Z         stdin: Eof,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4353661Z         environment: EnvironmentSpec {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4353897Z             set: {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4354258Z                 "STY_TEST_PID_FILE": "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\.tmpe2qWNz\\grandchild.pid",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4354677Z             },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4354838Z             unset: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4355010Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4355179Z         resources: ResourceClaims {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4355409Z             cpu_units: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4355624Z             ram_mb: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4355822Z             cargo_slots: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4356032Z             gpu_slots: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4356232Z             custom: {},
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4356426Z             shared_fences: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4356635Z             exclusive_fences: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4356852Z             impacts: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4357034Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4357193Z         observed: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4357381Z         conditions: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4357574Z         retry: RetryPolicy {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4357793Z             max_attempts: 1,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4357996Z             backoff_seconds: 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4358212Z             retryable: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4358399Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4358562Z         postconditions: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4358769Z             PostconditionSpec {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4359139Z                 executable: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4359530Z                 args: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4359722Z                     "-NoLogo",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4359929Z                     "-NoProfile",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4360163Z                     "-NonInteractive",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4360404Z                     "-Command",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4362265Z                     "$result = $env:STILLYARD_PRIMARY_RESULT | ConvertFrom-Json; $childPid = [int](Get-Content -LiteralPath 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\.tmpe2qWNz\\grandchild.pid'); if (Get-Process -Id $childPid -ErrorAction SilentlyContinue) { exit 91 }; $result | ConvertTo-Json -Compress | Set-Content -LiteralPath 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\.tmpe2qWNz\\primary-result.json'; if ($result.root_exit_code -ne 25 -or $result.verdict -ne 'process_failed' -or $result.containment -ne 'empty') { exit 92 }; exit 0",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4364629Z                 ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4364838Z                 working_directory: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4365100Z                 accepted_exit_codes: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4365332Z                     0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4365511Z                 ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4365709Z                 retryable_exit_codes: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4365947Z             },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4366112Z         ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4366270Z         labels: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4366465Z         expected_duration_seconds: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4366695Z             1,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4366851Z         ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4367012Z         timeout_seconds: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4367225Z             60,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4367384Z         ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4367657Z         quiet: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4367841Z         artifacts: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4368049Z         child_submission_policy: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4368279Z     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4368434Z     parent: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4368625Z     managed_policy_admission: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4368854Z     blockers: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4369023Z     attempts: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4369206Z         AttemptSnapshot {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4369416Z             attempt_id: AttemptId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4369694Z                 store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4370036Z                 entity_uuid: 01a09690-6185-7472-816f-0d69c8e6b34e,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4370316Z             },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4370511Z             attempt_index: 1,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4370721Z             verdict: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4370914Z                 TimedOut,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4371104Z             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4371278Z             reason_code: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4371507Z             created_unix_millis: 1789232439684,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4371769Z             started_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4371997Z                 1789232439684,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4372188Z             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4372363Z             deadline_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4372602Z                 1789232499684,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4372794Z             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4372972Z             finished_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4373197Z                 1789232500108,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4373385Z             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4373558Z             primary_result: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4373793Z                 PrimaryInvocationResult {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4374037Z                     schema_version: 1,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4374260Z                     job_id: JobId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4374530Z                         store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4374875Z                         entity_uuid: 01a09690-617c-7ee0-8629-886379990135,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4375156Z                     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4375349Z                     attempt_id: AttemptId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4375642Z                         store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4375980Z                         entity_uuid: 01a09690-6185-7472-816f-0d69c8e6b34e,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4376262Z                     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4376464Z                     invocation_id: InvocationId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4376764Z                         store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4377094Z                         entity_uuid: 01a09690-6186-7cd3-8c64-4dd5a2d1a434,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4377369Z                     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4377563Z                     verdict: ProcessFailed,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4377807Z                     root_exit_code: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4378133Z                         25,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4378326Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4378517Z                     termination: Exited,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4378754Z                     containment: Empty,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4378999Z                     started_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4379244Z                         1789232440613,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4379450Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4379640Z                     exited_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4379877Z                         1789232440669,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4380089Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4380292Z                     resolved_unix_millis: 1789232440780,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4380540Z                 },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4380701Z             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4380867Z             admission: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4381064Z             invocations: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4381264Z                 InvocationSnapshot {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4381513Z                     invocation_id: InvocationId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4381894Z                         store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4382227Z                         entity_uuid: 01a09690-6186-7cd3-8c64-4dd5a2d1a434,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4382501Z                     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4382678Z                     role: Primary,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4382890Z                     role_index: 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4383098Z                     state: Resolved,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4383319Z                     root_pid: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4383533Z                         6556,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4384067Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4384266Z                     root_identity: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4384494Z                         Windows {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4384710Z                             host_id: HostId(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4385103Z                                 "sha256:4b1385ee2e4629b0eb6289edd498c9eecc63da45dfa24349f3e6a645beddc8db",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4385508Z                             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4385720Z                             boot_id: BootId(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4385985Z                                 "780fd440-93d2-11f1-990e-3833c5d60e55",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4386267Z                             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4386463Z                             pid: 6556,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4386729Z                             creation_filetime_100ns: 134337060406116027,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4387004Z                         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4387185Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4387371Z                     root_exit_code: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4387599Z                         25,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4387782Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4387979Z                     exit_classification: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4388235Z                     executable_hash: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4388602Z                         "64b2f322c5cf97c501d0d262e3d930b3d0d1cf5ea9c8c08a8bd76d1c0d51c433",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4388966Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4389162Z                     daemon_generation: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4389425Z                         01a09690-6152-7e73-8e70-0b634dc22211,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4389676Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4389866Z                     started_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4390103Z                         1789232440613,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4390309Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4390504Z                     finished_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4390747Z                         1789232440780,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4390955Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4391160Z                     containment: ContainmentSnapshot {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4391454Z                         containment_id: ContainmentId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4391773Z                             store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4392246Z                             entity_uuid: 01a09690-6186-7cd3-8c64-4dee52404ed2,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4392541Z                         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4392736Z                         state: Empty,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4392982Z                         strength: "windows_job_object",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4393246Z                         incident_id: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4393491Z                         incident: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4393725Z                         resolution: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4393970Z                         resolution_audit: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4394203Z                     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4394440Z                     stdout_tail: "\nrunning 1 test\n\nrunning 1 test\n",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4394737Z                     stderr_tail: "",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4394944Z                 },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4395122Z                 InvocationSnapshot {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4395363Z                     invocation_id: InvocationId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4395665Z                         store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4396118Z                         entity_uuid: 01a09690-65f7-71e1-a597-9bc909b47485,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4396402Z                     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4396593Z                     role: Postcondition,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4396823Z                     role_index: 1,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4397034Z                     state: Resolved,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4397250Z                     root_pid: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4397459Z                         3528,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4397648Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4397831Z                     root_identity: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4398054Z                         Windows {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4398275Z                             host_id: HostId(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4398666Z                                 "sha256:4b1385ee2e4629b0eb6289edd498c9eecc63da45dfa24349f3e6a645beddc8db",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4399075Z                             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4399283Z                             boot_id: BootId(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4399552Z                                 "780fd440-93d2-11f1-990e-3833c5d60e55",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4399821Z                             ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4400018Z                             pid: 3528,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4400280Z                             creation_filetime_100ns: 134337060408431562,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4400550Z                         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4400728Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4400915Z                     root_exit_code: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4401144Z                         21,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4401326Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4401521Z                     exit_classification: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4401774Z                     executable_hash: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4402136Z                         "f1f0ba58b157a1e4509d67f49266be9c94c463636c76d368e375a235cbaeee1d",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4402497Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4402688Z                     daemon_generation: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4402953Z                         01a09690-6152-7e73-8e70-0b634dc22211,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4403202Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4403404Z                     started_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4403641Z                         1789232440844,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4404199Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4404458Z                     finished_unix_millis: Some(
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4404711Z                         1789232499997,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4404924Z                     ),
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4405131Z                     containment: ContainmentSnapshot {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4405424Z                         containment_id: ContainmentId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4405731Z                             store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4406085Z                             entity_uuid: 01a09690-65f7-71e1-a597-9bdc403d5b0b,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4406499Z                         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4406697Z                         state: Empty,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4406936Z                         strength: "windows_job_object",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4407192Z                         incident_id: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4407440Z                         incident: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4407674Z                         resolution: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4407923Z                         resolution_audit: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4408158Z                     },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4408342Z                     stdout_tail: "",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4408563Z                     stderr_tail: "",
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4408770Z                 },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4408932Z             ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4409088Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4409246Z     ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4409400Z     allocations: [
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4409590Z         NativeAllocationSnapshot {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4409823Z             grant_id: GrantId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4410081Z                 store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4410496Z                 entity_uuid: 01a09690-6186-7cd3-8c64-4dfb9efb96bf,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4410767Z             },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4410963Z             lease_id: 01a09690-6186-7cd3-8c64-4dfb9efb96bf,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4411222Z             key: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4411400Z             owner: Work {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4411586Z                 job_id: JobId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4411850Z                     store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4412185Z                     entity_uuid: 01a09690-617c-7ee0-8629-886379990135,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4412454Z                 },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4412633Z                 attempt_id: AttemptId {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4412903Z                     store_uuid: 01a09690-5ff7-7cd0-b8b1-56b2c5ee6928,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4413221Z                     entity_uuid: 01a09690-6185-7472-816f-0d69c8e6b34e,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4413493Z                 },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4413654Z             },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4413820Z             state: Released,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4414021Z             claims: Claims {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4414223Z                 scalars: {
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4414418Z                     "cargo_slots": 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4414635Z                     "cpu_units": 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4414850Z                     "gpu_slots": 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4415060Z                     "ram_mb": 0,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4415255Z                 },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4415425Z                 shared_fences: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4415645Z                 exclusive_fences: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4415869Z                 impacts: [],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4416061Z             },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4416214Z         },
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4416367Z     ],
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4416524Z     gpu_provenance: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4416722Z     admission: None,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4416962Z     daemon_generation: 01a09690-6152-7e73-8e70-0b634dc22211,
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4417242Z }
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4417324Z 
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4417336Z 
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4417396Z failures:
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4417715Z     runner::windows::tests::postcondition_retry_runs_a_second_attempt_under_the_same_job
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4418292Z     runner::windows::tests::primary_tree_is_empty_before_postcondition_receives_immutable_result
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4418650Z 
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4418912Z test result: FAILED. 297 passed; 2 failed; 5 ignored; 0 measured; 0 filtered out; finished in 147.44s
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4419272Z 
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.4419678Z ^[[1m^[[91merror^[[0m: test failed, to rerun pass `--lib`
+test (windows-latest)	Run cargo test --all-features	2026-09-12T17:02:53.5432254Z ##[error]Process completed with exit code 1.

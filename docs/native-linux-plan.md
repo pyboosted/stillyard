@@ -185,3 +185,17 @@ CPU/disk final release sampling. The process-coverage negative control correctly
 refused user-code release; the harness confused Attempt verdict `safety_failed`
 with its public Job outcome `failed`. Both levels are now checked explicitly.
 [Retained results](evidence/mr4-native-ci-20260912/run-34707073403/).
+
+## Windows validator regression
+
+Ordinary Windows CI 34706776310 timed out two PowerShell postconditions after
+approximately 60 seconds. Primary work had finished, and its containment was
+empty; the logs do not identify PowerShell's internal stall. The two isolated
+validators now use current_exe Rust helpers, preserving retry exit10→0, descendant
+process-handle death checks, immutable primary result and the original timeout.
+Production Windows execution is unchanged. Default WSL fmt/check/test/Clippy
+Jobs passed for this checkpoint; their canonical receipts and actual released
+Windows Grants are [retained here](evidence/mr4-native-core-20260912/windows-validator-regression/).
+The actual Windows-specific test rerun remains required. Redundant ordinary CI
+runs 34707194136, 34707073398 and 34706919905 were canceled; native run34707194125
+was canceled before repeating its superseded controller expectation.
