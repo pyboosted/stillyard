@@ -1,0 +1,29 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import pathlib,subprocess\nnames=['install-native-linux.py','native-linux-service.py','probe-native-linux.py','probe-native-linux-delegation.py','run-linux-job.py','run-native-linux-acceptance.py','run-native-linux-crash.py','run-native-linux-history.py','observe-native-linux-idle.py','test-native-linux-service.py']\nfor name in names: compile((pathlib.Path('scripts')/name).read_text(),name,'exec')\nsubprocess.run(['/usr/bin/python3','scripts/test-native-linux-service.py'],check=True,timeout=30)\nfor name in ['run-native-linux-crash.py','run-native-linux-history.py','probe-native-linux-delegation.py']:\n r=subprocess.run(['/usr/bin/python3','scripts/'+name,'--disposable-native-host','--evidence-directory','/does-not-get-created'],capture_output=True,text=True,timeout=10)\n assert r.returncode==2 and 'native' in r.stderr,r\nprint('native-script-controls-and-WSL-fault-refusals-passed')\n"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard",
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin",
+      "PYTHONDONTWRITEBYTECODE": "1"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1
+  },
+  "timeout_seconds": 60,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "native-linux-service-controls-v4"
+    }
+  ]
+}

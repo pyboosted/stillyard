@@ -159,10 +159,17 @@ def main():
                     '--idempotency-key', key, '--result-file', str(directory / 'canary.receipt.json'),
                     '--wait', '--deadline-seconds', '30'], check=True, timeout=40)
     job = json.loads((directory / 'canary.receipt.json').read_text())['receipt']['accepted']['job_id']
-    status = query('--endpoint', endpoint, 'status', job)
-    save('canary.status', status)
-    if status['outcome'] != 'succeeded' or not status['allocations'] or any(a['state'] != 'released' for a in status['allocations']):
-        raise RuntimeError('restored native history canary did not release its allocation')
+    until = time.monotonic() + 30
+    while True:
+        status = query('--endpoint', endpoint, 'status', job)
+        save('canary.status', status)
+        if (status['outcome'] == 'succeeded' and status['allocations']
+                and all(a['state'] == 'released' for a in status['allocations'])
+                and json.loads(history.read_bytes())['state']['records'][status['invocation_id']]['seal'] is not None):
+            break
+        if time.monotonic() >= until:
+            raise RuntimeError('restored native history canary did not seal and release its allocation')
+        time.sleep(.1)
     save('result', {'quiescent_corrupt_history_passed': True, 'restored_canary_job': job,
                     'remaining': ['active-work history loss', 'SQL rollback', 'pre-release fault boundaries']})
     print(directory, job, flush=True)

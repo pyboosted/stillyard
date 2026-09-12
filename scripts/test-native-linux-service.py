@@ -94,6 +94,40 @@ class Installation(unittest.TestCase):
                 service.initialize(self.root, self.daemon, self.executors)
             call.assert_not_called()
 
+    def test_native_restart_never_recreates_a_missing_executor_tree(self):
+        self.request.unlink()
+        cgroup = self.root / 'cgroups'
+        group = cgroup / 'delegation'
+        group.mkdir(parents=True)
+        properties = {'ControlGroup': '/delegation', 'ActiveState': 'active',
+                      'SubState': 'exited', 'MainPID': '0'}
+        def query(command, **kwargs):
+            return properties[command[-2].removeprefix('--property=')] + '\n'
+        def path(value):
+            return cgroup if value == '/sys/fs/cgroup' else Path(value)
+        with patch.object(service, 'Path', side_effect=path), patch.object(
+                service.subprocess, 'check_output', side_effect=query), patch.object(service.subprocess, 'run') as attach:
+            with self.assertRaises(RuntimeError):
+                service.delegated_unit_setup(self.root, group / 'executors', 4096)
+            attach.assert_not_called()
+        self.assertFalse((group / 'executors').exists())
+
+    def test_native_partial_delegation_setup_cannot_be_replayed(self):
+        cgroup = self.root / 'cgroups'
+        group = cgroup / 'delegation'
+        (group / 'executors').mkdir(parents=True)
+        properties = {'ControlGroup': '/delegation', 'ActiveState': 'active',
+                      'SubState': 'exited', 'MainPID': '0'}
+        def query(command, **kwargs):
+            return properties[command[-2].removeprefix('--property=')] + '\n'
+        def path(value):
+            return cgroup if value == '/sys/fs/cgroup' else Path(value)
+        with patch.object(service, 'Path', side_effect=path), patch.object(
+                service.subprocess, 'check_output', side_effect=query), patch.object(service.subprocess, 'run') as attach:
+            with self.assertRaisesRegex(RuntimeError, 'conflicts with prior state'):
+                service.delegated_unit_setup(self.root, group / 'executors', 4096)
+            attach.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -84,9 +84,8 @@ def delegated_unit_setup(root, executors, ram_mb):
     def property_value(name):
         return subprocess.check_output(['/usr/bin/systemctl', '--user', 'show', unit,
                                         '--property=' + name, '--value'], text=True, timeout=10).strip()
-    group = Path('/sys/fs/cgroup') / property_value('ControlGroup').lstrip('/')
     if (property_value('ActiveState') != 'active' or property_value('SubState') != 'exited'
-            or property_value('MainPID') != '0' or executors != group / 'executors'):
+            or property_value('MainPID') != '0'):
         raise RuntimeError('native delegation unit is not active/exited at the installed path')
     first = (root / 'native-install-request.json').exists()
     if first:
@@ -95,6 +94,12 @@ def delegated_unit_setup(root, executors, ram_mb):
         subprocess.run(['/usr/bin/busctl', '--user', 'call', 'org.freedesktop.systemd1',
                         '/org/freedesktop/systemd1', 'org.freedesktop.systemd1.Manager',
                         'AttachProcessesToUnit', 'ssau', unit, '', '1', str(os.getpid())], check=True, timeout=10)
+    # ControlGroup is empty after the initial SERVICE_EXITED prune. The
+    # supported attach operation realizes it; only then can it be compared.
+    group = Path('/sys/fs/cgroup') / property_value('ControlGroup').lstrip('/')
+    if executors != group / 'executors':
+        raise RuntimeError('native delegated cgroup differs from the installed path')
+    if first:
         setup = group / 'setup'
         setup.mkdir()
         (setup / 'cgroup.procs').write_text(str(os.getpid()))

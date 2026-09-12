@@ -167,3 +167,14 @@ uses the final release barrier. The control now checks actual RAM/CPU operands
 and released state; its quiet case continues requiring final samples.
 [Failed controller evidence](evidence/mr4-native-ci-20260912/run-34706665968/).
 Superseded native run 34706776316 was canceled before repeating that known failure.
+
+Native integration run 34706919911 failed before first Store initialization:
+ControlGroup is empty after SERVICE_EXITED prune and becomes meaningful only
+after AttachProcessesToUnit. The native helper now compares the path after
+that call, matching the successful standalone prerequisite experiment.
+[Failure evidence](evidence/mr4-native-ci-20260912/run-34706919911/).
+Two new scheduled helper controls verify that restart never recreates a missing
+executor tree and partial delegation setup never repeats its attach operation.
+All seven helper controls and WSL rejection of the three native fault controllers
+passed in default WSL Job `01a089b1-9a6a-7711-a600-39e2b74e495d~01a09692-c877-7911-8e9e-966c526f6553`.
+[Canonical controls](evidence/mr4-native-core-20260912/native-service-controls-v5/).

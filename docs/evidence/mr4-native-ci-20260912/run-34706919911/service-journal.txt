@@ -1,0 +1,12 @@
+Sep 12 17:01:24 runnervmlun5p systemd[899]: Starting stillyard.service - Stillyard standalone Linux scheduler...
+Sep 12 17:01:24 runnervmlun5p python3[4594]: Traceback (most recent call last):
+Sep 12 17:01:24 runnervmlun5p python3[4594]:   File "/home/runner/.local/share/stillyard/libexec/native-linux-service.py", line 141, in <module>
+Sep 12 17:01:24 runnervmlun5p python3[4594]:     main()
+Sep 12 17:01:24 runnervmlun5p python3[4594]:   File "/home/runner/.local/share/stillyard/libexec/native-linux-service.py", line 131, in main
+Sep 12 17:01:24 runnervmlun5p python3[4594]:     delegated_unit_setup(root, args.executors, args.ram_mb)
+Sep 12 17:01:24 runnervmlun5p python3[4594]:   File "/home/runner/.local/share/stillyard/libexec/native-linux-service.py", line 90, in delegated_unit_setup
+Sep 12 17:01:24 runnervmlun5p python3[4594]:     raise RuntimeError('native delegation unit is not active/exited at the installed path')
+Sep 12 17:01:24 runnervmlun5p python3[4594]: RuntimeError: native delegation unit is not active/exited at the installed path
+Sep 12 17:01:24 runnervmlun5p systemd[899]: stillyard.service: Control process exited, code=exited, status=1/FAILURE
+Sep 12 17:01:24 runnervmlun5p systemd[899]: stillyard.service: Failed with result 'exit-code'.
+Sep 12 17:01:24 runnervmlun5p systemd[899]: Failed to start stillyard.service - Stillyard standalone Linux scheduler.
