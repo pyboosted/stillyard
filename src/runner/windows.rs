@@ -1486,7 +1486,7 @@ mod tests {
         let second = {
             let mut locked = store.lock().unwrap();
             let snapshot = locked.status(first.job_id).unwrap();
-            assert_eq!(snapshot.state, JobState::Pending);
+            assert_eq!(snapshot.state, JobState::Pending, "{snapshot:#?}");
             assert_eq!(
                 snapshot.root_exit_code, None,
                 "retry must clear stale root exit"
@@ -1677,6 +1677,11 @@ mod tests {
         let (job, store) = prepared(&spec, temp.path());
         run(&job, &store, TEST_ENDPOINT);
 
+        let snapshot = store.lock().unwrap().status(job.job_id).unwrap();
+        assert!(
+            result_path.is_file(),
+            "missing validator result: {snapshot:#?}"
+        );
         let stored_result: crate::PrimaryInvocationResult =
             serde_json::from_reader(std::fs::File::open(&result_path).unwrap()).unwrap();
         assert_eq!(stored_result.job_id, job.job_id);
