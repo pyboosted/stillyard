@@ -1,0 +1,23 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import pathlib,subprocess; p=pathlib.Path('scripts/run-native-linux-crash.py'); compile(p.read_text(),str(p),'exec'); r=subprocess.run(['/usr/bin/python3',str(p),'--disposable-native-host','--evidence-directory','/does-not-get-created'],capture_output=True,text=True,timeout=10); assert r.returncode==2 and 'separately selected unmanaged native host' in r.stderr,r; print('native-crash-controller-refuses-WSL')"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard",
+  "resources": {
+    "cargo_slots": 1
+  },
+  "timeout_seconds": 30,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "native-crash-controller-control"
+    }
+  ]
+}

@@ -57,6 +57,8 @@ jobs:
             --evidence-directory "$PWD/native-evidence" --ram-mb 4096 --cargo-slots 2 --apply
       - name: Native process and local-allocation acceptance
         run: python3 scripts/run-native-linux-acceptance.py --evidence-directory "$PWD/native-evidence"
+      - name: Native daemon crash with retained executor history
+        run: python3 scripts/run-native-linux-crash.py --disposable-native-host --evidence-directory "$PWD/native-evidence"
       - name: Installed native Cargo check Job
         run: python3 scripts/run-linux-job.py check --evidence-directory "$PWD/native-evidence"
       - name: Installed native Cargo test Job

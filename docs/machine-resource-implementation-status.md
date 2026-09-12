@@ -35,6 +35,15 @@ initial failed gates and canonical outputs are in the
 live consumers, kernel failures and Windows candidate regression remain pending.
 The installed pair is unchanged; one current Linux cache is retained for ongoing work.
 
+Native CI run 34705545536 installed the standalone daemon and passed eleven
+real process Jobs (including descendant cleanup, two-slot concurrency, roles,
+retry, managed-child replay, active cancel and timeout). Its subsequent Cargo
+Job exposed a DNS mount issue; the resolver-only namespace fix and daemon-crash
+suite are prepared for rerun. This is native ephemeral-host evidence, not a
+completed persistent Linux rollout. [Native acceptance report](native-linux-acceptance.md).
+Workstation Rust 1.85 check/test also passed under default WSL Jobs. Windows and
+Ubuntu ordinary CI passed checkpoints 2217cce and 3282449. MR-4 remains in progress.
+
 Recovery after the user-reported unexpected restart: working files and native
 evidence survived. The first CLI reconnect returned auto-start OS error 5;
 subsequent discovery found the installed alpha.14 daemon already running as PID

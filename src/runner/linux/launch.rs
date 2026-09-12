@@ -249,6 +249,21 @@ impl PreparedLaunch {
         ]);
         if hide_wsl_interop {
             command.args(["--ro-bind", "/dev/null", "/init"]);
+        } else {
+            // systemd-resolved commonly places the host resolver file in /run.
+            // Keep that single regular file visible behind /etc/resolv.conf's
+            // symlink, while the private /run still hides host runtime sockets.
+            match std::fs::canonicalize("/etc/resolv.conf") {
+                Ok(resolver) if resolver.starts_with("/run") => {
+                    if !std::fs::metadata(&resolver)?.is_file() {
+                        return Err(invalid("native resolver target is not a regular file"));
+                    }
+                    command.arg("--ro-bind").arg(&resolver).arg(&resolver);
+                }
+                Ok(_) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
+            }
         }
         // Tests receive a writable alias inside the outer bootstrap cgroup.
         // The actual Invocation must not inherit that alternate writable mount.

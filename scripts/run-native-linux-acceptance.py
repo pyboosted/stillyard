@@ -96,6 +96,8 @@ def main():
 
     submit('canary', "import os;print('native-canary',os.environ['STILLYARD_JOB_ID'],flush=True)")
     finish('canary')
+    submit('resolver', "import pathlib,socket; assert 'nameserver' in pathlib.Path('/etc/resolv.conf').read_text(); assert socket.getaddrinfo('static.crates.io',443); print('native-resolver-passed',flush=True)")
+    finish('resolver')
     descendant = "import pathlib,time; p=pathlib.Path('descendant-heartbeat'); end=time.monotonic()+60\nwhile time.monotonic()<end:\n p.write_text(str(time.monotonic_ns())); time.sleep(.05)"
     submit('descendant', "import pathlib,subprocess,time; "
            f"subprocess.Popen(['/usr/bin/python3','-c',{descendant!r}],start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); "

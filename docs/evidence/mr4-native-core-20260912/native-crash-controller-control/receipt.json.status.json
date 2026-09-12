@@ -1,0 +1,169 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0967e-1d8a-7970-9fff-8ae96f5f8de6",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0967e-1d87-7272-b74c-f758223b57b5",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0967e-1d8f-7383-805c-fa087834c64d",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0967e-1d8f-7383-805c-fa19fb0105e6",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0967e-1d8f-7383-805c-fa2f468f3b24",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789231242634,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789231242846,
+  "finished_unix_millis": 1789231242956,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "-c",
+      "import pathlib,subprocess; p=pathlib.Path('scripts/run-native-linux-crash.py'); compile(p.read_text(),str(p),'exec'); r=subprocess.run(['/usr/bin/python3',str(p),'--disposable-native-host','--evidence-directory','/does-not-get-created'],capture_output=True,text=True,timeout=10); assert r.returncode==2 and 'separately selected unmanaged native host' in r.stderr,r; print('native-crash-controller-refuses-WSL')"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "native-crash-controller-control"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 30,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0967e-1d8f-7383-805c-fa087834c64d",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789231242638,
+      "started_unix_millis": 1789231242701,
+      "deadline_unix_millis": 1789231272701,
+      "finished_unix_millis": 1789231242956,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0967e-1d8a-7970-9fff-8ae96f5f8de6",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0967e-1d8f-7383-805c-fa087834c64d",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0967e-1d8f-7383-805c-fa19fb0105e6",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789231242846,
+        "exited_unix_millis": 1789231242931,
+        "resolved_unix_millis": 1789231242951
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0967e-1d8f-7383-805c-fa19fb0105e6",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 507709,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 507709,
+            "start_ticks": 27734944,
+            "pid_namespace_inode": 4026534283,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+          "started_unix_millis": 1789231242846,
+          "finished_unix_millis": 1789231242951,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0967e-1d8f-7383-805c-fa2f468f3b24",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "native-crash-controller-refuses-WSL\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0967e-1da5-7fc2-83bd-96cd3cb45266",
+      "lease_id": "01a0967e-1d8f-7383-805c-fa39b9a795c8",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a0967e-1d8f-7383-805c-fa39b9a795c8"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0967e-1d8a-7970-9fff-8ae96f5f8de6",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0967e-1d8f-7383-805c-fa087834c64d"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4"
+}

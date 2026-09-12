@@ -1,0 +1,239 @@
+ Downloading crates ...
+warning: spurious network error (3 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+warning: spurious network error (3 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+warning: spurious network error (3 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+warning: spurious network error (3 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+warning: spurious network error (3 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+warning: spurious network error (2 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+warning: spurious network error (2 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+warning: spurious network error (2 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+warning: spurious network error (2 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+warning: spurious network error (2 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+warning: spurious network error (1 try remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+warning: spurious network error (1 try remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+warning: spurious network error (1 try remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+warning: spurious network error (1 try remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+warning: spurious network error (1 try remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+error: failed to download from `https://static.crates.io/crates/rustix/1.1.4/download`
+
+Caused by:
+  [6] Could not resolve hostname (Could not resolve host: static.crates.io)
+{
+  "outcome": {
+    "outcome": "final",
+    "value": {
+      "receipt": {
+        "submission_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f6fe-7510-9066-a8f02b06cf36",
+        "job_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f6ff-7db3-b40c-440de3866907",
+        "submission_state": "accepted",
+        "job_state": "pending",
+        "reason_code": null,
+        "accepted_unix_millis": 1789230839551,
+        "priority": 0,
+        "effective_priority": 0,
+        "blockers": [],
+        "queue_rank": 1,
+        "reservation": null,
+        "conditions": [],
+        "estimate": {
+          "confidence": "estimated",
+          "start_in_millis": 0,
+          "assumptions": [
+            "currently admissible"
+          ]
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a09677-8b8d-7381-bed4-0495a525bc6b"
+      },
+      "snapshot": {
+        "job_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f6ff-7db3-b40c-440de3866907",
+        "submission_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f6fe-7510-9066-a8f02b06cf36",
+        "batch_id": null,
+        "batch_member": null,
+        "state": "final",
+        "outcome": "failed",
+        "reason_code": null,
+        "attempt_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f719-7772-b284-130ede450b16",
+        "invocation_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f719-7772-b284-13187ced8af3",
+        "containment_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f719-7772-b284-1323b736f2a6",
+        "root_exit_code": 101,
+        "cancel_requested": false,
+        "accepted_unix_millis": 1789230839551,
+        "priority": 0,
+        "effective_priority": null,
+        "queue_rank": null,
+        "reservation": null,
+        "conditions": [],
+        "started_unix_millis": 1789230840867,
+        "finished_unix_millis": 1789230851643,
+        "spec": {
+          "spec_version": 4,
+          "priority": 0,
+          "executable": "/home/runner/.cargo/bin/cargo",
+          "args": [
+            "check",
+            "--locked",
+            "--workspace",
+            "--all-features",
+            "--all-targets"
+          ],
+          "working_directory": "/home/runner/work/stillyard/stillyard",
+          "stdin": {
+            "kind": "eof"
+          },
+          "environment": {
+            "set": {
+              "CARGO_BUILD_JOBS": "4",
+              "CARGO_HOME": "/home/runner/.cargo",
+              "CARGO_TARGET_DIR": "/home/runner/work/stillyard/stillyard/target/scheduled-linux",
+              "HOME": "/home/runner",
+              "PATH": "/home/runner/.cargo/bin:/usr/bin:/bin",
+              "RUSTUP_HOME": "/home/runner/.rustup",
+              "RUSTUP_TOOLCHAIN": "stable-x86_64-unknown-linux-gnu"
+            },
+            "unset": []
+          },
+          "resources": {
+            "cpu_units": null,
+            "ram_mb": null,
+            "cargo_slots": 1,
+            "gpu_slots": null,
+            "custom": {},
+            "shared_fences": [],
+            "exclusive_fences": [],
+            "impacts": [
+              "cpu_heavy"
+            ]
+          },
+          "observed": null,
+          "conditions": [],
+          "retry": {
+            "max_attempts": 1,
+            "backoff_seconds": 0,
+            "retryable": []
+          },
+          "postconditions": [],
+          "labels": [
+            {
+              "key": "project",
+              "value": "stillyard"
+            },
+            {
+              "key": "gate",
+              "value": "native-linux-check"
+            }
+          ],
+          "expected_duration_seconds": null,
+          "timeout_seconds": 1800,
+          "quiet": null,
+          "artifacts": [],
+          "child_submission_policy": null
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "blockers": [],
+        "attempts": [
+          {
+            "attempt_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f719-7772-b284-130ede450b16",
+            "attempt_index": 1,
+            "verdict": "process_failed",
+            "reason_code": null,
+            "created_unix_millis": 1789230839576,
+            "started_unix_millis": 1789230839576,
+            "deadline_unix_millis": 1789232639576,
+            "finished_unix_millis": 1789230851643,
+            "primary_result": {
+              "schema_version": 1,
+              "job_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f6ff-7db3-b40c-440de3866907",
+              "attempt_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f719-7772-b284-130ede450b16",
+              "invocation_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f719-7772-b284-13187ced8af3",
+              "verdict": "process_failed",
+              "root_exit_code": 101,
+              "termination": "exited",
+              "containment": "empty",
+              "started_unix_millis": 1789230840867,
+              "exited_unix_millis": 1789230851589,
+              "resolved_unix_millis": 1789230851632
+            },
+            "admission": null,
+            "invocations": [
+              {
+                "invocation_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f719-7772-b284-13187ced8af3",
+                "role": "primary",
+                "role_index": 0,
+                "state": "resolved",
+                "root_pid": 6316,
+                "root_identity": {
+                  "platform": "linux",
+                  "host_id": "sha256:26b1e73eb3f39e8bde671fbfab77ed395b2611ceef76971ad5ab01df9ef4151b",
+                  "boot_id": "09ba3b27-993e-48a4-99ae-4a2121a3453e",
+                  "pid": 6316,
+                  "start_ticks": 11841,
+                  "pid_namespace_inode": 4026532275,
+                  "uid": 1001
+                },
+                "root_exit_code": 101,
+                "exit_classification": null,
+                "executable_hash": "dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71",
+                "daemon_generation": "01a09677-8b8d-7381-bed4-0495a525bc6b",
+                "started_unix_millis": 1789230840867,
+                "finished_unix_millis": 1789230851632,
+                "containment": {
+                  "containment_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f719-7772-b284-1323b736f2a6",
+                  "state": "empty",
+                  "strength": "linux_cgroup_v2",
+                  "incident_id": null,
+                  "incident": null,
+                  "resolution": null,
+                  "resolution_audit": null
+                },
+                "stdout_tail": "",
+                "stderr_tail": " Downloading crates ...\nwarning: spurious network error (3 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nwarning: spurious network error (3 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nwarning: spurious network error (3 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nwarning: spurious network error (3 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nwarning: spurious network error (3 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nwarning: spurious network error (2 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nwarning: spurious network error (2 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nwarning: spurious network error (2 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nwarning: spurious network error (2 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nwarning: spurious network error (2 tries remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nwarning: spurious network error (1 try remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nwarning: spurious network error (1 try remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nwarning: spurious network error (1 try remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nwarning: spurious network error (1 try remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nwarning: spurious network error (1 try remaining): [6] Could not resolve hostname (Could not resolve host: static.crates.io)\nerror: failed to download from `https://static.crates.io/crates/rustix/1.1.4/download`\n\nCaused by:\n  [6] Could not resolve hostname (Could not resolve host: static.crates.io)\n"
+              }
+            ]
+          }
+        ],
+        "allocations": [
+          {
+            "grant_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f719-7772-b284-1332c10c25c8",
+            "lease_id": "01a09677-f719-7772-b284-1332c10c25c8",
+            "key": {
+              "machine_id": "01a09677-8b70-7da3-b5dc-256c1f2e8734",
+              "authority_epoch": "01a09677-8b70-7da3-b5dc-2556ab9e9e88",
+              "domain_id": "01a09677-8b70-7da3-b5dc-2580f343d0c1",
+              "manager_store_uuid": "01a09677-8b5c-7a21-b09a-2e578f35764a",
+              "lease_id": "01a09677-f719-7772-b284-1332c10c25c8"
+            },
+            "owner": {
+              "kind": "work",
+              "job_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f6ff-7db3-b40c-440de3866907",
+              "attempt_id": "01a09677-8b5c-7a21-b09a-2e578f35764a~01a09677-f719-7772-b284-130ede450b16"
+            },
+            "state": "released",
+            "claims": {
+              "scalars": {
+                "cargo_slots": 1,
+                "cpu_units": 0,
+                "gpu_slots": 0,
+                "ram_mb": 0
+              },
+              "shared_fences": [],
+              "exclusive_fences": [],
+              "impacts": [
+                "cpu_heavy"
+              ]
+            }
+          }
+        ],
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a09677-8b8d-7381-bed4-0495a525bc6b"
+      }
+    }
+  },
+  "exit_source": "process",
+  "exit_code": 101
+}
