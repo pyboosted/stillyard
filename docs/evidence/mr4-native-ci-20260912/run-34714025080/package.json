@@ -1,0 +1,8 @@
+{
+  "archive": "/home/pythonic/Development/stillyard-mr4-evidence-20260912/native-package-34714025080/stillyard-native-linux-x86_64-57096bfc02be.tar.gz",
+  "sha256": "dbc664e5ea6c0a223953af84b85f67af12518b1cd9fb196720c8c7bc2500efd6",
+  "bytes": 27906546,
+  "all_manifest_files_verified": true,
+  "build_origin": "https://github.com/pyboosted/stillyard/actions/runs/34714025080",
+  "candidate_sha256": "82b258e8548e514d9de060b2f5ea2ea91e865334e92735ba93cfd07cec943a12"
+}

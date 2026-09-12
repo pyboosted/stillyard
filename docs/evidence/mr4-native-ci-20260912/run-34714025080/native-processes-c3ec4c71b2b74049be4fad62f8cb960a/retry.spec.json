@@ -1,0 +1,35 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import pathlib,sys;p=pathlib.Path('retry-marker');first=not p.exists();p.write_text('seen');sys.exit(5 if first else 0)"
+  ],
+  "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-c3ec4c71b2b74049be4fad62f8cb960a",
+  "timeout_seconds": 30,
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "native-process-retry"
+    }
+  ],
+  "retry": {
+    "max_attempts": 2,
+    "backoff_seconds": 0,
+    "retryable": [
+      "process_failed"
+    ]
+  }
+}

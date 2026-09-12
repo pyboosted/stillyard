@@ -1,0 +1,17 @@
+Starting stillyard.service - Stillyard standalone Linux scheduler...
+Started stillyard.service - Stillyard standalone Linux scheduler.
+stillyard.service: Main process exited, code=killed, status=9/KILL
+stillyard.service: Failed with result 'signal'.
+stillyard.service: Consumed 12.873s CPU time, 10.8M memory peak, 0B memory swap peak.
+stillyard.service: Scheduled restart job, restart counter is at 1.
+Starting stillyard.service - Stillyard standalone Linux scheduler...
+Started stillyard.service - Stillyard standalone Linux scheduler.
+stillyard.service: Main process exited, code=killed, status=9/KILL
+stillyard.service: Failed with result 'signal'.
+stillyard.service: Consumed 4.043s CPU time, 8.9M memory peak, 0B memory swap peak.
+stillyard.service: Scheduled restart job, restart counter is at 2.
+Starting stillyard.service - Stillyard standalone Linux scheduler...
+Started stillyard.service - Stillyard standalone Linux scheduler.
+stillyard: the local daemon is unavailable: I/O: executor history/anchor is unknown or mismatched
+stillyard.service: Main process exited, code=exited, status=69/UNAVAILABLE
+stillyard.service: Failed with result 'exit-code'.

@@ -1,0 +1,5 @@
+{
+  "returncode": 69,
+  "stdout": "",
+  "stderr": "stillyard: the local daemon is unavailable: daemon endpoint is already owned: Resource temporarily unavailable (os error 11)\n"
+}

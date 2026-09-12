@@ -1,0 +1,8 @@
+{
+  "returncode": 69,
+  "stderr": "stillyard: the local daemon is unavailable: I/O: unsealed executor history forbids kernel restoration, even when every path is absent\n",
+  "stdout": "",
+  "retained_executor_inode": 8865,
+  "kernel_events": "populated 0\nfrozen 0\n",
+  "unsealed_invocation": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-4be5-7db0-aab1-3e3f048f9026"
+}

@@ -1,0 +1,8 @@
+{
+  "inodes": {
+    "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation.service/executors": 8865,
+    "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation.service/executors/invocation-01a0971c-c835-7be2-8a79-b873aca359c3": 9287
+  },
+  "boot_id": "bb4e4ff1-6d80-44b5-8cef-ac3524c783af",
+  "seal_published": false
+}

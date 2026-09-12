@@ -1,0 +1,165 @@
+{
+  "job_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-23cb-7380-b464-f9e752be8352",
+  "submission_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-23ca-7563-bb19-e84b4fba5746",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-23f2-7392-a0d7-7d948590bda3",
+  "invocation_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-23f2-7392-a0d7-7daab7c15168",
+  "containment_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-23f2-7392-a0d7-7dbebe70b04a",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789241140171,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789241141079,
+  "finished_unix_millis": 1789241141210,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "-c",
+      "from pathlib import Path; p=Path('launches.txt'); p.write_text((p.read_text() if p.exists() else '')+'launch\\n')"
+    ],
+    "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-restore-6c51a9e205cf44d39d1fcc1333005e06",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "gate",
+        "value": "native-restore-canary"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 10,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-23f2-7392-a0d7-7d948590bda3",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789241140209,
+      "started_unix_millis": 1789241140209,
+      "deadline_unix_millis": 1789241150209,
+      "finished_unix_millis": 1789241141210,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-23cb-7380-b464-f9e752be8352",
+        "attempt_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-23f2-7392-a0d7-7d948590bda3",
+        "invocation_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-23f2-7392-a0d7-7daab7c15168",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789241141079,
+        "exited_unix_millis": 1789241141135,
+        "resolved_unix_millis": 1789241141195
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-23f2-7392-a0d7-7daab7c15168",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 7485,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:26b1e73eb3f39e8bde671fbfab77ed395b2611ceef76971ad5ab01df9ef4151b",
+            "boot_id": "bb4e4ff1-6d80-44b5-8cef-ac3524c783af",
+            "pid": 7485,
+            "start_ticks": 76362,
+            "pid_namespace_inode": 4026532273,
+            "uid": 1001
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "a92f0f95e883390c7256b2e441484aac06b1002dbe1d924141a77c8d82f96223",
+          "daemon_generation": "01a09715-1092-7ad1-8036-ebfa748e9e28",
+          "started_unix_millis": 1789241141079,
+          "finished_unix_millis": 1789241141195,
+          "containment": {
+            "containment_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-23f2-7392-a0d7-7dbebe70b04a",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-23f2-7392-a0d7-7dc959c83eff",
+      "lease_id": "01a09715-23f2-7392-a0d7-7dc959c83eff",
+      "key": {
+        "machine_id": "01a09714-3598-7361-9a78-dc2cb82df1d7",
+        "authority_epoch": "01a09714-3598-7361-9a78-dc1c9c031a6c",
+        "domain_id": "01a09714-3598-7361-9a78-dc4f13dfa0e3",
+        "manager_store_uuid": "01a09714-3580-7c52-baaf-26e21c27da67",
+        "lease_id": "01a09715-23f2-7392-a0d7-7dc959c83eff"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-23cb-7380-b464-f9e752be8352",
+        "attempt_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a09715-23f2-7392-a0d7-7d948590bda3"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a09715-1092-7ad1-8036-ebfa748e9e28"
+}

@@ -89,8 +89,10 @@ its resources, regardless of which laptop initiated the SSH session.
 | CPU/RAM admission and strict CPU/disk release evidence | Accepted with actual native samples |
 | Namespace-wide process rules | Incomplete when root-owned executable identities cannot be inspected; strict policy stays closed |
 | GPU/NVML | No GPU acceptance on the reference VM; unavailable evidence is not zero load |
-| Five-minute standalone idle / no-helper | Accepted: one process, 3.914 MiB RssAnon, zero measured timer expirations |
+| Five-minute standalone idle / no-helper | Accepted: one process, 4.383 MiB endpoint RssAnon, zero measured timer expirations |
 | Drained service/delegation loss, same-boot recovery and receipt replay | Accepted on the disposable native VM; every old Invocation must be sealed |
+| Active SQL/authority rollback | Refused independently by retained history; exact restoration and interrupted recovery accepted |
+| Missing unsealed kernel root | Refused with outstanding rights retained; operator recovery is pending |
 | SSH logout, host reboot, user-manager restart | Changed-boot/session acceptance still pending |
 | Upgrade/downgrade and existing installation replacement | Not implemented by the first-install tool |
 | Dev-container domains | Separate pending MR-4 adapter and matrices |

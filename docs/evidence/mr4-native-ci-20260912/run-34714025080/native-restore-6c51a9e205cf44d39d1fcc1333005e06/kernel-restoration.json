@@ -1,0 +1,16 @@
+{
+  "authority_epoch": "01a09714-3598-7361-9a78-dc1c9c031a6c",
+  "configuration_sha256": "4d19512929d9ab37bb0302bd05ef230d5b4888f71dedfe8b1d0ea19da661e14d",
+  "domain": "01a09714-3598-7361-9a78-dc4f13dfa0e3",
+  "executor": {
+    "boot_id": "bb4e4ff1-6d80-44b5-8cef-ac3524c783af",
+    "device": 30,
+    "inode": 8865,
+    "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation.service/executors"
+  },
+  "history_preserved": true,
+  "installation": "01a09714-3597-7191-9fad-833bf4225dff",
+  "journal": "01a09714-359b-7550-9e9e-9537b8f3e1cc",
+  "store_path": "/home/runner/.local/share/stillyard",
+  "store_uuid": "01a09714-3580-7c52-baaf-26e21c27da67"
+}

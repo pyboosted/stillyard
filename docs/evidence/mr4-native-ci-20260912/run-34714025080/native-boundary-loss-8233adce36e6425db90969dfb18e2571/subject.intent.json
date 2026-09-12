@@ -1,0 +1,4 @@
+{
+  "endpoint": "/home/runner/.local/share/stillyard/stillyard-v6.sock",
+  "idempotency_key": "f0c9d38e-f49d-4aec-9ce6-76f7e4eb3933"
+}

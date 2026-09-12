@@ -1,0 +1,7 @@
+{
+  "revision": "57096bfc02be60c71c7044c3deed6ebabe7f148d",
+  "snapshot_revision": "e141d37d9496be86ad9f35c23747c894e5dc2d38",
+  "checked_files": 129,
+  "mismatches": [],
+  "scope": "Rust sources, Cargo manifest/lock and build.rs; native Python packaging uses its own CI acceptance"
+}

@@ -1,0 +1,12 @@
+{
+  "missing_unsealed_boundary_refused": true,
+  "job_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a09716-a03d-77f2-8ae4-4d3a21baf199",
+  "invocation_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a09716-a06e-70b3-9928-870c1f6da7d1",
+  "daemon_intentionally_stopped": true,
+  "allocation_released": false,
+  "seal_published": false,
+  "journal_sha256": "89ccec61adaafc86be6399b4324f0e014ce88599a632fa0c68548e3d36d28708",
+  "remaining": [
+    "changed boot and operator recovery after lost boundaries"
+  ]
+}

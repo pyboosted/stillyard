@@ -1,0 +1,55 @@
+{
+  "directory": "/home/pythonic/Development/stillyard-mr4-evidence-20260912/native-ci-34714025080",
+  "files": [
+    {
+      "path": "native-boundary-loss-8233adce36e6425db90969dfb18e2571/drained.sqlite3",
+      "sha256": "e4c68cb4d28680c729d3561f878aad13e08f25679cc2fd211f6f88a23ca8e1d7",
+      "bytes": 745472
+    },
+    {
+      "path": "native-boundary-loss-8233adce36e6425db90969dfb18e2571/original-stillyard.sqlite3-shm",
+      "sha256": "05acad16f3ea3b4f988f181ed67336f7d575427cb9b8260227ec5e137545bb0c",
+      "bytes": 32768
+    },
+    {
+      "path": "native-boundary-loss-8233adce36e6425db90969dfb18e2571/original-stillyard.sqlite3-wal",
+      "sha256": "b451087168be440c39c7ccfac07b3c91b3fe4befb45f9a39a2ab7e62b7b956e7",
+      "bytes": 4132392
+    },
+    {
+      "path": "native-boundary-loss-8233adce36e6425db90969dfb18e2571/original-stillyard.sqlite3",
+      "sha256": "9ef1ec7c9f82d4f010ca25d1e6b5dd66b747954796f6f2a3a7d9b40613cdc97e",
+      "bytes": 720896
+    },
+    {
+      "path": "native-active-restore-aaf96fec5fa04401af8c3733a1e1f65a/live-stillyard.sqlite3-shm",
+      "sha256": "b7503ded92645b5fc466d7348cc124b3281df389fec966af34dd255fa292af51",
+      "bytes": 32768
+    },
+    {
+      "path": "native-active-restore-aaf96fec5fa04401af8c3733a1e1f65a/live-stillyard.sqlite3",
+      "sha256": "05e9370b6f748f320e9c07abcc1f2860b6749803eda45541656a15fd46bea49a",
+      "bytes": 593920
+    },
+    {
+      "path": "native-active-restore-aaf96fec5fa04401af8c3733a1e1f65a/live-stillyard.sqlite3-wal",
+      "sha256": "311c0594990bb22c9b25360ce8ee30efcf5dc7c616f365bf80d2b59326962acb",
+      "bytes": 1087712
+    },
+    {
+      "path": "native-active-restore-aaf96fec5fa04401af8c3733a1e1f65a/drained.sqlite3",
+      "sha256": "4124099bd55c3948b1dd1b33e2262491e9b2df431e2cbd47fa3c0e29897a8c1c",
+      "bytes": 618496
+    },
+    {
+      "path": "native-restore-6c51a9e205cf44d39d1fcc1333005e06/stillyard.sqlite3-corrupt.json",
+      "sha256": "586dcdb7dd46e6e5c32c5d993fb03bd189cb4262ed790641fb589d757aec0747",
+      "bytes": 189
+    },
+    {
+      "path": "native-restore-6c51a9e205cf44d39d1fcc1333005e06/stillyard.sqlite3-missing.json",
+      "sha256": "76097e74113917ed14ca68e8c81ea5803be6912a936adb7c963964eed8ad6df7",
+      "bytes": 144
+    }
+  ]
+}

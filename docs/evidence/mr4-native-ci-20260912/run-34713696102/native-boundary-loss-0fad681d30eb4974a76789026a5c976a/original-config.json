@@ -1,0 +1,25 @@
+{
+  "resources": {
+    "cpu_units": 4,
+    "ram_mb": 4096,
+    "cargo_slots": 2
+  },
+  "impact_incompatibilities": {
+    "cpu_heavy": [],
+    "measurement": [
+      "cpu_heavy",
+      "gpu_heavy"
+    ]
+  },
+  "observation": {
+    "ram_safety_margin_mb": 256,
+    "process_rules": {
+      "block": [
+        "cargo",
+        "rustc",
+        "rust-analyzer"
+      ],
+      "ignore": []
+    }
+  }
+}

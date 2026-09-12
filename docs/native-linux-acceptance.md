@@ -1,10 +1,11 @@
 # Standalone Linux acceptance — native checkpoint passed, rollout in progress
 
-The no-helper native installation at source `b5a34dc` passed installed process
-and resource consumers, daemon-crash recovery, quiescent corrupt-history refusal
-and exact restoration, native Cargo check/test, and A-19 five-minute idle.
-[Accepted run 34707203384](https://github.com/pyboosted/stillyard/actions/runs/34707203384)
-and [canonical evidence](evidence/mr4-native-ci-20260912/run-34707203384/).
+The native first-install bundle at source `57096bf` passed installation from its
+extracted archive, process/resource consumers, crash recovery, drained kernel-tree
+restoration and replay, active SQL/authority rollback with interrupted recovery,
+native Cargo check/test, A-19 idle, and terminal missing-unsealed-boundary refusal.
+[Accepted run 34714025080](https://github.com/pyboosted/stillyard/actions/runs/34714025080)
+and [canonical evidence and package identity](evidence/mr4-native-ci-20260912/run-34714025080/).
 Persistent-host reboot/session recovery, upgrades and further fault coverage
 remain open. The records below retain earlier failures and supervised checkpoints.
 
@@ -156,3 +157,43 @@ Invocation and outstanding SQL/authority rights still forbid restoration.
 The corrected controller and default no-helper installation are queued for the
 next native run. These controls retain the same boot and do not close actual
 host reboot/session, destroyed-boundary, upgrades or dev-container acceptance.
+
+## Accepted installation bundle and final restoration matrix
+
+Native run34713696102 (`a1d10bf`) first passed the complete extracted-bundle and
+restoration matrix. [Retained results](evidence/mr4-native-ci-20260912/run-34713696102/).
+Final run34714025080 (`57096bf`) repeated it with pinned wrapper provenance and
+mandatory successful canonical collection. Both passed actual terminal kernel
+loss; the latter is the selected distributable bundle.
+
+Native Store `01a09714-3580-7c52-baaf-26e21c27da67`, domain
+`01a09714-3598-7361-9a78-dc4f13dfa0e3`, journal
+`01a09714-359b-7550-9e9e-9537b8f3e1cc`. Installed image SHA-256
+`82b258e8548e514d9de060b2f5ea2ea91e865334e92735ba93cfd07cec943a12`.
+The following native Job suffixes all use that Store prefix:
+
+| Scenario | Native Job suffix | Result |
+|---|---|---|
+| Drained restore / original receipt replay | `01a09715-23cb-7380-b464-f9e752be8352` | Same Job, unchanged launch count |
+| Fresh Job after root recreation | `01a09715-4744-7471-a8d1-bb1a1a8704a5` | Succeeded, sealed, released |
+| Active SQL / authority rollback | `01a09715-4bba-7310-bf03-033ad0a7371a` | Three exact refusals, original bytes restored, interrupted recovery/seal/release/replay |
+| Installed Cargo check | `01a09715-6f1b-70d2-968e-76e3c88b2984` | Succeeded, released |
+| Installed Cargo test | `01a09715-e69c-7ba1-9e86-36d3cd390797` | Succeeded, released |
+| Terminal missing unsealed root | `01a0971c-c806-7c70-bd63-9131a681c3b2` | Restore refused; no seal or release; original outstanding rights retained |
+
+A-19: 300.103 seconds, one daemon, 4.383MiB endpoint RssAnon, 0.00333% of one
+logical core, zero instrumented timer expirations. Memory is endpoint sampling,
+not an interval peak. The terminal fault occurs after this interval and canonical
+collection; it intentionally leaves only the disposable VM's daemon stopped.
+This refusal is not recovery from lost boundaries. Actual boot/session and
+operator lost-boundary recovery, upgrades and container matrices remain pending.
+
+The selected archive is `stillyard-native-linux-x86_64-57096bfc02be.tar.gz`,
+27,906,546 bytes, SHA-256
+`dbc664e5ea6c0a223953af84b85f67af12518b1cd9fb196720c8c7bc2500efd6`.
+[Package manifest/local location](evidence/mr4-native-ci-20260912/run-34714025080/package.json).
+Default WSL Job `01a089b1-9a6a-7711-a600-39e2b74e495d~01a0971e-b6b8-7490-8b5b-fdcf6cd40cc4`
+verified the downloaded archive hash, every manifest file and exact native source/
+build origin. This is artifact verification, not WSL being counted as native-host
+acceptance. Windows/WSL daemons stayed on their original installed images/PIDs;
+the final Rust inputs match the locally accepted Windows source projection.

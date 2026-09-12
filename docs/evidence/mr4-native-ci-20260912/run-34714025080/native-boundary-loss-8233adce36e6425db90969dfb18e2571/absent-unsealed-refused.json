@@ -1,0 +1,5 @@
+{
+  "returncode": 69,
+  "stdout": "",
+  "stderr": "stillyard: the local daemon is unavailable: I/O: unsealed executor history forbids kernel restoration, even when every path is absent\n"
+}

@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "source_revision": "57096bfc02be60c71c7044c3deed6ebabe7f148d",
+  "build_origin": "https://github.com/pyboosted/stillyard/actions/runs/34714025080",
+  "candidate_sha256": "82b258e8548e514d9de060b2f5ea2ea91e865334e92735ba93cfd07cec943a12",
+  "architecture": "x86_64",
+  "build_kernel": "6.17.0-1022-azure",
+  "libc": [
+    "glibc",
+    "2.39"
+  ],
+  "files": {
+    "LICENSE-APACHE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "LICENSE-MIT": "e992155e54c1ccefffa74dbdc27de17293ddea818c404699886ffa14989855fa",
+    "README.md": "30015cf1f09aae8eba74244117c119be9ed88ee209ed6219221b9e7d7e356a5d",
+    "bin/stillyard": "82b258e8548e514d9de060b2f5ea2ea91e865334e92735ba93cfd07cec943a12",
+    "docs/native-linux-operation.md": "c7e2ecd95aeb76389cc9693ac2f87c073aa2d2c490f8c4a064479346b0a8790f",
+    "install.py": "bd9c9314821a6bcb92cf636272dee64655fb1847e96534a5e02efce238b2bddd",
+    "scripts/install-native-linux.py": "21d01195019348eb7fd0532d32ad078fa3014b4a9558ad6685c1c95dd531391a",
+    "scripts/native-linux-service.py": "1b9e5c42f8094092d9dad0ccd677ceb69accd1b63c4ecdfc029ad3531fad40b8",
+    "scripts/probe-native-linux.py": "94527782bdf7a23c07e71ae071df1e7b0d1840b7ee6118c01e9daae3e418a0a5",
+    "scripts/wsl-service.py": "dd9fad7c7368a10ed5af6e50c163163cc07f1fa4f3f74e141b40311c753160a5"
+  }
+}

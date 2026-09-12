@@ -1,0 +1,30 @@
+Sep 12 19:17:54 runnervmlun5p systemd[1152]: Starting stillyard.service - Stillyard standalone Linux scheduler...
+Sep 12 19:17:54 runnervmlun5p systemd[1152]: Started stillyard.service - Stillyard standalone Linux scheduler.
+Sep 12 19:18:40 runnervmlun5p systemd[1152]: stillyard.service: Main process exited, code=killed, status=9/KILL
+Sep 12 19:18:40 runnervmlun5p systemd[1152]: stillyard.service: Failed with result 'signal'.
+Sep 12 19:18:40 runnervmlun5p systemd[1152]: stillyard.service: Consumed 12.873s CPU time, 10.8M memory peak, 0B memory swap peak.
+Sep 12 19:18:42 runnervmlun5p systemd[1152]: stillyard.service: Scheduled restart job, restart counter is at 1.
+Sep 12 19:18:42 runnervmlun5p systemd[1152]: Starting stillyard.service - Stillyard standalone Linux scheduler...
+Sep 12 19:18:42 runnervmlun5p systemd[1152]: Started stillyard.service - Stillyard standalone Linux scheduler.
+Sep 12 19:18:46 runnervmlun5p systemd[1152]: stillyard.service: Main process exited, code=killed, status=9/KILL
+Sep 12 19:18:46 runnervmlun5p systemd[1152]: stillyard.service: Failed with result 'signal'.
+Sep 12 19:18:46 runnervmlun5p systemd[1152]: stillyard.service: Consumed 4.043s CPU time, 8.9M memory peak, 0B memory swap peak.
+Sep 12 19:18:48 runnervmlun5p systemd[1152]: stillyard.service: Scheduled restart job, restart counter is at 2.
+Sep 12 19:18:48 runnervmlun5p systemd[1152]: Starting stillyard.service - Stillyard standalone Linux scheduler...
+Sep 12 19:18:49 runnervmlun5p systemd[1152]: Started stillyard.service - Stillyard standalone Linux scheduler.
+Sep 12 19:18:49 runnervmlun5p stillyard[7392]: stillyard: the local daemon is unavailable: I/O: executor history/anchor is unknown or mismatched
+Sep 12 19:18:49 runnervmlun5p systemd[1152]: stillyard.service: Main process exited, code=exited, status=69/UNAVAILABLE
+Sep 12 19:18:49 runnervmlun5p systemd[1152]: stillyard.service: Failed with result 'exit-code'.
+Sep 12 19:18:51 runnervmlun5p systemd[1152]: stillyard.service: Scheduled restart job, restart counter is at 3.
+Sep 12 19:18:51 runnervmlun5p systemd[1152]: Starting stillyard.service - Stillyard standalone Linux scheduler...
+Sep 12 19:18:51 runnervmlun5p systemd[1152]: Started stillyard.service - Stillyard standalone Linux scheduler.
+Sep 12 19:18:57 runnervmlun5p systemd[1152]: Stopping stillyard.service - Stillyard standalone Linux scheduler...
+Sep 12 19:18:57 runnervmlun5p systemd[1152]: Stopped stillyard.service - Stillyard standalone Linux scheduler.
+Sep 12 19:18:57 runnervmlun5p systemd[1152]: stillyard.service: Consumed 5.037s CPU time.
+Sep 12 19:18:57 runnervmlun5p systemd[1152]: Starting stillyard.service - Stillyard standalone Linux scheduler...
+Sep 12 19:19:01 runnervmlun5p systemd[1152]: Started stillyard.service - Stillyard standalone Linux scheduler.
+Sep 12 19:19:07 runnervmlun5p systemd[1152]: Stopping stillyard.service - Stillyard standalone Linux scheduler...
+Sep 12 19:19:07 runnervmlun5p systemd[1152]: Stopped stillyard.service - Stillyard standalone Linux scheduler.
+Sep 12 19:19:07 runnervmlun5p systemd[1152]: stillyard.service: Consumed 5.035s CPU time.
+Sep 12 19:19:11 runnervmlun5p systemd[1152]: Starting stillyard.service - Stillyard standalone Linux scheduler...
+Sep 12 19:19:11 runnervmlun5p systemd[1152]: Started stillyard.service - Stillyard standalone Linux scheduler.

@@ -1,0 +1,19 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "from pathlib import Path;import time;Path('started').write_text('started');time.sleep(180)"
+  ],
+  "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-boundary-loss-0fad681d30eb4974a76789026a5c976a",
+  "resources": {
+    "cargo_slots": 1
+  },
+  "timeout_seconds": 200,
+  "labels": [
+    {
+      "key": "gate",
+      "value": "native-terminal-boundary-loss"
+    }
+  ]
+}

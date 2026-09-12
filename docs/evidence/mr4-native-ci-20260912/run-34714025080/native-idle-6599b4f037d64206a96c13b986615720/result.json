@@ -1,0 +1,28 @@
+{
+  "duration_seconds": 300.10288176200004,
+  "processes": [
+    {
+      "pid": 7703,
+      "role": "daemon",
+      "cpu_percent_one_core": 0.003332190594534381,
+      "memory_mib": 4.3828125,
+      "voluntary_switches": 2
+    }
+  ],
+  "timer_expirations": {
+    "attached": 0,
+    "backoff": 0,
+    "reactor": 0,
+    "subscriber": 0,
+    "transport": 0
+  },
+  "timer_expirations_per_minute": 0.0,
+  "aggregate_cpu_percent_one_core": 0.003332190594534381,
+  "aggregate_memory_mib": 4.3828125,
+  "quantitative_limits_passed": true,
+  "no_helper_condition_passed": true,
+  "a19_passed": true,
+  "memory_scope": "Endpoint RssAnon samples excluding mapped SQLite, not interval peak.",
+  "timer_scope": "Application daemon counters; helper context switches retained separately, not called timer wakes.",
+  "remaining": []
+}

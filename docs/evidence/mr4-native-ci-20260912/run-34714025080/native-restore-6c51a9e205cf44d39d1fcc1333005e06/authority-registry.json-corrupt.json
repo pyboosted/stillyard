@@ -1,0 +1,5 @@
+{
+  "returncode": 69,
+  "stdout": "",
+  "stderr": "stillyard: the local daemon is unavailable: I/O: /home/runner/.local/share/stillyard/authority/registry.json: expected value at line 1 column 1\n"
+}

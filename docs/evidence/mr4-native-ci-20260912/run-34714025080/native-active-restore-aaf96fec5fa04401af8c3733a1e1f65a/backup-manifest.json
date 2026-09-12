@@ -1,0 +1,14 @@
+{
+  "store": "/home/runner/.local/share/stillyard",
+  "endpoint": "/home/runner/.local/share/stillyard/stillyard-v6.sock",
+  "executor": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation.service/executors",
+  "executor_inode": 8865,
+  "files": {
+    "live-stillyard.sqlite3": "05e9370b6f748f320e9c07abcc1f2860b6749803eda45541656a15fd46bea49a",
+    "live-stillyard.sqlite3-wal": "311c0594990bb22c9b25360ce8ee30efcf5dc7c616f365bf80d2b59326962acb",
+    "live-stillyard.sqlite3-shm": "b7503ded92645b5fc466d7348cc124b3281df389fec966af34dd255fa292af51",
+    "live-authority.json": "3f2e05f982aee62a92592a8158861d7a7e8d8b7dd0b40d37faa08bfd6b8485a6",
+    "live-executor.json": "d531fc6857270f2ccb66717df78eb1cf1a5c35cecebd1d5846e05ecd82b8ccf3",
+    "drained-authority.json": "dd2b410df43fe31c31cb9f9cb156d43b114b588c6e752a89588d0d8069a83546"
+  }
+}

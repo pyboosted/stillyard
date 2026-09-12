@@ -69,11 +69,11 @@ policy rather than relying on kernel version alone.
 | Item | Status | Evidence / next condition |
 |---|---|---|
 | Source baseline | recorded | main `49b9b95`; unchanged installed alpha.20 pair |
-| Separate native host | requested | Awaiting host selection; implementation can proceed |
-| Native installation and recovery contract | implemented, unit-tested | Explicit anchor and full SQL/authority/executor inventory gate |
-| Native launch and kernel acceptance | implemented, native execution pending | WSL regression Jobs passed; native kernel acceptance still required |
-| Native service, packaging and live consumers | staged | One-shot installer and shared lifetime helper; native host acceptance pending |
-| Windows/WSL regressions | WSL local gates passed, Windows pending | [Core checkpoint](evidence/mr4-native-core-20260912/); all local Cargo through system Jobs |
+| Separate native host | disposable VM accepted | Native Ubuntu 24.04 reference; persistent user host/session/reboot still pending |
+| Native installation and recovery contract | implemented, accepted on native VM | Explicit anchor, read-only restoration, SQL/authority/executor inventory gates and durable replay |
+| Native launch and kernel acceptance | accepted on native VM | Real consumers, observed resource admission, daemon crash, drained restoration, active rollback and missing-unsealed-boundary refusal |
+| Native service, packaging and live consumers | accepted native checkpoint | Default no-helper user units; extracted archive installed and accepted in native CI34714025080 |
+| Windows/WSL regressions | local gates passed | Native Windows and attached WSL Jobs, including Rust 1.85; [Windows source/cleanup](evidence/mr4-native-windows-restore-20260912/) |
 | Container runtime/profile and matrix | pending | Later part of full MR-4; no container support claim |
 
 The [preflight control](evidence/mr4-native-preflight-20260912/) and
@@ -291,3 +291,12 @@ remain unconditional. Default WSL Job
 passed all four provenance override refusals, changed-image digest refusal,
 script syntax/service controls and WSL-native fault/package refusal controls.
 [Canonical control](evidence/mr4-native-core-20260912/native-service-controls-v14/).
+
+Final native bundle `57096bf` passed the full workflow34714025080, including
+mandatory canonical collection, active rollback/recovery and terminal actual
+kernel-loss refusal. Archive and every manifest file were verified under default
+WSL Job `01a0971e-b6b8-7490-8b5b-fdcf6cd40cc4` (Linux Store prefix above).
+[Current native acceptance and package](native-linux-acceptance.md).
+The remaining native scope is persistent user-host selection, actual boot/session
+acceptance, operator recovery after lost unsealed boundaries and upgrades.
+Full MR-4 container adapters/matrices remain a separate unimplemented scope.

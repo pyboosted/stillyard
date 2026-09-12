@@ -1,0 +1,29 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "from pathlib import Path\nimport json,hashlib,tarfile\nroot=Path('/home/pythonic/Development/stillyard-mr4-evidence-20260912/native-package-34714025080')\narchive=next(root.glob('*.tar.gz'));expected=(root/(archive.name+'.sha256')).read_text().split()[0]\nwith archive.open('rb') as stream:actual=hashlib.file_digest(stream,'sha256').hexdigest()\nassert actual==expected\nwith tarfile.open(archive) as bundle:\n item=next(m for m in bundle.getmembers() if m.name.endswith('/manifest.json'));manifest=json.load(bundle.extractfile(item));prefix=item.name.removesuffix('manifest.json')\n assert manifest['source_revision']=='57096bfc02be60c71c7044c3deed6ebabe7f148d'\n assert manifest['build_origin']=='https://github.com/pyboosted/stillyard/actions/runs/34714025080'\n for name,digest in manifest['files'].items():\n  with bundle.extractfile(prefix+name) as stream:assert hashlib.file_digest(stream,'sha256').hexdigest()==digest,name\nprint(json.dumps({'sha256':actual,'manifest_files':len(manifest['files']),'candidate_sha256':manifest['candidate_sha256'],'all_files_verified':True}))\n"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard",
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin",
+      "PYTHONDONTWRITEBYTECODE": "1"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1
+  },
+  "timeout_seconds": 30,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "native-package-digest-verification"
+    }
+  ]
+}

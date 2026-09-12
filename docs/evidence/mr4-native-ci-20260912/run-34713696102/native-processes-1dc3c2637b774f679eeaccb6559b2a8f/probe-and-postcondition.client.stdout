@@ -1,0 +1,87 @@
+{
+  "outcome": {
+    "outcome": "accepted",
+    "value": {
+      "receipt": {
+        "submission_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-6590-77c2-9137-db5c016f6f0d",
+        "job_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-6591-7b81-8c1e-ba67c6682b0b",
+        "submission_state": "accepted",
+        "job_state": "pending",
+        "reason_code": null,
+        "accepted_unix_millis": 1789240698257,
+        "priority": 0,
+        "effective_priority": 0,
+        "blockers": [
+          {
+            "code": "condition_waiting",
+            "detail": "{\"predicate\":{\"kind\":\"probe\",\"probe\":{\"executable\":\"/usr/bin/python3\",\"args\":[\"-c\",\"print('probe',flush=True)\"],\"working_directory\":\"/home/runner/work/stillyard/stillyard/native-evidence/native-processes-1dc3c2637b774f679eeaccb6559b2a8f\",\"environment\":{\"set\":{},\"unset\":[]},\"resources\":{\"cpu_units\":null,\"ram_mb\":null,\"cargo_slots\":1,\"gpu_slots\":null,\"custom\":{},\"shared_fences\":[],\"exclusive_fences\":[],\"impacts\":[]},\"timeout_seconds\":5,\"interval_seconds\":1,\"accepted_exit_codes\":[0]}},\"deadline\":{\"kind\":\"relative\",\"seconds\":20},\"on_deadline\":\"failed\"}"
+          }
+        ],
+        "queue_rank": 1,
+        "reservation": null,
+        "conditions": [
+          {
+            "condition_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-6592-75d0-a9a7-8ea1b2ba0e03",
+            "condition_index": 0,
+            "state": "waiting",
+            "spec": {
+              "predicate": {
+                "kind": "probe",
+                "probe": {
+                  "executable": "/usr/bin/python3",
+                  "args": [
+                    "-c",
+                    "print('probe',flush=True)"
+                  ],
+                  "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-1dc3c2637b774f679eeaccb6559b2a8f",
+                  "environment": {
+                    "set": {},
+                    "unset": []
+                  },
+                  "resources": {
+                    "cpu_units": null,
+                    "ram_mb": null,
+                    "cargo_slots": 1,
+                    "gpu_slots": null,
+                    "custom": {},
+                    "shared_fences": [],
+                    "exclusive_fences": [],
+                    "impacts": []
+                  },
+                  "timeout_seconds": 5,
+                  "interval_seconds": 1,
+                  "accepted_exit_codes": [
+                    0
+                  ]
+                }
+              },
+              "deadline": {
+                "kind": "relative",
+                "seconds": 20
+              },
+              "on_deadline": "failed"
+            },
+            "deadline_unix_millis": 1789240718257,
+            "last_observation": null,
+            "probe_invocation_id": null
+          }
+        ],
+        "estimate": {
+          "confidence": "unknown",
+          "start_in_millis": null,
+          "assumptions": [
+            "filesystem transitions and executable probes have no honest completion ETA"
+          ]
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a0970e-094e-7540-95f2-6cef80e2ef6d"
+      },
+      "snapshot": null
+    }
+  },
+  "exit_source": "scheduler",
+  "exit_code": 0
+}

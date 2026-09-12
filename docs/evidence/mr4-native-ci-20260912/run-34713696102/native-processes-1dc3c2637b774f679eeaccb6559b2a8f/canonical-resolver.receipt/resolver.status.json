@@ -1,0 +1,171 @@
+{
+  "job_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-1ef8-7260-930c-f6cf45dbccc8",
+  "submission_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-1ef7-7723-982b-6bb6ad2e1432",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-1f00-7180-ac6c-389baae0a488",
+  "invocation_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-1f00-7180-ac6c-38a1bc2c5dbf",
+  "containment_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-1f00-7180-ac6c-38b6727727dd",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789240680184,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789240680952,
+  "finished_unix_millis": 1789240681057,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "-c",
+      "import pathlib,socket; assert 'nameserver' in pathlib.Path('/etc/resolv.conf').read_text(); assert socket.getaddrinfo('static.crates.io',443); print('native-resolver-passed',flush=True)"
+    ],
+    "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-1dc3c2637b774f679eeaccb6559b2a8f",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "PATH": "/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "native-process-resolver"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 30,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-1f00-7180-ac6c-389baae0a488",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789240680191,
+      "started_unix_millis": 1789240680191,
+      "deadline_unix_millis": 1789240710191,
+      "finished_unix_millis": 1789240681057,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-1ef8-7260-930c-f6cf45dbccc8",
+        "attempt_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-1f00-7180-ac6c-389baae0a488",
+        "invocation_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-1f00-7180-ac6c-38a1bc2c5dbf",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789240680952,
+        "exited_unix_millis": 1789240681040,
+        "resolved_unix_millis": 1789240681052
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-1f00-7180-ac6c-38a1bc2c5dbf",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 4916,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:26b1e73eb3f39e8bde671fbfab77ed395b2611ceef76971ad5ab01df9ef4151b",
+            "boot_id": "b57b5320-f46a-4e75-99bd-e6552b85e392",
+            "pid": 4916,
+            "start_ticks": 28813,
+            "pid_namespace_inode": 4026532271,
+            "uid": 1001
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "a92f0f95e883390c7256b2e441484aac06b1002dbe1d924141a77c8d82f96223",
+          "daemon_generation": "01a0970e-094e-7540-95f2-6cef80e2ef6d",
+          "started_unix_millis": 1789240680952,
+          "finished_unix_millis": 1789240681052,
+          "containment": {
+            "containment_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-1f00-7180-ac6c-38b6727727dd",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "native-resolver-passed\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-1f00-7180-ac6c-38c79e668624",
+      "lease_id": "01a0970e-1f00-7180-ac6c-38c79e668624",
+      "key": {
+        "machine_id": "01a0970e-092e-7bc2-8e94-a98861919122",
+        "authority_epoch": "01a0970e-092e-7bc2-8e94-a97ab90bbc29",
+        "domain_id": "01a0970e-092e-7bc2-8e94-a9a8d26097a0",
+        "manager_store_uuid": "01a0970e-0915-7a83-a785-d7ec8abea426",
+        "lease_id": "01a0970e-1f00-7180-ac6c-38c79e668624"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-1ef8-7260-930c-f6cf45dbccc8",
+        "attempt_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970e-1f00-7180-ac6c-389baae0a488"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a0970f-3644-7253-82b8-4c207b179274"
+}

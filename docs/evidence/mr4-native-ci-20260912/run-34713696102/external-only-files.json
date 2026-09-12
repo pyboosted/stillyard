@@ -1,0 +1,55 @@
+{
+  "directory": "/home/pythonic/Development/stillyard-mr4-evidence-20260912/native-ci-34713696102",
+  "files": [
+    {
+      "path": "native-restore-366003102b5f4307bec26970574b4f79/stillyard.sqlite3-corrupt.json",
+      "sha256": "586dcdb7dd46e6e5c32c5d993fb03bd189cb4262ed790641fb589d757aec0747",
+      "bytes": 189
+    },
+    {
+      "path": "native-restore-366003102b5f4307bec26970574b4f79/stillyard.sqlite3-missing.json",
+      "sha256": "76097e74113917ed14ca68e8c81ea5803be6912a936adb7c963964eed8ad6df7",
+      "bytes": 144
+    },
+    {
+      "path": "native-active-restore-eec473864c744d029012ba7e63d0781d/live-stillyard.sqlite3-shm",
+      "sha256": "c919b8d2c28bdd8df8777c1016eca570af8625e1a3092728ce240dd7ff8c2350",
+      "bytes": 32768
+    },
+    {
+      "path": "native-active-restore-eec473864c744d029012ba7e63d0781d/live-stillyard.sqlite3",
+      "sha256": "44624ca55fdd2f5437a6fe055d07306ddc79234b28235966cb23035669f39045",
+      "bytes": 593920
+    },
+    {
+      "path": "native-active-restore-eec473864c744d029012ba7e63d0781d/live-stillyard.sqlite3-wal",
+      "sha256": "ab6dc49441a78fd31bd0a577431731a853950080e34f7b31cb606411c75166c9",
+      "bytes": 1087712
+    },
+    {
+      "path": "native-active-restore-eec473864c744d029012ba7e63d0781d/drained.sqlite3",
+      "sha256": "f7ce9c0f45a7a07224856d4e03e7a6caf4e5d8e6965f1079e0675df5def90eaf",
+      "bytes": 618496
+    },
+    {
+      "path": "native-boundary-loss-0fad681d30eb4974a76789026a5c976a/drained.sqlite3",
+      "sha256": "87e285f672fe315f467dd4a9246c9888f40ca29188ce0386176b21c143d271f3",
+      "bytes": 749568
+    },
+    {
+      "path": "native-boundary-loss-0fad681d30eb4974a76789026a5c976a/original-stillyard.sqlite3-shm",
+      "sha256": "e581975487e695bb2c0bf38de5ee21e151519d4c6be6c58cfea12bf67c53f3e3",
+      "bytes": 32768
+    },
+    {
+      "path": "native-boundary-loss-0fad681d30eb4974a76789026a5c976a/original-stillyard.sqlite3-wal",
+      "sha256": "071cd67aa32a061dd9906f9c6596b5b916c4c2eaf22891e39c63403054d2cdf5",
+      "bytes": 4128272
+    },
+    {
+      "path": "native-boundary-loss-0fad681d30eb4974a76789026a5c976a/original-stillyard.sqlite3",
+      "sha256": "ee351d2f4e0f7143ae24a7501694d76123e3e5ba732c285b450766aa7134af14",
+      "bytes": 720896
+    }
+  ]
+}

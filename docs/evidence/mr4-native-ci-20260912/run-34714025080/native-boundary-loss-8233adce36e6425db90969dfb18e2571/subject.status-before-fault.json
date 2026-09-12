@@ -1,0 +1,153 @@
+{
+  "job_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a0971c-c806-7c70-bd63-9131a681c3b2",
+  "submission_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a0971c-c805-7743-814a-ac9f5834ad35",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "active",
+  "outcome": null,
+  "reason_code": null,
+  "attempt_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a0971c-c835-7be2-8a79-b863fe86d039",
+  "invocation_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a0971c-c835-7be2-8a79-b873aca359c3",
+  "containment_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a0971c-c835-7be2-8a79-b880f017e00e",
+  "root_exit_code": null,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789241640966,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789241641911,
+  "finished_unix_millis": null,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "-c",
+      "from pathlib import Path;import time;Path('started').write_text('started');time.sleep(180)"
+    ],
+    "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-boundary-loss-8233adce36e6425db90969dfb18e2571",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {},
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "gate",
+        "value": "native-terminal-boundary-loss"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a0971c-c835-7be2-8a79-b863fe86d039",
+      "attempt_index": 1,
+      "verdict": null,
+      "reason_code": null,
+      "created_unix_millis": 1789241641012,
+      "started_unix_millis": 1789241641012,
+      "deadline_unix_millis": 1789241841012,
+      "finished_unix_millis": null,
+      "primary_result": null,
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a0971c-c835-7be2-8a79-b873aca359c3",
+          "role": "primary",
+          "role_index": 0,
+          "state": "started",
+          "root_pid": 12507,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:26b1e73eb3f39e8bde671fbfab77ed395b2611ceef76971ad5ab01df9ef4151b",
+            "boot_id": "bb4e4ff1-6d80-44b5-8cef-ac3524c783af",
+            "pid": 12507,
+            "start_ticks": 126445,
+            "pid_namespace_inode": 4026532271,
+            "uid": 1001
+          },
+          "root_exit_code": null,
+          "exit_classification": null,
+          "executable_hash": "a92f0f95e883390c7256b2e441484aac06b1002dbe1d924141a77c8d82f96223",
+          "daemon_generation": "01a09715-5ef6-7522-85c4-fdca8a07684a",
+          "started_unix_millis": 1789241641911,
+          "finished_unix_millis": null,
+          "containment": {
+            "containment_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a0971c-c835-7be2-8a79-b880f017e00e",
+            "state": "live",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a0971c-c835-7be2-8a79-b893861a70d7",
+      "lease_id": "01a0971c-c835-7be2-8a79-b893861a70d7",
+      "key": {
+        "machine_id": "01a09714-3598-7361-9a78-dc2cb82df1d7",
+        "authority_epoch": "01a09714-3598-7361-9a78-dc1c9c031a6c",
+        "domain_id": "01a09714-3598-7361-9a78-dc4f13dfa0e3",
+        "manager_store_uuid": "01a09714-3580-7c52-baaf-26e21c27da67",
+        "lease_id": "01a0971c-c835-7be2-8a79-b893861a70d7"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a0971c-c806-7c70-bd63-9131a681c3b2",
+        "attempt_id": "01a09714-3580-7c52-baaf-26e21c27da67~01a0971c-c835-7be2-8a79-b863fe86d039"
+      },
+      "state": "armed",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a09715-5ef6-7522-85c4-fdca8a07684a"
+}

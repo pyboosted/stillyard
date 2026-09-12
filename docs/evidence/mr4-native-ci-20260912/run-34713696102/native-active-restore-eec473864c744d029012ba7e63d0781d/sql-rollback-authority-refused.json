@@ -1,0 +1,8 @@
+{
+  "returncode": 69,
+  "stderr": "stillyard: the local daemon is unavailable: I/O: native executor restore requires quiescent standalone authority without participants or outstanding rights\n",
+  "stdout": "",
+  "retained_executor_inode": 8804,
+  "kernel_events": "populated 0\nfrozen 0\n",
+  "unsealed_invocation": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970f-229a-7b12-9183-03bf42cb89a0"
+}

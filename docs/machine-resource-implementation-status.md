@@ -126,6 +126,25 @@ Default WSL Rust 1.85 check `01a09709-51f0-7723-8931-bcd86ba794da`, test
 `01a0970a-5868-72e3-ba65-6dda5a30d011`, and script/WSL refusal control
 `01a0970c-0796-7f21-a697-c6d47c736da6` passed (same Linux Store prefix).
 
+**Current native checkpoint accepted:** source `57096bf`, native CI34714025080,
+first-install archive extracted and installed with the default no-helper profile.
+All consumers, crash/history controls, drained restoration/replay, active rollback
+with interrupted recovery, native Cargo check/test, mandatory canonical collection
+and terminal lost-unsealed-root refusal passed. A-19: 300.103s, one daemon,
+4.383MiB endpoint RssAnon, 0.00333% of one core and zero timer expirations.
+The terminal fault intentionally retains an unreleased allocation and stops only
+its disposable native VM daemon; no false seal or empty replacement was created.
+[Current report, exact Jobs and package identity](native-linux-acceptance.md),
+[canonical final run](evidence/mr4-native-ci-20260912/run-34714025080/).
+The 27.9MB archive is retained locally; default WSL verification Job
+`01a0971e-b6b8-7490-8b5b-fdcf6cd40cc4` checked its hash and all manifest members.
+All 129 Rust build inputs match the accepted local Windows snapshot. Both
+installed daily-use daemons retain their original image/PID/generation. One active
+5.7GiB Linux cache remains; completed Windows snapshot caches were removed.
+Remaining native work: selected persistent host, actual reboot/session, audited
+operator recovery after loss of unsealed boundaries, and upgrade procedure.
+Full MR-4 container runtime/matrices remain separate; the overall phase is open.
+
 Recovery after the user-reported unexpected restart: working files and native
 evidence survived. The first CLI reconnect returned auto-start OS error 5;
 subsequent discovery found the installed alpha.14 daemon already running as PID
@@ -150,7 +169,7 @@ before the subsequent trusted-bootstrap changes.
 | MR-1 | complete | Shared admission/lifecycle core installed in Windows alpha.16 / IPC 21; native gates and installed test Job passed, scoped accounting observed. |
 | MR-2 | complete | Durable coordinator/manager protocol and public fault controls passed; final review disposition closed; Windows alpha.17 / IPC 22 installed and ordinary default Job passed. |
 | MR-3 | in_progress | Installed z11f alpha.20 daily-use slice integrated into main after scoped exit review and fresh smoke/replay on 2026-09-12. Post-integration Windows/Ubuntu CI passed after test-fixture and CI-environment repairs. Three W-C1..4 rounds, final-source confirmation, M-A01..10 and aggregate idle acceptance passed with exact source distinctions below. Full M-A11/M-A12 lifecycle coverage remains deferred. Direct multicall coreutils fd-exec compatibility is an explicit follow-up with a documented contained wrapper. |
-| MR-4 | in_progress | Standalone Linux requested as the next goal on 2026-09-12. Implement explicit native installation and local launch/recovery using the existing admission core; native-host acceptance and later container runtime matrix remain outstanding. |
+| MR-4 | in_progress | Standalone Linux first-install bundle and native VM consumers/recovery/idle accepted at `57096bf`. Persistent-host boot/session, lost-boundary operator recovery, upgrades and later container runtime matrices remain outstanding. |
 | MR-5 | not_started | Later macOS delivery. |
 
 ## Current slice and source identity

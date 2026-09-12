@@ -1,0 +1,13 @@
+{
+  "active_restoration_refusals_passed": true,
+  "job_id": "01a0970e-0915-7a83-a785-d7ec8abea426~01a0970f-226d-7612-9b43-d7639a7954b8",
+  "controls": [
+    "active SQL",
+    "SQL rollback",
+    "SQL and authority rollback"
+  ],
+  "remaining": [
+    "destroyed kernel boundary",
+    "changed boot"
+  ]
+}
