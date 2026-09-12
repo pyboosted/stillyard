@@ -132,3 +132,27 @@ test/check/Clippy Jobs, all released allocations, exact NTFS source projection
 and [canonical evidence](evidence/mr4-native-windows-local-20260912/). Its completed
 build cache was removed (2.906 GiB logical). Ordinary CI34707513955 passed too;
 Windows remote CI was unnecessary for accessing this workstation's native host.
+
+## Drained runtime-tree restoration
+
+Source `e141d37`, native run34712346630, passed the complete no-helper suite,
+including drained service/delegation stop, removal of the old executor root,
+automatic startup with a new kernel inode and retained Store/domain/epoch/seals.
+Original Job `01a096f4-d41a-7c52-8bee-87bb4dad00b3~01a096f5-c1ba-7893-8830-42aece9b4beb`
+replayed without another launch; fresh Job
+`01a096f4-d41a-7c52-8bee-87bb4dad00b3~01a096f5-e563-7943-83e2-e93a2039e7c3`
+launched once and sealed/released. Native Cargo check/test passed afterward.
+A-19 measured 300.104s, one daemon, 4.105MiB endpoint RssAnon and zero observed
+CPU-tick delta/timer expirations. [Canonical run](evidence/mr4-native-ci-20260912/run-34712346630/).
+
+Review strengthened all 14 missing/corrupt-history controls: a valid delegated
+parent now exists before each probe, so missing-parent errors cannot mask a
+skipped history check. Immutable anchors/config and restoration receipt IDs are
+also compared. These stronger drained controls passed run34712730725 (`324cf97`).
+Its subsequent active-work test failed a harness assumption: the namespace dies
+with the daemon, so heartbeat is not required afterward. The retained unsealed
+Invocation and outstanding SQL/authority rights still forbid restoration.
+[Failure and retained original histories](evidence/mr4-native-ci-20260912/run-34712730725/).
+The corrected controller and default no-helper installation are queued for the
+next native run. These controls retain the same boot and do not close actual
+host reboot/session, destroyed-boundary, upgrades or dev-container acceptance.

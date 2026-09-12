@@ -1,0 +1,6 @@
+{
+  "boot_id": "1fb3e794-adfa-4b50-85cd-bc87e6980bd0",
+  "old_inode": 7132,
+  "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation.service/executors",
+  "absent": true
+}

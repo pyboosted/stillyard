@@ -1,0 +1,39 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import json,os,pathlib,subprocess\ncli='/home/runner/.local/share/stillyard/bin/stillyard'\nendpoint=os.environ['STILLYARD_ENDPOINT']\ncontext=json.loads(subprocess.check_output([cli,'--endpoint',endpoint,'context','--json'],timeout=10))\nassert context['parent']['job_id']==os.environ['STILLYARD_JOB_ID'], context\ncommand=[cli,'--endpoint',endpoint,'ensure','--spec','/home/runner/work/stillyard/stillyard/native-evidence/native-processes-5b815f4cfc43492aa43e72462161719d/managed-child.spec.json',\n         '--idempotency-key','c55d01c5-403f-4bff-8a21-92e00a9ccbc2','--result-file','/home/runner/work/stillyard/stillyard/native-evidence/native-processes-5b815f4cfc43492aa43e72462161719d/managed-child.receipt.json',\n         '--wait','--deadline-seconds','20']\nsubprocess.run(command,check=True,timeout=25)\nsubprocess.run(command,check=True,timeout=25)\nprint('native-managed-child-replay-passed',flush=True)\n"
+  ],
+  "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-5b815f4cfc43492aa43e72462161719d",
+  "timeout_seconds": 30,
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "native-process-managed-parent"
+    }
+  ],
+  "child_submission_policy": {
+    "max_claims": {
+      "cargo_slots": 1
+    },
+    "required_labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      }
+    ]
+  }
+}

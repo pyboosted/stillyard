@@ -1,0 +1,43 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "print('native-quiet-release',flush=True)"
+  ],
+  "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-07a9d1b57bc64c4588a1ed74a3a88f67",
+  "timeout_seconds": 30,
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "native-process-quiet-cpu-disk"
+    }
+  ],
+  "quiet": {
+    "stable_seconds": 1,
+    "max_sample_age_seconds": 5,
+    "wait_budget_seconds": 20,
+    "detectors": [
+      {
+        "kind": "cpu_utilization",
+        "max_percent": 100
+      },
+      {
+        "kind": "disk_utilization",
+        "max_percent": 100
+      }
+    ]
+  }
+}

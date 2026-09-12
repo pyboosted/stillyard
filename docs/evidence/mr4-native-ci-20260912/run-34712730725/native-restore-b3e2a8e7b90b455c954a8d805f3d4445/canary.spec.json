@@ -1,0 +1,19 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "from pathlib import Path; p=Path('launches.txt'); p.write_text((p.read_text() if p.exists() else '')+'launch\\n')"
+  ],
+  "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-restore-b3e2a8e7b90b455c954a8d805f3d4445",
+  "timeout_seconds": 10,
+  "resources": {
+    "cargo_slots": 1
+  },
+  "labels": [
+    {
+      "key": "gate",
+      "value": "native-restore-canary"
+    }
+  ]
+}

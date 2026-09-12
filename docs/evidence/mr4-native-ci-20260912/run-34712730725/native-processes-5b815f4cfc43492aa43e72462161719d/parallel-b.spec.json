@@ -1,0 +1,28 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import time;print('started',flush=True);time.sleep(4)"
+  ],
+  "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-5b815f4cfc43492aa43e72462161719d",
+  "timeout_seconds": 30,
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "native-process-parallel-b"
+    }
+  ]
+}

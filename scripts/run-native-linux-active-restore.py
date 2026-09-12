@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Refuse native restoration with live work hidden by SQL/authority rollback.
+"""Refuse restoration of unsealed work hidden by SQL/authority rollback.
 
-Only on a disposable native VM. Temporarily rename the live executor root to
-make its installed pathname absent; restore the exact inode and durable bytes
-before restarting. This is not kernel-boundary destruction or reboot evidence.
+Only on a disposable native VM. Temporarily rename the retained executor root
+to make its installed pathname absent; restore its inode and durable bytes
+before restarting. Bubblewrap kills user code when the daemon dies; that is
+not a durable seal. This is not kernel-boundary destruction or reboot evidence.
 """
 import argparse
 from contextlib import closing
@@ -81,6 +82,12 @@ def main():
             raise RuntimeError('active restore subject never entered user code')
         time.sleep(.05)
     save('active', active)
+    heartbeat = (directory / 'heartbeat').read_bytes()
+    until = time.monotonic() + 5
+    while (directory / 'heartbeat').read_bytes() == heartbeat:
+        if time.monotonic() >= until:
+            raise RuntimeError('fault did not target observed live user code')
+        time.sleep(.05)
     systemctl('stop', 'stillyard.service')
     live_journal = history.read_bytes()
     record = json.loads(live_journal)['state']['records'][active['invocation_id']]
@@ -116,15 +123,17 @@ def main():
         os.close(descriptor)
 
     def refused(name, expected):
-        before_heartbeat = (directory / 'heartbeat').read_bytes()
         result = subprocess.run([str(cli), '--endpoint', endpoint, 'linux-restore-executors', '--store', str(root)],
                                 capture_output=True, text=True, timeout=40)
-        save(name, {'returncode': result.returncode, 'stderr': result.stderr, 'stdout': result.stdout})
+        boundary = moved if renamed else executors
+        save(name, {'returncode': result.returncode, 'stderr': result.stderr, 'stdout': result.stdout,
+                     'retained_executor_inode': boundary.stat().st_ino,
+                     'kernel_events': (boundary / 'cgroup.events').read_text(),
+                     'unsealed_invocation': active['invocation_id']})
         if result.returncode == 0 or expected not in result.stderr or history.read_bytes() != live_journal:
             raise RuntimeError('missing expected restoration refusal: ' + name + ': ' + result.stderr)
-        time.sleep(.15)
-        if (directory / 'heartbeat').read_bytes() == before_heartbeat:
-            raise RuntimeError('refusal control no longer has a live user-code subject')
+        if boundary.stat().st_ino != original_inode:
+            raise RuntimeError('refusal changed the retained unsealed executor boundary')
 
     try:
         refused('active-sql-refused', 'requires fully drained standalone history')
@@ -140,7 +149,7 @@ def main():
             raise RuntimeError('restore mutated live authority')
         replace(authority, drained_authority)
         refused('sql-authority-rollback-journal-refused', 'unsealed executor history forbids kernel restoration')
-        # The same live cgroup remains pinned by its kernel inode. Only its
+        # The same unsealed cgroup is retained by its kernel inode. Only its
         # pathname changes; it is restored before daemon recovery sees it.
         executors.rename(moved)
         renamed = True

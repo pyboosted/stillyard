@@ -1,0 +1,12 @@
+{
+  "drained_runtime_loss_passed": true,
+  "same_boot": "c4a8bf69-a398-4fc9-b7db-295200fa361b",
+  "original_job": "01a096f4-d41a-7c52-8bee-87bb4dad00b3~01a096f5-c1ba-7893-8830-42aece9b4beb",
+  "replay_job": "01a096f4-d41a-7c52-8bee-87bb4dad00b3~01a096f5-c1ba-7893-8830-42aece9b4beb",
+  "new_job": "01a096f4-d41a-7c52-8bee-87bb4dad00b3~01a096f5-e563-7943-83e2-e93a2039e7c3",
+  "missing_corrupt_controls": 14,
+  "remaining": [
+    "changed boot",
+    "active-work SQL rollback and boundary loss"
+  ]
+}

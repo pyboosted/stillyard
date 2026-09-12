@@ -32,16 +32,16 @@ python3 scripts/install-native-linux.py \
   --candidate-sha256 <recorded-sha256> \
   --build-origin <retained-build-Job-or-CI-URL> \
   --evidence-directory /absolute/path/to/evidence \
-  --ram-mb 4096 --cargo-slots 2 --no-helper
+  --ram-mb 4096 --cargo-slots 2
 ```
 
-Add `--apply` for the first installation. The experimental `--no-helper` profile
+Add `--apply` for the first installation. The default native profile
 creates two user units: `stillyard.service` runs the installed daemon;
 `stillyard-delegation.service` retains the executor cgroup without a persistent
 process. A short setup command initializes the explicit Store once. Later daemon
 starts validate retained history and never repeat that initialization. The
-older profile without this flag retains a Python supervisor and cannot pass
-A-19's no-helper condition.
+older supervised preview is no longer offered by the first-install tool.
+The former `--no-helper` flag remains accepted for command compatibility.
 
 The binary is installed at `${XDG_DATA_HOME:-$HOME/.local/share}/stillyard/bin/stillyard`,
 outside Cargo targets. Its Store, native anchor, authority and executor journal
@@ -83,7 +83,8 @@ its resources, regardless of which laptop initiated the SSH session.
 | Namespace-wide process rules | Incomplete when root-owned executable identities cannot be inspected; strict policy stays closed |
 | GPU/NVML | No GPU acceptance on the reference VM; unavailable evidence is not zero load |
 | Five-minute standalone idle / no-helper | Accepted: one process, 3.914 MiB RssAnon, zero measured timer expirations |
-| SSH logout, host reboot, user-manager restart | Not accepted; loss of executor tree currently blocks startup |
+| Drained service/delegation loss, same-boot recovery and receipt replay | Accepted on the disposable native VM; every old Invocation must be sealed |
+| SSH logout, host reboot, user-manager restart | Changed-boot/session acceptance still pending |
 | Upgrade/downgrade and existing installation replacement | Not implemented by the first-install tool |
 | Dev-container domains | Separate pending MR-4 adapter and matrices |
 

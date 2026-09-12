@@ -84,6 +84,32 @@ Linux Store prefix above). [Source and canonical Jobs](evidence/mr4-native-core-
 The new disposable native runtime-loss/replay controller is staged; real native
 acceptance, active-work SQL rollback and changed-boot controls remain pending.
 
+Native CI34712346630 at `e141d37` passed installed consumers, crash/history,
+drained runtime-tree loss with same receipt replay, Cargo check/test and A-19:
+300.104s, one daemon, 4.105MiB endpoint RssAnon, zero CPU-tick delta and timer
+expirations. The stronger missing/corrupt controls (valid delegated parent before
+each refusal, immutable anchor/config comparison) passed CI34712730725 at
+`324cf97`. Its next active-work controller failed an incorrect heartbeat
+expectation: bubblewrap's `--die-with-parent` stops user code with the daemon,
+while SQL and the unsealed executor obligation remain. The controller now
+verifies live code before the fault and unsealed retained rights afterward.
+[First complete restoration run](evidence/mr4-native-ci-20260912/run-34712346630/),
+[stronger controls and failed heartbeat expectation](evidence/mr4-native-ci-20260912/run-34712730725/).
+The no-helper profile is now the first-install default; next native CI verifies
+installation without the former opt-in flag and corrected active rollback.
+
+Local Windows restoration-source regression passed default Jobs (Windows Store
+prefix `01a05f1f-858c-7880-8c15-d55875da9e6b~`): check
+`01a096f8-40ea-7df3-a598-b9bf407b3179`, test
+`01a096f9-4d4b-77c2-be20-4e1598192bba`, Clippy
+`01a096fc-68cc-7b52-b7e0-2f4ba0dbcf94`; all released. The Clippy PowerShell output
+redirection returned an error after durable submission, but its recorded Job
+succeeded; no duplicate was submitted. Remote ordinary Windows CI34712346650
+timed out connecting an isolated test daemon (cause unresolved); its Ubuntu job
+passed. Redundant ordinary CI34712730620 was canceled. The completed NTFS
+snapshot target was removed after no queued/running Jobs or process references,
+reclaiming 2.906 GiB. [Canonical local Jobs/source/cleanup](evidence/mr4-native-windows-restore-20260912/).
+
 Recovery after the user-reported unexpected restart: working files and native
 evidence survived. The first CLI reconnect returned auto-start OS error 5;
 subsequent discovery found the installed alpha.14 daemon already running as PID

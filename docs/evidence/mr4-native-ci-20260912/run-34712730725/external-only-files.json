@@ -1,0 +1,29 @@
+{
+  "external_directory": "/home/pythonic/Development/stillyard-mr4-evidence-20260912/native-ci-34712730725",
+  "files": [
+    {
+      "path": "native-restore-b3e2a8e7b90b455c954a8d805f3d4445/stillyard.sqlite3-corrupt.json",
+      "size": 189
+    },
+    {
+      "path": "native-restore-b3e2a8e7b90b455c954a8d805f3d4445/stillyard.sqlite3-missing.json",
+      "size": 144
+    },
+    {
+      "path": "native-active-restore-eb5ed90867d74b04915245dacb6446e0/live-stillyard.sqlite3-shm",
+      "size": 32768
+    },
+    {
+      "path": "native-active-restore-eb5ed90867d74b04915245dacb6446e0/live-stillyard.sqlite3",
+      "size": 593920
+    },
+    {
+      "path": "native-active-restore-eb5ed90867d74b04915245dacb6446e0/live-stillyard.sqlite3-wal",
+      "size": 1087712
+    },
+    {
+      "path": "native-active-restore-eb5ed90867d74b04915245dacb6446e0/drained.sqlite3",
+      "size": 618496
+    }
+  ]
+}

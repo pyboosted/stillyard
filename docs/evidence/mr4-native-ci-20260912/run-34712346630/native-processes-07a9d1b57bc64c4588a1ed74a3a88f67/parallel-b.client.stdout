@@ -1,0 +1,36 @@
+{
+  "outcome": {
+    "outcome": "accepted",
+    "value": {
+      "receipt": {
+        "submission_id": "01a096f4-d41a-7c52-8bee-87bb4dad00b3~01a096f5-0792-7093-82d0-79632152a10a",
+        "job_id": "01a096f4-d41a-7c52-8bee-87bb4dad00b3~01a096f5-0793-7f81-9a85-7688601965c2",
+        "submission_state": "accepted",
+        "job_state": "pending",
+        "reason_code": null,
+        "accepted_unix_millis": 1789239035795,
+        "priority": 0,
+        "effective_priority": 0,
+        "blockers": [],
+        "queue_rank": 1,
+        "reservation": null,
+        "conditions": [],
+        "estimate": {
+          "confidence": "estimated",
+          "start_in_millis": 0,
+          "assumptions": [
+            "currently admissible"
+          ]
+        },
+        "parent": null,
+        "managed_policy_admission": null,
+        "gpu_provenance": null,
+        "admission": null,
+        "daemon_generation": "01a096f4-d453-7d12-9a72-22d0d01ac0c9"
+      },
+      "snapshot": null
+    }
+  },
+  "exit_source": "scheduler",
+  "exit_code": 0
+}

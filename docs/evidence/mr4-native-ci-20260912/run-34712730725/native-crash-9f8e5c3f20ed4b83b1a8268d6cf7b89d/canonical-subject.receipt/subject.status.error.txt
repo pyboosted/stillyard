@@ -1,0 +1,1 @@
+stillyard: the local daemon is unavailable: Linux auto-start requires the installed default WSL attachment

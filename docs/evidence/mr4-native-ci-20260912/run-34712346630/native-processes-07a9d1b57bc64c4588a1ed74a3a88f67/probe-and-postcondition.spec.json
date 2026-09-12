@@ -1,0 +1,68 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "print('primary-after-probe',flush=True)"
+  ],
+  "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-07a9d1b57bc64c4588a1ed74a3a88f67",
+  "timeout_seconds": 30,
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "native-process-probe-and-postcondition"
+    }
+  ],
+  "conditions": [
+    {
+      "predicate": {
+        "kind": "probe",
+        "probe": {
+          "executable": "/usr/bin/python3",
+          "args": [
+            "-c",
+            "print('probe',flush=True)"
+          ],
+          "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-07a9d1b57bc64c4588a1ed74a3a88f67",
+          "resources": {
+            "cargo_slots": 1
+          },
+          "timeout_seconds": 5,
+          "interval_seconds": 1,
+          "accepted_exit_codes": [
+            0
+          ]
+        }
+      },
+      "deadline": {
+        "kind": "relative",
+        "seconds": 20
+      },
+      "on_deadline": "failed"
+    }
+  ],
+  "postconditions": [
+    {
+      "executable": "/usr/bin/python3",
+      "args": [
+        "-c",
+        "print('postcondition',flush=True)"
+      ],
+      "accepted_exit_codes": [
+        0
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "external_directory": "/home/pythonic/Development/stillyard-mr4-evidence-20260912/native-ci-34712346630",
+  "files": [
+    {
+      "path": "native-restore-88258beec3a84bf0826d3c7bed72c244/stillyard.sqlite3-corrupt.json",
+      "size": 189
+    },
+    {
+      "path": "native-restore-88258beec3a84bf0826d3c7bed72c244/stillyard.sqlite3-missing.json",
+      "size": 144
+    }
+  ]
+}

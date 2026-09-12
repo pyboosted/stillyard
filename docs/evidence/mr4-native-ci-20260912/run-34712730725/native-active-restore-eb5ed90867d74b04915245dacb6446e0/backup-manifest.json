@@ -1,0 +1,15 @@
+{
+  "store": "/home/runner/.local/share/stillyard",
+  "endpoint": "/home/runner/.local/share/stillyard/stillyard-v6.sock",
+  "executor": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation.service/executors",
+  "executor_inode": 8593,
+  "renamed_path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation.service/restore-control-5fe0dfbc2ca4482290a381b9b8978428",
+  "files": {
+    "live-stillyard.sqlite3": "d5a47b08556ee99e2947ad806aefd214686fb536c40dca525f384bcdb61f0cc1",
+    "live-stillyard.sqlite3-wal": "e0d3245f0344fff96e47b6bcc6ef77d15099fca9223ff0c96b6de951387ef6a6",
+    "live-stillyard.sqlite3-shm": "6eaaa471def3b7ea0b34f6619df2c5879c0198d230863554ea560d15c5805161",
+    "live-authority.json": "b825fe568c5e086e6d0f43db911b6144ec53524b4a731c76e2f64fe84637b5b3",
+    "live-executor.json": "f314db76352b6cbc17c04d720f5f8c74367a81a90056e9bb3e65714169344585",
+    "drained-authority.json": "8fa373566103f3ab0a97317e1092b5a2aa053a1a41e3e2d82f40aea16462647d"
+  }
+}

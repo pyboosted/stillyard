@@ -57,7 +57,7 @@ def main():
     parser.add_argument('--ram-mb', type=int, default=4096)
     parser.add_argument('--cargo-slots', type=int, default=2)
     parser.add_argument('--apply', action='store_true')
-    parser.add_argument('--no-helper', action='store_true', help='Use the experimental retained delegation unit profile')
+    parser.add_argument('--no-helper', action='store_true', help=argparse.SUPPRESS)  # Preview compatibility; now the default.
     args = parser.parse_args()
     os.umask(0o077)
     kernel = Path('/proc/sys/kernel/osrelease').read_text().lower()
@@ -81,7 +81,7 @@ def main():
         parser.error('native service installation path must not contain control characters')
     unit = Path.home() / '.config/systemd/user/stillyard.service'
     delegation_unit = unit.with_name('stillyard-delegation.service')
-    if args.no_helper and (delegation_unit.exists() or delegation_unit.is_symlink()):
+    if delegation_unit.exists() or delegation_unit.is_symlink():
         parser.error('first installation refuses an existing delegation service')
     if root.exists() or root.is_symlink() or unit.exists() or unit.is_symlink():
         parser.error('first installation refuses existing Store or service; preserve it for audited upgrade/recovery')
@@ -95,9 +95,7 @@ def main():
     save(evidence / 'prerequisites.json', preflight)
     if probe.returncode != 0 or not preflight['prerequisites_passed']:
         parser.error('native prerequisites did not pass; retained at ' + str(evidence))
-    executors = Path(f'/sys/fs/cgroup/user.slice/user-{os.geteuid()}.slice/user@{os.geteuid()}.service/app.slice/stillyard.service/executors')
-    if args.no_helper:
-        executors = executors.parent.with_name('stillyard-delegation.service') / 'executors'
+    executors = Path(f'/sys/fs/cgroup/user.slice/user-{os.geteuid()}.slice/user@{os.geteuid()}.service/app.slice/stillyard-delegation.service/executors')
     daemon = root / 'bin/stillyard'
     helper = root / 'libexec/native-linux-service.py'
     configuration = {
@@ -107,30 +105,7 @@ def main():
         'observation': {'ram_safety_margin_mb': 256,
                         'process_rules': {'block': ['cargo', 'rustc', 'rust-analyzer'], 'ignore': []}},
     }
-    unit_text = f'''[Unit]
-Description=Stillyard standalone Linux scheduler
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/python3 {quote(helper)} --root {quote(root)} --executors {quote(executors)} --ram-mb {args.ram_mb}
-WorkingDirectory={str(root).replace('%', '%%')}
-Environment={quote('XDG_DATA_HOME=' + str(root.parent))}
-Delegate=cpu memory pids
-DelegateSubgroup=manager
-Slice=app.slice
-KillMode=process
-OOMPolicy=continue
-TimeoutStopSec=infinity
-Restart=no
-UMask=0077
-UnsetEnvironment=STILLYARD_STORE STILLYARD_ENDPOINT STILLYARD_JOB_ID STILLYARD_ATTEMPT STILLYARD_INVOCATION_ID STILLYARD_ROLE
-
-[Install]
-WantedBy=default.target
-'''
-    delegation_text = None
-    if args.no_helper:
-        delegation_text = '''[Unit]
+    delegation_text = '''[Unit]
 Description=Stillyard retained native executor delegation
 StopWhenUnneeded=no
 
@@ -142,7 +117,7 @@ Delegate=cpu memory pids
 Slice=app.slice
 KillMode=control-group
 '''
-        unit_text = f'''[Unit]
+    unit_text = f'''[Unit]
 Description=Stillyard standalone Linux scheduler
 Requires=stillyard-delegation.service
 After=stillyard-delegation.service
@@ -171,7 +146,7 @@ WantedBy=default.target
     save(evidence / 'plan.json', {'candidate_sha256': args.candidate_sha256,
                                 'build_origin': args.build_origin, 'store': str(root),
                                 'helper_sha256': hashes, 'unit': str(unit), 'unit_text': unit_text,
-                                'delegation_unit_text': delegation_text, 'no_helper': args.no_helper,
+                                'delegation_unit_text': delegation_text, 'no_helper': True,
                                 'configuration': configuration, 'apply': args.apply})
     if args.apply:
         root.parent.mkdir(mode=0o700, parents=True, exist_ok=True)

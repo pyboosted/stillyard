@@ -1,0 +1,4 @@
+{
+  "endpoint": "/home/pythonic/.local/share/stillyard/stillyard-v6.sock",
+  "idempotency_key": "ce1bd667-c113-4396-82ff-4bf888a64c98"
+}

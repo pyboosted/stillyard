@@ -54,7 +54,7 @@ jobs:
             --candidate "$PWD/target/debug/stillyard" \
             --candidate-sha256 "$(sha256sum target/debug/stillyard | cut -d ' ' -f1)" \
             --build-origin "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-            --evidence-directory "$PWD/native-evidence" --ram-mb 4096 --cargo-slots 2 --no-helper --apply
+            --evidence-directory "$PWD/native-evidence" --ram-mb 4096 --cargo-slots 2 --apply
       - name: Native process and local-allocation acceptance
         run: python3 scripts/run-native-linux-acceptance.py --evidence-directory "$PWD/native-evidence"
       - name: Native daemon crash with retained executor history

@@ -1,0 +1,18 @@
+[
+  {
+    "generation": "01a096fd-77f1-7533-b963-c9f24aef6b04",
+    "state": "final",
+    "outcome": "interrupted",
+    "allocations": [
+      "armed"
+    ]
+  },
+  {
+    "generation": "01a096fd-77f1-7533-b963-c9f24aef6b04",
+    "state": "final",
+    "outcome": "interrupted",
+    "allocations": [
+      "released"
+    ]
+  }
+]

@@ -255,9 +255,9 @@ executors absent, and also compares immutable anchors/config and receipt IDs.
 That stronger acceptance remains pending its next native run.
 
 A separate active-work controller now stages same-Store SQL rollback, SQL plus
-authority rollback, and a temporarily absent executor pathname with its live
-kernel inode preserved. It requires exact SQL/authority/unsealed-journal refusals
-while user code still updates a heartbeat, restores exact durable bytes and the
+authority rollback, and a temporarily absent executor pathname with its retained
+kernel inode preserved. It requires exact SQL/authority/unsealed-journal refusals,
+restores exact durable bytes and the
 original pathname, then verifies interrupted recovery, seal, released allocation
 and receipt replay. This is not destruction of the kernel boundary. Independent
 review found a cleanup ordering gap if faulty code created a replacement root;

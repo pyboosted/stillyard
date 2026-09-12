@@ -1,0 +1,19 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "print('native-managed-child',flush=True)"
+  ],
+  "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-5b815f4cfc43492aa43e72462161719d",
+  "resources": {
+    "cargo_slots": 1
+  },
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    }
+  ],
+  "timeout_seconds": 10
+}

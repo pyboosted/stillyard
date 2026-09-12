@@ -1,0 +1,231 @@
+{
+  "job_id": "01a096fc-a1c1-7641-b19a-2028a48d1416~01a096fc-be5b-7a43-b3f1-e71ea43f1820",
+  "submission_id": "01a096fc-a1c1-7641-b19a-2028a48d1416~01a096fc-be5a-76a1-9cce-6fd9f0246d87",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a096fc-a1c1-7641-b19a-2028a48d1416~01a096fc-be67-71d1-b311-27c44bb9f95f",
+  "invocation_id": "01a096fc-a1c1-7641-b19a-2028a48d1416~01a096fc-be6d-7090-ba6d-ade9f66c2798",
+  "containment_id": "01a096fc-a1c1-7641-b19a-2028a48d1416~01a096fc-be6d-7090-ba6d-adfe264c4994",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789239541339,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789239542364,
+  "finished_unix_millis": 1789239542417,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "-c",
+      "print('native-observed-admission',flush=True)"
+    ],
+    "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-5b815f4cfc43492aa43e72462161719d",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "PATH": "/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": 64,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": {
+      "max_sample_age_seconds": 5,
+      "cpu_utilization_percent_at_most": 100,
+      "gpu_utilization_percent_at_most": {}
+    },
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "native-process-observed-cpu-memory"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 30,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a096fc-a1c1-7641-b19a-2028a48d1416~01a096fc-be67-71d1-b311-27c44bb9f95f",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789239541350,
+      "started_unix_millis": 1789239541356,
+      "deadline_unix_millis": 1789239571356,
+      "finished_unix_millis": 1789239542417,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a096fc-a1c1-7641-b19a-2028a48d1416~01a096fc-be5b-7a43-b3f1-e71ea43f1820",
+        "attempt_id": "01a096fc-a1c1-7641-b19a-2028a48d1416~01a096fc-be67-71d1-b311-27c44bb9f95f",
+        "invocation_id": "01a096fc-a1c1-7641-b19a-2028a48d1416~01a096fc-be6d-7090-ba6d-ade9f66c2798",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789239542364,
+        "exited_unix_millis": 1789239542396,
+        "resolved_unix_millis": 1789239542411
+      },
+      "admission": {
+        "state": "released",
+        "evaluated_unix_millis": 1789239541356,
+        "observation_generation": "01a096fc-b391-7243-9a5b-ee4dc8a29dd8",
+        "blockers": [],
+        "operands": [
+          {
+            "name": "ram_mb",
+            "requested": 64,
+            "configured_capacity": 4096,
+            "observed": 14946,
+            "safety_margin": 256,
+            "granted_debit": 0,
+            "satisfied": true
+          }
+        ],
+        "detectors": [
+          {
+            "detector": "observed.cpu_utilization",
+            "observed": 41,
+            "threshold": 100,
+            "satisfied": true,
+            "detail": null
+          }
+        ],
+        "gpu_provenance": null,
+        "final_sample": false,
+        "deferral_count": 0
+      },
+      "invocations": [
+        {
+          "invocation_id": "01a096fc-a1c1-7641-b19a-2028a48d1416~01a096fc-be6d-7090-ba6d-ade9f66c2798",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 4764,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:26b1e73eb3f39e8bde671fbfab77ed395b2611ceef76971ad5ab01df9ef4151b",
+            "boot_id": "1fb3e794-adfa-4b50-85cd-bc87e6980bd0",
+            "pid": 4764,
+            "start_ticks": 13851,
+            "pid_namespace_inode": 4026532317,
+            "uid": 1001
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "a92f0f95e883390c7256b2e441484aac06b1002dbe1d924141a77c8d82f96223",
+          "daemon_generation": "01a096fc-a200-75e3-9be1-1664787d4622",
+          "started_unix_millis": 1789239542364,
+          "finished_unix_millis": 1789239542411,
+          "containment": {
+            "containment_id": "01a096fc-a1c1-7641-b19a-2028a48d1416~01a096fc-be6d-7090-ba6d-adfe264c4994",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "native-observed-admission\n",
+          "stderr_tail": ""
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a096fc-a1c1-7641-b19a-2028a48d1416~01a096fc-be6d-7090-ba6d-ae00728b8682",
+      "lease_id": "01a096fc-be6d-7090-ba6d-ae00728b8682",
+      "key": {
+        "machine_id": "01a096fc-a1da-7082-9183-26c8249adf86",
+        "authority_epoch": "01a096fc-a1da-7082-9183-26bc4fc20025",
+        "domain_id": "01a096fc-a1da-7082-9183-26ed1a94781f",
+        "manager_store_uuid": "01a096fc-a1c1-7641-b19a-2028a48d1416",
+        "lease_id": "01a096fc-be6d-7090-ba6d-ae00728b8682"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a096fc-a1c1-7641-b19a-2028a48d1416~01a096fc-be5b-7a43-b3f1-e71ea43f1820",
+        "attempt_id": "01a096fc-a1c1-7641-b19a-2028a48d1416~01a096fc-be67-71d1-b311-27c44bb9f95f"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 64
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": {
+    "state": "released",
+    "evaluated_unix_millis": 1789239541356,
+    "observation_generation": "01a096fc-b391-7243-9a5b-ee4dc8a29dd8",
+    "blockers": [],
+    "operands": [
+      {
+        "name": "ram_mb",
+        "requested": 64,
+        "configured_capacity": 4096,
+        "observed": 14946,
+        "safety_margin": 256,
+        "granted_debit": 0,
+        "satisfied": true
+      }
+    ],
+    "detectors": [
+      {
+        "detector": "observed.cpu_utilization",
+        "observed": 41,
+        "threshold": 100,
+        "satisfied": true,
+        "detail": null
+      }
+    ],
+    "gpu_provenance": null,
+    "final_sample": false,
+    "deferral_count": 0
+  },
+  "daemon_generation": "01a096fc-a200-75e3-9be1-1664787d4622"
+}
