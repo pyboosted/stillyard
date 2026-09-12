@@ -1642,11 +1642,6 @@ mod tests {
             .join("powershell.exe");
         let pid_path = temp.path().join("grandchild.pid");
         let result_path = temp.path().join("primary-result.json");
-        let primary_script = format!(
-            "$child = Start-Process -FilePath $PSHOME\\powershell.exe -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-Command', '$PID | Set-Content -LiteralPath \"{}\"; while ($true) {{ Start-Sleep -Seconds 30 }}') -PassThru; while (-not (Test-Path -LiteralPath '{}')) {{ Start-Sleep -Milliseconds 10 }}; exit 25",
-            pid_path.display(),
-            pid_path.display(),
-        );
         let postcondition_script = format!(
             "$result = $env:STILLYARD_PRIMARY_RESULT | ConvertFrom-Json; $childPid = [int](Get-Content -LiteralPath '{}'); if (Get-Process -Id $childPid -ErrorAction SilentlyContinue) {{ exit 91 }}; $result | ConvertTo-Json -Compress | Set-Content -LiteralPath '{}'; if ($result.root_exit_code -ne 25 -or $result.verdict -ne 'process_failed' -or $result.containment -ne 'empty') {{ exit 92 }}; exit 0",
             pid_path.display(),
@@ -1654,16 +1649,18 @@ mod tests {
         );
         let mut spec = job_spec(
             temp.path(),
-            powershell.clone(),
+            std::env::current_exe().unwrap(),
             vec![
-                "-NoLogo".into(),
-                "-NoProfile".into(),
-                "-NonInteractive".into(),
-                "-Command".into(),
-                primary_script,
+                "--ignored".into(),
+                "--exact".into(),
+                "runner::windows::tests::postcondition_tree_helper".into(),
             ],
         );
-        // Allow three PowerShell starts; the child cannot exit naturally and
+        spec.environment.set.insert(
+            "STY_TEST_PID_FILE".into(),
+            pid_path.to_string_lossy().into_owned(),
+        );
+        // Allow PowerShell postcondition startup; the child cannot exit naturally and
         // falsely satisfy the cleanup assertion while this budget elapses.
         spec.timeout_seconds = Some(60);
         spec.postconditions.push(PostconditionSpec {
@@ -1704,6 +1701,34 @@ mod tests {
             snapshot.attempts[0].invocations[1].exit_classification,
             Some(ExitClassification::Accepted)
         );
+    }
+
+    #[test]
+    #[ignore = "launched only as a managed postcondition tree probe"]
+    fn postcondition_tree_helper() {
+        let pid_file = PathBuf::from(std::env::var_os("STY_TEST_PID_FILE").unwrap());
+        if std::env::var_os("STY_TREE_DESCENDANT").is_some() {
+            std::fs::write(&pid_file, std::process::id().to_string()).unwrap();
+            loop {
+                std::thread::sleep(Duration::from_secs(30));
+            }
+        }
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--ignored",
+                "--exact",
+                "runner::windows::tests::postcondition_tree_helper",
+            ])
+            .env("STY_TREE_DESCENDANT", "1")
+            .spawn()
+            .unwrap();
+        let expected_pid = child.id().to_string();
+        while std::fs::read_to_string(&pid_file).ok().as_deref() != Some(&expected_pid) {
+            assert!(child.try_wait().unwrap().is_none());
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(child.try_wait().unwrap().is_none());
+        std::process::exit(25);
     }
 
     #[test]
