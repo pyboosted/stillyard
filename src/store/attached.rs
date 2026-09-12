@@ -626,11 +626,16 @@ mod tests {
         let secret = PairingSecret::generate().unwrap();
         let tx = store.connection.transaction().unwrap();
         manager::initialize(&tx, session.manager_store_uuid).unwrap();
+        #[cfg(target_os = "linux")]
+        let owner_uid =
+            std::os::unix::fs::MetadataExt::uid(&std::fs::metadata(&paths.root).unwrap());
+        #[cfg(not(target_os = "linux"))]
+        let owner_uid = 1000;
         let peer = ParticipantSnapshot {
             installation: InstallationIdentity {
                 installation_nonce: Uuid::now_v7(),
                 domain_id: session.domain_id,
-                owner_uid: 1000,
+                owner_uid,
                 runtime_registration: "fixture-only".into(),
                 role: ParticipantRole::Executor,
             },
