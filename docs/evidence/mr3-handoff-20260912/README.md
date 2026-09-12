@@ -8,7 +8,10 @@ source-continuity.json verifies all 127 tracked runtime/build inputs (src, tests
 Cargo/build inputs and the embedded bootstrap supervisor) against accepted z11f.
 Both installed executable hashes match that build. Documentation, observer and
 new example changes are outside that binary identity. No new Cargo invocation
-or build cache was required for this handoff.
+or build cache was required for this handoff. This comparison predates the
+test-fixture-only CI repairs beginning with `2441fed`; see
+[follow-up evidence](../mr3-ci-owner-fix-20260912/). Installed images and
+production code remain unchanged, while the complete source-file map differs.
 
 ## Scheduled observations
 

@@ -1,0 +1,30 @@
+commit 2441fed16aeee87b7a911b9340e9aadb98a68310
+Author:     Alexander Moiseev <i@boosted.ru>
+AuthorDate: Sat Sep 12 17:49:08 2026 +0300
+Commit:     Alexander Moiseev <i@boosted.ru>
+CommitDate: Sat Sep 12 17:49:08 2026 +0300
+
+    Use actual Linux owner in attached admission test fixture
+
+diff --git a/src/store/attached.rs b/src/store/attached.rs
+index 11ba639..3a89b4e 100644
+--- a/src/store/attached.rs
++++ b/src/store/attached.rs
+@@ -626,11 +626,16 @@ mod tests {
+         let secret = PairingSecret::generate().unwrap();
+         let tx = store.connection.transaction().unwrap();
+         manager::initialize(&tx, session.manager_store_uuid).unwrap();
++        #[cfg(target_os = "linux")]
++        let owner_uid =
++            std::os::unix::fs::MetadataExt::uid(&std::fs::metadata(&paths.root).unwrap());
++        #[cfg(not(target_os = "linux"))]
++        let owner_uid = 1000;
+         let peer = ParticipantSnapshot {
+             installation: InstallationIdentity {
+                 installation_nonce: Uuid::now_v7(),
+                 domain_id: session.domain_id,
+-                owner_uid: 1000,
++                owner_uid,
+                 runtime_registration: "fixture-only".into(),
+                 role: ParticipantRole::Executor,
+             },

@@ -7,6 +7,11 @@ Integrated and pushed to `origin/main` as merge
 `5890b1c9a480743ab6ba6be5b880363621402aa4` (feature tip `cdaf2a9`). The merge
 tree exactly matched the reviewed feature tree; no merge conflict or additional
 runtime change occurred. Both installed daemons were left running unchanged.
+Post-integration portability fixes through `e27bf17` passed full GitHub CI on
+Windows and Ubuntu, run [34701637074](https://github.com/pyboosted/stillyard/actions/runs/34701637074).
+They correct test ownership, Windows functional-test setup/deadlines and CI's
+MSVC environment; production code remains unchanged.
+[Failure history, fixes and accepted CI evidence](evidence/mr3-ci-owner-fix-20260912/).
 **Full original MR-3 delivery remains incomplete:** lifecycle coverage is
 explicitly deferred, not passed. Standalone Linux and containers remain MR-4.
 
@@ -33,7 +38,7 @@ before the subsequent trusted-bootstrap changes.
 | MR-0 | complete | Normative contract/amendment and failure traces; installed safe bootstrap; matched native/WSL check/build baseline; concrete consumer commands and validator controls. Linux compiler failures are the permitted portability baseline. |
 | MR-1 | complete | Shared admission/lifecycle core installed in Windows alpha.16 / IPC 21; native gates and installed test Job passed, scoped accounting observed. |
 | MR-2 | complete | Durable coordinator/manager protocol and public fault controls passed; final review disposition closed; Windows alpha.17 / IPC 22 installed and ordinary default Job passed. |
-| MR-3 | in_progress | Installed z11f alpha.20 daily-use slice approved for main integration after scoped exit review and fresh smoke/replay on 2026-09-12. Three W-C1..4 rounds, final-source confirmation, M-A01..10 and aggregate idle acceptance passed with exact source distinctions below. Full M-A11/M-A12 lifecycle coverage remains deferred. Direct multicall coreutils fd-exec compatibility is an explicit follow-up with a documented contained wrapper. |
+| MR-3 | in_progress | Installed z11f alpha.20 daily-use slice integrated into main after scoped exit review and fresh smoke/replay on 2026-09-12. Post-integration Windows/Ubuntu CI passed after test-fixture and CI-environment repairs. Three W-C1..4 rounds, final-source confirmation, M-A01..10 and aggregate idle acceptance passed with exact source distinctions below. Full M-A11/M-A12 lifecycle coverage remains deferred. Direct multicall coreutils fd-exec compatibility is an explicit follow-up with a documented contained wrapper. |
 | MR-4 | not_started | Later native Linux/container delivery. |
 | MR-5 | not_started | Later macOS delivery. |
 
@@ -112,8 +117,11 @@ Jobs still passed with real shared Grants. Test-distro lifecycle is not yet
 accepted; whole-VM coverage is explicitly deferred under the host restriction.
 [Import failure, retained fixture and continuity Jobs](evidence/mr3-test-distro-20260910a/).
 
-The 2026-09-12 handoff verified all 127 runtime/build inputs still match accepted
-z11f and both installed image hashes are unchanged. Final example/replay
+The initial 2026-09-12 handoff verified all 127 runtime/build inputs matched accepted
+z11f and both installed image hashes were unchanged. Subsequent CI repairs change
+only test fixtures and diagnostics in `src/store/attached.rs` and
+`src/runner/windows.rs`; the original whole-file map predates those changes.
+Production code and installed images remain unchanged. Final example/replay
 L`01a0960a-9c3f-7593-8f8a-113103d3ba56` and native smoke
 W`01a09609-aa84-74c3-a982-9c8ed06a3682` passed; all new Grants released.
 Two scheduled Opus attempts failed before model launch because the selected

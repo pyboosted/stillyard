@@ -1,0 +1,17 @@
+{
+  "base": "c40e7afd651f8912dafa8a48fbd5c917b4c9a618",
+  "head": "e1d4f097272c209a58816c6e50a3607ba12ab86e",
+  "changed_runtime_build_files": [
+    {
+      "file": "src/runner/windows.rs",
+      "production_prefix_identical": true,
+      "test_module_boundary": "#[cfg(test)]\nmod tests {"
+    },
+    {
+      "file": "src/store/attached.rs",
+      "production_prefix_identical": true,
+      "test_module_boundary": "#[cfg(test)]\nmod tests {"
+    }
+  ],
+  "scope": "All changed runtime/build files differ only after their cfg(test) module boundary; pre-fix installed source map is retained separately."
+}

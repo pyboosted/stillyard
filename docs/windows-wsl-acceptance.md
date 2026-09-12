@@ -2,6 +2,10 @@
 
 Integrated 2026-09-12 from `wsl` into `main`, merge `5890b1c`, pushed to origin.
 The merge tree exactly matched the reviewed feature tip `cdaf2a9`.
+Post-integration test/CI portability fixes through `e27bf17` passed all Windows
+and Ubuntu formatting, Clippy and full-test gates in
+[CI 34701637074](https://github.com/pyboosted/stillyard/actions/runs/34701637074).
+[Failure history, repairs and exact results](evidence/mr3-ci-owner-fix-20260912/).
 The user requested
 finishing the non-disruptive work and using the result while retaining the ban
 on stopping Ubuntu-SSD or the shared WSL VM. This handoff covers the installed
@@ -26,9 +30,14 @@ package is implied by merging source into main.
 
 Accepted source file-map:
 `9dd388044392f8b7bd991321f5dd80857e449667dc4abd12aabb0d56b3466af0`.
-Both installed binaries report alpha.20 / IPC 25. The handoff compares current
-runtime/build inputs with this map; subsequent documentation, idle observer and
-evidence changes do not claim a new binary build.
+Both installed binaries report alpha.20 / IPC 25. The initial handoff compared
+all 127 runtime/build input files with this map. Later CI repairs change only
+fixtures and diagnostics inside `#[cfg(test)]` in `src/store/attached.rs` and
+`src/runner/windows.rs`; the whole-file map therefore predates those repairs.
+Production code and installed images are unchanged. Documentation, idle observer
+and evidence changes do not
+claim a new binary build.
+CI also initializes the installed MSVC environment for its native C test fixture.
 
 | Side | Installed executable | SHA-256 |
 |---|---|---|
