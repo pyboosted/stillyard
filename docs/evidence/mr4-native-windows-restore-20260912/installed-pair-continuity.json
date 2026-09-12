@@ -1,0 +1,22 @@
+[
+  {
+    "platform": "linux",
+    "pid": 1929683,
+    "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+    "store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+    "version": "0.1.0-alpha.20",
+    "running_jobs": 0,
+    "queued_jobs": 0,
+    "sha256": "95dc85a28c57c084f2e15210d08162d95642117da5c95b300e4b2cbb0593527b"
+  },
+  {
+    "platform": "windows",
+    "pid": 60892,
+    "daemon_generation": "01a08b65-9a4c-7111-ad59-a0825b917b7b",
+    "store_uuid": "01a05f1f-858c-7880-8c15-d55875da9e6b",
+    "version": "0.1.0-alpha.20",
+    "running_jobs": 0,
+    "queued_jobs": 0,
+    "sha256": "8c5a6ec722a9f89942587f9c51f02487f7cc7683ead67bfe535e4de5a65ec791"
+  }
+]

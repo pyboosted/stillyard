@@ -281,3 +281,13 @@ binary with scripts, licenses, source/hash manifest and operator guide, extracts
 the tarball into a separate directory, and installs through its verifying wrapper.
 The artifact is uploaded only after complete acceptance. Packaging does not run
 Cargo; native bootstrap and all later installed Cargo retain their prior rules.
+
+Final package/workflow review found two bounded gaps: the bundle wrapper could
+accept user overrides of candidate/digest/origin/source-root, and CI ignored
+nonzero canonical collector exits. The wrapper now accepts only evidence path,
+budgets and apply; incomplete collection fails acceptance while evidence uploads
+remain unconditional. Default WSL Job
+`01a089b1-9a6a-7711-a600-39e2b74e495d~01a09711-d9f9-72e1-a493-d14e80aad2c6`
+passed all four provenance override refusals, changed-image digest refusal,
+script syntax/service controls and WSL-native fault/package refusal controls.
+[Canonical control](evidence/mr4-native-core-20260912/native-service-controls-v14/).

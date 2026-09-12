@@ -90,14 +90,21 @@ jobs:
           root = pathlib.Path.cwd() / 'native-evidence'
           cli = pathlib.Path.home() / '.local/share/stillyard/bin/stillyard'
           receipts = list(root.glob('**/*receipt.json'))
+          failures = []
           if cli.is_file():
               for receipt in receipts:
                   # setup-receipt is installation metadata, not a submitted Job.
                   if receipt.name == 'setup-receipt.json':
                       continue
-                  subprocess.run(['python3', 'scripts/collect-job-evidence.py', '--cli', str(cli),
+                  result = subprocess.run(['python3', 'scripts/collect-job-evidence.py', '--cli', str(cli),
                                   '--destination', str(receipt.parent / ('canonical-' + receipt.stem)),
                                   str(receipt)], timeout=60)
+                  if result.returncode:
+                      failures.append(str(receipt))
+          elif receipts:
+              failures.append('installed CLI missing while Job receipts exist')
+          if failures:
+              raise SystemExit('Incomplete canonical Job collection: ' + ', '.join(failures))
           PY
       - name: Native final unsealed kernel-boundary loss refuses restoration
         run: python3 scripts/run-native-linux-boundary-loss.py --disposable-native-host --evidence-directory "$PWD/native-evidence"

@@ -64,8 +64,14 @@ This bundle does not upgrade or replace an existing Store or service.
 '''
     (bundle / 'README.md').write_text(instructions)
     wrapper = '''#!/usr/bin/env python3
-import hashlib,json,os,sys
+import argparse,hashlib,json,os,sys
 from pathlib import Path
+parser=argparse.ArgumentParser(description='Install the exact native candidate recorded in this bundle')
+parser.add_argument('--evidence-directory',required=True)
+parser.add_argument('--ram-mb',type=int,default=4096)
+parser.add_argument('--cargo-slots',type=int,default=2)
+parser.add_argument('--apply',action='store_true')
+args=parser.parse_args()
 root=Path(__file__).resolve().parent
 manifest=json.loads((root/'manifest.json').read_text())
 for name,digest in manifest['files'].items():
@@ -74,7 +80,9 @@ for name,digest in manifest['files'].items():
         raise SystemExit('Bundle file differs from manifest: '+name)
 os.execv(sys.executable,[sys.executable,str(root/'scripts/install-native-linux.py'),
     '--candidate',str(root/'bin/stillyard'),'--candidate-sha256',manifest['candidate_sha256'],
-    '--build-origin',manifest['build_origin'],'--source-root',str(root),*sys.argv[1:]])
+    '--build-origin',manifest['build_origin'],'--source-root',str(root),
+    '--evidence-directory',args.evidence_directory,'--ram-mb',str(args.ram_mb),
+    '--cargo-slots',str(args.cargo_slots),*(['--apply'] if args.apply else [])])
 '''
     (bundle / 'install.py').write_text(wrapper)
     files = {str(p.relative_to(bundle)): hashlib.sha256(p.read_bytes()).hexdigest()
