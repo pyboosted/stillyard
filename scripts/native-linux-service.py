@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import stat
 import subprocess
+import uuid
 
 
 def sync_directory(path):
@@ -61,11 +62,15 @@ def initialize(root, daemon, executors):
     if receipt['store_path'] != str(root):
         raise RuntimeError('native installer selected a different default Store')
     path = root / 'native-install-result.json'
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    staging = root / ('.native-install-result-' + uuid.uuid4().hex)
+    descriptor = os.open(staging, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(descriptor, 'w') as stream:
         json.dump(receipt, stream)
         stream.flush()
         os.fsync(stream.fileno())
+    os.link(staging, path, follow_symlinks=False)
+    sync_directory(root)
+    staging.unlink()
     sync_directory(root)
 
 

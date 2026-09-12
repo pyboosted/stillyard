@@ -11,7 +11,6 @@ import json
 import os
 from pathlib import Path
 import re
-import stat
 import subprocess
 import time
 import uuid
@@ -157,7 +156,27 @@ WantedBy=default.target
             if time.monotonic() >= until:
                 raise RuntimeError('native setup did not finish; retain service journal and partial installation')
             time.sleep(.25)
-        save(evidence / 'installed.json', json.loads((root / 'native-install-result.json').read_text()))
+        receipt = json.loads((root / 'native-install-result.json').read_text())
+        save(evidence / 'setup-receipt.json', receipt)
+        until = time.monotonic() + 45
+        while True:
+            try:
+                status = json.loads(subprocess.check_output(
+                    [str(daemon), '--endpoint', receipt['endpoint'], 'daemon-status', '--deadline-seconds', '5'],
+                    text=True, timeout=10))
+                machine = status['machine_scheduling']
+                if (status['store_uuid'] == receipt['store_uuid'] and status['store_path'] == str(root)
+                        and machine['mode'] == 'coordinator' and machine['blocker'] is None
+                        and machine['domains']['native_domain'] == receipt['configuration']['domain']
+                        and os.path.samefile('/proc/' + str(status['pid']) + '/exe', daemon)):
+                    save(evidence / 'installed.json', {'setup': receipt, 'daemon': status,
+                                                     'installed_sha256': digest(daemon)})
+                    break
+            except (subprocess.SubprocessError, OSError, KeyError, TypeError, json.JSONDecodeError):
+                pass
+            if time.monotonic() >= until:
+                raise RuntimeError('native setup completed but installed daemon did not become healthy; preserve service logs')
+            time.sleep(.25)
     print(evidence)
 
 

@@ -87,3 +87,22 @@ SQL table and a version-1 installation anchor. The version-1 executor journal
 omits the new optional native intent when absent; an exact serialization test
 preserves old WSL bytes/checksums. No installed upgrade or compatibility acceptance
 is inferred from this decision.
+
+## Native installation runner
+
+The `native-linux.yml` workflow uses a disposable Ubuntu 24.04 native VM for the
+first installation probe. The pre-install CI build is explicitly a bootstrap;
+subsequent Cargo check/test runs use the installed native default Stillyard Jobs.
+This does not replace a persistent user host, logout/reboot, idle-budget or full
+consumer/container acceptance. The standalone service requires `DelegateSubgroup`,
+present in the [systemd 254 resource-control contract](https://raw.githubusercontent.com/systemd/systemd/v254/man/systemd.resource-control.xml).
+Actual delegation and namespace preflight remain mandatory.
+
+A follow-up independent review found non-atomic setup receipt publication and
+installer success preceding daemon startup. The helper now publishes the complete
+receipt atomically; the installer waits boundedly for the exact installed native
+Store/domain/process to become healthy. Default WSL Job
+`01a089b1-9a6a-7711-a600-39e2b74e495d~01a0966b-75f1-72e2-8454-e5215d681bf5`
+passed five setup controls, syntax checks for all new launchers, and the candidate
+CLI negative control: native installation rejects WSL before creating its Store.
+[Canonical follow-up evidence](evidence/mr4-native-core-20260912/native-service-controls-v2/).

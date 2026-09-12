@@ -1,0 +1,29 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "import pathlib,subprocess,tempfile\nfor name in ['install-native-linux.py','native-linux-service.py','probe-native-linux.py','run-linux-job.py','run-native-linux-acceptance.py','test-native-linux-service.py']:\n compile((pathlib.Path('scripts')/name).read_text(), name, 'exec')\nsubprocess.run(['/usr/bin/python3','scripts/test-native-linux-service.py'],check=True,timeout=30)\nwith tempfile.TemporaryDirectory(dir=pathlib.Path.cwd()) as temp:\n p=pathlib.Path(temp); target=p/'store'\n result=subprocess.run([str(pathlib.Path.cwd()/'target/scheduled-linux/debug/stillyard'),'--endpoint',str(p/'socket'),'linux-install','--store',str(target),'--executor-cgroup','/sys/fs/cgroup/nonexistent'],capture_output=True,text=True,timeout=15)\n assert result.returncode != 0 and 'WSL must retain its Windows authority' in result.stderr, result\n assert not target.exists()\n print('native-install-refuses-WSL-before-Store-creation')\n"
+  ],
+  "working_directory": "/home/pythonic/Development/stillyard",
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin",
+      "PYTHONDONTWRITEBYTECODE": "1"
+    }
+  },
+  "resources": {
+    "cargo_slots": 1
+  },
+  "timeout_seconds": 60,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard"
+    },
+    {
+      "key": "gate",
+      "value": "native-linux-service-controls-v2"
+    }
+  ]
+}

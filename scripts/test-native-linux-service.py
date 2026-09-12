@@ -61,6 +61,17 @@ class Installation(unittest.TestCase):
             self.assertEqual(call.call_count, 1)
         self.assertTrue((self.root / 'native-install-result.json').is_file())
 
+    def test_setup_receipt_is_not_visible_until_complete_json_is_published(self):
+        real_dump = service.json.dump
+        def observed_dump(value, stream):
+            self.assertFalse((self.root / 'native-install-result.json').exists())
+            return real_dump(value, stream)
+        result = subprocess.CompletedProcess([], 0, json.dumps({'store_path': str(self.root)}), '')
+        with patch.object(service.subprocess, 'run', return_value=result), patch.object(service.json, 'dump', side_effect=observed_dump):
+            service.initialize(self.root, self.daemon, self.executors)
+        self.assertEqual(json.loads((self.root / 'native-install-result.json').read_text()),
+                         {'store_path': str(self.root)})
+
     def test_changed_candidate_and_unsafe_request_are_rejected_before_execution(self):
         with patch.object(service.subprocess, 'run') as call:
             self.daemon.write_bytes(b'changed')

@@ -1,0 +1,78 @@
+name: Native Linux installation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [linux]
+    paths:
+      - '.github/workflows/native-linux.yml'
+      - 'scripts/*native-linux*'
+      - 'scripts/run-linux-job.py'
+      - 'scripts/wsl-service.py'
+      - 'src/**'
+
+permissions:
+  contents: read
+
+jobs:
+  installed-native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: Build initial candidate on disposable native runner
+        # The workstation's default-Job invariant does not turn CI's fresh
+        # pre-install bootstrap into installed-runtime acceptance. All later
+        # Cargo on this runner goes through its installed default daemon.
+        run: cargo build --locked --bin stillyard
+      - name: Prepare native user manager
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap dbus-user-session
+          native_uid=$(id -u)
+          sudo loginctl enable-linger "$(id -un)"
+          sudo systemctl start "user@${native_uid}.service"
+          echo "XDG_RUNTIME_DIR=/run/user/${native_uid}" >> "$GITHUB_ENV"
+          echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${native_uid}/bus" >> "$GITHUB_ENV"
+      - name: Install native coordinator and service
+        run: |
+          python3 scripts/install-native-linux.py \
+            --candidate "$PWD/target/debug/stillyard" \
+            --candidate-sha256 "$(sha256sum target/debug/stillyard | cut -d ' ' -f1)" \
+            --build-origin "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --evidence-directory "$PWD/native-evidence" --ram-mb 4096 --cargo-slots 2 --apply
+      - name: Native process and local-allocation acceptance
+        run: python3 scripts/run-native-linux-acceptance.py --evidence-directory "$PWD/native-evidence"
+      - name: Installed native Cargo check Job
+        run: python3 scripts/run-linux-job.py check --evidence-directory "$PWD/native-evidence"
+      - name: Installed native Cargo test Job
+        run: python3 scripts/run-linux-job.py test --evidence-directory "$PWD/native-evidence"
+      - name: Retain native service and canonical Job evidence
+        if: always()
+        run: |
+          mkdir -p native-evidence
+          journalctl --user -u stillyard.service --no-pager > native-evidence/service-journal.txt || true
+          systemctl --user show stillyard.service > native-evidence/service-state.txt || true
+          python3 - <<'PY'
+          import pathlib, subprocess
+          root = pathlib.Path.cwd() / 'native-evidence'
+          cli = pathlib.Path.home() / '.local/share/stillyard/bin/stillyard'
+          receipts = list(root.glob('**/*receipt.json'))
+          if cli.is_file():
+              for receipt in receipts:
+                  # setup-receipt is installation metadata, not a submitted Job.
+                  if receipt.name == 'setup-receipt.json':
+                      continue
+                  subprocess.run(['python3', 'scripts/collect-job-evidence.py', '--cli', str(cli),
+                                  '--destination', str(receipt.parent / ('canonical-' + receipt.stem)),
+                                  str(receipt)], timeout=60)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-linux-evidence
+          path: native-evidence/
+          retention-days: 14

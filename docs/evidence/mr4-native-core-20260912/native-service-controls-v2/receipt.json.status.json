@@ -1,0 +1,172 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0966b-75f1-72e2-8454-e5215d681bf5",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0966b-75ef-7f43-a34d-d94152645da6",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "succeeded",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0966b-75ff-70f3-9b17-c283967b9259",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0966b-75ff-70f3-9b17-c29e50c92008",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0966b-75ff-70f3-9b17-c2af89a227b2",
+  "root_exit_code": 0,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789230020081,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789230020323,
+  "finished_unix_millis": 1789230020581,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "-c",
+      "import pathlib,subprocess,tempfile\nfor name in ['install-native-linux.py','native-linux-service.py','probe-native-linux.py','run-linux-job.py','run-native-linux-acceptance.py','test-native-linux-service.py']:\n compile((pathlib.Path('scripts')/name).read_text(), name, 'exec')\nsubprocess.run(['/usr/bin/python3','scripts/test-native-linux-service.py'],check=True,timeout=30)\nwith tempfile.TemporaryDirectory(dir=pathlib.Path.cwd()) as temp:\n p=pathlib.Path(temp); target=p/'store'\n result=subprocess.run([str(pathlib.Path.cwd()/'target/scheduled-linux/debug/stillyard'),'--endpoint',str(p/'socket'),'linux-install','--store',str(target),'--executor-cgroup','/sys/fs/cgroup/nonexistent'],capture_output=True,text=True,timeout=15)\n assert result.returncode != 0 and 'WSL must retain its Windows authority' in result.stderr, result\n assert not target.exists()\n print('native-install-refuses-WSL-before-Store-creation')\n"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "PATH": "/usr/bin:/bin",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": 1,
+      "gpu_slots": null,
+      "custom": {},
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "native-linux-service-controls-v2"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 60,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0966b-75ff-70f3-9b17-c283967b9259",
+      "attempt_index": 1,
+      "verdict": "succeeded",
+      "reason_code": null,
+      "created_unix_millis": 1789230020094,
+      "started_unix_millis": 1789230020174,
+      "deadline_unix_millis": 1789230080174,
+      "finished_unix_millis": 1789230020581,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0966b-75f1-72e2-8454-e5215d681bf5",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0966b-75ff-70f3-9b17-c283967b9259",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0966b-75ff-70f3-9b17-c29e50c92008",
+        "verdict": "succeeded",
+        "root_exit_code": 0,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789230020323,
+        "exited_unix_millis": 1789230020554,
+        "resolved_unix_millis": 1789230020576
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0966b-75ff-70f3-9b17-c29e50c92008",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 242170,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 242170,
+            "start_ticks": 27612692,
+            "pid_namespace_inode": 4026534295,
+            "uid": 1000
+          },
+          "root_exit_code": 0,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+          "started_unix_millis": 1789230020323,
+          "finished_unix_millis": 1789230020576,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0966b-75ff-70f3-9b17-c2af89a227b2",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "native-install-refuses-WSL-before-Store-creation\n",
+          "stderr_tail": ".....\n----------------------------------------------------------------------\nRan 5 tests in 0.049s\n\nOK\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a0966b-7616-7761-bf38-4030b9593304",
+      "lease_id": "01a0966b-75ff-70f3-9b17-c2bbb456273e",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a0966b-75ff-70f3-9b17-c2bbb456273e"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0966b-75f1-72e2-8454-e5215d681bf5",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a0966b-75ff-70f3-9b17-c283967b9259"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4"
+}
