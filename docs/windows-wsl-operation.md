@@ -5,6 +5,9 @@ and WSL Jobs compete for the same `cargo_slots`, impacts and machine budgets.
 Each manager owns its own Jobs and receipts; a Job ID includes that Store UUID.
 The [acceptance ledger](machine-resource-implementation-status.md) identifies
 the installed binaries, accepted source snapshots and remaining delivery work.
+The [daily-use handoff](windows-wsl-acceptance.md) separates accepted behavior
+from deferred lifecycle checks. Standalone Linux and containers remain MR-4;
+the commands here target an already installed, paired WSL2 manager.
 
 ## Inspect and submit
 
@@ -29,6 +32,33 @@ specification and result file to recover a lost reply. A pending Job can be
 waiting for Windows work; queueing is expected when the only Cargo token is held.
 The JSON outcome and canonical Job status distinguish scheduler failure from
 client/transport failure.
+
+Keep the Linux Store and durable receipt on local ext4, such as your WSL home
+directory. `/mnt/c` is not supported for durable Linux receipts. For a first
+Linux Job, the following creates a private ext4 directory, discovers the actual
+installed endpoint and records a stable submission intent. Run the generated
+`submit.sh` again to recover the same Job:
+
+```bash
+python3 scripts/prepare-wsl-example.py --directory "$HOME/stillyard-hello"
+bash "$HOME/stillyard-hello/submit.sh"
+```
+
+The example executes `/usr/bin/python3` through the installed default manager.
+For a project command, prepare a new JobSpec with its absolute executable,
+working directory, explicit environment and resource claims. Rust builds must
+still use the scheduled launcher or a managed child Job, as described below.
+
+On the reference Ubuntu 26.04 image, direct fd-based execution of the multicall
+coreutils `printf` fails with `coreutils: unknown program '3'`, even with the
+requested argv[0]. An actual system Job reproduced the difference between normal
+path execution and fd execution. For such a command, submit an explicit
+interpreter wrapper, for example `/usr/bin/python3` with arguments
+`["-c", "import os; os.execv('/usr/bin/printf', ['printf', 'hello\\n'])"]`.
+The wrapper executes under the same Invocation containment; its selected primary
+image is Python. The later target is not separately pinned as the primary image.
+Do not describe this workaround as transparent support for every multicall
+executable. Direct execution compatibility remains an open follow-up.
 
 ## Build and consumer workflows
 
@@ -112,6 +142,15 @@ ordinary startup does not regenerate identities or declare resources free.
 Whole-VM shutdown, distro termination, suspend/resume, host reboot and Windows
 logout still need the remaining controlled acceptance and an external Windows
 observer. Any test affecting unrelated work requires a separate agreed window.
+On this workstation, the user prohibits stopping Ubuntu-SSD or the shared VM
+and host sleep/logout/reboot tests; see [AGENTS.md](../AGENTS.md). Historical
+prepared shutdown specifications do not authorize those operations.
+
+The executor currently requires its exact recorded cgroup and Linux boot when
+sealing cleanup. If a distro/VM stop destroys an unsealed Invocation boundary,
+its Grant can remain retained after restart. Keep the incident evidence and
+wait for an explicitly supported recovery; do not delete the Store, journal or
+pairing anchor, or rotate identities to make the resource appear free.
 
 WSL provides CPU, memory, disk and process observations, plus cgroup containment.
 Guest GPU observation is explicitly unsupported. Machine admission quantities

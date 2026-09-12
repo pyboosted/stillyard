@@ -1,0 +1,22 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/printf",
+  "args": [
+    "Hello from a scheduled WSL Job\\n"
+  ],
+  "working_directory": "/home/pythonic",
+  "environment": {
+    "set": {
+      "PATH": "/usr/bin:/bin",
+      "LANG": "C.UTF-8"
+    }
+  },
+  "resources": {},
+  "timeout_seconds": 30,
+  "labels": [
+    {
+      "key": "project",
+      "value": "stillyard-example"
+    }
+  ]
+}

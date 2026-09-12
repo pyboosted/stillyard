@@ -1,7 +1,10 @@
 # Machine resource scheduling — status/evidence ledger
 
-Updated: 2026-09-10. Target delivery: installed Windows/WSL pair and complete MR-3
-live-consumer acceptance. **That delivery has not been made.**
+Updated: 2026-09-12. The installed Windows/WSL daily-use slice has passed its
+non-disruptive handoff review and is approved for integration into main at the
+user's request. [Handoff report](windows-wsl-acceptance.md).
+**Full original MR-3 delivery remains incomplete:** lifecycle coverage is
+explicitly deferred, not passed. Standalone Linux and containers remain MR-4.
 
 Recovery after the user-reported unexpected restart: working files and native
 evidence survived. The first CLI reconnect returned auto-start OS error 5;
@@ -26,7 +29,7 @@ before the subsequent trusted-bootstrap changes.
 | MR-0 | complete | Normative contract/amendment and failure traces; installed safe bootstrap; matched native/WSL check/build baseline; concrete consumer commands and validator controls. Linux compiler failures are the permitted portability baseline. |
 | MR-1 | complete | Shared admission/lifecycle core installed in Windows alpha.16 / IPC 21; native gates and installed test Job passed, scoped accounting observed. |
 | MR-2 | complete | Durable coordinator/manager protocol and public fault controls passed; final review disposition closed; Windows alpha.17 / IPC 22 installed and ordinary default Job passed. |
-| MR-3 | in_progress | Windows/WSL z11f alpha.20 installed and paired; three W-C1..4 rounds passed on z3 with shared capacity 2/2/1. Cross-OS Store-reset, live capacity and incarnation controls passed on z8. M-A04/M-A07 passed. Final-source W-C1..4 confirmation passed on z11f. Installed aggregate idle acceptance passed on z11f3. Complete lifecycle coverage and exit review remain pending. |
+| MR-3 | in_progress | Installed z11f alpha.20 daily-use slice approved for main integration after scoped exit review and fresh smoke/replay on 2026-09-12. Three W-C1..4 rounds, final-source confirmation, M-A01..10 and aggregate idle acceptance passed with exact source distinctions below. Full M-A11/M-A12 lifecycle coverage remains deferred. Direct multicall coreutils fd-exec compatibility is an explicit follow-up with a documented contained wrapper. |
 | MR-4 | not_started | Later native Linux/container delivery. |
 | MR-5 | not_started | Later macOS delivery. |
 
@@ -84,7 +87,8 @@ Installed postconditions/probes, three complete live consumer rounds, priority/
 aging, bridge loss, active daemon crash and forced cleanup failure passed.
 Cross-OS isolated Store-reset, live capacity and explicit incarnation controls
 passed on z8. Remaining: complete VM/distro/logout/
-reboot lifecycle evidence and independent exit review.
+reboot lifecycle evidence. Scoped daily-use exit review completed on 2026-09-12;
+it does not replace the deferred full-phase acceptance.
 Final-source z11f consumer confirmation passed. z8 native/Linux Clippy, full tests,
 MSRV tests and release builds passed and were installed. The actual attached
 wait-path negative control passed. Final z11f3 idle acceptance passed all 21 conditions: aggregate CPU 0.0550%, endpoint memory 67.1406 MiB and 3.2000 timer expirations/min, including helper coverage. [Accepted interval](evidence/mr3-idle-20260910z11f3/acceptance.json).
@@ -103,6 +107,29 @@ Ubuntu-22.04 was not started or changed. Ordinary Windows/Ubuntu-SSD continuity
 Jobs still passed with real shared Grants. Test-distro lifecycle is not yet
 accepted; whole-VM coverage is explicitly deferred under the host restriction.
 [Import failure, retained fixture and continuity Jobs](evidence/mr3-test-distro-20260910a/).
+
+The 2026-09-12 handoff verified all 127 runtime/build inputs still match accepted
+z11f and both installed image hashes are unchanged. Final example/replay
+L`01a0960a-9c3f-7593-8f8a-113103d3ba56` and native smoke
+W`01a09609-aa84-74c3-a982-9c8ed06a3682` passed; all new Grants released.
+Two scheduled Opus attempts failed before model launch because the selected
+subscription profile was logged out. One independent Codex reviewer approved
+the bounded slice after directory durability and review-attribution fixes.
+[Review, controls and canonical Jobs](evidence/mr3-handoff-20260912/).
+
+Fresh direct Ubuntu coreutils printf failed under fd execution; actual control
+L`01a09607-b0fc-7672-b1d6-d30ad8d2dd17` reproduced normal-path success and
+fd-exec failure with identical argv[0]. The working hello uses Python and the
+operator guide documents an explicit contained wrapper for affected programs.
+This is a compatibility limitation, not corrected runtime behavior. No unsafe
+path fallback was added, and no new binary build or daemon replacement occurred.
+
+After the handoff Jobs completed, both remaining z11f snapshot target directories
+were removed: 38,257,094,656 allocated bytes (35.63 GiB) reclaimed across Windows
+and Linux. Fully paged Job histories and process references were checked first;
+no running/queued Job or planned handoff step needed those caches. Installed
+images, rollback copies, source snapshots and canonical evidence remain.
+[Cleanup record](evidence/mr3-handoff-20260912/cache-cleanup.json).
 
 Historical MR-0 baseline source identity follows.
 The incoming Linux checkout had no tracked changes; the supplied plan was untracked

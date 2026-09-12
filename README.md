@@ -11,8 +11,9 @@ Stillyard is useful when independent processes need one scheduling authority wit
 containers, a CI service, or a remote worker platform.
 
 Current development version: **0.1.0-alpha.20**. Windows and WSL2 are installed together on the
-reference workstation. Three live consumer rounds have passed; the remaining lifecycle/reset
-acceptance is tracked in the [delivery ledger](docs/machine-resource-implementation-status.md).
+reference workstation. Build gates, live consumers and installed idle acceptance have passed.
+The [daily-use acceptance report](docs/windows-wsl-acceptance.md) records exact evidence and
+deferred lifecycle checks; full MR-3 recovery acceptance remains open.
 Windows requires Windows 10 1809+ or Windows Server 2019+. WSL operation and its current lifetime
 boundaries are described in the [Windows/WSL operator guide](docs/windows-wsl-operation.md).
 

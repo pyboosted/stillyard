@@ -1,0 +1,237 @@
+{
+  "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-de20-7192-877f-37f6d175c5b3",
+  "submission_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-de1a-78a3-90a8-e71f82e12d8b",
+  "batch_id": null,
+  "batch_member": null,
+  "state": "final",
+  "outcome": "failed",
+  "reason_code": null,
+  "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-de6f-73c3-a45d-c31a72f2fcc9",
+  "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-e2fd-77c2-88e7-958c7f21d600",
+  "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-e2fd-77c2-88e7-9598fc85abb7",
+  "root_exit_code": 1,
+  "cancel_requested": false,
+  "accepted_unix_millis": 1789223296544,
+  "priority": 0,
+  "effective_priority": null,
+  "queue_rank": null,
+  "reservation": null,
+  "conditions": [],
+  "started_unix_millis": 1789223297132,
+  "finished_unix_millis": 1789223298114,
+  "spec": {
+    "spec_version": 4,
+    "priority": 0,
+    "executable": "/usr/bin/python3",
+    "args": [
+      "/home/pythonic/Development/stillyard-handoff-20260912/review-evidence/reviewer.py",
+      "review",
+      "--cli",
+      "/home/pythonic/.local/bin/claude-current",
+      "--brief",
+      "/home/pythonic/Development/stillyard-handoff-20260912/review-evidence/brief.txt",
+      "--output",
+      "/home/pythonic/Development/stillyard-handoff-20260912/review-evidence/review.json",
+      "--model",
+      "opus",
+      "--effort",
+      "high"
+    ],
+    "working_directory": "/home/pythonic/Development/stillyard-handoff-20260912/review-evidence",
+    "stdin": {
+      "kind": "eof"
+    },
+    "environment": {
+      "set": {
+        "CLAUDE_CONFIG_DIR": "/home/pythonic/.claude2",
+        "HOME": "/home/pythonic",
+        "LANG": "C.UTF-8",
+        "PATH": "/home/pythonic/.local/bin:/usr/bin:/bin"
+      },
+      "unset": []
+    },
+    "resources": {
+      "cpu_units": null,
+      "ram_mb": null,
+      "cargo_slots": null,
+      "gpu_slots": null,
+      "custom": {
+        "claude2_slots": 1
+      },
+      "shared_fences": [],
+      "exclusive_fences": [],
+      "impacts": []
+    },
+    "observed": null,
+    "conditions": [],
+    "retry": {
+      "max_attempts": 1,
+      "backoff_seconds": 0,
+      "retryable": []
+    },
+    "postconditions": [
+      {
+        "executable": "/usr/bin/python3",
+        "args": [
+          "/home/pythonic/Development/stillyard-handoff-20260912/review-evidence/reviewer.py",
+          "validate-review",
+          "--input",
+          "/home/pythonic/Development/stillyard-handoff-20260912/review-evidence/review.json",
+          "--expected-model-prefix",
+          "claude-opus-"
+        ],
+        "working_directory": null,
+        "accepted_exit_codes": [
+          0
+        ],
+        "retryable_exit_codes": []
+      }
+    ],
+    "labels": [
+      {
+        "key": "project",
+        "value": "stillyard"
+      },
+      {
+        "key": "gate",
+        "value": "mr3-exit-evidence-20260912"
+      }
+    ],
+    "expected_duration_seconds": null,
+    "timeout_seconds": 1200,
+    "quiet": null,
+    "artifacts": [],
+    "child_submission_policy": null
+  },
+  "parent": null,
+  "managed_policy_admission": null,
+  "blockers": [],
+  "attempts": [
+    {
+      "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-de6f-73c3-a45d-c31a72f2fcc9",
+      "attempt_index": 1,
+      "verdict": "postcondition_failed",
+      "reason_code": null,
+      "created_unix_millis": 1789223296621,
+      "started_unix_millis": 1789223296882,
+      "deadline_unix_millis": 1789224496882,
+      "finished_unix_millis": 1789223298114,
+      "primary_result": {
+        "schema_version": 1,
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-de20-7192-877f-37f6d175c5b3",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-de6f-73c3-a45d-c31a72f2fcc9",
+        "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-de72-7a52-a8db-9983886945ba",
+        "verdict": "process_failed",
+        "root_exit_code": 1,
+        "termination": "exited",
+        "containment": "empty",
+        "started_unix_millis": 1789223297132,
+        "exited_unix_millis": 1789223297751,
+        "resolved_unix_millis": 1789223297779
+      },
+      "admission": null,
+      "invocations": [
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-de72-7a52-a8db-9983886945ba",
+          "role": "primary",
+          "role_index": 0,
+          "state": "resolved",
+          "root_pid": 3537152,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 3537152,
+            "start_ticks": 26940369,
+            "pid_namespace_inode": 4026534429,
+            "uid": 1000
+          },
+          "root_exit_code": 1,
+          "exit_classification": null,
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+          "started_unix_millis": 1789223297132,
+          "finished_unix_millis": 1789223297779,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-de72-7a52-a8db-9992e9d66e4b",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": "Traceback (most recent call last):\n  File \"/home/pythonic/Development/stillyard-handoff-20260912/review-evidence/reviewer.py\", line 213, in <module>\n    raise SystemExit(main())\n                     ~~~~^^\n  File \"/home/pythonic/Development/stillyard-handoff-20260912/review-evidence/reviewer.py\", line 164, in main\n    auth = subprocess.run([str(args.cli), \"auth\", \"status\"], capture_output=True, check=True)\n  File \"/usr/lib/python3.14/subprocess.py\", line 578, in run\n    raise CalledProcessError(retcode, process.args,\n                             output=stdout, stderr=stderr)\nsubprocess.CalledProcessError: Command '['/home/pythonic/.local/bin/claude-current', 'auth', 'status']' returned non-zero exit status 1.\n"
+        },
+        {
+          "invocation_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-e2fd-77c2-88e7-958c7f21d600",
+          "role": "postcondition",
+          "role_index": 1,
+          "state": "resolved",
+          "root_pid": 3538043,
+          "root_identity": {
+            "platform": "linux",
+            "host_id": "sha256:6b371b20a4bd0432fb767b154f956893ffc7263bc908489d1973a61f6d8cb65f",
+            "boot_id": "08af9757-cbec-4d73-8d66-bdb520bffd29",
+            "pid": 3538043,
+            "start_ticks": 26940454,
+            "pid_namespace_inode": 4026534429,
+            "uid": 1000
+          },
+          "root_exit_code": 1,
+          "exit_classification": "failed",
+          "executable_hash": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+          "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4",
+          "started_unix_millis": 1789223297970,
+          "finished_unix_millis": 1789223298110,
+          "containment": {
+            "containment_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-e2fd-77c2-88e7-9598fc85abb7",
+            "state": "empty",
+            "strength": "linux_cgroup_v2",
+            "incident_id": null,
+            "incident": null,
+            "resolution": null,
+            "resolution_audit": null
+          },
+          "stdout_tail": "",
+          "stderr_tail": "Traceback (most recent call last):\n  File \"/home/pythonic/Development/stillyard-handoff-20260912/review-evidence/reviewer.py\", line 213, in <module>\n    raise SystemExit(main())\n                     ~~~~^^\n  File \"/home/pythonic/Development/stillyard-handoff-20260912/review-evidence/reviewer.py\", line 141, in main\n    print(json.dumps(validate_review(json.loads(args.input.read_text()), args.expected_model_prefix)))\n                                                ~~~~~~~~~~~~~~~~~~~~^^\n  File \"/usr/lib/python3.14/pathlib/__init__.py\", line 788, in read_text\n    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:\n         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.14/pathlib/__init__.py\", line 772, in open\n    return io.open(self, mode, buffering, encoding, errors, newline)\n           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nFileNotFoundError: [Errno 2] No such file or directory: '/home/pythonic/Development/stillyard-handoff-20260912/review-evidence/review.json'\n"
+        }
+      ]
+    }
+  ],
+  "allocations": [
+    {
+      "grant_id": "01a05f1f-858c-7880-8c15-d55875da9e6b~01a09604-df16-7903-8c9e-2b5034ed67cc",
+      "lease_id": "01a09604-de72-7a52-a8db-99a6bc40f27e",
+      "key": {
+        "machine_id": "01a08727-697d-7002-b4e5-c9ac495818f3",
+        "authority_epoch": "01a086e8-b5b2-7eb2-9cbc-5c3aebad7b04",
+        "domain_id": "4ca2075e-f8f9-49ba-9401-9dfd1b4bb6f3",
+        "manager_store_uuid": "01a089b1-9a6a-7711-a600-39e2b74e495d",
+        "lease_id": "01a09604-de72-7a52-a8db-99a6bc40f27e"
+      },
+      "owner": {
+        "kind": "work",
+        "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-de20-7192-877f-37f6d175c5b3",
+        "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a09604-de6f-73c3-a45d-c31a72f2fcc9"
+      },
+      "state": "released",
+      "claims": {
+        "scalars": {
+          "cargo_slots": 0,
+          "claude2_slots": 1,
+          "cpu_units": 0,
+          "gpu_slots": 0,
+          "ram_mb": 0
+        },
+        "shared_fences": [],
+        "exclusive_fences": [],
+        "impacts": []
+      }
+    }
+  ],
+  "gpu_provenance": null,
+  "admission": null,
+  "daemon_generation": "01a08b65-a2dd-74b3-bbb1-4f45ebe170e4"
+}
