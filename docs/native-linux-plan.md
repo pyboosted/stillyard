@@ -246,3 +246,20 @@ only its disposable VM's drained services, checks missing/corrupt retained files
 then requires unchanged durable identities/seals, a new kernel inode, old receipt
 replay without another launch, and a fresh released/sealed canary. This exercises
 runtime-tree loss in the same boot, not an actual reboot. Native results pending.
+
+Native CI34712346630 passed the real drained restoration/replay and installed
+Cargo check/test at `e141d37`; idle observation is still running. Review found
+that its negative corruption probes could fail on a missing kernel parent.
+The strengthened controller now creates a valid delegated parent first, keeps
+executors absent, and also compares immutable anchors/config and receipt IDs.
+That stronger acceptance remains pending its next native run.
+
+A separate active-work controller now stages same-Store SQL rollback, SQL plus
+authority rollback, and a temporarily absent executor pathname with its live
+kernel inode preserved. It requires exact SQL/authority/unsealed-journal refusals
+while user code still updates a heartbeat, restores exact durable bytes and the
+original pathname, then verifies interrupted recovery, seal, released allocation
+and receipt replay. This is not destruction of the kernel boundary. Independent
+review found a cleanup ordering gap if faulty code created a replacement root;
+durable rollback cleanup is now independent of kernel rename, failures keep the
+daemon stopped, and fsynced original authority/journal/SQL backups precede faults.

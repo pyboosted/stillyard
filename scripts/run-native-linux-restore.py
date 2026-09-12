@@ -102,6 +102,29 @@ def main():
             raise RuntimeError('stopped delegation did not remove its drained runtime tree')
         time.sleep(.1)
     save('runtime-absent', {'boot_id': boot, 'old_inode': old_inode, 'path': str(executors), 'absent': True})
+    systemctl('start', 'stillyard-delegation.service')
+    # Realize a valid parent before every durable negative control. Otherwise
+    # a missing parent could mask a skipped history check as a harmless error.
+    prepare = """import os,sys,subprocess
+from pathlib import Path
+unit='stillyard-delegation.service'
+subprocess.run(['/usr/bin/busctl','--user','call','org.freedesktop.systemd1',
+ '/org/freedesktop/systemd1','org.freedesktop.systemd1.Manager',
+ 'AttachProcessesToUnit','ssau',unit,'','1',str(os.getpid())],check=True,timeout=10)
+current=subprocess.check_output(['/usr/bin/systemctl','--user','show',unit,
+ '--property=ControlGroup','--value'],text=True,timeout=10).strip()
+group=Path('/sys/fs/cgroup')/current.lstrip('/')
+assert group==Path(sys.argv[1]) and group.stat().st_uid==os.geteuid()
+setup=group/'setup';setup.mkdir()
+(setup/'cgroup.procs').write_text(str(os.getpid()))
+(group/'cgroup.subtree_control').write_text('+cpu +memory +pids')
+"""
+    subprocess.run(['/usr/bin/python3', '-c', prepare, str(executors.parent)], check=True, timeout=30)
+    if executors.exists() or not {'cpu', 'memory', 'pids'}.issubset(
+            (executors.parent / 'cgroup.subtree_control').read_text().split()):
+        raise RuntimeError('negative controls require a valid delegated parent and absent executor')
+    save('negative-parent', {'path': str(executors.parent), 'inode': executors.parent.stat().st_ino,
+                             'controllers': (executors.parent / 'cgroup.subtree_control').read_text().split()})
     for path in retained:
         for mutation in ('missing', 'corrupt'):
             try:
@@ -140,11 +163,15 @@ def main():
         raise RuntimeError('expected exactly one durable kernel restore receipt')
     receipt = json.loads(receipts.pop().read_text())
     save('kernel-restoration', receipt)
+    immutable = [root / name for name in ('config.json', 'native-linux/anchor.json',
+                                          'native-linux/executor/anchor.json', 'authority/anchor.json')]
     if (after['store_uuid'] != before['store_uuid'] or after['daemon_generation'] == before['daemon_generation']
             or after['machine_scheduling']['domains'] != before['machine_scheduling']['domains']
             or after['machine_scheduling']['authority_epoch'] != before['machine_scheduling']['authority_epoch']
             or history.read_bytes() != original[history] or executors.stat().st_ino == old_inode
             or receipt['store_uuid'] != before['store_uuid'] or not receipt['history_preserved']
+            or any(receipt[name] != anchor[name] for name in ('installation', 'domain', 'journal'))
+            or any(path.read_bytes() != original[path] for path in immutable)
             or receipt['executor']['inode'] != executors.stat().st_ino
             or Path('/proc/sys/kernel/random/boot_id').read_text().strip() != boot):
         raise RuntimeError('restoration changed durable identity/history or retained the old kernel boundary')
