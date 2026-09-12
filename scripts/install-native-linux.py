@@ -170,8 +170,10 @@ WantedBy=default.target
                     [str(daemon), '--endpoint', receipt['endpoint'], 'daemon-status', '--deadline-seconds', '5'],
                     text=True, timeout=10))
                 machine = status['machine_scheduling']
+                if not (evidence / 'first-daemon-status.json').exists():
+                    save(evidence / 'first-daemon-status.json', status)
                 if (status['store_uuid'] == receipt['store_uuid'] and status['store_path'] == str(root)
-                        and machine['mode'] == 'coordinator' and machine['blocker'] is None
+                        and machine['mode'] in ('standalone', 'coordinator') and machine['blocker'] is None
                         and machine['domains']['native_domain'] == receipt['configuration']['domain']
                         and os.path.samefile('/proc/' + str(status['pid']) + '/exe', daemon)):
                     save(evidence / 'installed.json', {'setup': receipt, 'daemon': status,

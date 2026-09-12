@@ -39,7 +39,7 @@ def main():
     local = query(cli, 'daemon-status')
     coordinator = local.get('machine_scheduling')
     if (Path(local['store_path']) != installation or coordinator is None
-            or coordinator['mode'] != 'coordinator' or coordinator['blocker'] is not None
+            or coordinator['mode'] not in ('standalone', 'coordinator') or coordinator['blocker'] is not None
             or not (installation / 'native-linux/anchor.json').is_file()):
         parser.error('installed default native Linux coordinator is not ready')
     source = None

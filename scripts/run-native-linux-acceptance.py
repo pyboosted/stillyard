@@ -37,7 +37,7 @@ def main():
     while True:
         try:
             before = query('daemon-status')
-            if before['machine_scheduling']['mode'] == 'coordinator' and before['machine_scheduling']['blocker'] is None:
+            if before['machine_scheduling']['mode'] in ('standalone', 'coordinator') and before['machine_scheduling']['blocker'] is None:
                 break
         except (subprocess.SubprocessError, OSError, KeyError, TypeError):
             pass
@@ -87,6 +87,8 @@ def main():
             save(name + '.' + stream, query('logs', jobs[name], '--stream', stream, '--json', '--limit', '1048576'))
         if state['outcome'] != expected:
             raise RuntimeError(name + ': expected ' + expected + ', observed ' + str(state['outcome']))
+        if expected == 'succeeded' and not state['allocations']:
+            raise RuntimeError('successful native work has no observed local allocation')
         for allocation in state['allocations']:
             if allocation['state'] != 'released' or allocation['grant_id'] != before['store_uuid'] + '~' + allocation['lease_id']:
                 raise RuntimeError('native allocation was not the same released local Lease')
@@ -94,6 +96,23 @@ def main():
 
     submit('canary', "import os;print('native-canary',os.environ['STILLYARD_JOB_ID'],flush=True)")
     finish('canary')
+    descendant = "import pathlib,time; p=pathlib.Path('descendant-heartbeat'); end=time.monotonic()+60\nwhile time.monotonic()<end:\n p.write_text(str(time.monotonic_ns())); time.sleep(.05)"
+    submit('descendant', "import pathlib,subprocess,time; "
+           f"subprocess.Popen(['/usr/bin/python3','-c',{descendant!r}],start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); "
+           "p=pathlib.Path('descendant-heartbeat'); end=time.monotonic()+5\n"
+           "while not p.exists():\n assert time.monotonic()<end; time.sleep(.01)\n"
+           "print('descendant-alive-before-root-exit',flush=True)")
+    state = finish('descendant')
+    journal_path = root / 'native-linux/executor/state.json'
+    journal_bytes = journal_path.read_bytes()
+    (directory / 'descendant-executor-journal.json').write_bytes(journal_bytes)
+    record = json.loads(journal_bytes)['state']['records'][state['invocation_id']]
+    if record['seal'] is None or not record['seal']['possibly_released'] or Path(record['boundary']['path']).exists():
+        raise RuntimeError('descendant boundary lacks a durable cleanup seal and removal')
+    heartbeat = (directory / 'descendant-heartbeat').read_bytes()
+    time.sleep(.3)
+    if (directory / 'descendant-heartbeat').read_bytes() != heartbeat:
+        raise RuntimeError('detached descendant survived primary cleanup')
     # Real overlapping Invocations share two local slots; a third waits.
     for name in ('parallel-a', 'parallel-b', 'parallel-c'):
         submit(name, "import time;print('started',flush=True);time.sleep(4)")
@@ -116,15 +135,45 @@ def main():
            retry={'max_attempts': 2, 'backoff_seconds': 0, 'retryable': ['process_failed']})
     if len(finish('retry')['attempts']) != 2:
         raise RuntimeError('retry did not create two Attempts')
+    child_spec = {'spec_version': 4, 'executable': '/usr/bin/python3',
+                  'args': ['-c', "print('native-managed-child',flush=True)"],
+                  'working_directory': str(directory), 'resources': {'cargo_slots': 1},
+                  'labels': [{'key': 'project', 'value': 'stillyard'}], 'timeout_seconds': 10}
+    save('managed-child.spec', child_spec)
+    child_key = str(uuid.uuid4())
+    managed_code = f'''import json,os,pathlib,subprocess
+cli={str(cli)!r}
+endpoint=os.environ['STILLYARD_ENDPOINT']
+context=json.loads(subprocess.check_output([cli,'--endpoint',endpoint,'context','--json'],timeout=10))
+assert context['parent']['job_id']==os.environ['STILLYARD_JOB_ID'], context
+command=[cli,'--endpoint',endpoint,'ensure','--spec',{str(directory / 'managed-child.spec.json')!r},
+         '--idempotency-key',{child_key!r},'--result-file',{str(directory / 'managed-child.receipt.json')!r},
+         '--wait','--deadline-seconds','20']
+subprocess.run(command,check=True,timeout=25)
+subprocess.run(command,check=True,timeout=25)
+print('native-managed-child-replay-passed',flush=True)
+'''
+    submit('managed-parent', managed_code, child_submission_policy={
+        'max_claims': {'cargo_slots': 1}, 'required_labels': [{'key': 'project', 'value': 'stillyard'}]})
+    finish('managed-parent')
+    jobs['managed-child'] = json.loads((directory / 'managed-child.receipt.json').read_text())['receipt']['accepted']['job_id']
+    child = finish('managed-child')
+    if child['parent']['job_id'] != jobs['managed-parent']:
+        raise RuntimeError('managed child lost its authenticated parent')
     submit('timeout', 'import time;time.sleep(60)', timeout_seconds=1)
     finish('timeout', 'timed_out')
     submit('cancel', 'import time;time.sleep(60)')
+    until = time.monotonic() + 15
+    while query('status', jobs['cancel'])['started_unix_millis'] is None:
+        if time.monotonic() >= until:
+            raise RuntimeError('cancel subject did not start')
+        time.sleep(.05)
     query('--endpoint', endpoint, 'cancel', jobs['cancel'])
     finish('cancel', 'canceled')
     save('installation-after', query('daemon-status'))
     save('doctor-after', query('doctor', '--json'))
     save('result', {'native_process_suite_passed': True, 'jobs': jobs,
-                    'remaining': ['whole-tree descendant and managed-child controls', 'daemon crash and history faults',
+                    'remaining': ['daemon crash and history faults',
                                   'logout/reboot and idle budget', 'persistent host consumers', 'container matrix']})
 
 

@@ -123,3 +123,18 @@ this setting takes the absolute path without ExecStart argument quoting. The
 installer now generates that correctly, verifies the unit with systemd-analyze,
 and checks `enable` and `start` separately. Native service startup remains pending
 until the next recorded result. [Raw evidence](evidence/mr4-native-ci-20260912/run-34705088046/).
+
+Native run [34705296548](https://github.com/pyboosted/stillyard/actions/runs/34705296548)
+created the explicit native Store/authority/executor history and launched the
+installed daemon from the delegated service. The installer still timed out:
+it expected public mode `coordinator`, while the existing API reports
+`standalone` until external domains create machine topology. The installer,
+native launcher and process suite now accept either local authority mode and
+still reject `attached`; no synthetic domain is created to satisfy the check.
+The next run must demonstrate admission, not just the daemon-start log.
+[Raw evidence](evidence/mr4-native-ci-20260912/run-34705296548/).
+Follow-up script controls passed default WSL Job
+`01a089b1-9a6a-7711-a600-39e2b74e495d~01a09676-0062-7693-b0c3-9244df085037`.
+The process suite now also checks detached-descendant cleanup with a durable
+executor seal, active cancellation, managed-child peer authentication and
+idempotent child submission replay. These are staged assertions until native CI runs them.
