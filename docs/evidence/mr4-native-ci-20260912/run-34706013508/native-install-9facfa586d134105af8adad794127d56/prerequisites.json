@@ -1,0 +1,49 @@
+{
+  "kind": "native_linux_prerequisite_probe",
+  "kernel": "6.17.0-1022-azure",
+  "managed_job_id": null,
+  "observation_scope": "caller-visible namespaces; a managed Job is not a host service inventory",
+  "architecture": "x86_64",
+  "owner_uid": 1001,
+  "boot_id": "9d7d372b-9d95-467d-8cbc-e7040c96985a",
+  "requested_store": "/home/runner/.local/share/stillyard",
+  "store_filesystem": {
+    "mount": "/",
+    "filesystem": "ext4",
+    "existing_ancestor": "/home/runner"
+  },
+  "current_cgroup": "0::/system.slice/hosted-compute-agent.service",
+  "user_service": {
+    "exit_code": 0,
+    "stdout": "255.4-1ubuntu8.17",
+    "stderr": ""
+  },
+  "linger": {
+    "exit_code": 0,
+    "stdout": "yes",
+    "stderr": ""
+  },
+  "bubblewrap": "/usr/bin/bwrap",
+  "namespace_exec_stop": {
+    "exit_code": 0,
+    "stdout": "namespace-exec-stop-passed",
+    "stderr": ""
+  },
+  "executor_delegation": null,
+  "prerequisites": {
+    "native_linux": true,
+    "x86_64": true,
+    "local_ext4": true,
+    "cgroup_v2": true,
+    "systemd_user_manager": true,
+    "linger_enabled": true,
+    "namespace_exec_stop": true
+  },
+  "prerequisites_passed": true,
+  "native_installation_accepted": false,
+  "remaining": [
+    "installed executor delegation and born-contained canary",
+    "durable installation, authority and executor history",
+    "native consumer, recovery and performance acceptance"
+  ]
+}

@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import select
 import signal
 import subprocess
 import time
@@ -51,8 +52,19 @@ def main():
     subject = '/proc/' + str(before['pid'])
     descriptor = os.pidfd_open(before['pid'])
     try:
-        if not os.path.samefile(subject + '/exe', cli) or os.stat(subject).st_uid != os.geteuid():
-            raise RuntimeError('daemon identity changed before crash test')
+        def assert_subject():
+            identity = before['process_identity']
+            fields = Path(subject + '/stat').read_text().rsplit(')', 1)[1].split()
+            if (identity['platform'] != 'linux' or identity['pid'] != before['pid']
+                    or identity['start_ticks'] != int(fields[19])
+                    or identity['boot_id'] != Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+                    or identity['pid_namespace_inode'] != os.stat(subject + '/ns/pid').st_ino
+                    or identity['uid'] != os.stat(subject).st_uid or identity['uid'] != os.geteuid()
+                    or not os.path.samefile(subject + '/exe', cli)
+                    or select.select([descriptor], [], [], 0)[0]):
+                raise RuntimeError('pinned daemon identity changed before crash test')
+
+        assert_subject()
         key = str(uuid.uuid4())
         child = "import pathlib,time;p=pathlib.Path('heartbeat');end=time.monotonic()+60\nwhile time.monotonic()<end:\n p.write_text(str(time.monotonic_ns()));time.sleep(.05)"
         code = ("import pathlib,subprocess,time; "
@@ -80,21 +92,37 @@ def main():
                 raise RuntimeError('native crash subject never reached live user code')
             time.sleep(.05)
         save('active', state)
+        current = query('--endpoint', endpoint, 'daemon-status')
+        if (current['daemon_generation'] != before['daemon_generation']
+                or current['process_identity'] != before['process_identity']
+                or state['daemon_generation'] != before['daemon_generation'] or state['state'] == 'final'):
+            raise RuntimeError('fault no longer targets the observed active daemon generation')
+        assert_subject()
         save('crash', {'job_id': job, 'daemon_pid': before['pid'], 'supervisor_pid': supervisor,
                        'daemon_generation': before['daemon_generation'], 'signal': 'SIGKILL'})
         signal.pidfd_send_signal(descriptor, signal.SIGKILL)
         until = time.monotonic() + 45
+        timeline = []
         while True:
             try:
                 after = query('--endpoint', endpoint, 'daemon-status', '--deadline-seconds', '3')
                 state = query('--endpoint', endpoint, 'status', job)
-                if after['daemon_generation'] != before['daemon_generation'] and state['state'] == 'final':
-                    break
+                timeline.append({'generation': after['daemon_generation'], 'state': state['state'],
+                                 'outcome': state['outcome'], 'allocations': [a['state'] for a in state['allocations']]})
+                if (after['daemon_generation'] != before['daemon_generation'] and state['state'] == 'final'
+                        and state['allocations'] and all(a['state'] == 'released' for a in state['allocations'])
+                        and after['machine_scheduling']['blocker'] is None):
+                    journal = (root / 'native-linux/executor/state.json').read_bytes()
+                    record = json.loads(journal)['state']['records'][state['invocation_id']]
+                    if record['seal'] is not None:
+                        break
             except (subprocess.SubprocessError, OSError):
                 pass
             if time.monotonic() >= until:
+                save('recovery-timeline', timeline)
                 raise RuntimeError('native crash recovery did not settle the retained Job')
             time.sleep(.2)
+        save('recovery-timeline', timeline)
         save('after', after)
         save('subject.status', state)
         for stream in ('stdout', 'stderr'):

@@ -1,0 +1,18 @@
+{
+  "job_id": "01a0967f-df2c-7ff0-811c-a68a68a34b0d~01a0967f-fa97-7863-a83b-b7d9c0f806eb",
+  "stream": "stdout",
+  "offset": 0,
+  "bytes": [
+    115,
+    116,
+    97,
+    114,
+    116,
+    101,
+    100,
+    10
+  ],
+  "next_offset": 8,
+  "eof": true,
+  "gap": null
+}

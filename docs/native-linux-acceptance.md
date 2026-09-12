@@ -56,3 +56,13 @@ The native crash controller refused WSL in control Job
 Remaining: native build/test consumers after DNS repair, crash/unknown-history
 faults, sustained/idle measurements, a selected persistent Linux host and its
 session lifetime, plus the separate container adapter/matrices in full MR-4.
+
+Native follow-up [34706013508](https://github.com/pyboosted/stillyard/actions/runs/34706013508)
+(source `e018a66`) passed the resolver control and all native process scenarios.
+The daemon crash controller stopped at final Job state before asynchronous
+containment cleanup: its early status retained an armed Lease, while the later
+canonical status recorded released. Store and authority epoch were retained.
+The controller now waits for a durable seal, released allocations and healthy
+authority, and pins the complete process identity before its fault. This run
+is retained as a failed controller result, not successful crash acceptance.
+[Raw evidence](evidence/mr4-native-ci-20260912/run-34706013508/).

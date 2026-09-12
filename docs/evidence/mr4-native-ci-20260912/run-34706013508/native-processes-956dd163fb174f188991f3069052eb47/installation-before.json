@@ -1,0 +1,114 @@
+{
+  "daemon": {
+    "store_uuid": "01a0967f-df2c-7ff0-811c-a68a68a34b0d",
+    "daemon_generation": "01a0967f-df66-7743-98cb-72dbf82dedf2",
+    "version": "0.1.0-alpha.20",
+    "pid": 4952,
+    "process_identity": {
+      "platform": "linux",
+      "host_id": "sha256:26b1e73eb3f39e8bde671fbfab77ed395b2611ceef76971ad5ab01df9ef4151b",
+      "boot_id": "9d7d372b-9d95-467d-8cbc-e7040c96985a",
+      "pid": 4952,
+      "start_ticks": 98536,
+      "pid_namespace_inode": 4026531836,
+      "uid": 1001
+    },
+    "endpoint": "/home/runner/.local/share/stillyard/stillyard-v6.sock",
+    "store_path": "/home/runner/.local/share/stillyard",
+    "config_path": "/home/runner/.local/share/stillyard/config.json",
+    "capacities": {
+      "cpu_units": 4,
+      "ram_mb": 4096,
+      "cargo_slots": 2,
+      "gpu_slots": 0,
+      "custom": {}
+    },
+    "resources": {
+      "cpu_units": {
+        "capacity": 4,
+        "granted": 0,
+        "reserved": 0
+      },
+      "ram_mb": {
+        "capacity": 4096,
+        "granted": 0,
+        "reserved": 0
+      },
+      "cargo_slots": {
+        "capacity": 2,
+        "granted": 0,
+        "reserved": 0
+      },
+      "gpu_slots": {
+        "capacity": 0,
+        "granted": 0,
+        "reserved": 0
+      },
+      "custom": {}
+    },
+    "machine_scheduling": {
+      "authority_epoch": "01a0967f-df43-7a93-a930-d1e0c695a657",
+      "domains": {
+        "machine_id": "01a0967f-df43-7a93-a930-d1f50a32c8d4",
+        "machine_scope": "01a0967f-df43-7a93-a930-d204d926af8f",
+        "native_domain": "01a0967f-df43-7a93-a930-d21c1a20d447"
+      },
+      "mode": "standalone",
+      "observed_unix_millis": 1789231361678,
+      "configuration_sha256": "57ead544eb6dab1bcb257ada391429a4162268d1e95bd6990e425b0b262c2cb7",
+      "resources": [
+        {
+          "resource": {
+            "scope": "01a0967f-df43-7a93-a930-d204d926af8f",
+            "kind": "scalar",
+            "resource_id": "cargo_slots"
+          },
+          "capacity": 2,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a0967f-df43-7a93-a930-d204d926af8f",
+            "kind": "scalar",
+            "resource_id": "cpu_units"
+          },
+          "capacity": 4,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a0967f-df43-7a93-a930-d204d926af8f",
+            "kind": "scalar",
+            "resource_id": "gpu_slots"
+          },
+          "capacity": 0,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        },
+        {
+          "resource": {
+            "scope": "01a0967f-df43-7a93-a930-d204d926af8f",
+            "kind": "scalar",
+            "resource_id": "ram_mb"
+          },
+          "capacity": 4096,
+          "granted": 0,
+          "offered": 0,
+          "reserved": 0
+        }
+      ],
+      "blocker": null
+    },
+    "config_sha256": "57ead544eb6dab1bcb257ada391429a4162268d1e95bd6990e425b0b262c2cb7",
+    "queued_jobs": 0,
+    "running_jobs": 0
+  },
+  "binary_sha256": "e50a7bb2b725b6f9dd0dd4984953855a20ea6d3d098ca78ce6119e4b46683950",
+  "kernel": "6.17.0-1022-azure\n",
+  "boot_id": "9d7d372b-9d95-467d-8cbc-e7040c96985a"
+}

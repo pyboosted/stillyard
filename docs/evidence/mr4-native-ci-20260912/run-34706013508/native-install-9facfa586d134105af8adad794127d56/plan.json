@@ -1,0 +1,37 @@
+{
+  "candidate_sha256": "e50a7bb2b725b6f9dd0dd4984953855a20ea6d3d098ca78ce6119e4b46683950",
+  "build_origin": "https://github.com/pyboosted/stillyard/actions/runs/34706013508",
+  "store": "/home/runner/.local/share/stillyard",
+  "helper_sha256": {
+    "native-linux-service.py": "58b561545133e0e3ab09cb641fa17d9762b699b46d5b1f62e24561cf50499f46",
+    "wsl-service.py": "dd9fad7c7368a10ed5af6e50c163163cc07f1fa4f3f74e141b40311c753160a5"
+  },
+  "unit": "/home/runner/.config/systemd/user/stillyard.service",
+  "unit_text": "[Unit]\nDescription=Stillyard standalone Linux scheduler\n\n[Service]\nType=simple\nExecStart=/usr/bin/python3 \"/home/runner/.local/share/stillyard/libexec/native-linux-service.py\" --root \"/home/runner/.local/share/stillyard\" --executors \"/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard.service/executors\" --ram-mb 4096\nWorkingDirectory=/home/runner/.local/share/stillyard\nEnvironment=\"XDG_DATA_HOME=/home/runner/.local/share\"\nDelegate=cpu memory pids\nDelegateSubgroup=manager\nSlice=app.slice\nKillMode=process\nOOMPolicy=continue\nTimeoutStopSec=infinity\nRestart=no\nUMask=0077\nUnsetEnvironment=STILLYARD_STORE STILLYARD_ENDPOINT STILLYARD_JOB_ID STILLYARD_ATTEMPT STILLYARD_INVOCATION_ID STILLYARD_ROLE\n\n[Install]\nWantedBy=default.target\n",
+  "configuration": {
+    "resources": {
+      "cpu_units": 4,
+      "ram_mb": 4096,
+      "cargo_slots": 2
+    },
+    "impact_incompatibilities": {
+      "cpu_heavy": [],
+      "measurement": [
+        "cpu_heavy",
+        "gpu_heavy"
+      ]
+    },
+    "observation": {
+      "ram_safety_margin_mb": 256,
+      "process_rules": {
+        "block": [
+          "cargo",
+          "rustc",
+          "rust-analyzer"
+        ],
+        "ignore": []
+      }
+    }
+  },
+  "apply": true
+}
