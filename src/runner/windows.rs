@@ -1464,6 +1464,8 @@ mod tests {
             backoff_seconds: 0,
             retryable: vec!["postcondition_retryable".into()],
         };
+        // This tests retry semantics, not PowerShell startup speed on a busy host.
+        spec.timeout_seconds = Some(60);
         spec.environment.set.insert(
             "STY_VALIDATOR_MARKER".into(),
             marker.to_string_lossy().into_owned(),
@@ -1641,7 +1643,7 @@ mod tests {
         let pid_path = temp.path().join("grandchild.pid");
         let result_path = temp.path().join("primary-result.json");
         let primary_script = format!(
-            "$child = Start-Process -FilePath $PSHOME\\powershell.exe -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-Command', '$PID | Set-Content -LiteralPath \"{}\"; Start-Sleep -Seconds 30') -PassThru; while (-not (Test-Path -LiteralPath '{}')) {{ Start-Sleep -Milliseconds 10 }}; exit 25",
+            "$child = Start-Process -FilePath $PSHOME\\powershell.exe -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-Command', '$PID | Set-Content -LiteralPath \"{}\"; while ($true) {{ Start-Sleep -Seconds 30 }}') -PassThru; while (-not (Test-Path -LiteralPath '{}')) {{ Start-Sleep -Milliseconds 10 }}; exit 25",
             pid_path.display(),
             pid_path.display(),
         );
@@ -1661,6 +1663,9 @@ mod tests {
                 primary_script,
             ],
         );
+        // Allow three PowerShell starts; the child cannot exit naturally and
+        // falsely satisfy the cleanup assertion while this budget elapses.
+        spec.timeout_seconds = Some(60);
         spec.postconditions.push(PostconditionSpec {
             executable: powershell,
             args: vec![
