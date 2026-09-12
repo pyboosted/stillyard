@@ -1,6 +1,8 @@
 # Windows/WSL alpha.20 acceptance and daily-use handoff
 
-Prepared 2026-09-12 for merging the `wsl` branch into `main`. The user requested
+Integrated 2026-09-12 from `wsl` into `main`, merge `5890b1c`, pushed to origin.
+The merge tree exactly matched the reviewed feature tip `cdaf2a9`.
+The user requested
 finishing the non-disruptive work and using the result while retaining the ban
 on stopping Ubuntu-SSD or the shared WSL VM. This handoff covers the installed
 Windows/attached-WSL daily-use slice. It does **not** close the full original

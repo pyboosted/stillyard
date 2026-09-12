@@ -3,6 +3,10 @@
 Updated: 2026-09-12. The installed Windows/WSL daily-use slice has passed its
 non-disruptive handoff review and is approved for integration into main at the
 user's request. [Handoff report](windows-wsl-acceptance.md).
+Integrated and pushed to `origin/main` as merge
+`5890b1c9a480743ab6ba6be5b880363621402aa4` (feature tip `cdaf2a9`). The merge
+tree exactly matched the reviewed feature tree; no merge conflict or additional
+runtime change occurred. Both installed daemons were left running unchanged.
 **Full original MR-3 delivery remains incomplete:** lifecycle coverage is
 explicitly deferred, not passed. Standalone Linux and containers remain MR-4.
 
