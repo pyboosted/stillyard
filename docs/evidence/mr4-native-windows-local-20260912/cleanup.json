@@ -1,0 +1,11 @@
+{
+  "removed": "/mnt/c/Development/stillyard-mr4-native-regression-20260912/target",
+  "bytes_reclaimed_logical": 3120342358,
+  "gib_reclaimed_logical": 2.906045278534293,
+  "retained": [
+    "source snapshot",
+    "canonical evidence",
+    "installed binaries"
+  ],
+  "no_job_or_process_references": true
+}

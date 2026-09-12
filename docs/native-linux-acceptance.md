@@ -126,3 +126,9 @@ on the workstation Windows host from a verified disposable NTFS snapshot through
 its installed default Stillyard. Native run 34707513945 was canceled as redundant
 for that Windows-test-only source change. Source manifests and Job evidence are
 retained; the snapshot target will be removed once these gates finish.
+
+Local Windows regression is now passed for source `b0786d9`: default installed
+test/check/Clippy Jobs, all released allocations, exact NTFS source projection
+and [canonical evidence](evidence/mr4-native-windows-local-20260912/). Its completed
+build cache was removed (2.906 GiB logical). Ordinary CI34707513955 passed too;
+Windows remote CI was unnecessary for accessing this workstation's native host.

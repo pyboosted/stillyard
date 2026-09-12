@@ -199,3 +199,41 @@ Windows Grants are [retained here](evidence/mr4-native-core-20260912/windows-val
 The actual Windows-specific test rerun remains required. Redundant ordinary CI
 runs 34707194136, 34707073398 and 34706919905 were canceled; native run34707194125
 was canceled before repeating its superseded controller expectation.
+
+## Next native step: quiescent executor-tree restoration
+
+The accepted no-helper checkpoint keeps delegation across daemon crashes.
+After reboot/user-manager stop the kernel tree disappears; startup currently
+refuses even when every old Invocation was durably sealed. Implement a narrow
+stopped-store restore only after full drain, with these reviewed constraints:
+
+- Hold the endpoint lease and existing Store singleton through validation and
+  creation. Do not use ordinary Store::open: it can reset damaged/incompatible
+  SQLite and recover/resume submissions. Open existing DB/config without create,
+  defaults, reset or recovery and validate schema, Store/host and native bindings.
+- Ordinary Authority::open/attach also mutates. Validate the retained authority
+  without coordinator rebinding, migration, pruning or permission retirement.
+  Check original authority native_obligations, not historical sealed journal
+  native_release_intent (which legitimately remains present).
+- Open and pin the executor journal, validate its anchor/checksum/seals, require
+  every record sealed. Require no received submissions, non-final Jobs, unfinished
+  attempts/invocations, granted Leases, uncertain Containments, pending authority
+  operations, active external Grants, reset gates or admission holds. A missing
+  kernel leaf never substitutes for a seal. Pruned sealed probe SQL rows remain
+  legitimate; do not require every historical sealed record to have a SQL row.
+- The short setup may attach only to the exact active delegated unit. On a new
+  empty parent attach to its root, then move to setup. If that parent already has
+  controllers enabled, attach to its existing verified /setup suffix, avoiding
+  the kernel no-internal-process EBUSY rule. Rust creates executors only after
+  all checks, through a pinned delegated cgroup-v2 fd at the installed path.
+- Restore only an absent executor root with saved config limits, or accept an
+  exact verified empty no-op. An existing modified/partial/populated root must
+  fail closed. Return a durable receipt with unchanged installation/Store/domain/
+  epoch/journal and new kernel identity. Never rewrite old invocation seals.
+
+Negative controls must cover live/concurrent daemon, queued/received work,
+unsealed history with absent boundaries, SQL rollback, corrupt/missing SQL/config/
+anchors, foreign parent/ownership/controllers, and interrupted limit publication.
+The positive disposable-host control is drain → remove only runtime tree →
+restore → daemon → canary plus replay of an old receipt with unchanged durable
+IDs. Actual changed-boot acceptance remains a separate host lifecycle result.

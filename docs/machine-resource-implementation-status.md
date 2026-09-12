@@ -59,6 +59,17 @@ refusal/restoration, Cargo check/test and A-19 idle (one daemon, 300.072s,
 and additional fault coverage remain open; MR-4 goal remains active.
 Windows gates now use the local host's default Stillyard, as the user requested.
 
+Local Windows regression at source `b0786d9` passed installed default Jobs
+`01a05f1f-858c-7880-8c15-d55875da9e6b~01a0969e-8614-7791-85c7-cd32b3363697`
+(test), `01a05f1f-858c-7880-8c15-d55875da9e6b~01a096a0-4e1d-7822-ba89-e620ec9e3080`
+(check), and `01a05f1f-858c-7880-8c15-d55875da9e6b~01a096a1-615c-78c3-b824-7aa9f9389ac1`
+(Clippy), with all allocations released. Ordinary CI34707513955 also passed.
+[Exact source projection, canonical results and cleanup](evidence/mr4-native-windows-local-20260912/).
+The disposable `C:\Development\stillyard-mr4-native-regression-20260912\target`
+was removed after verifying no Jobs/processes referenced it, reclaiming 2.906 GiB
+logical file bytes. The 4.4 MB source projection and evidence remain. One active
+Linux cache remains for ongoing native implementation; installed daemons unchanged.
+
 Recovery after the user-reported unexpected restart: working files and native
 evidence survived. The first CLI reconnect returned auto-start OS error 5;
 subsequent discovery found the installed alpha.14 daemon already running as PID
