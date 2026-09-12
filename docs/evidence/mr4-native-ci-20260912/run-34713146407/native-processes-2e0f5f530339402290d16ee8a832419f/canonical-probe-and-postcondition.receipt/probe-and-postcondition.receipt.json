@@ -1,0 +1,87 @@
+{
+  "version": 5,
+  "idempotency_key": "aba63da1-41e8-45cf-b3d3-841980c58d05",
+  "payload_hash": "fe6e5047a043856874cfa6559f8b8972a92c3ac8db8f8a5b49965cf86c81742d",
+  "endpoint": "/home/runner/.local/share/stillyard/stillyard-v6.sock",
+  "store_uuid": "01a09703-de22-7de1-8c0b-f40cc06d0f18",
+  "parent": null,
+  "receipt": {
+    "accepted": {
+      "submission_id": "01a09703-de22-7de1-8c0b-f40cc06d0f18~01a09704-4fb3-71a3-86f0-5b02571faa3d",
+      "job_id": "01a09703-de22-7de1-8c0b-f40cc06d0f18~01a09704-4fb4-70b2-8803-9dc602309f04",
+      "submission_state": "accepted",
+      "job_state": "pending",
+      "reason_code": null,
+      "accepted_unix_millis": 1789240037300,
+      "priority": 0,
+      "effective_priority": 0,
+      "blockers": [
+        {
+          "code": "condition_waiting",
+          "detail": "{\"predicate\":{\"kind\":\"probe\",\"probe\":{\"executable\":\"/usr/bin/python3\",\"args\":[\"-c\",\"print('probe',flush=True)\"],\"working_directory\":\"/home/runner/work/stillyard/stillyard/native-evidence/native-processes-2e0f5f530339402290d16ee8a832419f\",\"environment\":{\"set\":{},\"unset\":[]},\"resources\":{\"cpu_units\":null,\"ram_mb\":null,\"cargo_slots\":1,\"gpu_slots\":null,\"custom\":{},\"shared_fences\":[],\"exclusive_fences\":[],\"impacts\":[]},\"timeout_seconds\":5,\"interval_seconds\":1,\"accepted_exit_codes\":[0]}},\"deadline\":{\"kind\":\"relative\",\"seconds\":20},\"on_deadline\":\"failed\"}"
+        }
+      ],
+      "queue_rank": 1,
+      "reservation": null,
+      "conditions": [
+        {
+          "condition_id": "01a09703-de22-7de1-8c0b-f40cc06d0f18~01a09704-4fb4-70b2-8803-9ddac256881c",
+          "condition_index": 0,
+          "state": "waiting",
+          "spec": {
+            "predicate": {
+              "kind": "probe",
+              "probe": {
+                "executable": "/usr/bin/python3",
+                "args": [
+                  "-c",
+                  "print('probe',flush=True)"
+                ],
+                "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-processes-2e0f5f530339402290d16ee8a832419f",
+                "environment": {
+                  "set": {},
+                  "unset": []
+                },
+                "resources": {
+                  "cpu_units": null,
+                  "ram_mb": null,
+                  "cargo_slots": 1,
+                  "gpu_slots": null,
+                  "custom": {},
+                  "shared_fences": [],
+                  "exclusive_fences": [],
+                  "impacts": []
+                },
+                "timeout_seconds": 5,
+                "interval_seconds": 1,
+                "accepted_exit_codes": [
+                  0
+                ]
+              }
+            },
+            "deadline": {
+              "kind": "relative",
+              "seconds": 20
+            },
+            "on_deadline": "failed"
+          },
+          "deadline_unix_millis": 1789240057300,
+          "last_observation": null,
+          "probe_invocation_id": null
+        }
+      ],
+      "estimate": {
+        "confidence": "unknown",
+        "start_in_millis": null,
+        "assumptions": [
+          "filesystem transitions and executable probes have no honest completion ETA"
+        ]
+      },
+      "parent": null,
+      "managed_policy_admission": null,
+      "gpu_provenance": null,
+      "admission": null,
+      "daemon_generation": "01a09703-debc-78e0-9dde-e8ed49fbd0e6"
+    }
+  }
+}

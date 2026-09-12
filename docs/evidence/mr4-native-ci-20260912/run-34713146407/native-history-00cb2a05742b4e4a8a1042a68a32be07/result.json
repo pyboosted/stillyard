@@ -1,0 +1,9 @@
+{
+  "quiescent_corrupt_history_passed": true,
+  "restored_canary_job": "01a09703-de22-7de1-8c0b-f40cc06d0f18~01a09704-e27a-7fd0-8bfc-0b6a54a1bfa2",
+  "remaining": [
+    "active-work history loss",
+    "SQL rollback",
+    "pre-release fault boundaries"
+  ]
+}

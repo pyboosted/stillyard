@@ -148,8 +148,10 @@ configuration identity, and unresolved containment incidents.
 
 ## Boundaries
 
-The machine coordinator serves one Windows owner and explicitly paired WSL environments.
-Standalone Linux, general containers, macOS, cross-machine placement, secret/artifact services,
+The Windows machine coordinator serves one owner and explicitly paired WSL environments.
+The standalone Linux preview uses its own local coordinator; its accepted capabilities
+and pending lifecycle cases are listed in the [native operator guide](docs/native-linux-operation.md).
+General containers, macOS, cross-machine placement, secret/artifact services,
 cascade cancellation and drain mode remain outside this delivery. There is no network listener.
 WSL GPU observation is unsupported; Windows owns physical GPU observations and machine budgets.
 Explicit isolated daemon instances exist for tests and special-purpose tools; custom endpoints

@@ -1,0 +1,5 @@
+{
+  "returncode": 69,
+  "stdout": "",
+  "stderr": "stillyard: the local daemon is unavailable: I/O: No such file or directory (os error 2)\n"
+}

@@ -110,6 +110,22 @@ passed. Redundant ordinary CI34712730620 was canceled. The completed NTFS
 snapshot target was removed after no queued/running Jobs or process references,
 reclaiming 2.906 GiB. [Canonical local Jobs/source/cleanup](evidence/mr4-native-windows-restore-20260912/).
 
+Native CI34713146407 (`a363fd4`) installed the no-helper default and passed exact
+refusals at the active SQL, retained authority and retained unsealed journal
+layers. Its attempt to rename a cgroup failed with kernel EPERM; original
+durable files were restored. [Retained run](evidence/mr4-native-ci-20260912/run-34713146407/).
+Active rollback/recovery and terminal missing-boundary refusal are now separate
+controllers. The latter runs only after all consumers/idle/canonical collection,
+removes the verified empty kernel tree without sealing the outstanding Invocation,
+and leaves the disposable daemon intentionally stopped with original rights.
+Review added pre-cleanup immutable/SQL/authority byte checks and durable backup/
+directory fsync so cleanup cannot hide a mutation-on-refusal regression.
+First-install packaging is staged; the next native CI installs its extracted
+manifest-verified bundle and uploads that bundle only after full acceptance.
+Default WSL Rust 1.85 check `01a09709-51f0-7723-8931-bcd86ba794da`, test
+`01a0970a-5868-72e3-ba65-6dda5a30d011`, and script/WSL refusal control
+`01a0970c-0796-7f21-a697-c6d47c736da6` passed (same Linux Store prefix).
+
 Recovery after the user-reported unexpected restart: working files and native
 evidence survived. The first CLI reconnect returned auto-start OS error 5;
 subsequent discovery found the installed alpha.14 daemon already running as PID

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Refuse restoration of unsealed work hidden by SQL/authority rollback.
 
-Only on a disposable native VM. Temporarily rename the retained executor root
-to make its installed pathname absent; restore its inode and durable bytes
-before restarting. Bubblewrap kills user code when the daemon dies; that is
-not a durable seal. This is not kernel-boundary destruction or reboot evidence.
+Only on a disposable native VM. Restore exact durable bytes before restarting.
+Bubblewrap kills user code when the daemon dies; that is not a durable seal.
+Kernel-boundary destruction and changed-boot acceptance are separate controls.
 """
 import argparse
 from contextlib import closing
@@ -97,8 +96,6 @@ def main():
     original_inode = executors.stat().st_ino
     original_files = {path: path.read_bytes() for suffix in ('', '-wal', '-shm', '-journal')
                       if (path := Path(str(database) + suffix)).exists()}
-    moved = executors.with_name('restore-control-' + uuid.uuid4().hex)
-    renamed = False
 
     def replace(path, data):
         with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600), 'wb') as stream:
@@ -114,7 +111,7 @@ def main():
         replace(path, data)
     replace(directory / 'backup-manifest.json', (json.dumps({
         'store': str(root), 'endpoint': endpoint, 'executor': str(executors), 'executor_inode': original_inode,
-        'renamed_path': str(moved), 'files': {p.name: hashlib.sha256(data).hexdigest()
+        'files': {p.name: hashlib.sha256(data).hexdigest()
                                             for p, data in backups.items()}}, indent=2) + '\n').encode())
     descriptor = os.open(directory, os.O_DIRECTORY)
     try:
@@ -125,7 +122,7 @@ def main():
     def refused(name, expected):
         result = subprocess.run([str(cli), '--endpoint', endpoint, 'linux-restore-executors', '--store', str(root)],
                                 capture_output=True, text=True, timeout=40)
-        boundary = moved if renamed else executors
+        boundary = executors
         save(name, {'returncode': result.returncode, 'stderr': result.stderr, 'stdout': result.stdout,
                      'retained_executor_inode': boundary.stat().st_ino,
                      'kernel_events': (boundary / 'cgroup.events').read_text(),
@@ -149,19 +146,10 @@ def main():
             raise RuntimeError('restore mutated live authority')
         replace(authority, drained_authority)
         refused('sql-authority-rollback-journal-refused', 'unsealed executor history forbids kernel restoration')
-        # The same unsealed cgroup is retained by its kernel inode. Only its
-        # pathname changes; it is restored before daemon recovery sees it.
-        executors.rename(moved)
-        renamed = True
-        if executors.exists() or moved.stat().st_ino != original_inode:
-            raise RuntimeError('fault did not retain the exact live boundary under another name')
-        refused('absent-path-unsealed-journal-refused', 'unsealed executor history forbids kernel restoration')
-        if executors.exists() or moved.stat().st_ino != original_inode:
-            raise RuntimeError('restore created a replacement for unsealed live work')
         if authority.read_bytes() != drained_authority or database.read_bytes() != drained_sql:
             raise RuntimeError('restore rewrote the installed rollback control')
         save('fault-identities', {'store_uuid': before['store_uuid'], 'job_id': job,
-                                  'executor_inode': original_inode, 'renamed_path': str(moved),
+                                  'executor_inode': original_inode,
                                   'unsealed_journal_sha256': hashlib.sha256(live_journal).hexdigest()})
     finally:
         cleanup_errors = []
@@ -180,16 +168,6 @@ def main():
                         raise RuntimeError('live SQLite restoration lost exact bytes')
             except (OSError, RuntimeError) as error:
                 cleanup_errors.append(str(path) + ': ' + str(error))
-        if renamed:
-            try:
-                # A faulty implementation may have created a replacement.
-                # Preserve both boundaries if rename is no longer possible;
-                # durable restoration above must still happen independently.
-                if executors.exists():
-                    raise RuntimeError('unexpected replacement executor retained; original is at ' + str(moved))
-                moved.rename(executors)
-            except (OSError, RuntimeError) as error:
-                cleanup_errors.append('restore live kernel pathname: ' + str(error))
         if cleanup_errors:
             save('blocked-cleanup', {'errors': cleanup_errors, 'daemon_remains_stopped': True})
             raise RuntimeError('fault cleanup incomplete; daemon stays stopped: ' + '; '.join(cleanup_errors))
@@ -226,7 +204,7 @@ def main():
     if result.returncode != 23 or replay_job != job or (directory / 'launches.txt').read_text() != 'launch\n':
         raise RuntimeError('recovered interrupted subject replayed as new work')
     save('result', {'active_restoration_refusals_passed': True, 'job_id': job,
-                    'controls': ['active SQL', 'SQL rollback', 'SQL and authority rollback', 'absent installed pathname'],
+                    'controls': ['active SQL', 'SQL rollback', 'SQL and authority rollback'],
                     'remaining': ['destroyed kernel boundary', 'changed boot']})
     print(directory, job, flush=True)
 

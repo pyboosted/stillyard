@@ -1,0 +1,10 @@
+{
+  "unit": {
+    "MainPID": "0",
+    "ControlGroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation.service",
+    "ActiveState": "active",
+    "SubState": "exited"
+  },
+  "group_inode": 7032,
+  "executor_inode": 7132
+}

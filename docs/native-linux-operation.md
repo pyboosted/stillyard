@@ -22,6 +22,13 @@ numbers alone are insufficient: the executable prerequisite probe must pass.
 
 ## First installation
 
+The native workflow produces a `native-linux-install-bundle` artifact after
+successful acceptance. It contains a tarball and SHA-256, the identified binary,
+manifest, prerequisites, service installer and this guide. Extract it and run
+`python3 install.py --evidence-directory /absolute/path/to/evidence`; add `--apply`
+to install. Package verification is a digest check, not a release signature.
+The current bundle is a development candidate from its recorded native CI build.
+
 Use a separately selected native host and a candidate with retained build
 evidence. Existing Windows/WSL installations use their own operator guide.
 The following only prepares a reviewable installation plan:

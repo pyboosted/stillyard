@@ -1,0 +1,19 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "from pathlib import Path;import time; p=Path('launches.txt'); p.write_text((p.read_text() if p.exists() else '')+'launch\\n'); end=time.monotonic()+180\nwhile time.monotonic()<end:\n Path('heartbeat').write_text(str(time.monotonic_ns()));time.sleep(.05)"
+  ],
+  "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-active-restore-1084a84471254e8b8e1d8f86fb413234",
+  "resources": {
+    "cargo_slots": 1
+  },
+  "timeout_seconds": 200,
+  "labels": [
+    {
+      "key": "gate",
+      "value": "native-active-restore"
+    }
+  ]
+}

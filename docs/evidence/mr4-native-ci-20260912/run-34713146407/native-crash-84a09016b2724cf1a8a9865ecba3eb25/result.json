@@ -1,0 +1,22 @@
+{
+  "daemon_crash_recovery_passed": true,
+  "job_id": "01a09703-de22-7de1-8c0b-f40cc06d0f18~01a09704-a596-7fb1-adc5-6d47238ce196",
+  "old_generation": "01a09703-debc-78e0-9dde-e8ed49fbd0e6",
+  "new_generation": "01a09704-b215-7b61-a2fc-17416c04afbc",
+  "supervisor_pid": null,
+  "retained_delegation_unit": {
+    "unit": {
+      "MainPID": "0",
+      "ControlGroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation.service",
+      "ActiveState": "active",
+      "SubState": "exited"
+    },
+    "group_inode": 7032,
+    "executor_inode": 7132
+  },
+  "remaining": [
+    "pre-release fault boundaries",
+    "native unknown-history controls",
+    "service/logout/reboot lifecycle"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "returncode": 69,
+  "stderr": "stillyard: the local daemon is unavailable: invalid durable state: native executor restoration requires fully drained standalone history\n",
+  "stdout": "",
+  "retained_executor_inode": 8532,
+  "kernel_events": "populated 0\nfrozen 0\n",
+  "unsealed_invocation": "01a09703-de22-7de1-8c0b-f40cc06d0f18~01a09705-0e13-7943-aa67-390f199156ac"
+}

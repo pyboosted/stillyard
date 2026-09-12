@@ -263,3 +263,21 @@ and receipt replay. This is not destruction of the kernel boundary. Independent
 review found a cleanup ordering gap if faulty code created a replacement root;
 durable rollback cleanup is now independent of kernel rename, failures keep the
 daemon stopped, and fsynced original authority/journal/SQL backups precede faults.
+
+Native run34713146407 (`a363fd4`) passed default no-helper installation and
+all three exact SQL/authority/journal rollback refusals. The next pathname-loss
+operation failed because cgroup v2 rejects rename (EPERM). The active controller
+now finishes those three controls with exact restoration and normal interrupted
+recovery. Kernel loss is a separate terminal VM test: after healthy consumers,
+idle observation and canonical collection, stop the daemon, remove only its
+verified empty executor tree without a seal, hide work with the same historical
+SQL/authority snapshots, require the original unsealed journal to refuse restore,
+and restore original durable bytes. The VM intentionally remains stopped with
+retained rights. This is actual missing-boundary refusal, not successful recovery
+from lost boundaries or changed-boot acceptance.
+
+A native first-install bundle is staged. CI packages the identified bootstrap
+binary with scripts, licenses, source/hash manifest and operator guide, extracts
+the tarball into a separate directory, and installs through its verifying wrapper.
+The artifact is uploaded only after complete acceptance. Packaging does not run
+Cargo; native bootstrap and all later installed Cargo retain their prior rules.

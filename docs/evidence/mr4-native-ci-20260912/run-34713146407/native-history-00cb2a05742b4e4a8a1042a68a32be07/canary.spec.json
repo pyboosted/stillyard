@@ -1,0 +1,19 @@
+{
+  "spec_version": 4,
+  "executable": "/usr/bin/python3",
+  "args": [
+    "-c",
+    "print('native-history-restored',flush=True)"
+  ],
+  "working_directory": "/home/runner/work/stillyard/stillyard/native-evidence/native-history-00cb2a05742b4e4a8a1042a68a32be07",
+  "timeout_seconds": 10,
+  "resources": {
+    "cargo_slots": 1
+  },
+  "labels": [
+    {
+      "key": "gate",
+      "value": "native-history-canary"
+    }
+  ]
+}

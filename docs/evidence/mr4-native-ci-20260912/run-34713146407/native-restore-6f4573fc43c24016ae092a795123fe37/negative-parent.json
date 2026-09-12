@@ -1,0 +1,9 @@
+{
+  "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation.service",
+  "inode": 8382,
+  "controllers": [
+    "cpu",
+    "memory",
+    "pids"
+  ]
+}

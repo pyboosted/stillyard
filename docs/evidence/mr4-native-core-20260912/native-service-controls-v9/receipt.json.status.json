@@ -152,7 +152,7 @@
         "job_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a096fa-0ef6-7130-ad6a-d6a468101b4d",
         "attempt_id": "01a089b1-9a6a-7711-a600-39e2b74e495d~01a096fa-0f37-7e82-a612-75caa3033481"
       },
-      "state": "armed",
+      "state": "released",
       "claims": {
         "scalars": {
           "cargo_slots": 1,

@@ -50,10 +50,14 @@ jobs:
           echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${native_uid}/bus" >> "$GITHUB_ENV"
       - name: Install native coordinator and service
         run: |
-          python3 scripts/install-native-linux.py \
+          python3 scripts/package-native-linux.py \
             --candidate "$PWD/target/debug/stillyard" \
             --candidate-sha256 "$(sha256sum target/debug/stillyard | cut -d ' ' -f1)" \
             --build-origin "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --output-directory "$PWD/native-package"
+          mkdir -p "$RUNNER_TEMP/native-package"
+          tar -xzf native-package/*.tar.gz -C "$RUNNER_TEMP/native-package"
+          python3 "$RUNNER_TEMP"/native-package/*/install.py \
             --evidence-directory "$PWD/native-evidence" --ram-mb 4096 --cargo-slots 2 --apply
       - name: Native process and local-allocation acceptance
         run: python3 scripts/run-native-linux-acceptance.py --evidence-directory "$PWD/native-evidence"
@@ -95,9 +99,19 @@ jobs:
                                   '--destination', str(receipt.parent / ('canonical-' + receipt.stem)),
                                   str(receipt)], timeout=60)
           PY
+      - name: Native final unsealed kernel-boundary loss refuses restoration
+        run: python3 scripts/run-native-linux-boundary-loss.py --disposable-native-host --evidence-directory "$PWD/native-evidence"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: native-linux-evidence
           path: native-evidence/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: native-linux-install-bundle
+          path: |
+            native-package/*.tar.gz
+            native-package/*.sha256
           retention-days: 14

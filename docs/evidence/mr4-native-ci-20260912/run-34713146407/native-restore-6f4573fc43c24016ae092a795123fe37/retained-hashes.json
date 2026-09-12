@@ -1,0 +1,9 @@
+{
+  "stillyard.sqlite3": "de071b12494d509c50acc3f9c4517f313718ad56784b4116a665127589603a6d",
+  "config.json": "4d19512929d9ab37bb0302bd05ef230d5b4888f71dedfe8b1d0ea19da661e14d",
+  "native-linux/anchor.json": "4409c0972a8107bfcafc0ee6d9991af4d6667df9b61799479bd38ea316c1fb48",
+  "native-linux/executor/anchor.json": "f1db918682048f362b97d489472589fbbf33f4cfa01095cf07db14de90b60594",
+  "native-linux/executor/state.json": "521cf29bb85e56de01dc237455c4e651a72b0cd2b1b41e708e444aa14841b70a",
+  "authority/anchor.json": "3165188779ce6a3cae6f1f645aa658697254a926d166fe6e5fbb69a8d6d41e86",
+  "authority/registry.json": "98361b6f9ec80e31924836462f6db7c7e48ee9886a819270c15f93f737d0041b"
+}

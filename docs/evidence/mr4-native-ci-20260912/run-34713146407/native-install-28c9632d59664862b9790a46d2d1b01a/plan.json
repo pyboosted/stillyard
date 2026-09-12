@@ -1,0 +1,39 @@
+{
+  "candidate_sha256": "82b258e8548e514d9de060b2f5ea2ea91e865334e92735ba93cfd07cec943a12",
+  "build_origin": "https://github.com/pyboosted/stillyard/actions/runs/34713146407",
+  "store": "/home/runner/.local/share/stillyard",
+  "helper_sha256": {
+    "native-linux-service.py": "1b9e5c42f8094092d9dad0ccd677ceb69accd1b63c4ecdfc029ad3531fad40b8",
+    "wsl-service.py": "dd9fad7c7368a10ed5af6e50c163163cc07f1fa4f3f74e141b40311c753160a5"
+  },
+  "unit": "/home/runner/.config/systemd/user/stillyard.service",
+  "unit_text": "[Unit]\nDescription=Stillyard standalone Linux scheduler\nRequires=stillyard-delegation.service\nAfter=stillyard-delegation.service\nStartLimitIntervalSec=0\n\n[Service]\nType=exec\nExecStartPre=/usr/bin/python3 \"/home/runner/.local/share/stillyard/libexec/native-linux-service.py\" --root \"/home/runner/.local/share/stillyard\" --executors \"/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/stillyard-delegation.service/executors\" --ram-mb 4096 --setup-only\nExecStart=\"/home/runner/.local/share/stillyard/bin/stillyard\" daemon\nWorkingDirectory=/home/runner/.local/share/stillyard\nEnvironment=\"XDG_DATA_HOME=/home/runner/.local/share\"\nSlice=app.slice\nKillMode=control-group\nTimeoutStopSec=10\nRestart=on-failure\nRestartSec=2\nUMask=0077\nUnsetEnvironment=STILLYARD_STORE STILLYARD_ENDPOINT STILLYARD_JOB_ID STILLYARD_ATTEMPT STILLYARD_INVOCATION_ID STILLYARD_ROLE\n\n[Install]\nWantedBy=default.target\n",
+  "delegation_unit_text": "[Unit]\nDescription=Stillyard retained native executor delegation\nStopWhenUnneeded=no\n\n[Service]\nType=oneshot\nExecStart=/usr/bin/true\nRemainAfterExit=yes\nDelegate=cpu memory pids\nSlice=app.slice\nKillMode=control-group\n",
+  "no_helper": true,
+  "configuration": {
+    "resources": {
+      "cpu_units": 4,
+      "ram_mb": 4096,
+      "cargo_slots": 2
+    },
+    "impact_incompatibilities": {
+      "cpu_heavy": [],
+      "measurement": [
+        "cpu_heavy",
+        "gpu_heavy"
+      ]
+    },
+    "observation": {
+      "ram_safety_margin_mb": 256,
+      "process_rules": {
+        "block": [
+          "cargo",
+          "rustc",
+          "rust-analyzer"
+        ],
+        "ignore": []
+      }
+    }
+  },
+  "apply": true
+}
