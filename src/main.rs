@@ -28,6 +28,12 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     #[cfg(target_os = "linux")]
+    /// Restore missing executor scaffolding only from fully drained native history.
+    LinuxRestoreExecutors {
+        #[arg(long)]
+        store: Option<PathBuf>,
+    },
+    #[cfg(target_os = "linux")]
     /// Install a fresh stopped native Linux store with its own machine coordinator.
     LinuxInstall {
         /// Select an isolated store; requires --endpoint as well.
@@ -443,6 +449,10 @@ fn main() {
 fn execute(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let Cli { endpoint, command } = cli;
     match command {
+        #[cfg(target_os = "linux")]
+        Command::LinuxRestoreExecutors { store } => {
+            print_json(&stillyard::restore_native_linux(store, endpoint)?)?;
+        }
         #[cfg(target_os = "linux")]
         Command::LinuxInstall {
             store,

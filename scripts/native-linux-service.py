@@ -75,10 +75,10 @@ def initialize(root, daemon, executors):
 
 
 def delegated_unit_setup(root, executors, ram_mb):
-    """Attach only during first setup, after the oneshot unit's initial prune.
+    """Attach after the oneshot unit's initial prune.
 
     The active/exited delegated unit keeps the cgroup without a resident helper.
-    Daemon restarts must never recreate a missing installed executor tree.
+    A missing installed tree requires the stopped Rust quiescence verifier.
     """
     unit = 'stillyard-delegation.service'
     def property_value(name):
@@ -88,29 +88,59 @@ def delegated_unit_setup(root, executors, ram_mb):
             or property_value('MainPID') != '0'):
         raise RuntimeError('native delegation unit is not active/exited at the installed path')
     first = (root / 'native-install-request.json').exists()
+    missing = not executors.exists()
     if first:
         if executors.exists() or (root / 'native-install-started.json').exists():
             raise RuntimeError('first delegation setup conflicts with prior state')
+    elif missing:
+        try:
+            read_private(root / 'native-linux/anchor.json')
+            read_private(root / 'config.json')
+        except OSError as error:
+            raise RuntimeError('native restoration requires retained installation and configuration') from error
+    if first or missing:
+        current = property_value('ControlGroup')
+        existing_setup = (Path('/sys/fs/cgroup') / current.lstrip('/') / 'setup') if current else None
+        suffix = ''
+        if existing_setup is not None and existing_setup.exists():
+            metadata = existing_setup.lstat()
+            if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid():
+                raise RuntimeError('native setup subgroup identity is unsafe')
+            suffix = '/setup'
         subprocess.run(['/usr/bin/busctl', '--user', 'call', 'org.freedesktop.systemd1',
                         '/org/freedesktop/systemd1', 'org.freedesktop.systemd1.Manager',
-                        'AttachProcessesToUnit', 'ssau', unit, '', '1', str(os.getpid())], check=True, timeout=10)
+                        'AttachProcessesToUnit', 'ssau', unit, suffix, '1', str(os.getpid())], check=True, timeout=10)
     # ControlGroup is empty after the initial SERVICE_EXITED prune. The
     # supported attach operation realizes it; only then can it be compared.
     group = Path('/sys/fs/cgroup') / property_value('ControlGroup').lstrip('/')
     if executors != group / 'executors':
         raise RuntimeError('native delegated cgroup differs from the installed path')
-    if first:
+    if first or missing:
         setup = group / 'setup'
-        setup.mkdir()
+        setup.mkdir(exist_ok=True)
         (setup / 'cgroup.procs').write_text(str(os.getpid()))
         (group / 'cgroup.subtree_control').write_text('+cpu +memory +pids')
+    if first:
         executors.mkdir()
         (executors / 'cgroup.subtree_control').write_text('+cpu +memory +pids')
         (executors / 'memory.max').write_text(str(ram_mb * 1024 * 1024))
         (executors / 'pids.max').write_text('4096')
+    elif missing:
+        result = subprocess.run([str(root / 'bin/stillyard'), 'linux-restore-executors'],
+                                capture_output=True, text=True, timeout=30)
+        if result.returncode:
+            raise RuntimeError('native executor restoration refused: ' + result.stderr.strip())
+        receipt = json.loads(result.stdout)
+        path = root / ('native-executor-restored-' + uuid.uuid4().hex + '.json')
+        with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), 'w') as stream:
+            json.dump(receipt, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        sync_directory(root)
     if (not executors.is_dir() or not {'cpu', 'memory', 'pids'}.issubset(
             (executors / 'cgroup.subtree_control').read_text().split())
-            or (executors / 'memory.max').read_text().strip() != str(ram_mb * 1024 * 1024)):
+            or (executors / 'memory.max').read_text().strip() != str(ram_mb * 1024 * 1024)
+            or (executors / 'pids.max').read_text().strip() != '4096'):
         raise RuntimeError('native delegated executor tree is missing or changed; history retained')
 
 

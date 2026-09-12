@@ -237,3 +237,12 @@ anchors, foreign parent/ownership/controllers, and interrupted limit publication
 The positive disposable-host control is drain → remove only runtime tree →
 restore → daemon → canary plus replay of an old receipt with unchanged durable
 IDs. Actual changed-boot acceptance remains a separate host lifecycle result.
+
+Implementation is now staged with read-only existing SQL, non-mutating authority
+validation and pinned journal/kernel boundaries. Default scheduled Rust test and
+Clippy gates passed, along with eight service controls. Review found and fixed
+the interrupted `pids.max` publication retry gap. The native CI controller stops
+only its disposable VM's drained services, checks missing/corrupt retained files,
+then requires unchanged durable identities/seals, a new kernel inode, old receipt
+replay without another launch, and a fresh released/sealed canary. This exercises
+runtime-tree loss in the same boot, not an actual reboot. Native results pending.

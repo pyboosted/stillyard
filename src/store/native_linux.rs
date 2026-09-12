@@ -10,6 +10,9 @@ use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 const DIRECTORY: &str = "native-linux";
 const MAX_BYTES: u64 = 65_536;
 
+mod restore;
+pub(crate) use restore::restore_executors;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Configuration {

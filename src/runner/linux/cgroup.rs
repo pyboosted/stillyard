@@ -47,6 +47,117 @@ fn open_directory(path: &Path) -> io::Result<File> {
     Ok(directory)
 }
 
+/// Called under stopped Store/history locks after full durable quiescence.
+/// This creates no Invocation boundary and publishes no cleanup proof.
+pub(crate) fn restore_executor_root(path: &Path, ram_mb: u64) -> io::Result<Identity> {
+    // SAFETY: geteuid has no preconditions.
+    let uid = unsafe { libc::geteuid() };
+    let expected = PathBuf::from(format!(
+        "/sys/fs/cgroup/user.slice/user-{uid}.slice/user@{uid}.service/app.slice/stillyard-delegation.service/executors"
+    ));
+    if path != expected || !(512..=1_048_576).contains(&ram_mb) {
+        return Err(io::Error::other(
+            "native restore requires its supported delegated unit and saved RAM budget",
+        ));
+    }
+    let parent = path.parent().unwrap();
+    if std::fs::canonicalize(parent)? != parent {
+        return Err(io::Error::other(
+            "native delegation parent is not canonical",
+        ));
+    }
+    let parent_guard = open_directory(parent)?;
+    if parent_guard.metadata()?.uid() != uid {
+        return Err(io::Error::other(
+            "native delegation parent is not owned by this user",
+        ));
+    }
+    let pinned = PathBuf::from(format!("/proc/self/fd/{}", parent_guard.as_raw_fd()));
+    let controllers = std::fs::read_to_string(pinned.join("cgroup.subtree_control"))?;
+    if !["cpu", "memory", "pids"]
+        .iter()
+        .all(|name| controllers.split_whitespace().any(|value| value == *name))
+    {
+        return Err(io::Error::other(
+            "native executor controllers are not delegated",
+        ));
+    }
+    let root = pinned.join("executors");
+    let created = match std::fs::symlink_metadata(&root) {
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            std::fs::create_dir(&root)?;
+            true
+        }
+        Err(e) => return Err(e),
+        Ok(_) => false,
+    };
+    let directory = open_directory(&root)?;
+    let metadata = directory.metadata()?;
+    if metadata.uid() != uid {
+        return Err(io::Error::other("native executor owner changed"));
+    }
+    let identity = Identity {
+        boot_id: boot()?,
+        path: path.to_path_buf(),
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    };
+    let boundary = Boundary {
+        directory,
+        identity,
+    };
+    if boundary.populated()?
+        || std::fs::read_dir(&root)?.any(|entry| {
+            entry.map_or(true, |e| {
+                e.file_type().map_or(true, |t| t.is_dir() || t.is_symlink())
+            })
+        })
+    {
+        return Err(io::Error::other(
+            "native executor root is not empty or contains unexpected children",
+        ));
+    }
+    let memory = (ram_mb * 1024 * 1024).to_string();
+    if created {
+        std::fs::write(
+            boundary.file("cgroup.subtree_control"),
+            "+cpu +memory +pids",
+        )?;
+        std::fs::write(boundary.file("memory.max"), &memory)?;
+        std::fs::write(boundary.file("pids.max"), "4096")?;
+    }
+    let controllers = std::fs::read_to_string(boundary.file("cgroup.subtree_control"))?;
+    if std::fs::read_to_string(boundary.file("memory.max"))?.trim() != memory
+        || std::fs::read_to_string(boundary.file("pids.max"))?.trim() != "4096"
+        || !["cpu", "memory", "pids"]
+            .iter()
+            .all(|name| controllers.split_whitespace().any(|v| v == *name))
+    {
+        return Err(io::Error::other(
+            "native executor configuration is partial or changed; refusing repair",
+        ));
+    }
+    OpenOptions::new()
+        .write(true)
+        .open(boundary.file("cgroup.kill"))?;
+    OpenOptions::new()
+        .write(true)
+        .open(boundary.file("cgroup.procs"))?;
+    boundary.check_identity()?;
+    let parent_now = std::fs::symlink_metadata(parent)?;
+    if (parent_now.dev(), parent_now.ino())
+        != (
+            parent_guard.metadata()?.dev(),
+            parent_guard.metadata()?.ino(),
+        )
+    {
+        return Err(io::Error::other(
+            "native delegation parent changed during restoration",
+        ));
+    }
+    Ok(boundary.identity)
+}
+
 impl Boundary {
     pub(crate) fn create(parent: &Path, invocation: uuid::Uuid) -> io::Result<Self> {
         if invocation.is_nil() {

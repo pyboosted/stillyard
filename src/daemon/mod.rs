@@ -153,6 +153,21 @@ pub(crate) fn configure_native_linux(
     }))
 }
 
+#[cfg(target_os = "linux")]
+pub(crate) fn restore_native_linux(
+    store_root: Option<PathBuf>,
+    endpoint: Option<String>,
+) -> Result<serde_json::Value> {
+    crate::store::native_linux::require_native_host()
+        .map_err(|e| Error::Unavailable(e.to_string()))?;
+    validate_instance_tuple(store_root.is_some(), endpoint.is_some())?;
+    let root = resolve_store_root(store_root)?;
+    let endpoint = resolve_endpoint(endpoint)?;
+    let _endpoint_lease = acquire_endpoint_lease(&endpoint)?;
+    crate::store::native_linux::restore_executors(&root, &endpoint)
+        .map_err(|e| Error::Unavailable(e.to_string()))
+}
+
 /// Explicit stopped-manager setup for a Windows-coordinated WSL installation.
 #[cfg(target_os = "linux")]
 pub(crate) fn configure_wsl_attachment(

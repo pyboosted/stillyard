@@ -94,6 +94,16 @@ pub fn configure_native_linux(
 ) -> Result<serde_json::Value> {
     daemon::configure_native_linux(store_root, endpoint, executor_cgroup)
 }
+
+/// Bundled native service restoration, without resetting durable history.
+#[cfg(target_os = "linux")]
+#[doc(hidden)]
+pub fn restore_native_linux(
+    store_root: Option<std::path::PathBuf>,
+    endpoint: Option<String>,
+) -> Result<serde_json::Value> {
+    daemon::restore_native_linux(store_root, endpoint)
+}
 pub use model::{
     AttemptId, AttemptVerdict, BatchId, ConditionId, ContainmentId, DurableIdParseError, GrantId,
     InvocationId, JobId, JobOutcome, JobState, ObservationId, ReservationId, SubmissionId,

@@ -924,6 +924,53 @@ impl Authority {
         authority
     }
 
+    /// Validate an existing standalone authority without publishing, migrating,
+    /// rebinding or retiring anything. The caller retains the endpoint and Store
+    /// singleton locks and separately validates the SQL and executor histories.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn validate_native_restore(
+        directory: &Path,
+        host: &HostId,
+        store: Uuid,
+        domain: crate::ExecutionDomainId,
+    ) -> std::io::Result<AuthoritySnapshot> {
+        let registry = Self::load(directory, host)?.ok_or_else(|| {
+            std::io::Error::other("native executor restore requires existing authority history")
+        })?;
+        if registry.epoch.is_nil()
+            || registry
+                .domains
+                .as_ref()
+                .is_none_or(|domains| domains.native_domain != domain)
+            || registry.coordinator.as_ref().is_none_or(|coordinator| {
+                coordinator.store_uuid != store || coordinator.pending_reset.is_some()
+            })
+            || registry.native_coverage_store != Some(store)
+        {
+            return Err(std::io::Error::other(
+                "native executor restore authority identity or coverage differs",
+            ));
+        }
+        if registry.holds.values().any(|hold| !hold.released)
+            || !registry.native_permissions.is_empty()
+            || !registry.machine_permissions.is_empty()
+            || registry.pending_machine_commit.is_some()
+            || registry.pending_machine_blob.is_some()
+            || registry.pending_domain_retirement.is_some()
+            || !registry.participants.is_empty()
+        {
+            return Err(std::io::Error::other(
+                "native executor restore requires quiescent standalone authority without participants or outstanding rights",
+            ));
+        }
+        Ok(Self {
+            directory: directory.to_owned(),
+            host: host.clone(),
+            state: State::Ready(Box::new(registry)),
+        }
+        .snapshot())
+    }
+
     fn load(directory: &Path, host: &HostId) -> std::io::Result<Option<Registry>> {
         let anchor = directory.join("anchor.json");
         let journal = directory.join("registry.json");
@@ -1574,6 +1621,167 @@ mod tests {
             boot_id: crate::BootId("test-boot".into()),
             pid: 42,
             creation_filetime_100ns: 123,
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    mod native_restore {
+        use super::*;
+        use std::os::unix::fs::MetadataExt;
+
+        fn fixture(directory: &Path) -> (Authority, Uuid, crate::ExecutionDomainId) {
+            let mut authority = Authority::open(directory.to_owned(), host());
+            authority.initialize().unwrap();
+            let store = Uuid::now_v7();
+            authority
+                .bind_coordinator(store, Uuid::now_v7(), requester())
+                .unwrap();
+            authority.establish_native_coverage(store, true).unwrap();
+            let domain = authority.snapshot().domains.unwrap().native_domain;
+            (authority, store, domain)
+        }
+
+        fn files(directory: &Path) -> BTreeMap<PathBuf, (u64, Vec<u8>)> {
+            std::fs::read_dir(directory)
+                .unwrap()
+                .map(|entry| {
+                    let entry = entry.unwrap();
+                    let path = entry.path();
+                    (
+                        path.clone(),
+                        (
+                            entry.metadata().unwrap().ino(),
+                            std::fs::read(path).unwrap(),
+                        ),
+                    )
+                })
+                .collect()
+        }
+
+        #[test]
+        fn drained_authority_preserves_identity_released_holds_and_unreferenced_blobs() {
+            let root = crate::test_support::durable_tempdir().unwrap();
+            let (mut authority, store, domain) = fixture(root.path());
+            let hold = Uuid::now_v7();
+            authority
+                .hold(hold, "restore fixture".into(), requester())
+                .unwrap();
+            authority
+                .force_release(hold, "fixture clearance".into(), requester())
+                .unwrap();
+            let orphan = root.path().join(format!(
+                "machine-commit-{}-{}.json",
+                Uuid::now_v7(),
+                "0".repeat(64)
+            ));
+            std::fs::write(orphan, b"restore must not prune this file").unwrap();
+            let before = files(root.path());
+            let observed =
+                Authority::validate_native_restore(root.path(), &host(), store, domain).unwrap();
+            assert_eq!(observed, authority.snapshot());
+            assert_eq!(files(root.path()), before);
+        }
+
+        #[test]
+        fn active_hold_and_foreign_identities_are_rejected_without_mutation() {
+            let root = crate::test_support::durable_tempdir().unwrap();
+            let (mut authority, store, domain) = fixture(root.path());
+            let before = files(root.path());
+            for (requested_host, requested_store, requested_domain) in [
+                (HostId("foreign-native-host".into()), store, domain),
+                (host(), Uuid::now_v7(), domain),
+                (host(), store, crate::ExecutionDomainId(Uuid::now_v7())),
+            ] {
+                assert!(
+                    Authority::validate_native_restore(
+                        root.path(),
+                        &requested_host,
+                        requested_store,
+                        requested_domain
+                    )
+                    .is_err()
+                );
+                assert_eq!(files(root.path()), before);
+            }
+            authority
+                .hold(Uuid::now_v7(), "live work".into(), requester())
+                .unwrap();
+            let held = files(root.path());
+            assert!(
+                Authority::validate_native_restore(root.path(), &host(), store, domain).is_err()
+            );
+            assert_eq!(files(root.path()), held);
+        }
+
+        #[test]
+        fn missing_and_corrupt_history_is_neither_created_nor_repaired() {
+            let root = crate::test_support::durable_tempdir().unwrap();
+            let absent = root.path().join("absent");
+            assert!(
+                Authority::validate_native_restore(
+                    &absent,
+                    &host(),
+                    Uuid::now_v7(),
+                    crate::ExecutionDomainId(Uuid::now_v7())
+                )
+                .is_err()
+            );
+            assert!(!absent.exists());
+            let (_authority, store, domain) = fixture(root.path());
+            let registry = root.path().join("registry.json");
+            let original = std::fs::read(&registry).unwrap();
+            let mut corrupt: serde_json::Value = serde_json::from_slice(&original).unwrap();
+            corrupt["sha256"] = serde_json::Value::String("0".repeat(64));
+            std::fs::write(&registry, serde_json::to_vec(&corrupt).unwrap()).unwrap();
+            let before = files(root.path());
+            assert!(
+                Authority::validate_native_restore(root.path(), &host(), store, domain).is_err()
+            );
+            assert_eq!(files(root.path()), before);
+            std::fs::write(&registry, original).unwrap();
+            for name in ["anchor.json", "registry.json"] {
+                let path = root.path().join(name);
+                let original = std::fs::read(&path).unwrap();
+                std::fs::remove_file(&path).unwrap();
+                let before = files(root.path());
+                assert!(
+                    Authority::validate_native_restore(root.path(), &host(), store, domain)
+                        .is_err()
+                );
+                assert_eq!(files(root.path()), before);
+                std::fs::write(path, original).unwrap();
+            }
+        }
+
+        #[test]
+        fn missing_binding_or_coverage_and_reset_gate_are_not_reconciled() {
+            let root = crate::test_support::durable_tempdir().unwrap();
+            let (mut authority, store, domain) = fixture(root.path());
+            let base = Authority::load(root.path(), &host()).unwrap().unwrap();
+            for mutation in 0..4 {
+                let mut changed = base.clone();
+                match mutation {
+                    0 => changed.domains = None,
+                    1 => changed.coordinator = None,
+                    2 => changed.native_coverage_store = None,
+                    3 => {
+                        changed.coordinator.as_mut().unwrap().pending_reset =
+                            Some(crate::machine::ResetGate {
+                                reset_id: Uuid::now_v7(),
+                                displaced_store_uuid: store,
+                                reason: "restore reset fixture".into(),
+                            })
+                    }
+                    _ => unreachable!(),
+                }
+                authority.publish(changed).unwrap();
+                let before = files(root.path());
+                assert!(
+                    Authority::validate_native_restore(root.path(), &host(), store, domain)
+                        .is_err()
+                );
+                assert_eq!(files(root.path()), before);
+            }
         }
     }
 

@@ -1,0 +1,17 @@
+{
+  "base": "727a1fc",
+  "files": {
+    ".github/workflows/native-linux.yml": "ff5d6e443216f6ad006788f59ccc6da933d9e774a6db19bb20696bb1831df203",
+    "scripts/native-linux-service.py": "1b9e5c42f8094092d9dad0ccd677ceb69accd1b63c4ecdfc029ad3531fad40b8",
+    "scripts/test-native-linux-service.py": "65a8f94ba09aa3e7b37a336bad6d8aa38602c64afbc522df3e586198b99c8634",
+    "src/authority.rs": "7808dd8cc2ce8ff409bda5e2b07290ed31ea24daf62a11efd28b263c5e7a4ae6",
+    "src/daemon/mod.rs": "f7a369716873e4b19ba54dc6d3e3a7f4c4abc053c85af81b2298f1233b889707",
+    "src/lib.rs": "7178adb856e09da484f6bc2704034e29955cbdd81281639fc04e58ccda5aef6d",
+    "src/main.rs": "1280d9648f21a97ef3deb536d269ba8919374e513a85815c01056b4126e8985a",
+    "src/runner/linux.rs": "f6f162784ca0d9ca16df0385827de87ead69b0d65e5c043d6df842d9ac2f1198",
+    "src/runner/linux/cgroup.rs": "f2a732316464914984dd6b8dd61e788e829cfea481c03378b182e07c1845cf3b",
+    "src/store/native_linux.rs": "a9820b6ce1feb4258e41df5db6a034386fb3b29100ab2805860d780bbd056468",
+    "src/store/native_linux/restore.rs": "9d24c323e09e39d362052b13c45d0e8f2fae0c17024dc284d2065e12a03b34ef",
+    "scripts/run-native-linux-restore.py": "815e4ec78eea1195b1ea380a17da406b3a4a400e92d88bb42455829cd2019342"
+  }
+}

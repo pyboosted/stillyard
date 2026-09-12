@@ -6,6 +6,7 @@ mod launch;
 pub(crate) mod registry;
 pub(super) mod runtime;
 
+pub(crate) use cgroup::restore_executor_root;
 pub(crate) use launch::run_stub;
 
 pub(crate) fn initialize_history(

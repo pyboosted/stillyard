@@ -70,6 +70,20 @@ was removed after verifying no Jobs/processes referenced it, reclaiming 2.906 Gi
 logical file bytes. The 4.4 MB source projection and evidence remain. One active
 Linux cache remains for ongoing native implementation; installed daemons unchanged.
 
+Native quiescent restoration checkpoint: a stopped-store command validates
+existing SQL without reset/recovery, retained authority without mutation, and
+every executor seal before recreating only an empty kernel executor root. It
+holds endpoint/Store/journal locks and restores saved RAM/pids/controller limits.
+Independent Codex review found a partial-pids publication retry gap; the shared
+service startup gate now rejects it, with an explicit negative control.
+Default WSL fmt `01a096ed-275a-7c93-8cd8-c1bfcae136b6`, test
+`01a096ef-eb34-74f1-9955-2702a0022761`, Clippy
+`01a096f2-24d2-7d30-badc-e91ddcdaf5e5`, and eight service controls plus WSL
+fault-controller refusals `01a096f2-e377-7870-bdb4-abef62278f73` passed (same
+Linux Store prefix above). [Source and canonical Jobs](evidence/mr4-native-core-20260912/quiescent-restore/).
+The new disposable native runtime-loss/replay controller is staged; real native
+acceptance, active-work SQL rollback and changed-boot controls remain pending.
+
 Recovery after the user-reported unexpected restart: working files and native
 evidence survived. The first CLI reconnect returned auto-start OS error 5;
 subsequent discovery found the installed alpha.14 daemon already running as PID

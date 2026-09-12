@@ -94,7 +94,7 @@ class Installation(unittest.TestCase):
                 service.initialize(self.root, self.daemon, self.executors)
             call.assert_not_called()
 
-    def test_native_restart_never_recreates_a_missing_executor_tree(self):
+    def test_native_restart_without_retained_history_never_recreates_executor_tree(self):
         self.request.unlink()
         cgroup = self.root / 'cgroups'
         group = cgroup / 'delegation'
@@ -111,6 +111,30 @@ class Installation(unittest.TestCase):
                 service.delegated_unit_setup(self.root, group / 'executors', 4096)
             attach.assert_not_called()
         self.assertFalse((group / 'executors').exists())
+
+    def test_native_existing_executor_with_unpublished_pids_limit_refuses_restart(self):
+        self.request.unlink()
+        cgroup = self.root / 'cgroups'
+        group = cgroup / 'delegation'
+        executors = group / 'executors'
+        executors.mkdir(parents=True)
+        (executors / 'cgroup.subtree_control').write_text('cpu memory pids')
+        (executors / 'memory.max').write_text(str(4096 * 1024 * 1024))
+        (executors / 'pids.max').write_text('max')
+        properties = {'ControlGroup': '/delegation', 'ActiveState': 'active',
+                      'SubState': 'exited', 'MainPID': '0'}
+        def query(command, **kwargs):
+            return properties[command[-2].removeprefix('--property=')] + '\n'
+        def path(value):
+            return cgroup if value == '/sys/fs/cgroup' else Path(value)
+        with patch.object(service, 'Path', side_effect=path), patch.object(
+                service.subprocess, 'check_output', side_effect=query), patch.object(service.subprocess, 'run') as call:
+            with self.assertRaisesRegex(RuntimeError, 'missing or changed'):
+                service.delegated_unit_setup(self.root, executors, 4096)
+            call.assert_not_called()
+            (executors / 'pids.max').write_text('4096')
+            service.delegated_unit_setup(self.root, executors, 4096)
+            call.assert_not_called()
 
     def test_native_partial_delegation_setup_cannot_be_replayed(self):
         cgroup = self.root / 'cgroups'
