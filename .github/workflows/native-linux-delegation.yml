@@ -1,0 +1,31 @@
+name: Native Linux delegation prerequisite
+on:
+  workflow_dispatch:
+  push:
+    branches: [linux]
+    paths:
+      - '.github/workflows/native-linux-delegation.yml'
+      - 'scripts/probe-native-linux-delegation.py'
+permissions:
+  contents: read
+jobs:
+  native-delegation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Prepare user manager
+        run: |
+          native_uid=$(id -u)
+          sudo loginctl enable-linger "$(id -un)"
+          sudo systemctl start "user@${native_uid}.service"
+          echo "XDG_RUNTIME_DIR=/run/user/${native_uid}" >> "$GITHUB_ENV"
+          echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${native_uid}/bus" >> "$GITHUB_ENV"
+      - name: Probe retained empty delegation without a helper
+        run: python3 scripts/probe-native-linux-delegation.py --disposable-native-host --evidence-directory "$PWD/delegation-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-delegation-evidence
+          path: delegation-evidence/
+          retention-days: 14
