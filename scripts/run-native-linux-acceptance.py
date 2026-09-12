@@ -119,8 +119,9 @@ def main():
     submit('process-coverage-closed', "raise RuntimeError('unavailable process coverage released user code')", quiet={
         'stable_seconds': 1, 'max_sample_age_seconds': 5, 'wait_budget_seconds': 3,
         'detectors': [{'kind': 'blocked_processes'}]})
-    closed = finish('process-coverage-closed', 'safety_failed')
-    if closed['started_unix_millis'] is not None or closed['reason_code'] != 'quiet_unattainable':
+    closed = finish('process-coverage-closed', 'failed')
+    if (closed['started_unix_millis'] is not None or closed['reason_code'] != 'quiet_unattainable'
+            or closed['attempts'][-1]['verdict'] != 'safety_failed'):
         raise RuntimeError('missing process coverage did not remain closed before user release')
     descendant = "import pathlib,time; p=pathlib.Path('descendant-heartbeat'); end=time.monotonic()+60\nwhile time.monotonic()<end:\n p.write_text(str(time.monotonic_ns())); time.sleep(.05)"
     submit('descendant', "import pathlib,subprocess,time; "

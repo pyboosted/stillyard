@@ -1,0 +1,589 @@
+Sep 12 17:00:14 runnervmlun5p kernel: Linux version 6.17.0-1022-azure (buildd@lcy02-amd64-020) (x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, GNU ld (GNU Binutils for Ubuntu) 2.42) #22-Ubuntu SMP Mon Jul 27 17:24:03 UTC 2026 (Ubuntu 6.17.0-1022.22-azure 6.17.13)
+Sep 12 17:00:14 runnervmlun5p kernel: Command line: BOOT_IMAGE=/vmlinuz-6.17.0-1022-azure root=PARTUUID=580b80dc-f54b-4d06-9389-f702fab8bd92 ro console=tty1 console=ttyS0 earlyprintk=ttyS0 nvme_core.io_timeout=240 panic=-1
+Sep 12 17:00:14 runnervmlun5p kernel: KERNEL supported cpus:
+Sep 12 17:00:14 runnervmlun5p kernel:   Intel GenuineIntel
+Sep 12 17:00:14 runnervmlun5p kernel:   AMD AuthenticAMD
+Sep 12 17:00:14 runnervmlun5p kernel:   Hygon HygonGenuine
+Sep 12 17:00:14 runnervmlun5p kernel:   Centaur CentaurHauls
+Sep 12 17:00:14 runnervmlun5p kernel:   zhaoxin   Shanghai  
+Sep 12 17:00:14 runnervmlun5p kernel: BIOS-provided physical RAM map:
+Sep 12 17:00:14 runnervmlun5p kernel: BIOS-e820: [mem 0x0000000000000000-0x000000000009ffff] usable
+Sep 12 17:00:14 runnervmlun5p kernel: BIOS-e820: [mem 0x00000000000c0000-0x00000000000fffff] reserved
+Sep 12 17:00:14 runnervmlun5p kernel: BIOS-e820: [mem 0x0000000000100000-0x00000000044fdfff] usable
+Sep 12 17:00:14 runnervmlun5p kernel: BIOS-e820: [mem 0x00000000044fe000-0x00000000048fdfff] reserved
+Sep 12 17:00:14 runnervmlun5p kernel: BIOS-e820: [mem 0x00000000048fe000-0x000000003ff1efff] usable
+Sep 12 17:00:14 runnervmlun5p kernel: BIOS-e820: [mem 0x000000003ff1f000-0x000000003ffc8fff] reserved
+Sep 12 17:00:14 runnervmlun5p kernel: BIOS-e820: [mem 0x000000003ffc9000-0x000000003fffafff] ACPI data
+Sep 12 17:00:14 runnervmlun5p kernel: BIOS-e820: [mem 0x000000003fffb000-0x000000003fffefff] ACPI NVS
+Sep 12 17:00:14 runnervmlun5p kernel: BIOS-e820: [mem 0x000000003ffff000-0x000000003fffffff] usable
+Sep 12 17:00:14 runnervmlun5p kernel: BIOS-e820: [mem 0x0000000100000000-0x00000004bfffffff] usable
+Sep 12 17:00:14 runnervmlun5p kernel: printk: legacy bootconsole [earlyser0] enabled
+Sep 12 17:00:14 runnervmlun5p kernel: NX (Execute Disable) protection: active
+Sep 12 17:00:14 runnervmlun5p kernel: APIC: Static calls initialized
+Sep 12 17:00:14 runnervmlun5p kernel: efi: EFI v2.7 by Microsoft
+Sep 12 17:00:14 runnervmlun5p kernel: efi: ACPI=0x3fffa000 ACPI 2.0=0x3fffa014 SMBIOS=0x3ff88000 SMBIOS 3.0=0x3ff86000 MEMATTR=0x3efae018 MOKvar=0x3ff83000 RNG=0x3ffd2018 
+Sep 12 17:00:14 runnervmlun5p kernel: random: crng init done
+Sep 12 17:00:14 runnervmlun5p kernel: SMBIOS 3.1.0 present.
+Sep 12 17:00:14 runnervmlun5p kernel: DMI: Microsoft Corporation Virtual Machine/Virtual Machine, BIOS Hyper-V UEFI Release v4.1 04/22/2026
+Sep 12 17:00:14 runnervmlun5p kernel: DMI: Memory slots populated: 2/2
+Sep 12 17:00:14 runnervmlun5p kernel: secureboot: Secure boot disabled
+Sep 12 17:00:14 runnervmlun5p kernel: Hypervisor detected: Microsoft Hyper-V
+Sep 12 17:00:14 runnervmlun5p kernel: Hyper-V: privilege flags low 0xae7f, high 0x3b8030, ext 0x22, hints 0x140c2c, misc 0xc0bed7b2
+Sep 12 17:00:14 runnervmlun5p kernel: Hyper-V: HV timer won't be used due to unstable TSC
+Sep 12 17:00:14 runnervmlun5p kernel: Hyper-V: Nested features: 0x4a0000
+Sep 12 17:00:14 runnervmlun5p kernel: Hyper-V: LAPIC Timer Frequency: 0x30d40
+Sep 12 17:00:14 runnervmlun5p kernel: Hyper-V: Using hypercall for remote TLB flush
+Sep 12 17:00:14 runnervmlun5p kernel: clocksource: hyperv_clocksource_tsc_page: mask: 0xffffffffffffffff max_cycles: 0x24e6a1710, max_idle_ns: 440795202120 ns
+Sep 12 17:00:14 runnervmlun5p kernel: clocksource: hyperv_clocksource_msr: mask: 0xffffffffffffffff max_cycles: 0x24e6a1710, max_idle_ns: 440795202120 ns
+Sep 12 17:00:14 runnervmlun5p kernel: tsc: Detected 2445.427 MHz processor
+Sep 12 17:00:14 runnervmlun5p kernel: e820: update [mem 0x00000000-0x00000fff] usable ==> reserved
+Sep 12 17:00:14 runnervmlun5p kernel: e820: remove [mem 0x000a0000-0x000fffff] usable
+Sep 12 17:00:14 runnervmlun5p kernel: last_pfn = 0x4c0000 max_arch_pfn = 0x400000000
+Sep 12 17:00:14 runnervmlun5p kernel: MTRR map: 4 entries (2 fixed + 2 variable; max 18), built from 8 variable MTRRs
+Sep 12 17:00:14 runnervmlun5p kernel: x86/PAT: Configuration [0-7]: WB  WC  UC- UC  WB  WP  UC- WT  
+Sep 12 17:00:14 runnervmlun5p kernel: e820: update [mem 0x40000000-0xffffffff] usable ==> reserved
+Sep 12 17:00:14 runnervmlun5p kernel: last_pfn = 0x40000 max_arch_pfn = 0x400000000
+Sep 12 17:00:14 runnervmlun5p kernel: Using GB pages for direct mapping
+Sep 12 17:00:14 runnervmlun5p kernel: secureboot: Secure boot disabled
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Early table checksum verification disabled
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: RSDP 0x000000003FFFA014 000024 (v02 VRTUAL)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: XSDT 0x000000003FFF90E8 00005C (v01 VRTUAL MICROSFT 00000001 MSFT 00000001)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: FACP 0x000000003FFF8000 000114 (v06 VRTUAL MICROSFT 00000001 MSFT 00000001)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: DSDT 0x000000003FFD6000 01E22B (v02 MSFTVM DSDT01   00000001 INTL 20230628)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: FACS 0x000000003FFFE000 000040
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: OEM0 0x000000003FFF7000 000064 (v01 VRTUAL MICROSFT 00000001 MSFT 00000001)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SPCR 0x000000003FFF6000 000050 (v02 VRTUAL MICROSFT 00000001 MSFT 00000001)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: WAET 0x000000003FFF5000 000028 (v01 VRTUAL MICROSFT 00000001 MSFT 00000001)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: APIC 0x000000003FFD5000 000068 (v04 VRTUAL MICROSFT 00000001 MSFT 00000001)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SRAT 0x000000003FFD4000 000250 (v02 VRTUAL MICROSFT 00000001 MSFT 00000001)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: BGRT 0x000000003FFD3000 000038 (v01 VRTUAL MICROSFT 00000001 MSFT 00000001)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Reserving FACP table memory at [mem 0x3fff8000-0x3fff8113]
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Reserving DSDT table memory at [mem 0x3ffd6000-0x3fff422a]
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Reserving FACS table memory at [mem 0x3fffe000-0x3fffe03f]
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Reserving OEM0 table memory at [mem 0x3fff7000-0x3fff7063]
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Reserving SPCR table memory at [mem 0x3fff6000-0x3fff604f]
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Reserving WAET table memory at [mem 0x3fff5000-0x3fff5027]
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Reserving APIC table memory at [mem 0x3ffd5000-0x3ffd5067]
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Reserving SRAT table memory at [mem 0x3ffd4000-0x3ffd424f]
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Reserving BGRT table memory at [mem 0x3ffd3000-0x3ffd3037]
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SRAT: Node 0 PXM 0 [mem 0x00000000-0x3fffffff] hotplug
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SRAT: Node 0 PXM 0 [mem 0x100000000-0x4bfffffff] hotplug
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SRAT: Node 0 PXM 0 [mem 0x4c0000000-0xfbfffffff] hotplug
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SRAT: Node 0 PXM 0 [mem 0x1000000000-0xfcffffffff] hotplug
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SRAT: Node 0 PXM 0 [mem 0x10000000000-0x1ffffffffff] hotplug
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SRAT: Node 0 PXM 0 [mem 0x20000000000-0x3ffffffffff] hotplug
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SRAT: Node 0 PXM 0 [mem 0x40000000000-0x7ffffffffff] hotplug
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SRAT: Node 0 PXM 0 [mem 0x80000000000-0xfffffffffff] hotplug
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SRAT: Node 0 PXM 0 [mem 0x100000000000-0x1fffffffffff] hotplug
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SRAT: Node 0 PXM 0 [mem 0x200000000000-0x3fffffffffff] hotplug
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SRAT: Node 0 PXM 0 [mem 0x400000000000-0x7fffffffffff] hotplug
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SRAT: Node 0 PXM 0 [mem 0x800000000000-0xffffffffffff] hotplug
+Sep 12 17:00:14 runnervmlun5p kernel: NUMA: Node 0 [mem 0x00001000-0x3fffffff] + [mem 0x100000000-0x4bfffffff] -> [mem 0x00001000-0x4bfffffff]
+Sep 12 17:00:14 runnervmlun5p kernel: NODE_DATA(0) allocated [mem 0x4bffd52c0-0x4bfffffff]
+Sep 12 17:00:14 runnervmlun5p kernel: Zone ranges:
+Sep 12 17:00:14 runnervmlun5p kernel:   DMA      [mem 0x0000000000001000-0x0000000000ffffff]
+Sep 12 17:00:14 runnervmlun5p kernel:   DMA32    [mem 0x0000000001000000-0x00000000ffffffff]
+Sep 12 17:00:14 runnervmlun5p kernel:   Normal   [mem 0x0000000100000000-0x00000004bfffffff]
+Sep 12 17:00:14 runnervmlun5p kernel:   Device   empty
+Sep 12 17:00:14 runnervmlun5p kernel: Movable zone start for each node
+Sep 12 17:00:14 runnervmlun5p kernel: Early memory node ranges
+Sep 12 17:00:14 runnervmlun5p kernel:   node   0: [mem 0x0000000000001000-0x000000000009ffff]
+Sep 12 17:00:14 runnervmlun5p kernel:   node   0: [mem 0x0000000000100000-0x00000000044fdfff]
+Sep 12 17:00:14 runnervmlun5p kernel:   node   0: [mem 0x00000000048fe000-0x000000003ff1efff]
+Sep 12 17:00:14 runnervmlun5p kernel:   node   0: [mem 0x000000003ffff000-0x000000003fffffff]
+Sep 12 17:00:14 runnervmlun5p kernel:   node   0: [mem 0x0000000100000000-0x00000004bfffffff]
+Sep 12 17:00:14 runnervmlun5p kernel: Initmem setup node 0 [mem 0x0000000000001000-0x00000004bfffffff]
+Sep 12 17:00:14 runnervmlun5p kernel: On node 0, zone DMA: 1 pages in unavailable ranges
+Sep 12 17:00:14 runnervmlun5p kernel: On node 0, zone DMA: 96 pages in unavailable ranges
+Sep 12 17:00:14 runnervmlun5p kernel: On node 0, zone DMA32: 1024 pages in unavailable ranges
+Sep 12 17:00:14 runnervmlun5p kernel: On node 0, zone DMA32: 224 pages in unavailable ranges
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: PM-Timer IO Port: 0x408
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: LAPIC_NMI (acpi_id[0x01] dfl dfl lint[0x1])
+Sep 12 17:00:14 runnervmlun5p kernel: IOAPIC[0]: apic_id 4, version 17, address 0xfec00000, GSI 0-23
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: INT_SRC_OVR (bus 0 bus_irq 9 global_irq 9 high level)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Using ACPI (MADT) for SMP configuration information
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: SPCR: console: uart,io,0x3f8,115200
+Sep 12 17:00:14 runnervmlun5p kernel: CPU topo: Max. logical packages:   1
+Sep 12 17:00:14 runnervmlun5p kernel: CPU topo: Max. logical dies:       1
+Sep 12 17:00:14 runnervmlun5p kernel: CPU topo: Max. dies per package:   1
+Sep 12 17:00:14 runnervmlun5p kernel: CPU topo: Max. threads per core:   2
+Sep 12 17:00:14 runnervmlun5p kernel: CPU topo: Num. cores per package:     2
+Sep 12 17:00:14 runnervmlun5p kernel: CPU topo: Num. threads per package:   4
+Sep 12 17:00:14 runnervmlun5p kernel: CPU topo: Allowing 4 present CPUs plus 0 hotplug CPUs
+Sep 12 17:00:14 runnervmlun5p kernel: PM: hibernation: Registered nosave memory: [mem 0x00000000-0x00000fff]
+Sep 12 17:00:14 runnervmlun5p kernel: PM: hibernation: Registered nosave memory: [mem 0x000a0000-0x000fffff]
+Sep 12 17:00:14 runnervmlun5p kernel: PM: hibernation: Registered nosave memory: [mem 0x044fe000-0x048fdfff]
+Sep 12 17:00:14 runnervmlun5p kernel: PM: hibernation: Registered nosave memory: [mem 0x3ff1f000-0x3fffefff]
+Sep 12 17:00:14 runnervmlun5p kernel: PM: hibernation: Registered nosave memory: [mem 0x40000000-0xffffffff]
+Sep 12 17:00:14 runnervmlun5p kernel: [mem 0x40000000-0xffffffff] available for PCI devices
+Sep 12 17:00:14 runnervmlun5p kernel: Booting paravirtualized kernel on Hyper-V
+Sep 12 17:00:14 runnervmlun5p kernel: clocksource: refined-jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1910969940391419 ns
+Sep 12 17:00:14 runnervmlun5p kernel: setup_percpu: NR_CPUS:8192 nr_cpumask_bits:4 nr_cpu_ids:4 nr_node_ids:1
+Sep 12 17:00:14 runnervmlun5p kernel: percpu: Embedded 82 pages/cpu s212992 r8192 d114688 u524288
+Sep 12 17:00:14 runnervmlun5p kernel: pcpu-alloc: s212992 r8192 d114688 u524288 alloc=1*2097152
+Sep 12 17:00:14 runnervmlun5p kernel: pcpu-alloc: [0] 0 1 2 3 
+Sep 12 17:00:14 runnervmlun5p kernel: Hyper-V: PV spinlocks enabled
+Sep 12 17:00:14 runnervmlun5p kernel: PV qspinlock hash table entries: 256 (order: 0, 4096 bytes, linear)
+Sep 12 17:00:14 runnervmlun5p kernel: Kernel command line: BOOT_IMAGE=/vmlinuz-6.17.0-1022-azure root=PARTUUID=580b80dc-f54b-4d06-9389-f702fab8bd92 ro console=tty1 console=ttyS0 earlyprintk=ttyS0 nvme_core.io_timeout=240 panic=-1
+Sep 12 17:00:14 runnervmlun5p kernel: printk: log buffer data + meta data: 262144 + 917504 = 1179648 bytes
+Sep 12 17:00:14 runnervmlun5p kernel: Dentry cache hash table entries: 2097152 (order: 12, 16777216 bytes, linear)
+Sep 12 17:00:14 runnervmlun5p kernel: Inode-cache hash table entries: 1048576 (order: 11, 8388608 bytes, linear)
+Sep 12 17:00:14 runnervmlun5p kernel: software IO TLB: area num 4.
+Sep 12 17:00:14 runnervmlun5p kernel: Fallback order for Node 0: 0 
+Sep 12 17:00:14 runnervmlun5p kernel: Built 1 zonelists, mobility grouping on.  Total pages: 4192959
+Sep 12 17:00:14 runnervmlun5p kernel: Policy zone: Normal
+Sep 12 17:00:14 runnervmlun5p kernel: mem auto-init: stack:all(zero), heap alloc:on, heap free:off
+Sep 12 17:00:14 runnervmlun5p kernel: SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+Sep 12 17:00:14 runnervmlun5p kernel: ftrace: allocating 59949 entries in 236 pages
+Sep 12 17:00:14 runnervmlun5p kernel: ftrace: allocated 236 pages with 5 groups
+Sep 12 17:00:14 runnervmlun5p kernel: rcu: Hierarchical RCU implementation.
+Sep 12 17:00:14 runnervmlun5p kernel: rcu:         RCU restricting CPUs from NR_CPUS=8192 to nr_cpu_ids=4.
+Sep 12 17:00:14 runnervmlun5p kernel:         Rude variant of Tasks RCU enabled.
+Sep 12 17:00:14 runnervmlun5p kernel:         Tracing variant of Tasks RCU enabled.
+Sep 12 17:00:14 runnervmlun5p kernel: rcu: RCU calculated value of scheduler-enlistment delay is 100 jiffies.
+Sep 12 17:00:14 runnervmlun5p kernel: rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+Sep 12 17:00:14 runnervmlun5p kernel: RCU Tasks Rude: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+Sep 12 17:00:14 runnervmlun5p kernel: RCU Tasks Trace: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+Sep 12 17:00:14 runnervmlun5p kernel: Using NULL legacy PIC
+Sep 12 17:00:14 runnervmlun5p kernel: NR_IRQS: 524544, nr_irqs: 456, preallocated irqs: 0
+Sep 12 17:00:14 runnervmlun5p kernel: rcu: srcu_init: Setting srcu_struct sizes based on contention.
+Sep 12 17:00:14 runnervmlun5p kernel: Console: colour dummy device 80x25
+Sep 12 17:00:14 runnervmlun5p kernel: printk: legacy console [tty1] enabled
+Sep 12 17:00:14 runnervmlun5p kernel: printk: legacy console [ttyS0] enabled
+Sep 12 17:00:14 runnervmlun5p kernel: printk: legacy bootconsole [earlyser0] disabled
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Core revision 20250404
+Sep 12 17:00:14 runnervmlun5p kernel: Failed to register legacy timer interrupt
+Sep 12 17:00:14 runnervmlun5p kernel: APIC: Switch to symmetric I/O mode setup
+Sep 12 17:00:14 runnervmlun5p kernel: Hyper-V: Host Build 10.0.26102.3642-3-0
+Sep 12 17:00:14 runnervmlun5p kernel: Hyper-V: enabling crash_kexec_post_notifiers
+Sep 12 17:00:14 runnervmlun5p kernel: Hyper-V: Using IPI hypercalls
+Sep 12 17:00:14 runnervmlun5p kernel: APIC: send_IPI() replaced with hv_send_ipi()
+Sep 12 17:00:14 runnervmlun5p kernel: APIC: send_IPI_mask() replaced with hv_send_ipi_mask()
+Sep 12 17:00:14 runnervmlun5p kernel: APIC: send_IPI_mask_allbutself() replaced with hv_send_ipi_mask_allbutself()
+Sep 12 17:00:14 runnervmlun5p kernel: APIC: send_IPI_allbutself() replaced with hv_send_ipi_allbutself()
+Sep 12 17:00:14 runnervmlun5p kernel: APIC: send_IPI_all() replaced with hv_send_ipi_all()
+Sep 12 17:00:14 runnervmlun5p kernel: APIC: send_IPI_self() replaced with hv_send_ipi_self()
+Sep 12 17:00:14 runnervmlun5p kernel: Hyper-V: Using enlightened APIC (xapic mode)
+Sep 12 17:00:14 runnervmlun5p kernel: APIC: eoi() replaced with hv_apic_eoi_write()
+Sep 12 17:00:14 runnervmlun5p kernel: APIC: read() replaced with hv_apic_read()
+Sep 12 17:00:14 runnervmlun5p kernel: APIC: write() replaced with hv_apic_write()
+Sep 12 17:00:14 runnervmlun5p kernel: APIC: icr_write() replaced with hv_apic_icr_write()
+Sep 12 17:00:14 runnervmlun5p kernel: APIC: icr_read() replaced with hv_apic_icr_read()
+Sep 12 17:00:14 runnervmlun5p kernel: clocksource: tsc-early: mask: 0xffffffffffffffff max_cycles: 0x233fd8a313f, max_idle_ns: 440795252855 ns
+Sep 12 17:00:14 runnervmlun5p kernel: Calibrating delay loop (skipped), value calculated using timer frequency.. 4890.85 BogoMIPS (lpj=2445427)
+Sep 12 17:00:14 runnervmlun5p kernel: x86/cpu: User Mode Instruction Prevention (UMIP) activated
+Sep 12 17:00:14 runnervmlun5p kernel: Last level iTLB entries: 4KB 512, 2MB 512, 4MB 256
+Sep 12 17:00:14 runnervmlun5p kernel: Last level dTLB entries: 4KB 2048, 2MB 2048, 4MB 1024, 1GB 0
+Sep 12 17:00:14 runnervmlun5p kernel: mitigations: Enabled attack vectors: user_kernel, user_user, guest_host, guest_guest, SMT mitigations: auto
+Sep 12 17:00:14 runnervmlun5p kernel: Speculative Store Bypass: Vulnerable
+Sep 12 17:00:14 runnervmlun5p kernel: Speculative Return Stack Overflow: IBPB-extending microcode not applied!
+Sep 12 17:00:14 runnervmlun5p kernel: Speculative Return Stack Overflow: WARNING: See https://kernel.org/doc/html/latest/admin-guide/hw-vuln/srso.html for mitigation options.
+Sep 12 17:00:14 runnervmlun5p kernel: Transient Scheduler Attacks: Vulnerable: No microcode
+Sep 12 17:00:14 runnervmlun5p kernel: Spectre V2 : Mitigation: Retpolines
+Sep 12 17:00:14 runnervmlun5p kernel: Speculative Return Stack Overflow: Vulnerable: Safe RET, no microcode
+Sep 12 17:00:14 runnervmlun5p kernel: Spectre V1 : Mitigation: usercopy/swapgs barriers and __user pointer sanitization
+Sep 12 17:00:14 runnervmlun5p kernel: Spectre V2 : Spectre v2 / SpectreRSB: Filling RSB on context switch and VMEXIT
+Sep 12 17:00:14 runnervmlun5p kernel: active return thunk: srso_alias_return_thunk
+Sep 12 17:00:14 runnervmlun5p kernel: x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
+Sep 12 17:00:14 runnervmlun5p kernel: x86/fpu: Supporting XSAVE feature 0x002: 'SSE registers'
+Sep 12 17:00:14 runnervmlun5p kernel: x86/fpu: Supporting XSAVE feature 0x004: 'AVX registers'
+Sep 12 17:00:14 runnervmlun5p kernel: x86/fpu: Supporting XSAVE feature 0x800: 'Control-flow User registers'
+Sep 12 17:00:14 runnervmlun5p kernel: x86/fpu: Supporting XSAVE feature 0x1000: 'Control-flow Kernel registers (KVM only)'
+Sep 12 17:00:14 runnervmlun5p kernel: x86/fpu: xstate_offset[2]:  576, xstate_sizes[2]:  256
+Sep 12 17:00:14 runnervmlun5p kernel: x86/fpu: xstate_offset[11]:  832, xstate_sizes[11]:   16
+Sep 12 17:00:14 runnervmlun5p kernel: x86/fpu: xstate_offset[12]:  848, xstate_sizes[12]:   24
+Sep 12 17:00:14 runnervmlun5p kernel: x86/fpu: Enabled xstate features 0x1807, context size is 872 bytes, using 'compacted' format.
+Sep 12 17:00:14 runnervmlun5p kernel: Freeing SMP alternatives memory: 52K
+Sep 12 17:00:14 runnervmlun5p kernel: pid_max: default: 32768 minimum: 301
+Sep 12 17:00:14 runnervmlun5p kernel: LSM: initializing lsm=lockdown,capability,landlock,yama,apparmor,ima,evm
+Sep 12 17:00:14 runnervmlun5p kernel: landlock: Up and running.
+Sep 12 17:00:14 runnervmlun5p kernel: Yama: becoming mindful.
+Sep 12 17:00:14 runnervmlun5p kernel: AppArmor: AppArmor initialized
+Sep 12 17:00:14 runnervmlun5p kernel: Mount-cache hash table entries: 32768 (order: 6, 262144 bytes, linear)
+Sep 12 17:00:14 runnervmlun5p kernel: Mountpoint-cache hash table entries: 32768 (order: 6, 262144 bytes, linear)
+Sep 12 17:00:14 runnervmlun5p kernel: smpboot: CPU0: AMD EPYC 7763 64-Core Processor (family: 0x19, model: 0x1, stepping: 0x1)
+Sep 12 17:00:14 runnervmlun5p kernel: Performance Events: PMU not available due to virtualization, using software events only.
+Sep 12 17:00:14 runnervmlun5p kernel: signal: max sigframe size: 1776
+Sep 12 17:00:14 runnervmlun5p kernel: rcu: Hierarchical SRCU implementation.
+Sep 12 17:00:14 runnervmlun5p kernel: rcu:         Max phase no-delay instances is 400.
+Sep 12 17:00:14 runnervmlun5p kernel: Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+Sep 12 17:00:14 runnervmlun5p kernel: NMI watchdog: Perf NMI watchdog permanently disabled
+Sep 12 17:00:14 runnervmlun5p kernel: smp: Bringing up secondary CPUs ...
+Sep 12 17:00:14 runnervmlun5p kernel: smpboot: x86: Booting SMP configuration:
+Sep 12 17:00:14 runnervmlun5p kernel: .... node  #0, CPUs:      #2 #1 #3
+Sep 12 17:00:14 runnervmlun5p kernel: smp: Brought up 1 node, 4 CPUs
+Sep 12 17:00:14 runnervmlun5p kernel: smpboot: Total of 4 processors activated (19563.41 BogoMIPS)
+Sep 12 17:00:14 runnervmlun5p kernel: Memory: 16354528K/16771836K available (20796K kernel code, 4555K rwdata, 15032K rodata, 5012K init, 4564K bss, 408504K reserved, 0K cma-reserved)
+Sep 12 17:00:14 runnervmlun5p kernel: devtmpfs: initialized
+Sep 12 17:00:14 runnervmlun5p kernel: x86/mm: Memory block size: 128MB
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: PM: Registering ACPI NVS region [mem 0x3fffb000-0x3fffefff] (16384 bytes)
+Sep 12 17:00:14 runnervmlun5p kernel: clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1911260446275000 ns
+Sep 12 17:00:14 runnervmlun5p kernel: posixtimers hash table entries: 2048 (order: 3, 32768 bytes, linear)
+Sep 12 17:00:14 runnervmlun5p kernel: futex hash table entries: 1024 (65536 bytes on 1 NUMA nodes, total 64 KiB, linear).
+Sep 12 17:00:14 runnervmlun5p kernel: pinctrl core: initialized pinctrl subsystem
+Sep 12 17:00:14 runnervmlun5p kernel: PM: RTC time: 17:00:09, date: 2026-09-12
+Sep 12 17:00:14 runnervmlun5p kernel: NET: Registered PF_NETLINK/PF_ROUTE protocol family
+Sep 12 17:00:14 runnervmlun5p kernel: DMA: preallocated 2048 KiB GFP_KERNEL pool for atomic allocations
+Sep 12 17:00:14 runnervmlun5p kernel: DMA: preallocated 2048 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+Sep 12 17:00:14 runnervmlun5p kernel: DMA: preallocated 2048 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+Sep 12 17:00:14 runnervmlun5p kernel: audit: initializing netlink subsys (disabled)
+Sep 12 17:00:14 runnervmlun5p kernel: audit: type=2000 audit(1789232409.037:1): state=initialized audit_enabled=0 res=1
+Sep 12 17:00:14 runnervmlun5p kernel: thermal_sys: Registered thermal governor 'fair_share'
+Sep 12 17:00:14 runnervmlun5p kernel: thermal_sys: Registered thermal governor 'bang_bang'
+Sep 12 17:00:14 runnervmlun5p kernel: thermal_sys: Registered thermal governor 'step_wise'
+Sep 12 17:00:14 runnervmlun5p kernel: thermal_sys: Registered thermal governor 'user_space'
+Sep 12 17:00:14 runnervmlun5p kernel: thermal_sys: Registered thermal governor 'power_allocator'
+Sep 12 17:00:14 runnervmlun5p kernel: cpuidle: using governor ladder
+Sep 12 17:00:14 runnervmlun5p kernel: cpuidle: using governor menu
+Sep 12 17:00:14 runnervmlun5p kernel: acpiphp: ACPI Hot Plug PCI Controller Driver version: 0.5
+Sep 12 17:00:14 runnervmlun5p kernel: e820: reserve RAM buffer [mem 0x044fe000-0x07ffffff]
+Sep 12 17:00:14 runnervmlun5p kernel: e820: reserve RAM buffer [mem 0x3ff1f000-0x3fffffff]
+Sep 12 17:00:14 runnervmlun5p kernel: kprobes: kprobe jump-optimization is enabled. All kprobes are optimized if possible.
+Sep 12 17:00:14 runnervmlun5p kernel: HugeTLB: registered 1.00 GiB page size, pre-allocated 0 pages
+Sep 12 17:00:14 runnervmlun5p kernel: HugeTLB: 16380 KiB vmemmap can be freed for a 1.00 GiB page
+Sep 12 17:00:14 runnervmlun5p kernel: HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+Sep 12 17:00:14 runnervmlun5p kernel: HugeTLB: 28 KiB vmemmap can be freed for a 2.00 MiB page
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Added _OSI(Module Device)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Added _OSI(Processor Device)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Added _OSI(Processor Aggregator Device)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: 1 ACPI AML tables successfully acquired and loaded
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Interpreter enabled
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: PM: (supports S0 S5)
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Using IOAPIC for interrupt routing
+Sep 12 17:00:14 runnervmlun5p kernel: PCI: Using host bridge windows from ACPI; if necessary, use "pci=nocrs" and report a bug
+Sep 12 17:00:14 runnervmlun5p kernel: PCI: Ignoring E820 reservations for host bridge windows
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: Enabled 1 GPEs in block 00 to 0F
+Sep 12 17:00:14 runnervmlun5p kernel: iommu: Default domain type: Translated
+Sep 12 17:00:14 runnervmlun5p kernel: iommu: DMA domain TLB invalidation policy: lazy mode
+Sep 12 17:00:14 runnervmlun5p kernel: SCSI subsystem initialized
+Sep 12 17:00:14 runnervmlun5p kernel: libata version 3.00 loaded.
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: bus type USB registered
+Sep 12 17:00:14 runnervmlun5p kernel: usbcore: registered new interface driver usbfs
+Sep 12 17:00:14 runnervmlun5p kernel: usbcore: registered new interface driver hub
+Sep 12 17:00:14 runnervmlun5p kernel: usbcore: registered new device driver usb
+Sep 12 17:00:14 runnervmlun5p kernel: pps_core: LinuxPPS API ver. 1 registered
+Sep 12 17:00:14 runnervmlun5p kernel: pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+Sep 12 17:00:14 runnervmlun5p kernel: PTP clock support registered
+Sep 12 17:00:14 runnervmlun5p kernel: EDAC MC: Ver: 3.0.0
+Sep 12 17:00:14 runnervmlun5p kernel: efivars: Registered efivars operations
+Sep 12 17:00:14 runnervmlun5p kernel: hv_vmbus: hv_mmio=[mem 0x40000000-0xfed3ffff],[mem 0xfc0000000-0xfffffffff] fb=[mem 0x40000000-0x47ffffff]
+Sep 12 17:00:14 runnervmlun5p kernel: hv_vmbus: Vmbus version:5.3
+Sep 12 17:00:14 runnervmlun5p kernel: NetLabel: Initializing
+Sep 12 17:00:14 runnervmlun5p kernel: NetLabel:  domain hash size = 128
+Sep 12 17:00:14 runnervmlun5p kernel: NetLabel:  protocols = UNLABELED CIPSOv4 CALIPSO
+Sep 12 17:00:14 runnervmlun5p kernel: NetLabel:  unlabeled traffic allowed by default
+Sep 12 17:00:14 runnervmlun5p kernel: mctp: management component transport protocol core
+Sep 12 17:00:14 runnervmlun5p kernel: NET: Registered PF_MCTP protocol family
+Sep 12 17:00:14 runnervmlun5p kernel: PCI: Using ACPI for IRQ routing
+Sep 12 17:00:14 runnervmlun5p kernel: PCI: System does not support PCI
+Sep 12 17:00:14 runnervmlun5p kernel: vgaarb: loaded
+Sep 12 17:00:14 runnervmlun5p kernel: clocksource: Switched to clocksource tsc-early
+Sep 12 17:00:14 runnervmlun5p kernel: VFS: Disk quotas dquot_6.6.0
+Sep 12 17:00:14 runnervmlun5p kernel: VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+Sep 12 17:00:14 runnervmlun5p kernel: AppArmor: AppArmor Filesystem Enabled
+Sep 12 17:00:14 runnervmlun5p kernel: pnp: PnP ACPI init
+Sep 12 17:00:14 runnervmlun5p kernel: pnp: PnP ACPI: found 3 devices
+Sep 12 17:00:14 runnervmlun5p kernel: clocksource: acpi_pm: mask: 0xffffff max_cycles: 0xffffff, max_idle_ns: 2085701024 ns
+Sep 12 17:00:14 runnervmlun5p kernel: NET: Registered PF_INET protocol family
+Sep 12 17:00:14 runnervmlun5p kernel: IP idents hash table entries: 262144 (order: 9, 2097152 bytes, linear)
+Sep 12 17:00:14 runnervmlun5p kernel: tcp_listen_portaddr_hash hash table entries: 8192 (order: 5, 131072 bytes, linear)
+Sep 12 17:00:14 runnervmlun5p kernel: Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+Sep 12 17:00:14 runnervmlun5p kernel: TCP established hash table entries: 131072 (order: 8, 1048576 bytes, linear)
+Sep 12 17:00:14 runnervmlun5p kernel: TCP bind hash table entries: 65536 (order: 9, 2097152 bytes, linear)
+Sep 12 17:00:14 runnervmlun5p kernel: TCP: Hash tables configured (established 131072 bind 65536)
+Sep 12 17:00:14 runnervmlun5p kernel: MPTCP token hash table entries: 16384 (order: 7, 393216 bytes, linear)
+Sep 12 17:00:14 runnervmlun5p kernel: UDP hash table entries: 8192 (order: 7, 524288 bytes, linear)
+Sep 12 17:00:14 runnervmlun5p kernel: UDP-Lite hash table entries: 8192 (order: 7, 524288 bytes, linear)
+Sep 12 17:00:14 runnervmlun5p kernel: NET: Registered PF_UNIX/PF_LOCAL protocol family
+Sep 12 17:00:14 runnervmlun5p kernel: NET: Registered PF_XDP protocol family
+Sep 12 17:00:14 runnervmlun5p kernel: PCI: CLS 0 bytes, default 64
+Sep 12 17:00:14 runnervmlun5p kernel: PCI-DMA: Using software bounce buffering for IO (SWIOTLB)
+Sep 12 17:00:14 runnervmlun5p kernel: software IO TLB: mapped [mem 0x000000003a878000-0x000000003e878000] (64MB)
+Sep 12 17:00:14 runnervmlun5p kernel: clocksource: tsc: mask: 0xffffffffffffffff max_cycles: 0x233fd8a313f, max_idle_ns: 440795252855 ns
+Sep 12 17:00:14 runnervmlun5p kernel: clocksource: Switched to clocksource tsc
+Sep 12 17:00:14 runnervmlun5p kernel: Initialise system trusted keyrings
+Sep 12 17:00:14 runnervmlun5p kernel: Key type blacklist registered
+Sep 12 17:00:14 runnervmlun5p kernel: workingset: timestamp_bits=36 max_order=22 bucket_order=0
+Sep 12 17:00:14 runnervmlun5p kernel: squashfs: version 4.0 (2009/01/31) Phillip Lougher
+Sep 12 17:00:14 runnervmlun5p kernel: fuse: init (API version 7.44)
+Sep 12 17:00:14 runnervmlun5p kernel: integrity: Platform Keyring initialized
+Sep 12 17:00:14 runnervmlun5p kernel: integrity: Machine keyring initialized
+Sep 12 17:00:14 runnervmlun5p kernel: Key type asymmetric registered
+Sep 12 17:00:14 runnervmlun5p kernel: Asymmetric key parser 'x509' registered
+Sep 12 17:00:14 runnervmlun5p kernel: Block layer SCSI generic (bsg) driver version 0.4 loaded (major 243)
+Sep 12 17:00:14 runnervmlun5p kernel: io scheduler mq-deadline registered
+Sep 12 17:00:14 runnervmlun5p kernel: hv_vmbus: registering driver hv_pci
+Sep 12 17:00:14 runnervmlun5p kernel: Could not retrieve perf counters (-19)
+Sep 12 17:00:14 runnervmlun5p kernel: Serial: 8250/16550 driver, 32 ports, IRQ sharing enabled
+Sep 12 17:00:14 runnervmlun5p kernel: 00:00: ttyS0 at I/O 0x3f8 (irq = 4, base_baud = 115200) is a 16550A
+Sep 12 17:00:14 runnervmlun5p kernel: 00:01: ttyS1 at I/O 0x2f8 (irq = 3, base_baud = 115200) is a 16550A
+Sep 12 17:00:14 runnervmlun5p kernel: Linux agpgart interface v0.103
+Sep 12 17:00:14 runnervmlun5p kernel: loop: module loaded
+Sep 12 17:00:14 runnervmlun5p kernel: hv_vmbus: registering driver hv_storvsc
+Sep 12 17:00:14 runnervmlun5p kernel: Key type psk registered
+Sep 12 17:00:14 runnervmlun5p kernel: scsi host0: storvsc_host_t
+Sep 12 17:00:14 runnervmlun5p kernel: scsi host1: storvsc_host_t
+Sep 12 17:00:14 runnervmlun5p kernel: ACPI: bus type drm_connector registered
+Sep 12 17:00:14 runnervmlun5p kernel: tun: Universal TUN/TAP device driver, 1.6
+Sep 12 17:00:14 runnervmlun5p kernel: PPP generic driver version 2.4.2
+Sep 12 17:00:14 runnervmlun5p kernel: i8042: PNP: No PS/2 controller found.
+Sep 12 17:00:14 runnervmlun5p kernel: mousedev: PS/2 mouse device common for all mice
+Sep 12 17:00:14 runnervmlun5p kernel: scsi 0:0:0:0: Direct-Access     Msft     Virtual Disk     1.0  PQ: 0 ANSI: 5
+Sep 12 17:00:14 runnervmlun5p kernel: rtc_cmos 00:02: registered as rtc0
+Sep 12 17:00:14 runnervmlun5p kernel: rtc_cmos 00:02: setting system clock to 2026-09-12T17:00:10 UTC (1789232410)
+Sep 12 17:00:14 runnervmlun5p kernel: rtc_cmos 00:02: alarms up to one month, 114 bytes nvram
+Sep 12 17:00:14 runnervmlun5p kernel: sd 0:0:0:0: Attached scsi generic sg0 type 0
+Sep 12 17:00:14 runnervmlun5p kernel: device-mapper: core: CONFIG_IMA_DISABLE_HTABLE is disabled. Duplicate IMA measurements will not be recorded in the IMA log.
+Sep 12 17:00:14 runnervmlun5p kernel: sd 0:0:0:0: [sda] 314572800 512-byte logical blocks: (161 GB/150 GiB)
+Sep 12 17:00:14 runnervmlun5p kernel: device-mapper: uevent: version 1.0.3
+Sep 12 17:00:14 runnervmlun5p kernel: sd 0:0:0:0: [sda] 4096-byte physical blocks
+Sep 12 17:00:14 runnervmlun5p kernel: sd 0:0:0:0: [sda] Write Protect is off
+Sep 12 17:00:14 runnervmlun5p kernel: device-mapper: ioctl: 4.50.0-ioctl (2025-04-28) initialised: dm-devel@lists.linux.dev
+Sep 12 17:00:14 runnervmlun5p kernel: sd 0:0:0:0: [sda] Mode Sense: 0f 00 10 00
+Sep 12 17:00:14 runnervmlun5p kernel: sd 0:0:0:0: [sda] Write cache: disabled, read cache: enabled, supports DPO and FUA
+Sep 12 17:00:14 runnervmlun5p kernel: amd_pstate: the _CPC object is not present in SBIOS or ACPI disabled
+Sep 12 17:00:14 runnervmlun5p kernel: simple-framebuffer simple-framebuffer.0: [drm] Registered 1 planes with drm panic
+Sep 12 17:00:14 runnervmlun5p kernel: [drm] Initialized simpledrm 1.0.0 for simple-framebuffer.0 on minor 0
+Sep 12 17:00:14 runnervmlun5p kernel: Console: switching to colour frame buffer device 128x48
+Sep 12 17:00:14 runnervmlun5p kernel: simple-framebuffer simple-framebuffer.0: [drm] fb0: simpledrmdrmfb frame buffer device
+Sep 12 17:00:14 runnervmlun5p kernel: hv_utils: Registering HyperV Utility Driver
+Sep 12 17:00:14 runnervmlun5p kernel: hv_vmbus: registering driver hv_utils
+Sep 12 17:00:14 runnervmlun5p kernel: hv_vmbus: registering driver hv_balloon
+Sep 12 17:00:14 runnervmlun5p kernel: hv_utils: Heartbeat IC version 3.0
+Sep 12 17:00:14 runnervmlun5p kernel: drop_monitor: Initializing network drop monitor service
+Sep 12 17:00:14 runnervmlun5p kernel: hv_utils: Shutdown IC version 3.2
+Sep 12 17:00:14 runnervmlun5p kernel: NET: Registered PF_INET6 protocol family
+Sep 12 17:00:14 runnervmlun5p kernel: hv_utils: TimeSync IC version 4.0
+Sep 12 17:00:14 runnervmlun5p kernel: hv_balloon: Using Dynamic Memory protocol version 2.0
+Sep 12 17:00:14 runnervmlun5p kernel: Segment Routing with IPv6
+Sep 12 17:00:14 runnervmlun5p kernel: GPT:Primary header thinks Alt. header is not at the end of the disk.
+Sep 12 17:00:14 runnervmlun5p kernel: GPT:157286399 != 314572799
+Sep 12 17:00:14 runnervmlun5p kernel: GPT:Alternate GPT header not at the end of the disk.
+Sep 12 17:00:14 runnervmlun5p kernel: GPT:157286399 != 314572799
+Sep 12 17:00:14 runnervmlun5p kernel: GPT: Use GNU Parted to correct GPT errors.
+Sep 12 17:00:14 runnervmlun5p kernel:  sda: sda1 sda14 sda15 sda16
+Sep 12 17:00:14 runnervmlun5p kernel: sd 0:0:0:0: [sda] Attached SCSI disk
+Sep 12 17:00:14 runnervmlun5p kernel: In-situ OAM (IOAM) with IPv6
+Sep 12 17:00:14 runnervmlun5p kernel: NET: Registered PF_PACKET protocol family
+Sep 12 17:00:14 runnervmlun5p kernel: Key type dns_resolver registered
+Sep 12 17:00:14 runnervmlun5p kernel: IPI shorthand broadcast: enabled
+Sep 12 17:00:14 runnervmlun5p kernel: sched_clock: Marking stable (1055007451, 125413448)->(1406967720, -226546821)
+Sep 12 17:00:14 runnervmlun5p kernel: registered taskstats version 1
+Sep 12 17:00:14 runnervmlun5p kernel: Loading compiled-in X.509 certificates
+Sep 12 17:00:14 runnervmlun5p kernel: Loaded X.509 cert 'Build time autogenerated kernel key: 065297426b539473ebb52dc77cb1d219897fd899'
+Sep 12 17:00:14 runnervmlun5p kernel: Loaded X.509 cert 'Canonical Ltd. Live Patch Signing 2025 Kmod: d541cef61dc7e793b7eb7e899970a2eef0b5dc8c'
+Sep 12 17:00:14 runnervmlun5p kernel: Loaded X.509 cert 'Canonical Ltd. Live Patch Signing: 14df34d1a87cf37625abec039ef2bf521249b969'
+Sep 12 17:00:14 runnervmlun5p kernel: Loaded X.509 cert 'Canonical Ltd. Kernel Module Signing 2025 Kmod: 4627603d2357a2a3f81006370894c221175893e9'
+Sep 12 17:00:14 runnervmlun5p kernel: Loaded X.509 cert 'Canonical Ltd. Kernel Module Signing: 88f752e560a1e0737e31163a466ad7b70a850c19'
+Sep 12 17:00:14 runnervmlun5p kernel: blacklist: Loading compiled-in revocation X.509 certificates
+Sep 12 17:00:14 runnervmlun5p kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing: 61482aa2830d0ab2ad5af10b7250da9033ddcef0'
+Sep 12 17:00:14 runnervmlun5p kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2017): 242ade75ac4a15e50d50c84b0d45ff3eae707a03'
+Sep 12 17:00:14 runnervmlun5p kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (ESM 2018): 365188c1d374d6b07c3c8f240f8ef722433d6a8b'
+Sep 12 17:00:14 runnervmlun5p kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2019): c0746fd6c5da3ae827864651ad66ae47fe24b3e8'
+Sep 12 17:00:14 runnervmlun5p kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v1): a8d54bbb3825cfb94fa13c9f8a594a195c107b8d'
+Sep 12 17:00:14 runnervmlun5p kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v2): 4cf046892d6fd3c9a5b03f98d845f90851dc6a8c'
+Sep 12 17:00:14 runnervmlun5p kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v3): 100437bb6de6e469b581e61cd66bce3ef4ed53af'
+Sep 12 17:00:14 runnervmlun5p kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (Ubuntu Core 2019): c1d57b8f6b743f23ee41f4f7ee292f06eecadfb9'
+Sep 12 17:00:14 runnervmlun5p kernel: Demotion targets for Node 0: null
+Sep 12 17:00:14 runnervmlun5p kernel: Key type .fscrypt registered
+Sep 12 17:00:14 runnervmlun5p kernel: Key type fscrypt-provisioning registered
+Sep 12 17:00:14 runnervmlun5p kernel: Key type big_key registered
+Sep 12 17:00:14 runnervmlun5p kernel: Key type encrypted registered
+Sep 12 17:00:14 runnervmlun5p kernel: AppArmor: AppArmor sha256 policy hashing enabled
+Sep 12 17:00:14 runnervmlun5p kernel: integrity: Loading X.509 certificate: UEFI:db
+Sep 12 17:00:14 runnervmlun5p kernel: integrity: Loaded X.509 cert 'Microsoft Windows Production PCA 2011: a92902398e16c49778cd90f99e4f9ae17c55af53'
+Sep 12 17:00:14 runnervmlun5p kernel: integrity: Loading X.509 certificate: UEFI:db
+Sep 12 17:00:14 runnervmlun5p kernel: integrity: Loaded X.509 cert 'Microsoft Corporation: Windows UEFI CA 2023: aefc5fbbbe055d8f8daa585473499417ab5a5272'
+Sep 12 17:00:14 runnervmlun5p kernel: ima: No TPM chip found, activating TPM-bypass!
+Sep 12 17:00:14 runnervmlun5p kernel: Loading compiled-in module X.509 certificates
+Sep 12 17:00:14 runnervmlun5p kernel: Loaded X.509 cert 'Build time autogenerated kernel key: 065297426b539473ebb52dc77cb1d219897fd899'
+Sep 12 17:00:14 runnervmlun5p kernel: ima: Allocated hash algorithm: sha256
+Sep 12 17:00:14 runnervmlun5p kernel: ima: No architecture policies found
+Sep 12 17:00:14 runnervmlun5p kernel: evm: Initialising EVM extended attributes:
+Sep 12 17:00:14 runnervmlun5p kernel: evm: security.selinux
+Sep 12 17:00:14 runnervmlun5p kernel: evm: security.SMACK64
+Sep 12 17:00:14 runnervmlun5p kernel: evm: security.SMACK64EXEC
+Sep 12 17:00:14 runnervmlun5p kernel: evm: security.SMACK64TRANSMUTE
+Sep 12 17:00:14 runnervmlun5p kernel: evm: security.SMACK64MMAP
+Sep 12 17:00:14 runnervmlun5p kernel: evm: security.apparmor
+Sep 12 17:00:14 runnervmlun5p kernel: evm: security.ima
+Sep 12 17:00:14 runnervmlun5p kernel: evm: security.capability
+Sep 12 17:00:14 runnervmlun5p kernel: evm: HMAC attrs: 0x1
+Sep 12 17:00:14 runnervmlun5p kernel: PM:   Magic number: 10:684:36
+Sep 12 17:00:14 runnervmlun5p kernel: bdi 7:1: hash matches
+Sep 12 17:00:14 runnervmlun5p kernel: misc loop-control: hash matches
+Sep 12 17:00:14 runnervmlun5p kernel: memory memory72: hash matches
+Sep 12 17:00:14 runnervmlun5p kernel: RAS: Correctable Errors collector initialized.
+Sep 12 17:00:14 runnervmlun5p kernel: clk: Disabling unused clocks
+Sep 12 17:00:14 runnervmlun5p kernel: PM: genpd: Disabling unused power domains
+Sep 12 17:00:14 runnervmlun5p kernel: check access for rdinit=/init failed: -2, ignoring
+Sep 12 17:00:14 runnervmlun5p kernel: md: Waiting for all devices to be available before autodetect
+Sep 12 17:00:14 runnervmlun5p kernel: md: If you don't use raid, use raid=noautodetect
+Sep 12 17:00:14 runnervmlun5p kernel: md: Autodetecting RAID arrays.
+Sep 12 17:00:14 runnervmlun5p kernel: md: autorun ...
+Sep 12 17:00:14 runnervmlun5p kernel: md: ... autorun DONE.
+Sep 12 17:00:14 runnervmlun5p kernel: EXT4-fs (sda1): mounted filesystem f7e32da7-93ed-4050-9486-92a4b806e399 ro with ordered data mode. Quota mode: none.
+Sep 12 17:00:14 runnervmlun5p kernel: VFS: Mounted root (ext4 filesystem) readonly on device 8:1.
+Sep 12 17:00:14 runnervmlun5p kernel: devtmpfs: mounted
+Sep 12 17:00:14 runnervmlun5p kernel: Freeing unused decrypted memory: 2028K
+Sep 12 17:00:14 runnervmlun5p kernel: Freeing unused kernel image (initmem) memory: 5012K
+Sep 12 17:00:14 runnervmlun5p kernel: Write protecting the kernel read-only data: 38912k
+Sep 12 17:00:14 runnervmlun5p kernel: Freeing unused kernel image (text/rodata gap) memory: 1728K
+Sep 12 17:00:14 runnervmlun5p kernel: Freeing unused kernel image (rodata/data gap) memory: 1352K
+Sep 12 17:00:14 runnervmlun5p kernel: x86/mm: Checked W+X mappings: passed, no W+X pages found.
+Sep 12 17:00:14 runnervmlun5p kernel: Run /sbin/init as init process
+Sep 12 17:00:14 runnervmlun5p kernel:   with arguments:
+Sep 12 17:00:14 runnervmlun5p kernel:     /sbin/init
+Sep 12 17:00:14 runnervmlun5p kernel:   with environment:
+Sep 12 17:00:14 runnervmlun5p kernel:     HOME=/
+Sep 12 17:00:14 runnervmlun5p kernel:     TERM=linux
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Inserted module 'autofs4'
+Sep 12 17:00:14 runnervmlun5p systemd[1]: systemd 255.4-1ubuntu8.17 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Detected virtualization microsoft.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Detected architecture x86-64.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Hostname set to <runnervmlun5p>.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Queued start job for default target graphical.target.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Unnecessary job was removed for sys-devices-virtual-misc-vmbus\x21hv_fcopy.device - /sys/devices/virtual/misc/vmbus!hv_fcopy.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Unnecessary job was removed for sys-devices-virtual-misc-vmbus\x21hv_vss.device - /sys/devices/virtual/misc/vmbus!hv_vss.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Created slice azure.slice - Slice for Azure VM Agent and Extensions.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Created slice system-modprobe.slice - Slice /system/modprobe.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Created slice system-serial\x2dgetty.slice - Slice /system/serial-getty.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Created slice system-systemd\x2dfsck.slice - Slice /system/systemd-fsck.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Created slice user.slice - User and Session Slice.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Started systemd-ask-password-wall.path - Forward Password Requests to Wall Directory Watch.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Set up automount proc-sys-fs-binfmt_misc.automount - Arbitrary Executable File Formats File System Automount Point.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Expecting device dev-disk-by\x2dlabel-BOOT.device - /dev/disk/by-label/BOOT...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Expecting device dev-disk-by\x2duuid-AE5C\x2dA3ED.device - /dev/disk/by-uuid/AE5C-A3ED...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Expecting device dev-ttyS0.device - /dev/ttyS0...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Expecting device sys-devices-virtual-misc-vmbus\x21hv_kvp.device - /sys/devices/virtual/misc/vmbus!hv_kvp...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Reached target integritysetup.target - Local Integrity Protected Volumes.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Reached target slices.target - Slice Units.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Reached target snapd.mounts-pre.target - Mounting snaps.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Reached target snapd.mounts.target - Mounted snaps.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Reached target swap.target - Swaps.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Reached target time-set.target - System Time Set.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Reached target veritysetup.target - Local Verity Protected Volumes.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Listening on dm-event.socket - Device-mapper event daemon FIFOs.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Listening on lvm2-lvmpolld.socket - LVM2 poll daemon socket.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Listening on multipathd.socket - multipathd control socket.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Listening on syslog.socket - Syslog Socket.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Listening on systemd-coredump.socket - Process Core Dump Socket.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Listening on systemd-fsckd.socket - fsck to fsckd communication Socket.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Listening on systemd-initctl.socket - initctl Compatibility Named Pipe.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Listening on systemd-journald-dev-log.socket - Journal Socket (/dev/log).
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Listening on systemd-journald.socket - Journal Socket.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Listening on systemd-networkd.socket - Network Service Netlink Socket.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: systemd-pcrextend.socket - TPM2 PCR Extension (Varlink) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Listening on systemd-udevd-control.socket - udev Control Socket.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Listening on systemd-udevd-kernel.socket - udev Kernel Socket.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Mounting dev-hugepages.mount - Huge Pages File System...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Mounting dev-mqueue.mount - POSIX Message Queue File System...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Mounting sys-kernel-debug.mount - Kernel Debug File System...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Mounting sys-kernel-tracing.mount - Kernel Trace File System...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Starting systemd-journald.service - Journal Service...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Starting keyboard-setup.service - Set the console keyboard layout...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Starting kmod-static-nodes.service - Create List of Static Device Nodes...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Starting lvm2-monitor.service - Monitoring of LVM2 mirrors, snapshots etc. using dmeventd or progress polling...
+Sep 12 17:00:14 runnervmlun5p systemd-journald[157]: Collecting audit messages is disabled.
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Starting modprobe@configfs.service - Load Kernel Module configfs...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Starting modprobe@dm_mod.service - Load Kernel Module dm_mod...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Starting modprobe@drm.service - Load Kernel Module drm...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Starting modprobe@fuse.service - Load Kernel Module fuse...
+Sep 12 17:00:14 runnervmlun5p kernel: pstore: Using crash dump compression: deflate
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Starting modprobe@loop.service - Load Kernel Module loop...
+Sep 12 17:00:14 runnervmlun5p kernel: pstore: Registered efi_pstore as persistent store backend
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Starting modprobe@nvme_fabrics.service - Load Kernel Module nvme_fabrics...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: netplan-ovs-cleanup.service - OpenVSwitch configuration for cleanup was skipped because of an unmet condition check (ConditionFileIsExecutable=/usr/bin/ovs-vsctl).
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Starting systemd-fsck-root.service - File System Check on Root Device...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Starting systemd-modules-load.service - Load Kernel Modules...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: systemd-pcrmachine.service - TPM2 PCR Machine ID Measurement was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+Sep 12 17:00:14 runnervmlun5p systemd[1]: systemd-tpm2-setup-early.service - TPM2 SRK Setup (Early) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+Sep 12 17:00:14 runnervmlun5p systemd[1]: Started systemd-journald.service - Journal Service.
+Sep 12 17:00:14 runnervmlun5p kernel: EXT4-fs (sda1): re-mounted f7e32da7-93ed-4050-9486-92a4b806e399 r/w.
+Sep 12 17:00:14 runnervmlun5p systemd-journald[157]: Received client request to flush runtime journal.
+Sep 12 17:00:14 runnervmlun5p systemd-journald[157]: /var/log/journal/58b34b8c91a94400a52c175421986a53/system.journal: Journal file uses a different sequence number ID, rotating.
+Sep 12 17:00:14 runnervmlun5p systemd-journald[157]: Rotating system journal.
+Sep 12 17:00:15 runnervmlun5p kernel: hv_vmbus: registering driver hv_netvsc
+Sep 12 17:00:15 runnervmlun5p kernel: hv_vmbus: registering driver hyperv_keyboard
+Sep 12 17:00:15 runnervmlun5p kernel: hv_vmbus: registering driver hyperv_drm
+Sep 12 17:00:15 runnervmlun5p kernel: input: AT Translated Set 2 keyboard as /devices/LNXSYSTM:00/LNXSYBUS:00/ACPI0004:00/MSFT1000:00/d34b2567-b9b6-42b9-8778-0a4ec0b955bf/serio0/input/input0
+Sep 12 17:00:15 runnervmlun5p kernel: hyperv_drm 5620e0c7-8062-4dce-aeb7-520c7ef76171: [drm] Synthvid Version major 3, minor 5
+Sep 12 17:00:15 runnervmlun5p kernel: hid: raw HID events driver (C) Jiri Kosina
+Sep 12 17:00:15 runnervmlun5p kernel: Console: switching to colour dummy device 80x25
+Sep 12 17:00:15 runnervmlun5p kernel: hyperv_drm 5620e0c7-8062-4dce-aeb7-520c7ef76171: [drm] Registered 1 planes with drm panic
+Sep 12 17:00:15 runnervmlun5p kernel: [drm] Initialized hyperv_drm 1.0.0 for 5620e0c7-8062-4dce-aeb7-520c7ef76171 on minor 1
+Sep 12 17:00:15 runnervmlun5p kernel: Console: switching to colour frame buffer device 128x48
+Sep 12 17:00:15 runnervmlun5p kernel: hyperv_drm 5620e0c7-8062-4dce-aeb7-520c7ef76171: [drm] fb0: hyperv_drmdrmfb frame buffer device
+Sep 12 17:00:15 runnervmlun5p kernel: hv_vmbus: registering driver hid_hyperv
+Sep 12 17:00:15 runnervmlun5p kernel: input: Microsoft Vmbus HID-compliant Mouse as /devices/0006:045E:0621.0001/input/input1
+Sep 12 17:00:15 runnervmlun5p kernel: hid-hyperv 0006:045E:0621.0001: input: VIRTUAL HID v0.01 Mouse [Microsoft Vmbus HID-compliant Mouse] on 
+Sep 12 17:00:15 runnervmlun5p kernel: kvm_amd: TSC scaling supported
+Sep 12 17:00:15 runnervmlun5p kernel: kvm_amd: Nested Virtualization enabled
+Sep 12 17:00:15 runnervmlun5p kernel: kvm_amd: Nested Paging enabled
+Sep 12 17:00:15 runnervmlun5p kernel: kvm_amd: kvm_amd: Hyper-V enlightened NPT TLB flush enabled
+Sep 12 17:00:15 runnervmlun5p kernel: kvm_amd: kvm_amd: Hyper-V Direct TLB Flush enabled
+Sep 12 17:00:15 runnervmlun5p kernel: kvm_amd: Virtual VMLOAD VMSAVE supported
+Sep 12 17:00:15 runnervmlun5p kernel: kvm_amd: PMU virtualization is disabled
+Sep 12 17:00:15 runnervmlun5p kernel: workqueue: drm_fb_helper_damage_work hogged CPU for >10000us 4 times, consider switching to WQ_UNBOUND
+Sep 12 17:00:16 runnervmlun5p kernel: workqueue: drm_fb_helper_damage_work hogged CPU for >10000us 5 times, consider switching to WQ_UNBOUND
+Sep 12 17:00:16 runnervmlun5p kernel: hv_utils: KVP IC version 4.0
+Sep 12 17:00:16 runnervmlun5p kernel: workqueue: drm_fb_helper_damage_work hogged CPU for >10000us 7 times, consider switching to WQ_UNBOUND
+Sep 12 17:00:16 runnervmlun5p kernel: EXT4-fs (sda16): mounted filesystem 8fd19a2f-9fcc-4f59-8afc-5742e512ab12 r/w with ordered data mode. Quota mode: none.
+Sep 12 17:00:16 runnervmlun5p kernel: audit: type=1400 audit(1789232416.713:2): apparmor="STATUS" operation="profile_load" profile="unconfined" name="Discord" pid=458 comm="apparmor_parser"
+Sep 12 17:00:16 runnervmlun5p kernel: audit: type=1400 audit(1789232416.713:3): apparmor="STATUS" operation="profile_load" profile="unconfined" name="QtWebEngineProcess" pid=460 comm="apparmor_parser"
+Sep 12 17:00:16 runnervmlun5p kernel: audit: type=1400 audit(1789232416.713:4): apparmor="STATUS" operation="profile_load" profile="unconfined" name=4D6F6E676F444220436F6D70617373 pid=459 comm="apparmor_parser"
+Sep 12 17:00:16 runnervmlun5p kernel: audit: type=1400 audit(1789232416.713:5): apparmor="STATUS" operation="profile_load" profile="unconfined" name="1password" pid=457 comm="apparmor_parser"
+Sep 12 17:00:16 runnervmlun5p kernel: audit: type=1400 audit(1789232416.713:6): apparmor="STATUS" operation="profile_load" profile="unconfined" name="balena-etcher" pid=461 comm="apparmor_parser"
+Sep 12 17:00:16 runnervmlun5p kernel: audit: type=1400 audit(1789232416.717:7): apparmor="STATUS" operation="profile_load" profile="unconfined" name="brave" pid=462 comm="apparmor_parser"
+Sep 12 17:00:16 runnervmlun5p kernel: audit: type=1400 audit(1789232416.717:8): apparmor="STATUS" operation="profile_load" profile="unconfined" name="buildah" pid=463 comm="apparmor_parser"
+Sep 12 17:00:16 runnervmlun5p kernel: audit: type=1400 audit(1789232416.717:9): apparmor="STATUS" operation="profile_load" profile="unconfined" name="cam" pid=464 comm="apparmor_parser"
+Sep 12 17:00:16 runnervmlun5p kernel: audit: type=1400 audit(1789232416.717:10): apparmor="STATUS" operation="profile_load" profile="unconfined" name="ch-run" pid=466 comm="apparmor_parser"
+Sep 12 17:00:17 runnervmlun5p kernel: /dev/sr0: Can't lookup blockdev
+Sep 12 17:00:17 runnervmlun5p kernel: 8021q: 802.1Q VLAN Support v1.8
+Sep 12 17:00:22 runnervmlun5p kernel: EXT4-fs (sda1): resizing filesystem from 19398395 to 39059195 blocks
+Sep 12 17:00:23 runnervmlun5p kernel: EXT4-fs (sda1): resized filesystem to 39059195
+Sep 12 17:00:24 runnervmlun5p kernel: kauditd_printk_skb: 113 callbacks suppressed
+Sep 12 17:00:24 runnervmlun5p kernel: audit: type=1400 audit(1789232424.601:124): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="rsyslogd" pid=1001 comm="apparmor_parser"
+Sep 12 17:00:24 runnervmlun5p kernel: evm: overlay not supported
+Sep 12 17:00:24 runnervmlun5p kernel: loop0: detected capacity change from 0 to 8
+Sep 12 17:00:25 runnervmlun5p kernel: audit: type=1400 audit(1789232425.163:125): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="/usr/lib/snapd/snap-confine" pid=1199 comm="apparmor_parser"
+Sep 12 17:00:25 runnervmlun5p systemd-journald[157]: /var/log/journal/58b34b8c91a94400a52c175421986a53/user-1001.journal: Journal file uses a different sequence number ID, rotating.
+Sep 12 17:00:25 runnervmlun5p kernel: audit: type=1400 audit(1789232425.500:126): apparmor="STATUS" operation="profile_load" profile="unconfined" name="docker-default" pid=1391 comm="apparmor_parser"
+Sep 12 17:00:25 runnervmlun5p kernel: Initializing XFRM netlink socket
+Sep 12 17:00:25 runnervmlun5p kernel: bridge: filtering via arp/ip/ip6tables is no longer available by default. Update your scripts to load br_netfilter if you need this.
+Sep 12 17:01:01 runnervmlun5p kernel: hv_balloon: Max. dynamic memory size: 16384 MB
+Sep 12 17:01:09 runnervmlun5p kernel: Adding 3145724k swap on /swapfile.  Priority:-2 extents:110 across:54919164k 
+Sep 12 17:01:09 runnervmlun5p kernel: hv_netvsc 000d3a30-1276-000d-3a30-1276000d3a30 eth0: VF slot 1 added
+Sep 12 17:01:09 runnervmlun5p kernel: hv_pci df7f4b8a-0f36-4eb0-a98c-3a3cb440a2df: PCI VMBus probing: Using version 0x10004
+Sep 12 17:01:09 runnervmlun5p kernel: hv_pci df7f4b8a-0f36-4eb0-a98c-3a3cb440a2df: PCI host bridge to bus 0f36:00
+Sep 12 17:01:09 runnervmlun5p kernel: pci_bus 0f36:00: root bus resource [mem 0xfc0000000-0xfc00fffff window]
+Sep 12 17:01:09 runnervmlun5p kernel: pci_bus 0f36:00: No busn resource found for root bus, will use [bus 00-ff]
+Sep 12 17:01:09 runnervmlun5p kernel: pci 0f36:00:02.0: [15b3:1016] type 00 class 0x020000 PCIe Endpoint
+Sep 12 17:01:09 runnervmlun5p kernel: pci 0f36:00:02.0: BAR 0 [mem 0xfc0000000-0xfc00fffff 64bit pref]
+Sep 12 17:01:09 runnervmlun5p kernel: pci 0f36:00:02.0: enabling Extended Tags
+Sep 12 17:01:09 runnervmlun5p kernel: pci 0f36:00:02.0: 0.000 Gb/s available PCIe bandwidth, limited by Unknown x0 link at 0f36:00:02.0 (capable of 63.008 Gb/s with 8.0 GT/s PCIe x8 link)
+Sep 12 17:01:09 runnervmlun5p kernel: pci_bus 0f36:00: busn_res: [bus 00-ff] end is updated to 00
+Sep 12 17:01:09 runnervmlun5p kernel: pci 0f36:00:02.0: BAR 0 [mem 0xfc0000000-0xfc00fffff 64bit pref]: assigned
+Sep 12 17:01:10 runnervmlun5p kernel: mlx5_core 0f36:00:02.0: enabling device (0000 -> 0002)
+Sep 12 17:01:10 runnervmlun5p kernel: mlx5_core 0f36:00:02.0: firmware version: 14.30.5026
+Sep 12 17:01:10 runnervmlun5p kernel: mlx5_core 0f36:00:02.0: Flow counters bulk query buffer size increased, bulk_query_len(8)
+Sep 12 17:01:10 runnervmlun5p kernel: hv_netvsc 000d3a30-1276-000d-3a30-1276000d3a30 eth0: VF registering: eth1
+Sep 12 17:01:10 runnervmlun5p kernel: mlx5_core 0f36:00:02.0 eth1: joined to eth0
+Sep 12 17:01:10 runnervmlun5p kernel: mlx5_core 0f36:00:02.0: MLX5E: StrdRq(0) RqSz(1024) StrdSz(256) RxCqeCmprss(0 basic)
+Sep 12 17:01:10 runnervmlun5p kernel: mlx5_core 0f36:00:02.0 enP3894s1: renamed from eth1
+Sep 12 17:01:10 runnervmlun5p kernel: MACsec IEEE 802.1AE
+Sep 12 17:01:10 runnervmlun5p kernel: mlx5_core 0f36:00:02.0 enP3894s1: Link up
+Sep 12 17:01:10 runnervmlun5p kernel: hv_netvsc 000d3a30-1276-000d-3a30-1276000d3a30 eth0: Data path switched to VF: enP3894s1
+Sep 12 17:01:10 runnervmlun5p kernel: mlx5_core 0f36:00:02.0 mlx5_0: Port: 1 Link ACTIVE
+Sep 12 17:04:22 runnervmlun5p kernel: audit: type=1400 audit(1789232662.900:127): apparmor="STATUS" operation="profile_load" profile="unconfined" name="ping" pid=4485 comm="apparmor_parser"
+Sep 12 17:04:22 runnervmlun5p kernel: audit: type=1400 audit(1789232662.939:128): apparmor="STATUS" operation="profile_load" profile="unconfined" name="php-fpm" pid=4491 comm="apparmor_parser"
+Sep 12 17:04:22 runnervmlun5p kernel: audit: type=1400 audit(1789232662.975:129): apparmor="STATUS" operation="profile_load" profile="unconfined" name="samba-bgqd" pid=4497 comm="apparmor_parser"
+Sep 12 17:04:23 runnervmlun5p kernel: audit: type=1400 audit(1789232663.012:130): apparmor="STATUS" operation="profile_load" profile="unconfined" name="samba-dcerpcd" pid=4503 comm="apparmor_parser"
+Sep 12 17:04:23 runnervmlun5p kernel: audit: type=1400 audit(1789232663.048:131): apparmor="STATUS" operation="profile_load" profile="unconfined" name="samba-rpcd" pid=4509 comm="apparmor_parser"
+Sep 12 17:04:23 runnervmlun5p kernel: audit: type=1400 audit(1789232663.084:132): apparmor="STATUS" operation="profile_load" profile="unconfined" name="samba-rpcd-classic" pid=4515 comm="apparmor_parser"
+Sep 12 17:04:23 runnervmlun5p kernel: audit: type=1400 audit(1789232663.120:133): apparmor="STATUS" operation="profile_load" profile="unconfined" name="samba-rpcd-spoolss" pid=4521 comm="apparmor_parser"
+Sep 12 17:04:23 runnervmlun5p kernel: audit: type=1400 audit(1789232663.138:134): apparmor="STATUS" operation="profile_load" profile="unconfined" name="klogd" pid=4527 comm="apparmor_parser"
+Sep 12 17:04:23 runnervmlun5p kernel: audit: type=1400 audit(1789232663.187:135): apparmor="STATUS" operation="profile_load" profile="unconfined" name="syslog-ng" pid=4533 comm="apparmor_parser"
+Sep 12 17:04:23 runnervmlun5p kernel: audit: type=1400 audit(1789232663.222:136): apparmor="STATUS" operation="profile_load" profile="unconfined" name="syslogd" pid=4539 comm="apparmor_parser"

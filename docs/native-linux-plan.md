@@ -178,3 +178,10 @@ executor tree and partial delegation setup never repeats its attach operation.
 All seven helper controls and WSL rejection of the three native fault controllers
 passed in default WSL Job `01a089b1-9a6a-7711-a600-39e2b74e495d~01a09692-c877-7911-8e9e-966c526f6553`.
 [Canonical controls](evidence/mr4-native-core-20260912/native-service-controls-v5/).
+
+No-helper installation run 34707073403 (`07d1d6f`) started its installed native
+daemon successfully and passed actual CPU/RAM observed admission and strict
+CPU/disk final release sampling. The process-coverage negative control correctly
+refused user-code release; the harness confused Attempt verdict `safety_failed`
+with its public Job outcome `failed`. Both levels are now checked explicitly.
+[Retained results](evidence/mr4-native-ci-20260912/run-34707073403/).

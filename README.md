@@ -17,6 +17,11 @@ deferred lifecycle checks; full MR-3 recovery acceptance remains open.
 Windows requires Windows 10 1809+ or Windows Server 2019+. WSL operation and its current lifetime
 boundaries are described in the [Windows/WSL operator guide](docs/windows-wsl-operation.md).
 
+The `linux` branch adds a [standalone Linux preview](docs/native-linux-operation.md).
+An independent native Ubuntu installation has passed real process, Cargo check/test
+and daemon-crash acceptance. Its newer service profile without a persistent helper
+and remaining native lifecycle checks are still under validation.
+
 ## What works today
 
 - **Durable execution.** Atomically ensure one Job or Batch from a stable key, receive a typed
