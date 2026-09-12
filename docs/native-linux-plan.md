@@ -106,3 +106,12 @@ Store/domain/process to become healthy. Default WSL Job
 passed five setup controls, syntax checks for all new launchers, and the candidate
 CLI negative control: native installation rejects WSL before creating its Store.
 [Canonical follow-up evidence](evidence/mr4-native-core-20260912/native-service-controls-v2/).
+
+The first native CI run [34704946322](https://github.com/pyboosted/stillyard/actions/runs/34704946322)
+built successfully and observed ext4, cgroup v2, systemd 255 and linger. Its
+namespace prerequisite failed before installation: bubblewrap could not set up
+the UID map. The Ubuntu reference workflow now explicitly loads the vendor
+`bwrap-userns-restrict` AppArmor profile; host-wide user-namespace restrictions
+remain enabled. This follows Ubuntu's [profile guidance](https://discourse.ubuntu.com/t/understanding-apparmor-user-namespace-restriction/58007)
+and remains subject to an actual exec-stop and installed-process rerun.
+[Raw first-run evidence](evidence/mr4-native-ci-20260912/run-34704946322/).

@@ -31,7 +31,18 @@ jobs:
       - name: Prepare native user manager
         run: |
           sudo apt-get update
-          sudo apt-get install -y bubblewrap dbus-user-session
+          sudo apt-get install -y bubblewrap dbus-user-session apparmor-profiles
+          # Ubuntu restricts unprivileged user namespaces. Enable its vendor
+          # bwrap profile, which strips capabilities from executed children.
+          # Keep the host-wide restriction enabled.
+          if test -f /etc/apparmor.d/bwrap-userns-restrict; then
+            sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
+          elif test -f /usr/share/apparmor/extra-profiles/bwrap-userns-restrict; then
+            sudo apparmor_parser -r /usr/share/apparmor/extra-profiles/bwrap-userns-restrict
+          else
+            echo 'Vendor bwrap user-namespace profile is unavailable'
+            exit 1
+          fi
           native_uid=$(id -u)
           sudo loginctl enable-linger "$(id -un)"
           sudo systemctl start "user@${native_uid}.service"
@@ -56,6 +67,8 @@ jobs:
           mkdir -p native-evidence
           journalctl --user -u stillyard.service --no-pager > native-evidence/service-journal.txt || true
           systemctl --user show stillyard.service > native-evidence/service-state.txt || true
+          sudo aa-status > native-evidence/apparmor-status.txt || true
+          sudo journalctl -k --no-pager > native-evidence/kernel-journal.txt || true
           python3 - <<'PY'
           import pathlib, subprocess
           root = pathlib.Path.cwd() / 'native-evidence'
