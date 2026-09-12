@@ -1,0 +1,2 @@
+Sep 12 16:24:35 runnervmlun5p systemd[1179]: /home/runner/.config/systemd/user/stillyard.service:7: WorkingDirectory= path is not absolute: "/home/runner/.local/share/stillyard"
+Sep 12 16:24:35 runnervmlun5p systemd[1179]: stillyard.service: Unit configuration has fatal error, unit will not be started.

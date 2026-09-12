@@ -1437,6 +1437,10 @@ impl Store {
             journal_mode.eq_ignore_ascii_case("wal") && synchronous == 2 && foreign_keys_enabled;
         let host_matches = self.startup_identity.host_id.is_some()
             && self.startup_identity.host_id == self.bound_host_id;
+        #[cfg(target_os = "linux")]
+        let native_linux = super::native_linux::load(&self.paths.root)?.is_some();
+        #[cfg(not(target_os = "linux"))]
+        let native_linux = false;
         let mut checks = vec![
             DoctorCheck {
                 code: "configuration.loaded".into(),
@@ -1492,6 +1496,8 @@ impl Store {
                 status: crate::platform::session_survival_status(),
                 summary: if cfg!(windows) {
                     "detached per-user daemon session is active"
+                } else if native_linux {
+                    "native Linux session survival requires the delegated user service, linger and separate runtime acceptance"
                 } else {
                     "WSL lifetime requires the installed external keepalive and runtime acceptance"
                 }

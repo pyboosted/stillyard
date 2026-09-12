@@ -25,7 +25,7 @@ pub(crate) fn containment_summary() -> &'static str {
     if cfg!(windows) {
         "born-contained Windows Job Object capability"
     } else if cfg!(target_os = "linux") {
-        "born-contained cgroup v2 executor requires an installed attachment and delegated boundary"
+        "born-contained cgroup v2 executor requires an installed Linux runtime and delegated boundary"
     } else {
         "this platform has no implemented invocation containment backend"
     }

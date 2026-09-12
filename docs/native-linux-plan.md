@@ -115,3 +115,11 @@ the UID map. The Ubuntu reference workflow now explicitly loads the vendor
 remain enabled. This follows Ubuntu's [profile guidance](https://discourse.ubuntu.com/t/understanding-apparmor-user-namespace-restriction/58007)
 and remains subject to an actual exec-stop and installed-process rerun.
 [Raw first-run evidence](evidence/mr4-native-ci-20260912/run-34704946322/).
+
+The second native run [34705088046](https://github.com/pyboosted/stillyard/actions/runs/34705088046)
+passed every prerequisite including the actual namespace exec-stop control using
+the vendor AppArmor profile. systemd then rejected a quoted `WorkingDirectory`:
+this setting takes the absolute path without ExecStart argument quoting. The
+installer now generates that correctly, verifies the unit with systemd-analyze,
+and checks `enable` and `start` separately. Native service startup remains pending
+until the next recorded result. [Raw evidence](evidence/mr4-native-ci-20260912/run-34705088046/).

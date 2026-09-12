@@ -76,6 +76,8 @@ def main():
         parser.error('native profile requires systemd >=254 with DelegateSubgroup')
     root = Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share'))) / 'stillyard'
     root = root.absolute()
+    if any(ord(character) < 32 for character in str(root)):
+        parser.error('native service installation path must not contain control characters')
     unit = Path.home() / '.config/systemd/user/stillyard.service'
     if root.exists() or root.is_symlink() or unit.exists() or unit.is_symlink():
         parser.error('first installation refuses existing Store or service; preserve it for audited upgrade/recovery')
@@ -105,7 +107,7 @@ Description=Stillyard standalone Linux scheduler
 [Service]
 Type=simple
 ExecStart=/usr/bin/python3 {quote(helper)} --root {quote(root)} --executors {quote(executors)} --ram-mb {args.ram_mb}
-WorkingDirectory={quote(root)}
+WorkingDirectory={str(root).replace('%', '%%')}
 Environment={quote('XDG_DATA_HOME=' + str(root.parent))}
 Delegate=cpu memory pids
 DelegateSubgroup=manager
@@ -148,8 +150,11 @@ WantedBy=default.target
         })
         unit.parent.mkdir(parents=True, exist_ok=True)
         write_new(unit, unit_text.encode())
+        subprocess.run(['/usr/bin/systemd-analyze', '--user', 'verify', str(unit)], check=True, timeout=15)
         subprocess.run(['/usr/bin/systemctl', '--user', 'daemon-reload'], check=True, timeout=15)
-        subprocess.run(['/usr/bin/systemctl', '--user', 'enable', '--now', 'stillyard.service'],
+        subprocess.run(['/usr/bin/systemctl', '--user', 'enable', 'stillyard.service'],
+                       check=True, timeout=15)
+        subprocess.run(['/usr/bin/systemctl', '--user', 'start', 'stillyard.service'],
                        check=True, timeout=30)
         until = time.monotonic() + 45
         while not (root / 'native-install-result.json').exists():
